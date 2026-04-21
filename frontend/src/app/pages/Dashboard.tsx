@@ -1,9 +1,30 @@
+import { useEffect } from 'react';
 import { SummaryCards } from '../components/dashboard/SummaryCards';
-import { BranchTable } from '../components/dashboard/BranchTable';
-import { RecentActivity } from '../components/dashboard/RecentActivity';
-import { Filter, Download, RefreshCw } from 'lucide-react';
+import { DashboardCalendar } from '../components/dashboard/DashboardCalendar';
+import { StaffDashboard } from '../components/dashboard/StaffDashboard';
+import { RefreshCw, Loader2 } from 'lucide-react';
+import { useReportStore } from '../../stores/reportStore';
+import { useAuthStore } from '../../stores/authStore';
 
 export function Dashboard() {
+  const { reports, fetchReports, isLoading } = useReportStore();
+  const { user } = useAuthStore();
+
+  const isAdmin = user?.role === 'admin';
+
+  useEffect(() => {
+    fetchReports({});
+  }, [fetchReports]);
+
+  const handleRefresh = () => {
+    fetchReports({});
+  };
+
+  // Staff / Technician / Doctor see a different dashboard
+  if (!isAdmin) {
+    return <StaffDashboard />;
+  }
+
   return (
     <div className="space-y-4">
       {/* Page Header */}
@@ -15,16 +36,16 @@ export function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="h-8 px-2.5 flex items-center gap-1.5 bg-card border border-border rounded hover:bg-accent transition-colors text-xs">
-            <Filter className="w-3.5 h-3.5" />
-            Filter
-          </button>
-          <button className="h-8 px-2.5 flex items-center gap-1.5 bg-card border border-border rounded hover:bg-accent transition-colors text-xs">
-            <Download className="w-3.5 h-3.5" />
-            Export
-          </button>
-          <button className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs">
-            <RefreshCw className="w-3.5 h-3.5" />
+          <button
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs disabled:opacity-50"
+          >
+            {isLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
             Refresh
           </button>
         </div>
@@ -33,18 +54,8 @@ export function Dashboard() {
       {/* Summary Cards */}
       <SummaryCards />
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        {/* Branch Table - Takes up 2 columns on xl screens */}
-        <div className="xl:col-span-2">
-          <BranchTable />
-        </div>
-
-        {/* Recent Activity - Takes up 1 column */}
-        <div className="xl:col-span-1">
-          <RecentActivity />
-        </div>
-      </div>
+      {/* Calendar View */}
+      <DashboardCalendar reports={reports} />
     </div>
   );
 }

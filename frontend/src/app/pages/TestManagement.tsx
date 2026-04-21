@@ -1,223 +1,147 @@
-import { useState } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { 
   Plus, 
   Search, 
   Edit,
   Eye,
-  MoreVertical,
   X,
-  DollarSign,
+  IndianRupee,
   Clock,
   Activity,
-  CheckCircle,
-  AlertCircle,
   Beaker,
   Trash2,
-  Copy
+  Loader2,
+  AlertCircle,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
+import { useTestStore } from '../../stores';
+import { useAuthStore } from '../../stores';
+import { useBranchStore } from '../../stores';
+import { testApi } from '../../api';
+import type { Test, CreateTestData, TestField, CreateTestFieldData, FieldType } from '../../types';
 
-interface TestParameter {
-  id: string;
-  name: string;
-  unit: string;
-  refRangeMale: string;
-  refRangeFemale: string;
-  criticalLow: string;
-  criticalHigh: string;
-  autoFlag: boolean;
-}
+// Common lab measurement units organized by category
+const LAB_UNITS: Record<string, string[]> = {
+  'Concentration': ['g/dL', 'mg/dL', 'µg/dL', 'g/L', 'mg/L', 'µg/L', 'ng/mL', 'pg/mL'],
+  'Molar': ['mmol/L', 'µmol/L', 'nmol/L', 'pmol/L', 'mEq/L'],
+  'Enzyme': ['U/L', 'IU/L', 'mIU/mL', 'IU/mL'],
+  'Cell Count': ['cells/µL', 'cells/mm³', 'x10³/µL', 'x10⁶/µL', 'x10⁹/L', 'x10¹²/L'],
+  'Percentage & Ratio': ['%', 'ratio', 'index'],
+  'Hematology': ['fL', 'pg', 'mm/hr', 'sec'],
+  'Volume': ['mL', 'L', 'dL', 'µL'],
+  'Other Numeric': ['mm Hg', 'mOsm/kg', 'pH', 'mg/24hr', 'mL/min'],
+  'Qualitative': ['Color', 'Appearance', 'Consistency', 'Odor', 'Viscosity', 'Turbidity', 'Presence'],
+};
 
-interface Test {
-  id: string;
-  name: string;
-  category: 'CBC' | 'Biochemistry' | 'Hormone' | 'Immunology' | 'Microbiology' | 'Serology';
-  parametersCount: number;
-  price: number;
-  turnaroundTime: string;
-  status: 'active' | 'inactive';
-  parameters: TestParameter[];
-}
+const QUALITATIVE_UNITS = ['Color', 'Appearance', 'Consistency', 'Odor', 'Viscosity', 'Turbidity', 'Presence'];
 
-const MOCK_TESTS: Test[] = [
-  {
-    id: 'TEST-001',
-    name: 'Complete Blood Count (CBC)',
-    category: 'CBC',
-    parametersCount: 9,
-    price: 150,
-    turnaroundTime: '2-4 hours',
-    status: 'active',
-    parameters: [
-      { id: 'P1', name: 'Hemoglobin', unit: 'g/dL', refRangeMale: '13.5-17.5', refRangeFemale: '12.0-15.5', criticalLow: '7.0', criticalHigh: '20.0', autoFlag: true },
-      { id: 'P2', name: 'RBC Count', unit: 'mil/µL', refRangeMale: '4.5-5.9', refRangeFemale: '4.1-5.1', criticalLow: '2.0', criticalHigh: '7.0', autoFlag: true },
-      { id: 'P3', name: 'WBC Count', unit: 'thou/µL', refRangeMale: '4.5-11.0', refRangeFemale: '4.5-11.0', criticalLow: '2.0', criticalHigh: '30.0', autoFlag: true },
-    ],
-  },
-  {
-    id: 'TEST-002',
-    name: 'Lipid Profile',
-    category: 'Biochemistry',
-    parametersCount: 5,
-    price: 200,
-    turnaroundTime: '4-6 hours',
-    status: 'active',
-    parameters: [
-      { id: 'P4', name: 'Total Cholesterol', unit: 'mg/dL', refRangeMale: '<200', refRangeFemale: '<200', criticalLow: '', criticalHigh: '400', autoFlag: true },
-      { id: 'P5', name: 'HDL Cholesterol', unit: 'mg/dL', refRangeMale: '>40', refRangeFemale: '>50', criticalLow: '20', criticalHigh: '', autoFlag: true },
-    ],
-  },
-  {
-    id: 'TEST-003',
-    name: 'Thyroid Profile (T3, T4, TSH)',
-    category: 'Hormone',
-    parametersCount: 3,
-    price: 350,
-    turnaroundTime: '6-8 hours',
-    status: 'active',
-    parameters: [
-      { id: 'P6', name: 'TSH', unit: 'µIU/mL', refRangeMale: '0.4-4.0', refRangeFemale: '0.4-4.0', criticalLow: '0.1', criticalHigh: '10.0', autoFlag: true },
-      { id: 'P7', name: 'Free T4', unit: 'ng/dL', refRangeMale: '0.8-1.8', refRangeFemale: '0.8-1.8', criticalLow: '0.3', criticalHigh: '4.0', autoFlag: true },
-    ],
-  },
-  {
-    id: 'TEST-004',
-    name: 'Liver Function Test (LFT)',
-    category: 'Biochemistry',
-    parametersCount: 8,
-    price: 280,
-    turnaroundTime: '3-5 hours',
-    status: 'active',
-    parameters: [],
-  },
-  {
-    id: 'TEST-005',
-    name: 'Kidney Function Test (KFT)',
-    category: 'Biochemistry',
-    parametersCount: 6,
-    price: 250,
-    turnaroundTime: '3-5 hours',
-    status: 'active',
-    parameters: [],
-  },
-  {
-    id: 'TEST-006',
-    name: 'HbA1c (Glycated Hemoglobin)',
-    category: 'Biochemistry',
-    parametersCount: 1,
-    price: 180,
-    turnaroundTime: '2-4 hours',
-    status: 'active',
-    parameters: [],
-  },
-  {
-    id: 'TEST-007',
-    name: 'Vitamin D (25-OH)',
-    category: 'Hormone',
-    parametersCount: 1,
-    price: 420,
-    turnaroundTime: '24 hours',
-    status: 'active',
-    parameters: [],
-  },
-  {
-    id: 'TEST-008',
-    name: 'COVID-19 RT-PCR',
-    category: 'Microbiology',
-    parametersCount: 1,
-    price: 500,
-    turnaroundTime: '6-12 hours',
-    status: 'inactive',
-    parameters: [],
-  },
-];
+const QUALITATIVE_DEFAULTS: Record<string, string[]> = {
+  'Color': ['Pale Yellow', 'Yellow', 'Dark Yellow', 'Amber', 'Orange', 'Red', 'Brown', 'Colorless', 'Gray-White', 'Straw'],
+  'Appearance': ['Clear', 'Slightly Turbid', 'Turbid', 'Cloudy', 'Opaque', 'Translucent'],
+  'Consistency': ['Formed', 'Semi-formed', 'Soft', 'Loose', 'Watery', 'Hard'],
+  'Odor': ['Normal', 'Foul', 'Fruity', 'Ammonia-like', 'Pungent'],
+  'Viscosity': ['Normal', 'High', 'Low', 'Watery', 'Thick'],
+  'Turbidity': ['Clear', 'Slightly Turbid', 'Turbid', 'Very Turbid'],
+  'Presence': ['Absent', 'Present', 'Nil', 'Trace', '1+', '2+', '3+', '4+'],
+};
 
 export function TestManagement() {
+  const {
+    tests,
+    isLoading,
+    error,
+    fetchTests,
+    createTest,
+    updateTest,
+    deleteTest
+  } = useTestStore();
+
+  const { user } = useAuthStore();
+  const { currentBranchId } = useBranchStore();
+  const canEditTest = user?.role === 'admin' || user?.role === 'lab_technician';
+  const canDeleteTest = user?.role === 'admin';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [showTestModal, setShowTestModal] = useState(false);
-  const [showParametersModal, setShowParametersModal] = useState(false);
   const [selectedTest, setSelectedTest] = useState<Test | null>(null);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
-  const filteredTests = MOCK_TESTS.filter(test => {
+  // Fetch tests on mount or branch change
+  useEffect(() => {
+    if (currentBranchId) {
+      fetchTests(currentBranchId);
+    }
+  }, [fetchTests, currentBranchId]);
+
+  const filteredTests = tests.filter(test => {
     const matchesSearch = 
-      test.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      test.test_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      test.test_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       test.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'all' || test.category === categoryFilter;
-    const matchesStatus = statusFilter === 'all' || test.status === statusFilter;
-    return matchesSearch && matchesCategory && matchesStatus;
+    return matchesSearch && matchesCategory;
   });
 
-  const getCategoryBadge = (category: Test['category']) => {
-    const styles = {
+  const getCategoryBadge = (category?: string) => {
+    const styles: Record<string, { bg: string; text: string }> = {
       'CBC': { bg: '#ef4444', text: '#ffffff' },
       'Biochemistry': { bg: '#3b82f6', text: '#ffffff' },
       'Hormone': { bg: '#8b5cf6', text: '#ffffff' },
       'Immunology': { bg: '#10b981', text: '#ffffff' },
       'Microbiology': { bg: '#f59e0b', text: '#ffffff' },
       'Serology': { bg: '#ec4899', text: '#ffffff' },
+      'default': { bg: '#6b7280', text: '#ffffff' },
     };
 
-    const style = styles[category];
+    const style = styles[category || ''] || styles['default'];
     return (
       <span
         className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide"
         style={{ backgroundColor: style.bg, color: style.text }}
       >
-        {category}
+        {category || 'Other'}
       </span>
     );
   };
 
-  const getStatusBadge = (status: Test['status']) => {
-    if (status === 'active') {
-      return (
-        <span
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide"
-          style={{ backgroundColor: 'var(--success)', color: 'var(--success-foreground)' }}
-        >
-          <CheckCircle className="w-2.5 h-2.5" />
-          Active
-        </span>
-      );
-    } else {
-      return (
-        <span
-          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide"
-          style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}
-        >
-          Inactive
-        </span>
-      );
-    }
-  };
-
-  const categoryCount = {
-    CBC: filteredTests.filter(t => t.category === 'CBC').length,
-    Biochemistry: filteredTests.filter(t => t.category === 'Biochemistry').length,
-    Hormone: filteredTests.filter(t => t.category === 'Hormone').length,
-    Immunology: filteredTests.filter(t => t.category === 'Immunology').length,
-    Microbiology: filteredTests.filter(t => t.category === 'Microbiology').length,
-    Serology: filteredTests.filter(t => t.category === 'Serology').length,
-  };
-
-  const activeCount = filteredTests.filter(t => t.status === 'active').length;
-  const totalParameters = filteredTests.reduce((sum, t) => sum + t.parametersCount, 0);
-  const avgPrice = Math.round(filteredTests.reduce((sum, t) => sum + t.price, 0) / filteredTests.length);
+  // Get unique categories
+  const categories = [...new Set(tests.map(t => t.category).filter(Boolean))];
+  
+  // Calculate stats
+  const avgPrice = tests.length > 0 
+    ? Math.round(tests.reduce((sum, t) => sum + Number(t.price || 0), 0) / tests.length) 
+    : 0;
 
   const handleEdit = (test: Test) => {
     setSelectedTest(test);
     setShowTestModal(true);
   };
 
-  const handleViewParameters = (test: Test) => {
-    setSelectedTest(test);
-    setShowParametersModal(true);
-  };
-
   const handleAdd = () => {
     setSelectedTest(null);
     setShowTestModal(true);
+  };
+
+  const handleDelete = async (testId: string) => {
+    if (!confirm('Are you sure you want to delete this test?')) return;
+    
+    setIsDeleting(testId);
+    try {
+      await deleteTest(testId);
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
+  // Format turnaround time
+  const formatTAT = (hours?: number) => {
+    if (!hours) return '-';
+    if (hours < 24) return `${hours}h`;
+    const days = Math.floor(hours / 24);
+    const remainingHours = hours % 24;
+    return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
   };
 
   return (
@@ -227,16 +151,18 @@ export function TestManagement() {
         <div>
           <h1 className="text-foreground text-lg mb-0.5">Test Management</h1>
           <p className="text-muted-foreground text-xs">
-            Configure laboratory tests, parameters, and pricing
+            Configure laboratory tests and pricing
           </p>
         </div>
-        <button 
-          onClick={handleAdd}
-          className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Test
-        </button>
+        {canEditTest && (
+          <button 
+            onClick={handleAdd}
+            className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Test
+          </button>
+        )}
       </div>
 
       {/* Summary Cards */}
@@ -246,35 +172,37 @@ export function TestManagement() {
             <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Total Tests</span>
             <Beaker className="w-3.5 h-3.5 text-muted-foreground" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">{filteredTests.length}</div>
-          <div className="text-[10px] text-success mt-0.5">{activeCount} active</div>
-        </div>
-
-        <div className="bg-card border border-border rounded p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Parameters</span>
-            <Activity className="w-3.5 h-3.5 text-muted-foreground" />
-          </div>
-          <div className="text-foreground text-xl tabular-nums">{totalParameters}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Total configured</div>
-        </div>
-
-        <div className="bg-card border border-border rounded p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Avg Price</span>
-            <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
-          </div>
-          <div className="text-foreground text-xl tabular-nums">${avgPrice}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Per test</div>
+          <div className="text-foreground text-xl tabular-nums">{tests.length}</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">Configured</div>
         </div>
 
         <div className="bg-card border border-border rounded p-3">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Categories</span>
+            <Activity className="w-3.5 h-3.5 text-muted-foreground" />
+          </div>
+          <div className="text-foreground text-xl tabular-nums">{categories.length}</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">Test types</div>
+        </div>
+
+        <div className="bg-card border border-border rounded p-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Avg Price</span>
+            <IndianRupee className="w-3.5 h-3.5 text-muted-foreground" />
+          </div>
+          <div className="text-foreground text-xl tabular-nums">₹{avgPrice}</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">Per test</div>
+        </div>
+
+        <div className="bg-card border border-border rounded p-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Sample Types</span>
             <Beaker className="w-3.5 h-3.5 text-muted-foreground" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">6</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Test types</div>
+          <div className="text-foreground text-xl tabular-nums">
+            {new Set(tests.map(t => t.sample_type).filter(Boolean)).size}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">Unique</div>
         </div>
       </div>
 
@@ -284,7 +212,7 @@ export function TestManagement() {
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
           <input 
             type="text"
-            placeholder="Search by test name or ID..."
+            placeholder="Search by test name or code..."
             className="w-full h-8 pl-8 pr-3 bg-secondary border-0 rounded text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -299,304 +227,653 @@ export function TestManagement() {
           onChange={(e) => setCategoryFilter(e.target.value)}
         >
           <option value="all">All Categories</option>
-          <option value="CBC">CBC</option>
-          <option value="Biochemistry">Biochemistry</option>
-          <option value="Hormone">Hormone</option>
-          <option value="Immunology">Immunology</option>
-          <option value="Microbiology">Microbiology</option>
-          <option value="Serology">Serology</option>
-        </select>
-
-        <select 
-          className="h-8 text-xs bg-secondary border-0 rounded px-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="all">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
+          {categories.map(cat => (
+            <option key={cat} value={cat}>{cat}</option>
+          ))}
         </select>
       </div>
+
+      {/* Error State */}
+      {error && (
+        <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded text-destructive text-sm">
+          <AlertCircle className="w-4 h-4" />
+          {error}
+        </div>
+      )}
+
+      {/* Loading State */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          <span className="ml-2 text-muted-foreground text-sm">Loading tests...</span>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!isLoading && !error && filteredTests.length === 0 && (
+        <div className="text-center py-12 bg-card border border-border rounded">
+          <div className="text-muted-foreground text-sm">
+            {tests.length === 0 ? 'No tests found. Add your first test to get started.' : 'No tests match your search criteria.'}
+          </div>
+          {tests.length === 0 && canEditTest && (
+            <button
+              onClick={handleAdd}
+              className="mt-4 h-8 px-3 bg-primary text-white rounded text-sm hover:opacity-90 transition-opacity"
+            >
+              Add Test
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Test Table */}
-      <div className="bg-card border border-border rounded overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-secondary/30 sticky top-0 z-10">
-              <tr className="border-b border-border">
-                <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Test Name</th>
-                <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Category</th>
-                <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Parameters</th>
-                <th className="px-3 py-2 text-right text-muted-foreground text-[10px] uppercase tracking-wider">Price</th>
-                <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">TAT</th>
-                <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Status</th>
-                <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-28">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filteredTests.map((test) => (
-                <tr 
-                  key={test.id} 
-                  className="hover:bg-accent/30 transition-colors"
-                >
-                  <td className="px-3 py-2">
-                    <div className="flex flex-col">
-                      <span className="text-xs text-foreground">{test.name}</span>
-                      <span className="text-[10px] text-muted-foreground tabular-nums">{test.id}</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-center">
-                    {getCategoryBadge(test.category)}
-                  </td>
-                  <td className="px-3 py-2 text-center">
-                    <span className="text-xs text-foreground tabular-nums">{test.parametersCount}</span>
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <span className="text-xs text-foreground tabular-nums">${test.price}</span>
-                  </td>
-                  <td className="px-3 py-2 text-center">
-                    <span className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {test.turnaroundTime}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-center">
-                    {getStatusBadge(test.status)}
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center justify-center gap-1">
-                      <button 
-                        onClick={() => handleViewParameters(test)}
-                        className="h-6 px-1.5 flex items-center gap-1 rounded hover:bg-accent transition-colors text-muted-foreground text-[10px]"
-                        title="View Parameters"
-                      >
-                        <Eye className="w-3 h-3" />
-                        Params
-                      </button>
-                      <button 
-                        onClick={() => handleEdit(test)}
-                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
-                        title="Edit"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                      </button>
-                      <button 
-                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
-                        title="More"
-                      >
-                        <MoreVertical className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
+      {!isLoading && filteredTests.length > 0 && (
+        <div className="bg-card border border-border rounded overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-secondary/30 sticky top-0 z-10">
+                <tr className="border-b border-border">
+                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Test Name</th>
+                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Code</th>
+                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Category</th>
+                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Sample</th>
+                  <th className="px-3 py-2 text-right text-muted-foreground text-[10px] uppercase tracking-wider">Price</th>
+                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">TAT</th>
+                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-28">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredTests.map((test) => (
+                  <tr 
+                    key={test.id} 
+                    className="hover:bg-accent/30 transition-colors"
+                  >
+                    <td className="px-3 py-2">
+                      <div className="flex flex-col">
+                        <span className="text-xs text-foreground">{test.test_name}</span>
+                        {test.description && (
+                          <span className="text-[10px] text-muted-foreground truncate max-w-[200px]">{test.description}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <span className="text-xs text-muted-foreground tabular-nums">{test.test_code}</span>
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {getCategoryBadge(test.category)}
+                    </td>
+                    <td className="px-3 py-2 text-center text-xs text-muted-foreground">
+                      {test.sample_type || '-'}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <span className="text-xs text-foreground tabular-nums">
+                        {test.price ? `₹${test.price}` : '-'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <span className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {formatTAT(test.turnaround_time)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center justify-center gap-1">
+                        {canEditTest ? (
+                          <button 
+                            onClick={() => handleEdit(test)}
+                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
+                            title="Edit"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={() => handleEdit(test)}
+                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
+                            title="View Details"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {canDeleteTest && (
+                          <button 
+                            onClick={() => handleDelete(test.id)}
+                            disabled={isDeleting === test.id}
+                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-destructive disabled:opacity-50"
+                            title="Delete"
+                          >
+                            {isDeleting === test.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-        {/* Footer */}
-        <div className="border-t border-border bg-secondary/30 px-3 py-2 flex justify-between items-center">
-          <div className="text-xs text-muted-foreground">
-            Showing <span className="text-foreground">{filteredTests.length}</span> of <span className="text-foreground">{MOCK_TESTS.length}</span> tests
+          {/* Footer */}
+          <div className="border-t border-border bg-secondary/30 px-3 py-2 flex justify-between items-center">
+            <div className="text-xs text-muted-foreground">
+              Showing <span className="text-foreground">{filteredTests.length}</span> of <span className="text-foreground">{tests.length}</span> tests
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Add/Edit Test Modal */}
       {showTestModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-lg w-full max-w-2xl max-h-[90vh] overflow-auto">
-            <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between">
-              <h2 className="text-foreground text-sm">
-                {selectedTest ? 'Edit Test' : 'Add New Test'}
-              </h2>
-              <button 
-                onClick={() => setShowTestModal(false)}
-                className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+        <TestModal
+          test={selectedTest}
+          categories={categories}
+          readOnly={!canEditTest}
+          onClose={() => {
+            setShowTestModal(false);
+            setSelectedTest(null);
+          }}
+          onSave={async (data) => {
+            let result = null;
+            if (selectedTest) {
+              result = await updateTest(selectedTest.id, data);
+            } else {
+              result = await createTest({ ...data, branch_id: currentBranchId! });
+            }
+            setShowTestModal(false);
+            setSelectedTest(null);
+            return result;
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Test Modal Component
+interface TestModalProps {
+  test: Test | null;
+  categories: (string | undefined)[];
+  readOnly?: boolean;
+  onClose: () => void;
+  onSave: (data: CreateTestData) => Promise<Test | null | void>;
+}
+
+function TestModal({ test, categories, readOnly = false, onClose, onSave }: TestModalProps) {
+  const [formData, setFormData] = useState<CreateTestData>({
+    test_name: test?.test_name || '',
+    test_code: test?.test_code || '',
+    category: test?.category || '',
+    sample_type: test?.sample_type || '',
+    price: test?.price,
+    turnaround_time: test?.turnaround_time,
+    description: test?.description || '',
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Field editor state
+  const [fields, setFields] = useState<CreateTestFieldData[]>([]);
+  const [loadingFields, setLoadingFields] = useState(false);
+  const [customUnitMode, setCustomUnitMode] = useState<Set<number>>(new Set());
+
+  // Load existing fields when editing
+  useEffect(() => {
+    if (test?.id) {
+      setLoadingFields(true);
+      testApi.getFields(test.id)
+        .then(res => {
+          setFields(res.data.map((f: TestField) => ({
+            field_name: f.field_name,
+            unit: f.unit || '',
+            min_value: f.min_value ?? undefined,
+            max_value: f.max_value ?? undefined,
+            input_type: f.input_type || 'number',
+            order_index: f.order_index ?? 0,
+            field_type: f.field_type || 'input',
+            formula: f.formula || '',
+            depends_on: f.depends_on || '',
+          })));
+        })
+        .catch(() => {})
+        .finally(() => setLoadingFields(false));
+    }
+  }, [test?.id]);
+
+  // Detect existing custom units when fields are loaded
+  useEffect(() => {
+    const known = new Set(Object.values(LAB_UNITS).flat());
+    const custom = new Set<number>();
+    fields.forEach((f, i) => {
+      if (f.unit && !known.has(f.unit)) custom.add(i);
+    });
+    setCustomUnitMode(custom);
+  }, [fields.length]);
+
+  const addField = () => {
+    setFields(prev => [...prev, {
+      field_name: '',
+      unit: '',
+      min_value: undefined,
+      max_value: undefined,
+      input_type: 'number',
+      order_index: prev.length,
+      field_type: 'input',
+      formula: '',
+      depends_on: '',
+    }]);
+  };
+
+  const updateField = (index: number, updates: Partial<CreateTestFieldData>) => {
+    setFields(prev => prev.map((f, i) => {
+      if (i !== index) return f;
+      const updated = { ...f, ...updates };
+      // Auto-configure for qualitative units
+      if (updates.unit !== undefined && QUALITATIVE_UNITS.includes(updates.unit)) {
+        updated.input_type = 'text';
+        updated.field_type = 'input';
+        updated.min_value = undefined;
+        updated.max_value = undefined;
+        if (!f.formula || !QUALITATIVE_UNITS.includes(f.unit || '')) {
+          updated.formula = (QUALITATIVE_DEFAULTS[updates.unit] || []).join(', ');
+        }
+      }
+      return updated;
+    }));
+  };
+
+  const removeField = (index: number) => {
+    setFields(prev => prev.filter((_, i) => i !== index).map((f, i) => ({ ...f, order_index: i })));
+  };
+
+  const moveField = (index: number, direction: 'up' | 'down') => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= fields.length) return;
+    const newFields = [...fields];
+    [newFields[index], newFields[newIndex]] = [newFields[newIndex], newFields[index]];
+    setFields(newFields.map((f, i) => ({ ...f, order_index: i })));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const result = await onSave(formData);
+
+      // Save fields — use existing test ID or ID from newly created test
+      const targetId = test?.id || (result && typeof result === 'object' && 'id' in result ? result.id : null);
+      if (targetId) {
+        const validFields = fields.filter(f => f.field_name.trim());
+        if (validFields.length > 0) {
+          await testApi.setFields(targetId, validFields);
+        }
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const sampleTypes = ['Blood', 'Urine', 'Stool', 'Saliva', 'Swab', 'CSF', 'Other'];
+  const defaultCategories = ['CBC', 'Biochemistry', 'Hormone', 'Immunology', 'Microbiology', 'Serology'];
+  const allCategories = [...new Set([...defaultCategories, ...categories.filter(Boolean)])];
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-lg w-full max-w-5xl max-h-[90vh] overflow-auto">
+        <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between">
+          <h2 className="text-foreground text-sm font-medium">
+            {readOnly ? 'View Test Details' : test ? 'Edit Test' : 'Add New Test'}
+          </h2>
+          <button 
+            onClick={onClose}
+            className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          <fieldset disabled={readOnly} className={readOnly ? 'opacity-80' : ''}>
+          {/* Basic Info */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="text-xs text-muted-foreground block mb-1">Test Name *</label>
+              <input 
+                type="text"
+                value={formData.test_name}
+                onChange={e => setFormData(prev => ({ ...prev, test_name: e.target.value }))}
+                className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="e.g., Complete Blood Count (CBC)"
+                required
+              />
             </div>
-
-            <div className="p-4 space-y-4">
-              <div>
-                <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Basic Information</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2">
-                    <label className="text-xs text-foreground block mb-1">Test Name *</label>
-                    <input 
-                      type="text"
-                      className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      defaultValue={selectedTest?.name}
-                      placeholder="e.g., Complete Blood Count (CBC)"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-foreground block mb-1">Category *</label>
-                    <select 
-                      className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      defaultValue={selectedTest?.category}
-                    >
-                      <option value="">Select category...</option>
-                      <option value="CBC">CBC</option>
-                      <option value="Biochemistry">Biochemistry</option>
-                      <option value="Hormone">Hormone</option>
-                      <option value="Immunology">Immunology</option>
-                      <option value="Microbiology">Microbiology</option>
-                      <option value="Serology">Serology</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-foreground block mb-1">Test ID</label>
-                    <input 
-                      type="text"
-                      className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      defaultValue={selectedTest?.id}
-                      placeholder="Auto-generated"
-                      disabled
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Pricing & Turnaround</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-foreground block mb-1">Price (USD) *</label>
-                    <input 
-                      type="number"
-                      className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      defaultValue={selectedTest?.price}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-foreground block mb-1">Turnaround Time *</label>
-                    <input 
-                      type="text"
-                      className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      defaultValue={selectedTest?.turnaroundTime}
-                      placeholder="e.g., 2-4 hours"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-foreground block mb-1">Status *</label>
-                    <select 
-                      className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      defaultValue={selectedTest?.status || 'active'}
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Test Code *</label>
+              <input 
+                type="text"
+                value={formData.test_code}
+                onChange={e => setFormData(prev => ({ ...prev, test_code: e.target.value }))}
+                className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="e.g., CBC-01"
+                required
+              />
             </div>
-
-            <div className="sticky bottom-0 bg-card border-t border-border px-4 py-3 flex items-center justify-end gap-2">
-              <button 
-                onClick={() => setShowTestModal(false)}
-                className="h-8 px-3 bg-secondary border border-border rounded text-xs hover:bg-accent transition-colors"
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Category</label>
+              <select 
+                value={formData.category}
+                onChange={e => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                Cancel
-              </button>
-              <button 
-                className="h-8 px-3 bg-primary text-white rounded text-xs hover:opacity-90 transition-opacity"
-              >
-                {selectedTest ? 'Save Changes' : 'Create Test'}
-              </button>
+                <option value="">Select category...</option>
+                {allCategories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Parameters Modal */}
-      {showParametersModal && selectedTest && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-lg w-full max-w-5xl max-h-[90vh] overflow-auto">
-            <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between">
-              <div>
-                <h2 className="text-foreground text-sm">{selectedTest.name} - Parameters</h2>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{selectedTest.parametersCount} parameters configured</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button 
-                  className="h-7 px-2 flex items-center gap-1 bg-primary text-white rounded hover:opacity-90 transition-opacity text-[11px]"
-                >
-                  <Plus className="w-3 h-3" />
-                  Add Parameter
-                </button>
-                <button 
-                  onClick={() => setShowParametersModal(false)}
-                  className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+          {/* Sample & Pricing */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Sample Type</label>
+              <select 
+                value={formData.sample_type}
+                onChange={e => setFormData(prev => ({ ...prev, sample_type: e.target.value }))}
+                className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">Select...</option>
+                {sampleTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Price (₹)</label>
+              <input 
+                type="number"
+                value={formData.price || ''}
+                onChange={e => setFormData(prev => ({ ...prev, price: e.target.value ? Number(e.target.value) : undefined }))}
+                className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="0"
+                min="0"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">TAT (hours)</label>
+              <input 
+                type="number"
+                value={formData.turnaround_time || ''}
+                onChange={e => setFormData(prev => ({ ...prev, turnaround_time: e.target.value ? Number(e.target.value) : undefined }))}
+                className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="e.g., 24"
+                min="0"
+              />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="text-xs text-muted-foreground block mb-1">Description</label>
+            <textarea 
+              value={formData.description}
+              onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              className="w-full h-20 px-3 py-2 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+              placeholder="Brief description of the test..."
+            />
+          </div>
+
+          {/* Test Parameters / Fields Editor */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs text-muted-foreground">
+                Test Parameters {fields.length > 0 && <span className="text-foreground">({fields.length})</span>}
+              </label>
+              <button
+                type="button"
+                onClick={addField}
+                className="h-6 px-2 flex items-center gap-1 bg-primary text-white rounded text-[10px] hover:opacity-90 transition-opacity"
+              >
+                <Plus className="w-3 h-3" />
+                Add Parameter
+              </button>
             </div>
 
-            <div className="p-4">
-              {selectedTest.parameters.length > 0 ? (
-                <div className="bg-card border border-border rounded overflow-hidden">
-                  <table className="w-full">
-                    <thead className="bg-secondary/30">
-                      <tr className="border-b border-border">
-                        <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Parameter</th>
-                        <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Unit</th>
-                        <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Ref Range (M)</th>
-                        <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Ref Range (F)</th>
-                        <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Critical Low</th>
-                        <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Critical High</th>
-                        <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Auto-Flag</th>
-                        <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-20">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {selectedTest.parameters.map((param) => (
-                        <tr key={param.id} className="hover:bg-accent/30 transition-colors">
-                          <td className="px-3 py-2 text-xs text-foreground">{param.name}</td>
-                          <td className="px-3 py-2 text-center text-[10px] text-muted-foreground">{param.unit}</td>
-                          <td className="px-3 py-2 text-center text-[10px] text-foreground tabular-nums">{param.refRangeMale}</td>
-                          <td className="px-3 py-2 text-center text-[10px] text-foreground tabular-nums">{param.refRangeFemale}</td>
-                          <td className="px-3 py-2 text-center text-[10px] text-foreground tabular-nums">{param.criticalLow || '-'}</td>
-                          <td className="px-3 py-2 text-center text-[10px] text-foreground tabular-nums">{param.criticalHigh || '-'}</td>
-                          <td className="px-3 py-2 text-center">
-                            {param.autoFlag ? (
-                              <CheckCircle className="w-3.5 h-3.5 text-success mx-auto" />
+            {loadingFields ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : fields.length === 0 ? (
+              <div className="text-center py-4 bg-secondary/30 border border-border rounded text-muted-foreground text-xs">
+                No parameters configured. Click "Add Parameter" to define test fields.
+              </div>
+            ) : (
+              <div className="border border-border rounded overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-secondary/30">
+                    <tr className="border-b border-border">
+                      <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider w-8">#</th>
+                      <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Name</th>
+                      <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider w-40">Unit</th>
+                      <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-20">Type</th>
+                      <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-28">Min</th>
+                      <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-28">Max</th>
+                      <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-16">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {fields.map((field, index) => (
+                      <Fragment key={index}>
+                      <tr className="hover:bg-accent/30">
+                        <td className="px-2 py-1.5">
+                          <div className="flex flex-col gap-0.5">
+                            <button type="button" onClick={() => moveField(index, 'up')} disabled={index === 0}
+                              className="w-4 h-3 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30">
+                              <ChevronUp className="w-3 h-3" />
+                            </button>
+                            <button type="button" onClick={() => moveField(index, 'down')} disabled={index === fields.length - 1}
+                              className="w-4 h-3 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30">
+                              <ChevronDown className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="text"
+                            value={field.field_name}
+                            onChange={e => updateField(index, { field_name: e.target.value })}
+                            className="w-full h-7 px-2 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                            placeholder="e.g., Hemoglobin"
+                            required
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                            {customUnitMode.has(index) ? (
+                              <div className="flex gap-0.5">
+                                <input
+                                  type="text"
+                                  value={field.unit || ''}
+                                  onChange={e => updateField(index, { unit: e.target.value })}
+                                  className="w-full h-7 px-2 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                  placeholder="Custom unit"
+                                  autoFocus
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCustomUnitMode(prev => { const s = new Set(prev); s.delete(index); return s; });
+                                    updateField(index, { unit: '' });
+                                  }}
+                                  className="w-7 h-7 flex-shrink-0 flex items-center justify-center bg-secondary border border-border rounded hover:bg-accent transition-colors"
+                                  title="Switch to dropdown"
+                                >
+                                  <ChevronDown className="w-3 h-3" />
+                                </button>
+                              </div>
                             ) : (
-                              <span className="text-muted-foreground text-[10px]">-</span>
+                              <select
+                                value={field.unit || ''}
+                                onChange={e => {
+                                  if (e.target.value === '__custom__') {
+                                    setCustomUnitMode(prev => new Set([...prev, index]));
+                                  } else {
+                                    updateField(index, { unit: e.target.value });
+                                  }
+                                }}
+                                className="w-full h-7 px-1 bg-secondary border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary"
+                              >
+                                <option value="">Select unit</option>
+                                {Object.entries(LAB_UNITS).map(([group, units]) => (
+                                  <optgroup key={group} label={group}>
+                                    {units.map(u => <option key={u} value={u}>{u}</option>)}
+                                  </optgroup>
+                                ))}
+                                <option value="__custom__">Other (custom)...</option>
+                              </select>
                             )}
-                          </td>
-                          <td className="px-3 py-2">
-                            <div className="flex items-center justify-center gap-1">
-                              <button className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground" title="Edit">
-                                <Edit className="w-3 h-3" />
-                              </button>
-                              <button className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground" title="Delete">
-                                <Trash2 className="w-3 h-3" />
-                              </button>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <select
+                            value={field.field_type || 'input'}
+                            onChange={e => updateField(index, { field_type: e.target.value as FieldType })}
+                            className="w-full h-7 px-1 bg-secondary border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary"
+                          >
+                            <option value="input">Input</option>
+                            <option value="calculated">Calc</option>
+                            <option value="flag">Flag</option>
+                          </select>
+                        </td>
+                        <td className="px-2 py-1.5">
+                            {QUALITATIVE_UNITS.includes(field.unit || '') ? (
+                              <span className="text-[10px] text-muted-foreground text-center block py-1">N/A</span>
+                            ) : (
+                              <input
+                                type="number"
+                                value={field.min_value ?? ''}
+                                onChange={e => updateField(index, { min_value: e.target.value ? Number(e.target.value) : undefined })}
+                                className="w-full h-7 px-2 bg-secondary border border-border rounded text-xs text-center focus:outline-none focus:ring-1 focus:ring-primary"
+                                placeholder="Min"
+                                step="any"
+                              />
+                            )}
+                        </td>
+                        <td className="px-2 py-1.5">
+                            {QUALITATIVE_UNITS.includes(field.unit || '') ? (
+                              <span className="text-[10px] text-muted-foreground text-center block py-1">N/A</span>
+                            ) : (
+                              <input
+                                type="number"
+                                value={field.max_value ?? ''}
+                                onChange={e => updateField(index, { max_value: e.target.value ? Number(e.target.value) : undefined })}
+                                className="w-full h-7 px-2 bg-secondary border border-border rounded text-xs text-center focus:outline-none focus:ring-1 focus:ring-primary"
+                                placeholder="Max"
+                                step="any"
+                              />
+                            )}
+                        </td>
+                        <td className="px-2 py-1.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removeField(index)}
+                            className="w-6 h-6 flex items-center justify-center rounded hover:bg-destructive/10 transition-colors text-destructive mx-auto"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </td>
+                      </tr>
+                      {/* Formula row for calculated fields */}
+                      {field.field_type === 'calculated' && (
+                        <tr className="bg-primary/5">
+                          <td className="px-2 py-1.5"></td>
+                          <td colSpan={4} className="px-2 py-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-primary font-medium whitespace-nowrap">Formula:</span>
+                              <input
+                                type="text"
+                                value={field.formula || ''}
+                                onChange={e => updateField(index, { formula: e.target.value })}
+                                className="flex-1 h-7 px-2 bg-secondary border border-primary/30 rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                                placeholder="e.g., TotalCholesterol / HDL"
+                              />
+                              <span className="text-[10px] text-primary font-medium whitespace-nowrap">Depends on:</span>
+                              <input
+                                type="text"
+                                value={field.depends_on || ''}
+                                onChange={e => updateField(index, { depends_on: e.target.value })}
+                                className="flex-1 h-7 px-2 bg-secondary border border-primary/30 rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                                placeholder='["FieldA","FieldB"]'
+                              />
                             </div>
                           </td>
+                          <td colSpan={2}></td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="bg-secondary/30 border border-border rounded p-8 text-center">
-                  <Beaker className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground mb-3">No parameters configured yet</p>
-                  <button className="h-7 px-3 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs mx-auto">
-                    <Plus className="w-3 h-3" />
-                    Add First Parameter
-                  </button>
-                </div>
-              )}
-            </div>
+                      )}
+                      {/* Options row for qualitative fields (Color, Appearance, etc.) */}
+                      {QUALITATIVE_UNITS.includes(field.unit || '') && field.field_type !== 'calculated' && (
+                        <tr className="bg-amber-50/50 dark:bg-amber-950/20">
+                          <td className="px-2 py-1.5"></td>
+                          <td colSpan={4} className="px-2 py-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium whitespace-nowrap">Options:</span>
+                              <input
+                                type="text"
+                                value={field.formula || ''}
+                                onChange={e => updateField(index, { formula: e.target.value })}
+                                className="flex-1 h-7 px-2 bg-secondary border border-amber-300/50 rounded text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                placeholder="Comma-separated options, e.g., Pale Yellow, Yellow, Dark Yellow"
+                              />
+                            </div>
+                            {field.formula && (
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {field.formula.split(',').map((opt, i) => (
+                                  <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                                    {opt.trim()}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td colSpan={2}></td>
+                        </tr>
+                      )}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {!test && fields.length > 0 && (
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Parameters will be saved after the test is created. You&apos;ll need to edit the test to finalize them.
+              </p>
+            )}
           </div>
-        </div>
-      )}
+          </fieldset>
+
+          {/* Modal Footer */}
+          <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
+            <button 
+              type="button"
+              onClick={onClose}
+              className="h-9 px-4 bg-secondary border border-border rounded text-sm hover:bg-accent transition-colors"
+            >
+              {readOnly ? 'Close' : 'Cancel'}
+            </button>
+            {!readOnly && (
+              <button 
+                type="submit"
+                disabled={isSubmitting || !formData.test_name.trim() || !formData.test_code.trim()}
+                className="h-9 px-4 bg-primary text-white rounded text-sm hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+              >
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {test ? 'Save Changes' : 'Create Test'}
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

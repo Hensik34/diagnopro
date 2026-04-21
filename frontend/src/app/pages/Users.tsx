@@ -1,202 +1,102 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Plus, 
   Search, 
   Shield,
   Mail,
   Phone,
-  MapPin,
   Edit,
-  MoreVertical,
   X,
-  AlertCircle,
   CheckCircle,
   Users as UsersIcon,
   UserCheck,
-  UserX
+  UserX,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
+import { authApi } from '../../api/auth';
+import type { User } from '../../types';
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: 'owner' | 'manager' | 'technician' | 'receptionist' | 'admin' | 'staff' | 'approver';
-  branch: string;
-  status: 'active' | 'inactive';
-  lastLogin: string;
-  hireDate: string;
-  permissions?: {
-    canApproveReports: boolean;
-    canManageBilling: boolean;
-    canManageStock: boolean;
-  };
-}
-
-const MOCK_USERS: User[] = [
-  {
-    id: 'U-001',
-    name: 'Dr. Sarah Mitchell',
-    email: 'sarah.mitchell@medlab.com',
-    phone: '+1 (555) 100-1001',
-    role: 'owner',
-    branch: 'All Branches',
-    status: 'active',
-    lastLogin: '2024-02-27 09:15',
-    hireDate: '2020-01-15',
-  },
-  {
-    id: 'U-002',
-    name: 'Dr. Michael Chen',
-    email: 'michael.chen@medlab.com',
-    phone: '+1 (555) 100-1002',
-    role: 'manager',
-    branch: 'Central Lab - Downtown',
-    status: 'active',
-    lastLogin: '2024-02-27 08:45',
-    hireDate: '2020-03-20',
-  },
-  {
-    id: 'U-003',
-    name: 'Dr. Emily Rodriguez',
-    email: 'emily.rodriguez@medlab.com',
-    phone: '+1 (555) 100-1003',
-    role: 'manager',
-    branch: 'North Branch',
-    status: 'active',
-    lastLogin: '2024-02-27 07:30',
-    hireDate: '2020-06-10',
-  },
-  {
-    id: 'U-004',
-    name: 'John Anderson',
-    email: 'john.anderson@medlab.com',
-    phone: '+1 (555) 100-1004',
-    role: 'technician',
-    branch: 'Central Lab - Downtown',
-    status: 'active',
-    lastLogin: '2024-02-27 09:00',
-    hireDate: '2021-02-15',
-  },
-  {
-    id: 'U-005',
-    name: 'Maria Santos',
-    email: 'maria.santos@medlab.com',
-    phone: '+1 (555) 100-1005',
-    role: 'technician',
-    branch: 'North Branch',
-    status: 'active',
-    lastLogin: '2024-02-27 08:20',
-    hireDate: '2021-05-22',
-  },
-  {
-    id: 'U-006',
-    name: 'Lisa Johnson',
-    email: 'lisa.johnson@medlab.com',
-    phone: '+1 (555) 100-1006',
-    role: 'receptionist',
-    branch: 'Central Lab - Downtown',
-    status: 'active',
-    lastLogin: '2024-02-27 08:00',
-    hireDate: '2022-01-10',
-  },
-  {
-    id: 'U-007',
-    name: 'Robert Taylor',
-    email: 'robert.taylor@medlab.com',
-    phone: '+1 (555) 100-1007',
-    role: 'technician',
-    branch: 'West Side Laboratory',
-    status: 'active',
-    lastLogin: '2024-02-26 17:45',
-    hireDate: '2022-03-15',
-  },
-  {
-    id: 'U-008',
-    name: 'Jennifer Lee',
-    email: 'jennifer.lee@medlab.com',
-    phone: '+1 (555) 100-1008',
-    role: 'receptionist',
-    branch: 'East Medical Center',
-    status: 'active',
-    lastLogin: '2024-02-27 07:15',
-    hireDate: '2022-06-20',
-  },
-  {
-    id: 'U-009',
-    name: 'David Kim',
-    email: 'david.kim@medlab.com',
-    phone: '+1 (555) 100-1009',
-    role: 'technician',
-    branch: 'East Medical Center',
-    status: 'inactive',
-    lastLogin: '2024-01-15 16:30',
-    hireDate: '2021-08-10',
-  },
-  {
-    id: 'U-010',
-    name: 'Patricia Brown',
-    email: 'patricia.brown@medlab.com',
-    phone: '+1 (555) 100-1010',
-    role: 'receptionist',
-    branch: 'North Branch',
-    status: 'active',
-    lastLogin: '2024-02-27 08:50',
-    hireDate: '2023-01-05',
-  },
-];
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Admin',
+  doctor: 'Doctor',
+  lab_technician: 'Technician',
+  staff: 'Staff',
+};
 
 export function Users() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
 
-  const filteredUsers = MOCK_USERS.filter(user => {
-    const matchesSearch = 
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  // Form state for modal
+  const [formFirstname, setFormFirstname] = useState('');
+  const [formLastname, setFormLastname] = useState('');
+  const [formEmail, setFormEmail] = useState('');
+  const [formPhone, setFormPhone] = useState('');
+  const [formRole, setFormRole] = useState<string>('staff');
+  const [formPassword, setFormPassword] = useState('');
+  const [formConfirmPassword, setFormConfirmPassword] = useState('');
+  const [formPetrolPrice, setFormPetrolPrice] = useState('');
+
+  // Fetch users on mount
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await authApi.getAllUsers();
+      setUsers(response.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch users');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filteredUsers = users.filter(user => {
+    const fullName = `${user.firstname} ${user.lastname}`.toLowerCase();
+    const matchesSearch =
+      fullName.includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
+    const matchesStatus = statusFilter === 'all' ||
+      (statusFilter === 'active' ? user.is_active : !user.is_active);
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  const getRoleBadge = (role: User['role']) => {
-    const styles = {
-      owner: { bg: '#7c3aed', text: '#ffffff' }, // Purple
-      manager: { bg: 'var(--primary)', text: 'var(--primary-foreground)' }, // Blue
-      technician: { bg: 'var(--success)', text: 'var(--success-foreground)' }, // Green
-      receptionist: { bg: 'var(--warning)', text: 'var(--warning-foreground)' }, // Yellow
-      admin: { bg: 'var(--info)', text: 'var(--info-foreground)' }, // Cyan
-      staff: { bg: 'var(--muted)', text: 'var(--muted-foreground)' }, // Gray
-      approver: { bg: 'var(--accent)', text: 'var(--accent-foreground)' }, // Orange
+  const getRoleBadge = (role: string) => {
+    const styles: Record<string, { bg: string; text: string }> = {
+      admin: { bg: 'var(--info)', text: 'var(--info-foreground)' },
+      doctor: { bg: '#7c3aed', text: '#ffffff' },
+      lab_technician: { bg: 'var(--success)', text: 'var(--success-foreground)' },
+      staff: { bg: 'var(--muted)', text: 'var(--muted-foreground)' },
     };
 
-    const labels = {
-      owner: 'Owner',
-      manager: 'Manager',
-      technician: 'Technician',
-      receptionist: 'Receptionist',
-      admin: 'Admin',
-      staff: 'Staff',
-      approver: 'Approver',
-    };
-
-    const style = styles[role];
+    const style = styles[role] || styles.staff;
     return (
       <span
         className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide"
         style={{ backgroundColor: style.bg, color: style.text }}
       >
-        {labels[role]}
+        {ROLE_LABELS[role] || role}
       </span>
     );
   };
 
-  const getStatusBadge = (status: User['status']) => {
-    if (status === 'active') {
+  const getStatusBadge = (isActive: boolean) => {
+    if (isActive) {
       return (
         <span
           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide"
@@ -206,46 +106,149 @@ export function Users() {
           Active
         </span>
       );
-    } else {
-      return (
-        <span
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide"
-          style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}
-        >
-          <UserX className="w-2.5 h-2.5" />
-          Inactive
-        </span>
-      );
     }
+    return (
+      <span
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide"
+        style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}
+      >
+        <UserX className="w-2.5 h-2.5" />
+        Inactive
+      </span>
+    );
   };
 
+  const activeCount = users.filter(u => u.is_active).length;
+  const inactiveCount = users.filter(u => !u.is_active).length;
   const roleCount = {
-    owner: filteredUsers.filter(u => u.role === 'owner').length,
-    manager: filteredUsers.filter(u => u.role === 'manager').length,
-    technician: filteredUsers.filter(u => u.role === 'technician').length,
-    receptionist: filteredUsers.filter(u => u.role === 'receptionist').length,
-    admin: filteredUsers.filter(u => u.role === 'admin').length,
-    staff: filteredUsers.filter(u => u.role === 'staff').length,
-    approver: filteredUsers.filter(u => u.role === 'approver').length,
+    admin: users.filter(u => u.role === 'admin').length,
+    doctor: users.filter(u => u.role === 'doctor').length,
+    lab_technician: users.filter(u => u.role === 'lab_technician').length,
+    staff: users.filter(u => u.role === 'staff').length,
   };
-
-  const activeCount = filteredUsers.filter(u => u.status === 'active').length;
-  const inactiveCount = filteredUsers.filter(u => u.status === 'inactive').length;
 
   const handleEdit = (user: User) => {
     setSelectedUser(user);
+    setFormFirstname(user.firstname);
+    setFormLastname(user.lastname);
+    setFormEmail(user.email);
+    setFormPhone(user.phone || '');
+    setFormRole(user.role);
+    setFormPetrolPrice(user.petrol_price_per_km?.toString() || '');
+    setFormPassword('');
+    setFormConfirmPassword('');
+    setModalError(null);
     setShowModal(true);
   };
 
   const handleAdd = () => {
     setSelectedUser(null);
+    setFormFirstname('');
+    setFormLastname('');
+    setFormEmail('');
+    setFormPhone('');
+    setFormRole('staff');
+    setFormPetrolPrice('');
+    setFormPassword('');
+    setFormConfirmPassword('');
+    setModalError(null);
     setShowModal(true);
   };
 
-  const toggleUserStatus = (userId: string) => {
-    // In a real app, this would update the user status in the backend
-    console.log('Toggle status for user:', userId);
+  const handleToggleStatus = async (userId: string) => {
+    try {
+      await authApi.toggleUserStatus(userId);
+      setUsers(prev => prev.map(u =>
+        u.id === userId ? { ...u, is_active: !u.is_active } : u
+      ));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to toggle user status');
+    }
   };
+
+  const handleSave = async () => {
+    setModalError(null);
+
+    if (!formFirstname.trim() || !formLastname.trim()) {
+      setModalError('First name and last name are required');
+      return;
+    }
+    if (!formEmail.trim()) {
+      setModalError('Email is required');
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      if (selectedUser) {
+        // Update existing user
+        const response = await authApi.updateUser(selectedUser.id, {
+          firstname: formFirstname,
+          lastname: formLastname,
+          phone: formPhone || undefined,
+          role: formRole,
+          petrol_price_per_km: formPetrolPrice ? Number(formPetrolPrice) : undefined,
+        });
+        setUsers(prev => prev.map(u =>
+          u.id === selectedUser.id ? response.data : u
+        ));
+      } else {
+        // Create new user via register
+        if (!formPassword) {
+          setModalError('Password is required for new users');
+          setIsSaving(false);
+          return;
+        }
+        if (formPassword !== formConfirmPassword) {
+          setModalError('Passwords do not match');
+          setIsSaving(false);
+          return;
+        }
+        await authApi.createUser({
+          firstname: formFirstname,
+          lastname: formLastname,
+          email: formEmail,
+          password: formPassword,
+          phone: formPhone || undefined,
+          role: formRole,
+          petrol_price_per_km: formPetrolPrice ? Number(formPetrolPrice) : undefined,
+        });
+        // Refetch to get the new user
+        await fetchUsers();
+      }
+
+      setShowModal(false);
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : 'Failed to save user');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <span className="ml-2 text-muted-foreground">Loading users...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-destructive/10 border border-destructive/20 rounded p-4 flex items-center gap-3">
+        <AlertCircle className="w-5 h-5 text-destructive" />
+        <div>
+          <p className="text-sm text-destructive font-medium">Failed to load users</p>
+          <p className="text-xs text-destructive/70">{error}</p>
+        </div>
+        <button onClick={fetchUsers} className="ml-auto text-xs text-primary hover:underline">
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -282,8 +285,8 @@ export function Users() {
             <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Managers</span>
             <Shield className="w-3.5 h-3.5 text-muted-foreground" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">{roleCount.manager}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">+ {roleCount.owner} owner</div>
+          <div className="text-foreground text-xl tabular-nums">{roleCount.admin}</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">System admins</div>
         </div>
 
         <div className="bg-card border border-border rounded p-3">
@@ -291,17 +294,8 @@ export function Users() {
             <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Technicians</span>
             <UserCheck className="w-3.5 h-3.5 text-muted-foreground" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">{roleCount.technician}</div>
+          <div className="text-foreground text-xl tabular-nums">{roleCount.lab_technician}</div>
           <div className="text-[10px] text-muted-foreground mt-0.5">Lab staff</div>
-        </div>
-
-        <div className="bg-card border border-border rounded p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Receptionists</span>
-            <UsersIcon className="w-3.5 h-3.5 text-muted-foreground" />
-          </div>
-          <div className="text-foreground text-xl tabular-nums">{roleCount.receptionist}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Front desk</div>
         </div>
 
         <div className="bg-card border border-border rounded p-3">
@@ -310,7 +304,7 @@ export function Users() {
             <UserX className="w-3.5 h-3.5 text-muted-foreground" />
           </div>
           <div className="text-foreground text-xl tabular-nums">{inactiveCount}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Users</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">Deactivated</div>
         </div>
       </div>
 
@@ -335,13 +329,10 @@ export function Users() {
           onChange={(e) => setRoleFilter(e.target.value)}
         >
           <option value="all">All Roles</option>
-          <option value="owner">Owner</option>
-          <option value="manager">Manager</option>
-          <option value="technician">Technician</option>
-          <option value="receptionist">Receptionist</option>
           <option value="admin">Admin</option>
+          <option value="doctor">Doctor</option>
+          <option value="lab_technician">Technician</option>
           <option value="staff">Staff</option>
-          <option value="approver">Approver</option>
         </select>
 
         <select 
@@ -364,9 +355,8 @@ export function Users() {
                 <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">User</th>
                 <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Contact</th>
                 <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Role</th>
-                <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Branch</th>
                 <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Status</th>
-                <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Last Login</th>
+                <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Created</th>
                 <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-20">Action</th>
               </tr>
             </thead>
@@ -378,8 +368,8 @@ export function Users() {
                 >
                   <td className="px-3 py-2">
                     <div className="flex flex-col">
-                      <span className="text-xs text-foreground">{user.name}</span>
-                      <span className="text-[10px] text-muted-foreground tabular-nums">{user.id}</span>
+                      <span className="text-xs text-foreground">{user.firstname} {user.lastname}</span>
+                      <span className="text-[10px] text-muted-foreground tabular-nums">{user.id.slice(0, 8)}</span>
                     </div>
                   </td>
                   <td className="px-3 py-2">
@@ -388,26 +378,22 @@ export function Users() {
                         <Mail className="w-3 h-3 text-muted-foreground" />
                         {user.email}
                       </span>
-                      <span className="text-[10px] text-muted-foreground tabular-nums flex items-center gap-1">
-                        <Phone className="w-3 h-3 text-muted-foreground" />
-                        {user.phone}
-                      </span>
+                      {user.phone && (
+                        <span className="text-[10px] text-muted-foreground tabular-nums flex items-center gap-1">
+                          <Phone className="w-3 h-3 text-muted-foreground" />
+                          {user.phone}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-3 py-2 text-center">
                     {getRoleBadge(user.role)}
                   </td>
-                  <td className="px-3 py-2">
-                    <span className="text-xs text-foreground flex items-center gap-1">
-                      <MapPin className="w-3 h-3 text-muted-foreground" />
-                      {user.branch}
-                    </span>
-                  </td>
                   <td className="px-3 py-2 text-center">
-                    {getStatusBadge(user.status)}
+                    {getStatusBadge(user.is_active)}
                   </td>
                   <td className="px-3 py-2 text-xs text-muted-foreground tabular-nums">
-                    {user.lastLogin}
+                    {new Date(user.created_at).toLocaleDateString()}
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center justify-center gap-1">
@@ -419,26 +405,27 @@ export function Users() {
                         <Edit className="w-3.5 h-3.5" />
                       </button>
                       <button 
-                        onClick={() => toggleUserStatus(user.id)}
+                        onClick={() => handleToggleStatus(user.id)}
                         className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
-                        title={user.status === 'active' ? 'Deactivate' : 'Activate'}
+                        title={user.is_active ? 'Deactivate' : 'Activate'}
                       >
-                        {user.status === 'active' ? (
+                        {user.is_active ? (
                           <UserX className="w-3.5 h-3.5" />
                         ) : (
                           <UserCheck className="w-3.5 h-3.5" />
                         )}
                       </button>
-                      <button 
-                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
-                        title="More"
-                      >
-                        <MoreVertical className="w-3.5 h-3.5" />
-                      </button>
                     </div>
                   </td>
                 </tr>
               ))}
+              {filteredUsers.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                    No users found
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -446,7 +433,7 @@ export function Users() {
         {/* Footer */}
         <div className="border-t border-border bg-secondary/30 px-3 py-2 flex justify-between items-center">
           <div className="text-xs text-muted-foreground">
-            Showing <span className="text-foreground">{filteredUsers.length}</span> of <span className="text-foreground">{MOCK_USERS.length}</span> users
+            Showing <span className="text-foreground">{filteredUsers.length}</span> of <span className="text-foreground">{users.length}</span> users
           </div>
         </div>
       </div>
@@ -470,17 +457,36 @@ export function Users() {
 
             {/* Modal Content */}
             <div className="p-4 space-y-4">
+              {/* Modal Error */}
+              {modalError && (
+                <div className="bg-destructive/10 border border-destructive/20 rounded p-2.5 flex items-center gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 text-destructive" />
+                  <span className="text-xs text-destructive">{modalError}</span>
+                </div>
+              )}
+
               {/* Personal Information */}
               <div>
                 <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Personal Information</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2">
-                    <label className="text-xs text-foreground block mb-1">Full Name *</label>
+                  <div>
+                    <label className="text-xs text-foreground block mb-1">First Name *</label>
                     <input 
                       type="text"
                       className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      defaultValue={selectedUser?.name}
-                      placeholder="Enter full name"
+                      value={formFirstname}
+                      onChange={(e) => setFormFirstname(e.target.value)}
+                      placeholder="First name"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-foreground block mb-1">Last Name *</label>
+                    <input 
+                      type="text"
+                      className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                      value={formLastname}
+                      onChange={(e) => setFormLastname(e.target.value)}
+                      placeholder="Last name"
                     />
                   </div>
                   <div>
@@ -488,17 +494,20 @@ export function Users() {
                     <input 
                       type="email"
                       className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      defaultValue={selectedUser?.email}
-                      placeholder="user@medlab.com"
+                      value={formEmail}
+                      onChange={(e) => setFormEmail(e.target.value)}
+                      placeholder="user@lab.com"
+                      disabled={!!selectedUser}
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-foreground block mb-1">Phone Number *</label>
+                    <label className="text-xs text-foreground block mb-1">Phone Number</label>
                     <input 
                       type="tel"
                       className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      defaultValue={selectedUser?.phone}
-                      placeholder="+1 (555) 000-0000"
+                      value={formPhone}
+                      onChange={(e) => setFormPhone(e.target.value)}
+                      placeholder="+1 555-0000"
                     />
                   </div>
                 </div>
@@ -512,65 +521,41 @@ export function Users() {
                     <label className="text-xs text-foreground block mb-1">Role *</label>
                     <select 
                       className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      defaultValue={selectedUser?.role}
+                      value={formRole}
+                      onChange={(e) => setFormRole(e.target.value)}
                     >
-                      <option value="">Select role...</option>
-                      <option value="owner">Owner - Full system access</option>
-                      <option value="manager">Manager - Branch management</option>
-                      <option value="technician">Technician - Lab operations</option>
-                      <option value="receptionist">Receptionist - Patient management</option>
-                      <option value="admin">Admin - System administration</option>
-                      <option value="staff">Staff - General access</option>
-                      <option value="approver">Approver - Report approval</option>
+                      <option value="staff">Staff — Front desk operations</option>
+                      <option value="lab_technician">Technician — Lab operations</option>
+                      <option value="doctor">Doctor — Reports & approvals</option>
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-foreground block mb-1">Branch Assignment *</label>
-                    <select 
-                      className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      defaultValue={selectedUser?.branch}
-                    >
-                      <option value="">Select branch...</option>
-                      <option value="All Branches">All Branches (Admin only)</option>
-                      <option value="Central Lab - Downtown">Central Lab - Downtown</option>
-                      <option value="North Branch">North Branch</option>
-                      <option value="West Side Laboratory">West Side Laboratory</option>
-                      <option value="East Medical Center">East Medical Center</option>
-                      <option value="South Express Lab">South Express Lab</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-foreground block mb-1">Initial Status *</label>
-                    <select 
-                      className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      defaultValue={selectedUser?.status || 'active'}
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-foreground block mb-1">Hire Date</label>
+                    <label className="text-xs text-foreground block mb-1">Petrol Price (₹/km)</label>
                     <input 
-                      type="date"
+                      type="number"
+                      step="0.01"
                       className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      defaultValue={selectedUser?.hireDate}
+                      value={formPetrolPrice}
+                      onChange={(e) => setFormPetrolPrice(e.target.value)}
+                      placeholder="e.g. 3.50"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Login Credentials */}
+              {/* Login Credentials - only for new users */}
               {!selectedUser && (
                 <div>
                   <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Login Credentials</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs text-foreground block mb-1">Temporary Password *</label>
+                      <label className="text-xs text-foreground block mb-1">Password *</label>
                       <input 
                         type="password"
                         className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                        placeholder="Enter temporary password"
+                        value={formPassword}
+                        onChange={(e) => setFormPassword(e.target.value)}
+                        placeholder="Enter password"
                       />
                     </div>
                     <div>
@@ -578,54 +563,31 @@ export function Users() {
                       <input 
                         type="password"
                         className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                        value={formConfirmPassword}
+                        onChange={(e) => setFormConfirmPassword(e.target.value)}
                         placeholder="Confirm password"
                       />
                     </div>
                   </div>
-                  <div className="mt-2 bg-info/10 border border-info/20 rounded p-2.5 flex items-start gap-2">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: 'var(--info)' }} />
-                    <p className="text-[11px]" style={{ color: 'var(--info)' }}>
-                      User will be required to change password on first login for security.
-                    </p>
-                  </div>
                 </div>
               )}
-
-              {/* Permissions Preview */}
-              <div>
-                <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Role Permissions</h3>
-                <div className="bg-secondary/50 border border-border rounded p-3 space-y-2 text-[11px]">
-                  <div className="flex items-start gap-2">
-                    <CheckCircle className="w-3.5 h-3.5 text-success shrink-0 mt-0.5" />
-                    <span className="text-foreground">View and manage patient records</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <CheckCircle className="w-3.5 h-3.5 text-success shrink-0 mt-0.5" />
-                    <span className="text-foreground">Enter and approve test results</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <CheckCircle className="w-3.5 h-3.5 text-success shrink-0 mt-0.5" />
-                    <span className="text-foreground">Generate and print reports</span>
-                  </div>
-                  <div className="flex items-start gap-2 opacity-50">
-                    <X className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
-                    <span className="text-muted-foreground">Manage user accounts (admin only)</span>
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* Modal Footer */}
             <div className="sticky bottom-0 bg-card border-t border-border px-4 py-3 flex items-center justify-end gap-2">
               <button 
                 onClick={() => setShowModal(false)}
-                className="h-8 px-3 bg-secondary border border-border rounded text-xs hover:bg-accent transition-colors"
+                disabled={isSaving}
+                className="h-8 px-3 bg-secondary border border-border rounded text-xs hover:bg-accent transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button 
-                className="h-8 px-3 bg-primary text-white rounded text-xs hover:opacity-90 transition-opacity"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="h-8 px-3 bg-primary text-white rounded text-xs hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5"
               >
+                {isSaving && <Loader2 className="w-3 h-3 animate-spin" />}
                 {selectedUser ? 'Save Changes' : 'Create User'}
               </button>
             </div>

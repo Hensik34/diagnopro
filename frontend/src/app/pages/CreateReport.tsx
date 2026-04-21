@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router";
 import {
   Search,
@@ -6,134 +6,38 @@ import {
   FileText,
   X,
   Calendar,
-  Building2,
   Beaker,
-  ChevronDown,
   Plus,
   UserPlus,
   Check,
-  Stethoscope,
-  DollarSign,
-  TrendingDown,
-  Percent,
+  Loader2,
+  AlertCircle,
+  Hash,
+  ArrowLeft,
 } from "lucide-react";
+import { usePatientStore } from "../../stores/patientStore";
+import { useTestStore } from "../../stores/testStore";
+import { useDoctorStore } from "../../stores/doctorStore";
+import { useBranchStore } from "../../stores/branchStore";
+import { useReportStore } from "../../stores/reportStore";
+import { useAuthStore } from "../../stores/authStore";
+import { sampleApi } from "../../api/samples";
+import type { Patient, Test, Doctor } from "../../types";
 
-interface Patient {
-  id: string;
-  name: string;
-  age: number;
-  gender: "M" | "F";
-  phone: string;
-  address: string;
-  dob?: string;
-}
-
-interface TestType {
-  id: string;
-  name: string;
-  category: string;
-  price?: number;
-  doctorPrice?: number; // Price when doctor is selected
-}
-
-interface Doctor {
-  id: string;
-  name: string;
-  commission: number;
-  customPricing: { [testId: string]: number };
-}
-
-const MOCK_DOCTORS: Doctor[] = [
-  {
-    id: "DOC-001",
-    name: "Dr. Michael Thompson",
-    commission: 15,
-    customPricing: {
-      CBC: 22,
-      THYROID: 40,
-      LFT: 36,
-      HBA1C: 27,
-      URINE: 18,
-    },
-  },
-  {
-    id: "DOC-002",
-    name: "Dr. Sarah Wilson",
-    commission: 20,
-    customPricing: {
-      CBC: 23,
-      LIPID: 32,
-      THYROID: 42,
-    },
-  },
-  {
-    id: "DOC-003",
-    name: "Dr. James Anderson",
-    commission: 18,
-    customPricing: {
-      GLUCOSE: 13,
-      HBA1C: 28,
-    },
-  },
-];
-
-const MOCK_PATIENTS: Patient[] = [
-  {
-    id: "PT-8901",
-    name: "Sarah Jenkins",
-    age: 58,
-    gender: "F",
-    phone: "+1 555-0123",
-    address: "123 Oak St, Downtown",
-    dob: "1965-08-15",
-  },
-  {
-    id: "PT-7823",
-    name: "Michael Chen",
-    age: 45,
-    gender: "M",
-    phone: "+1 555-0456",
-    address: "456 Maple Ave",
-    dob: "1978-03-22",
-  },
-  {
-    id: "PT-6745",
-    name: "Robert Williams",
-    age: 62,
-    gender: "M",
-    phone: "+1 555-0789",
-    address: "789 Pine Rd",
-    dob: "1961-11-05",
-  },
-  {
-    id: "PT-5667",
-    name: "Emma Davis",
-    age: 34,
-    gender: "F",
-    phone: "+1 555-0321",
-    address: "321 Cedar Ln",
-    dob: "1989-06-18",
-  },
-];
-
-const TEST_TYPES: TestType[] = [
-  { id: "CBC", name: "Complete Blood Count (CBC)", category: "Hematology", price: 25 },
-  { id: "LIPID", name: "Lipid Profile", category: "Biochemistry", price: 35 },
-  { id: "THYROID", name: "Thyroid Profile (T3, T4, TSH)", category: "Hormone", price: 45 },
-  { id: "LFT", name: "Liver Function Test (LFT)", category: "Biochemistry", price: 40 },
-  { id: "KFT", name: "Kidney Function Test (KFT)", category: "Biochemistry", price: 38 },
-  { id: "GLUCOSE", name: "Fasting Blood Glucose", category: "Biochemistry", price: 15 },
-  { id: "HBA1C", name: "HbA1c (Glycated Hemoglobin)", category: "Diabetes", price: 30 },
-  { id: "URINE", name: "Complete Urine Analysis", category: "Clinical Pathology", price: 20 },
-  { id: "ESR", name: "ESR (Erythrocyte Sedimentation Rate)", category: "Hematology", price: 12 },
-  { id: "VITAMIN_D", name: "Vitamin D (25-OH)", category: "Vitamins", price: 50 },
-];
-
-const BRANCHES = ["Main Branch", "Downtown Center", "West Side Lab", "East Medical Plaza"];
-const TECHNICIANS = ["Lisa Johnson", "Robert Miller", "Amanda Chen", "David Martinez"];
-
+/**
+ * CreateReport Page - Create new diagnostic reports
+ * Connected to backend via stores
+ */
 export function CreateReport() {
   const navigate = useNavigate();
+  
+  // Stores
+  const { patients, fetchPatients, createPatient, isLoading: patientsLoading } = usePatientStore();
+  const { tests, fetchTests, isLoading: testsLoading } = useTestStore();
+  const { doctors, fetchDoctors } = useDoctorStore();
+  const { currentBranchId } = useBranchStore();
+  const { createReport, isLoading: reportLoading, error: reportError } = useReportStore();
+  const { user } = useAuthStore();
   
   // Patient search and selection
   const [patientSearch, setPatientSearch] = useState("");
@@ -141,81 +45,115 @@ export function CreateReport() {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isNewPatient, setIsNewPatient] = useState(false);
   
-  // Patient form fields
+  // Patient form fields (for new patients)
   const [patientName, setPatientName] = useState("");
-  const [patientAge, setPatientAge] = useState("");
-  const [patientGender, setPatientGender] = useState<"M" | "F">("M");
+  const [patientAge, setPatientAge] = useState<string>("");
+  const [patientGender, setPatientGender] = useState<"Male" | "Female">("Male");
   const [patientPhone, setPatientPhone] = useState("");
   const [patientAddress, setPatientAddress] = useState("");
-  const [referringDoctor, setReferringDoctor] = useState("");
   
-  // Doctor selection for billing
+  // Doctor selection
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   
   // Test selection
-  const [selectedTests, setSelectedTests] = useState<TestType[]>([]);
+  const [selectedTests, setSelectedTests] = useState<Test[]>([]);
   const [testSearch, setTestSearch] = useState("");
   const [showTestDropdown, setShowTestDropdown] = useState(false);
   
-  // Sample information
+  // Sample/Report information
   const [collectionDate, setCollectionDate] = useState(
     new Date().toISOString().split("T")[0]
   );
-  const [collectionTime, setCollectionTime] = useState(
-    new Date().toTimeString().split(" ")[0].substring(0, 5)
-  );
-  const [selectedBranch, setSelectedBranch] = useState(BRANCHES[0]);
-  const [selectedTechnician, setSelectedTechnician] = useState(TECHNICIANS[0]);
-  const [sampleNotes, setSampleNotes] = useState("");
+  const [sampleIdCode, setSampleIdCode] = useState<string>("");
+
+  
+  // Form state
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  
+  // Patient email (saved to patient record)
+  const [patientEmail, setPatientEmail] = useState("");
   
   const patientSearchRef = useRef<HTMLDivElement>(null);
   const testSearchRef = useRef<HTMLDivElement>(null);
 
+  // Fetch initial data
+  useEffect(() => {
+    fetchPatients();
+    if (currentBranchId) {
+      fetchTests(currentBranchId);
+    }
+    fetchDoctors();
+    // Peek at next sample ID (does NOT increment counter)
+    sampleApi.getNextId().then((res) => {
+      setSampleIdCode(res.data.sample_id_code);
+    }).catch(() => {
+      // Show format preview if peek fails
+      const now = new Date();
+      const yy = String(now.getFullYear()).slice(2);
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      setSampleIdCode(`SM-${yy}${mm}-XXXX`);
+    });
+  }, [fetchPatients, fetchTests, fetchDoctors, currentBranchId]);
+
+
+
   // Filter patients based on search
-  const filteredPatients = MOCK_PATIENTS.filter((p) => {
+  const filteredPatients = useMemo(() => {
+    if (!patientSearch) return [];
     const searchLower = patientSearch.toLowerCase();
-    return (
-      p.name.toLowerCase().includes(searchLower) ||
-      p.id.toLowerCase().includes(searchLower) ||
-      p.phone.toLowerCase().includes(searchLower)
-    );
-  });
+    return patients.filter((p) => {
+      const name = (p.name || '').toLowerCase();
+      return (
+        name.includes(searchLower) ||
+        p.id.toLowerCase().includes(searchLower) ||
+        (p.phone || '').toLowerCase().includes(searchLower)
+      );
+    }).slice(0, 10);
+  }, [patients, patientSearch]);
 
   // Filter tests based on search
-  const filteredTests = TEST_TYPES.filter(
-    (t) =>
-      !selectedTests.find((st) => st.id === t.id) &&
-      (t.name.toLowerCase().includes(testSearch.toLowerCase()) ||
-        t.category.toLowerCase().includes(testSearch.toLowerCase()))
-  );
+  const filteredTests = useMemo(() => {
+    return tests.filter(
+      (t) =>
+        !selectedTests.find((st) => st.id === t.id) &&
+        ((t.test_name || '').toLowerCase().includes(testSearch.toLowerCase()) ||
+          (t.category || '').toLowerCase().includes(testSearch.toLowerCase()))
+    ).slice(0, 15);
+  }, [tests, selectedTests, testSearch]);
+
+  // Calculate total price
+  const totalPrice = useMemo(() => {
+    return selectedTests.reduce((sum, test) => sum + (Number(test.price) || 0), 0);
+  }, [selectedTests]);
 
   // Handle patient selection
   const handleSelectPatient = (patient: Patient) => {
     setSelectedPatient(patient);
-    setPatientSearch(patient.name);
-    setPatientName(patient.name);
-    setPatientAge(patient.age.toString());
-    setPatientGender(patient.gender);
-    setPatientPhone(patient.phone);
-    setPatientAddress(patient.address);
+    setPatientSearch(patient.name || '');
+    setPatientName(patient.name || '');
+    setPatientAge(patient.age != null ? String(patient.age) : '');
+    setPatientGender(patient.gender as "Male" | "Female" || 'Male');
+    setPatientPhone(patient.phone || '');
+    setPatientAddress(patient.address || '');
     setShowPatientDropdown(false);
     setIsNewPatient(false);
   };
 
-  // Handle create new patient
+  // Handle create new patient mode
   const handleCreateNewPatient = () => {
     setIsNewPatient(true);
     setSelectedPatient(null);
-    setPatientName(patientSearch);
-    setPatientAge("");
-    setPatientGender("M");
-    setPatientPhone("");
-    setPatientAddress("");
+    setPatientName(patientSearch.trim());
+    setPatientAge('');
+    setPatientGender('Male');
+    setPatientPhone('');
+    setPatientAddress('');
     setShowPatientDropdown(false);
   };
 
   // Handle test selection
-  const handleSelectTest = (test: TestType) => {
+  const handleSelectTest = (test: Test) => {
     setSelectedTests([...selectedTests, test]);
     setTestSearch("");
     setShowTestDropdown(false);
@@ -227,56 +165,81 @@ export function CreateReport() {
   };
 
   // Handle form submission
-  const handleCreateReport = () => {
+  const handleCreateReport = async () => {
+    setFormError(null);
+    
     // Validation
     if (!patientName.trim()) {
-      alert("Please enter patient name");
-      return;
-    }
-    if (!patientAge || parseInt(patientAge) <= 0) {
-      alert("Please enter valid patient age");
+      setFormError("Please enter patient name");
       return;
     }
     if (!patientPhone.trim()) {
-      alert("Please enter patient phone number");
+      setFormError("Please enter patient phone number");
       return;
     }
     if (selectedTests.length === 0) {
-      alert("Please select at least one test");
+      setFormError("Please select at least one test");
+      return;
+    }
+    if (!currentBranchId) {
+      setFormError("Please select a branch from the top navigation");
       return;
     }
 
-    // Generate IDs
-    const reportId = `REP-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
-    const patientId = selectedPatient?.id || `PT-${Math.floor(1000 + Math.random() * 9000)}`;
-    const sampleId = `SMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    setIsSubmitting(true);
 
-    // Navigate to report entry page
-    // In a real app, you would save the report to backend first
-    navigate(`/reports/${reportId}/entry`, {
-      state: {
-        reportId,
-        patientId,
-        sampleId,
-        patient: {
+    try {
+      let patientId = selectedPatient?.id;
+
+      // Create new patient if needed
+      if (isNewPatient || !patientId) {
+        const newPatient = await createPatient({
           name: patientName,
-          age: parseInt(patientAge),
-          gender: patientGender,
+          email: patientEmail || undefined,
           phone: patientPhone,
-          address: patientAddress,
+          gender: patientGender,
+          age: patientAge ? parseInt(patientAge) : undefined,
+          address: patientAddress || undefined,
+          branch_id: currentBranchId,
+        });
+
+        if (!newPatient) {
+          setFormError("Failed to create patient");
+          setIsSubmitting(false);
+          return;
+        }
+        patientId = newPatient.id;
+      }
+
+      // Create report (in draft status) — sample with auto-ID created server-side
+      const report = await createReport({
+        patient_id: patientId,
+        doctor_id: selectedDoctor?.id,
+        report_type: selectedTests.map(t => t.test_name).join(', '),
+        report_amount: totalPrice,
+        is_self_report: !selectedDoctor,
+        branch_id: currentBranchId,
+        test_data: {
+          testType: selectedTests.map(t => t.category || 'General').join(', '),
+          testName: selectedTests.map(t => t.test_name).join(', '),
+          testIds: selectedTests.map(t => t.id),
+          parameters: [],
+          remarks: '',
         },
-        tests: selectedTests,
-        sample: {
-          collectionDate,
-          collectionTime,
-          branch: selectedBranch,
-          technician: selectedTechnician,
-          notes: sampleNotes,
-        },
-        referringDoctor,
-        selectedDoctor,
-      },
-    });
+      });
+
+      if (!report) {
+        setFormError(reportError || "Failed to create report");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Navigate to report entry page
+      navigate(`/reports/${report.id}/entry`);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "An error occurred");
+      setIsSubmitting(false);
+    }
   };
 
   // Click outside to close dropdowns
@@ -300,12 +263,33 @@ export function CreateReport() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const totalPrice = selectedTests.reduce((sum, test) => sum + (test.price || 0), 0);
-
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-3">
+      {/* Error Banner */}
+      {formError && (
+        <div className="bg-destructive/10 border border-destructive/20 rounded p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-destructive" />
+            <span className="text-sm text-destructive">{formError}</span>
+          </div>
+          <button
+            onClick={() => setFormError(null)}
+            className="text-xs text-destructive hover:underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Page Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate("/reports")}
+          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+          title="Back to Reports"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
         <div>
           <h1 className="text-foreground text-lg mb-0.5">Create New Report</h1>
           <p className="text-muted-foreground text-xs">
@@ -314,16 +298,61 @@ export function CreateReport() {
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
+        {/* Report Information Section - Moved to Top */}
+        <div className="bg-card border border-border rounded">
+          <div className="px-3 py-2 border-b border-border bg-secondary/30">
+            <h2 className="text-sm text-foreground flex items-center gap-2">
+              <FileText className="w-3.5 h-3.5" />
+              Report Information
+            </h2>
+          </div>
+          <div className="p-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">
+                  Date <span className="text-destructive">*</span>
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
+                  <input
+                    type="date"
+                    className="w-full h-9 pl-8 pr-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    value={collectionDate}
+                    onChange={(e) => setCollectionDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">
+                  Sample ID <span className="text-[10px] text-muted-foreground">(generated on save)</span>
+                </label>
+                <div className="relative">
+                  <Hash className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
+                  <input
+                    type="text"
+                    className="w-full h-9 pl-8 pr-2.5 bg-muted border border-border rounded text-sm cursor-not-allowed"
+                    value={sampleIdCode}
+                    readOnly
+                    disabled
+                    placeholder="Auto-generated"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Patient Information Section */}
         <div className="bg-card border border-border rounded">
-          <div className="px-4 py-2.5 border-b border-border bg-secondary/30">
+          <div className="px-3 py-2 border-b border-border bg-secondary/30">
             <h2 className="text-sm text-foreground flex items-center gap-2">
-              <User className="w-4 h-4" />
+              <User className="w-3.5 h-3.5" />
               Patient Information
             </h2>
           </div>
-          <div className="p-4 space-y-3">
+          <div className="p-3 space-y-2">
             {/* Patient Search */}
             <div className="relative" ref={patientSearchRef}>
               <label className="text-xs text-muted-foreground block mb-1">
@@ -339,9 +368,15 @@ export function CreateReport() {
                   onChange={(e) => {
                     setPatientSearch(e.target.value);
                     setShowPatientDropdown(true);
+                    if (e.target.value.length >= 2) {
+                      fetchPatients({ search: e.target.value });
+                    }
                   }}
                   onFocus={() => setShowPatientDropdown(true)}
                 />
+                {patientsLoading && (
+                  <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                )}
               </div>
 
               {/* Patient Dropdown */}
@@ -361,7 +396,7 @@ export function CreateReport() {
                                 {patient.name}
                               </div>
                               <div className="text-xs text-muted-foreground mt-0.5">
-                                {patient.id} • {patient.age}Y {patient.gender} • {patient.phone}
+                                {patient.id.slice(0, 8)} • {patient.age != null ? `${patient.age}Y` : ''} {patient.gender?.charAt(0) || ''} • {patient.phone}
                               </div>
                             </div>
                           </div>
@@ -396,87 +431,115 @@ export function CreateReport() {
             </div>
 
             {/* Patient Details Form */}
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <div>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              {/* Row 1: Name */}
+              <div className="col-span-2">
                 <label className="text-xs text-muted-foreground block mb-1">
-                  Full Name <span className="text-destructive">*</span>
+                  Patient Name <span className="text-destructive">*</span>
                 </label>
                 <input
                   type="text"
-                  className="w-full h-9 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   value={patientName}
                   onChange={(e) => setPatientName(e.target.value)}
-                  placeholder="Enter patient name"
+                  placeholder="Full name"
+                  disabled={!isNewPatient && !!selectedPatient}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs text-muted-foreground block mb-1">
-                    Age <span className="text-destructive">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    className="w-full h-9 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    value={patientAge}
-                    onChange={(e) => setPatientAge(e.target.value)}
-                    placeholder="Age"
-                    min="0"
-                    max="150"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground block mb-1">
-                    Gender <span className="text-destructive">*</span>
-                  </label>
-                  <select
-                    className="w-full h-9 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    value={patientGender}
-                    onChange={(e) => setPatientGender(e.target.value as "M" | "F")}
-                  >
-                    <option value="M">Male</option>
-                    <option value="F">Female</option>
-                  </select>
-                </div>
+              {/* Row 2: Age + Gender */}
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">
+                  Age
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="150"
+                  className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={patientAge}
+                  onChange={(e) => setPatientAge(e.target.value)}
+                  placeholder="Age"
+                  disabled={!isNewPatient && !!selectedPatient}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">
+                  Gender <span className="text-destructive">*</span>
+                </label>
+                <select
+                  className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={patientGender}
+                  onChange={(e) => setPatientGender(e.target.value as "Male" | "Female")}
+                  disabled={!isNewPatient && !!selectedPatient}
+                >
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
               </div>
 
+              {/* Row 3: Mobile + Email + Send Options */}
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">
                   Mobile Number <span className="text-destructive">*</span>
                 </label>
                 <input
                   type="tel"
-                  className="w-full h-9 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   value={patientPhone}
                   onChange={(e) => setPatientPhone(e.target.value)}
                   placeholder="+1 555-0000"
+                  disabled={!isNewPatient && !!selectedPatient}
                 />
               </div>
-
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">
-                  Referring Doctor
+                  Email
                 </label>
                 <input
-                  type="text"
-                  className="w-full h-9 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={referringDoctor}
-                  onChange={(e) => setReferringDoctor(e.target.value)}
-                  placeholder="Dr. Name"
+                  type="email"
+                  className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={patientEmail}
+                  onChange={(e) => setPatientEmail(e.target.value)}
+                  placeholder="patient@email.com"
                 />
               </div>
 
+              {/* Row 4: Address */}
               <div className="col-span-2">
                 <label className="text-xs text-muted-foreground block mb-1">
                   Address
                 </label>
                 <input
                   type="text"
-                  className="w-full h-9 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   value={patientAddress}
                   onChange={(e) => setPatientAddress(e.target.value)}
                   placeholder="Street address, city"
+                  disabled={!isNewPatient && !!selectedPatient}
                 />
+              </div>
+
+              {/* Row 5: Referring Doctor */}
+              <div className="col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">
+                  Referring Doctor
+                </label>
+                <select
+                  className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={selectedDoctor?.id || ''}
+                  onChange={(e) => {
+                    const doctor = doctors.find(d => d.id === e.target.value);
+                    setSelectedDoctor(doctor || null);
+                  }}
+                >
+                  <option value="">Self (No Doctor)</option>
+                  {doctors.map((doctor) => (
+                    <option key={doctor.id} value={doctor.id}>
+                      {doctor.title || 'Dr'}. {doctor.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -493,7 +556,7 @@ export function CreateReport() {
               <div className="flex items-center gap-2 text-xs px-2.5 py-1.5 bg-success/10 border border-success/20 rounded">
                 <Check className="w-3.5 h-3.5 text-success" />
                 <span className="text-success font-medium">
-                  Existing patient: {selectedPatient.id}
+                  Existing patient: {selectedPatient.id.slice(0, 8)}
                 </span>
               </div>
             )}
@@ -502,13 +565,13 @@ export function CreateReport() {
 
         {/* Test Selection Section */}
         <div className="bg-card border border-border rounded">
-          <div className="px-4 py-2.5 border-b border-border bg-secondary/30">
+          <div className="px-3 py-2 border-b border-border bg-secondary/30">
             <h2 className="text-sm text-foreground flex items-center gap-2">
-              <Beaker className="w-4 h-4" />
+              <Beaker className="w-3.5 h-3.5" />
               Test Selection
             </h2>
           </div>
-          <div className="p-4 space-y-3">
+          <div className="p-3 space-y-2">
             {/* Test Search */}
             <div className="relative" ref={testSearchRef}>
               <label className="text-xs text-muted-foreground block mb-1">
@@ -527,6 +590,9 @@ export function CreateReport() {
                   }}
                   onFocus={() => setShowTestDropdown(true)}
                 />
+                {testsLoading && (
+                  <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                )}
               </div>
 
               {/* Test Dropdown */}
@@ -542,14 +608,14 @@ export function CreateReport() {
                         <div className="flex items-start justify-between">
                           <div>
                             <div className="text-sm text-foreground font-medium">
-                              {test.name}
+                              {test.test_name}
                             </div>
                             <div className="text-xs text-muted-foreground mt-0.5">
-                              {test.category}
+                              {test.category || 'General'} • {test.test_code}
                             </div>
                           </div>
                           <div className="text-xs text-foreground font-medium">
-                            ${test.price}
+                            ₹{Number(test.price) || 0}
                           </div>
                         </div>
                       </button>
@@ -577,15 +643,15 @@ export function CreateReport() {
                     >
                       <div className="flex-1">
                         <div className="text-sm text-foreground font-medium">
-                          {test.name}
+                          {test.test_name}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {test.category}
+                          {test.category || 'General'}
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-foreground font-medium">
-                          ${test.price}
+                          ₹{Number(test.price) || 0}
                         </span>
                         <button
                           onClick={() => handleRemoveTest(test.id)}
@@ -603,7 +669,7 @@ export function CreateReport() {
                     Total Amount
                   </span>
                   <span className="text-sm text-foreground font-bold">
-                    ${totalPrice}
+                    ₹{totalPrice.toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -611,112 +677,32 @@ export function CreateReport() {
           </div>
         </div>
 
-        {/* Sample Information Section */}
-        <div className="bg-card border border-border rounded">
-          <div className="px-4 py-2.5 border-b border-border bg-secondary/30">
-            <h2 className="text-sm text-foreground flex items-center gap-2">
-              <FileText className="w-4 h-4" />
-              Sample Information
-            </h2>
-          </div>
-          <div className="p-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground block mb-1">
-                  Collection Date <span className="text-destructive">*</span>
-                </label>
-                <div className="relative">
-                  <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
-                  <input
-                    type="date"
-                    className="w-full h-9 pl-8 pr-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    value={collectionDate}
-                    onChange={(e) => setCollectionDate(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground block mb-1">
-                  Collection Time <span className="text-destructive">*</span>
-                </label>
-                <input
-                  type="time"
-                  className="w-full h-9 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={collectionTime}
-                  onChange={(e) => setCollectionTime(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground block mb-1">
-                  Branch Location <span className="text-destructive">*</span>
-                </label>
-                <div className="relative">
-                  <Building2 className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
-                  <select
-                    className="w-full h-9 pl-8 pr-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none"
-                    value={selectedBranch}
-                    onChange={(e) => setSelectedBranch(e.target.value)}
-                  >
-                    {BRANCHES.map((branch) => (
-                      <option key={branch} value={branch}>
-                        {branch}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground block mb-1">
-                  Technician <span className="text-destructive">*</span>
-                </label>
-                <select
-                  className="w-full h-9 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={selectedTechnician}
-                  onChange={(e) => setSelectedTechnician(e.target.value)}
-                >
-                  {TECHNICIANS.map((tech) => (
-                    <option key={tech} value={tech}>
-                      {tech}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="col-span-2">
-                <label className="text-xs text-muted-foreground block mb-1">
-                  Sample Notes (Optional)
-                </label>
-                <textarea
-                  className="w-full px-2.5 py-2 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-                  rows={2}
-                  value={sampleNotes}
-                  onChange={(e) => setSampleNotes(e.target.value)}
-                  placeholder="Add any special notes about sample collection or handling..."
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Action Buttons */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-end gap-2">
           <button
             onClick={() => navigate("/reports")}
             className="h-9 px-4 flex items-center gap-2 bg-secondary border border-border rounded hover:bg-accent transition-colors text-sm"
+            disabled={isSubmitting}
           >
             Cancel
           </button>
           <button
             onClick={handleCreateReport}
-            className="h-9 px-4 flex items-center gap-2 rounded text-sm text-white hover:opacity-90 transition-opacity"
+            disabled={isSubmitting || selectedTests.length === 0}
+            className="h-9 px-4 flex items-center gap-2 rounded text-sm text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: "var(--primary)" }}
           >
-            <Plus className="w-4 h-4" />
-            Create Report & Continue to Entry
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4" />
+                Create Report & Continue to Entry
+              </>
+            )}
           </button>
         </div>
       </div>

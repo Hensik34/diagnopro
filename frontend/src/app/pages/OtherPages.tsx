@@ -1,34 +1,29 @@
-import { useState } from 'react';
-import { Plus, Search, Package, AlertCircle, TrendingDown, CheckCircle, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Pen, Search, Package, AlertCircle, TrendingDown, CheckCircle, X, Loader2 } from 'lucide-react';
+import { inventoryApi } from '../../api/inventory';
+import { useBranchStore } from '../../stores';
+import type { InventoryItem } from '../../types';
 
-interface StockItem {
-  id: string;
-  name: string;
-  category: 'Reagent' | 'Kit';
-  quantity: number;
-  alertThreshold: number;
-  unit: string;
-  status: 'in-stock' | 'low' | 'out';
-  lastRestocked: string;
-}
+type StockStatus = 'in-stock' | 'low' | 'out';
 
-const MOCK_STOCK: StockItem[] = [
-  { id: 'ST-001', name: 'CBC Reagent Pack', category: 'Reagent', quantity: 45, alertThreshold: 20, unit: 'packs', status: 'in-stock', lastRestocked: '2024-03-10' },
-  { id: 'ST-002', name: 'Blood Glucose Strips', category: 'Kit', quantity: 15, alertThreshold: 25, unit: 'boxes', status: 'low', lastRestocked: '2024-03-05' },
-  { id: 'ST-003', name: 'Thyroid Test Kit', category: 'Kit', quantity: 0, alertThreshold: 10, unit: 'kits', status: 'out', lastRestocked: '2024-02-28' },
-  { id: 'ST-004', name: 'Lipid Profile Reagent', category: 'Reagent', quantity: 32, alertThreshold: 15, unit: 'bottles', status: 'in-stock', lastRestocked: '2024-03-12' },
-  { id: 'ST-005', name: 'HbA1c Test Kit', category: 'Kit', quantity: 8, alertThreshold: 12, unit: 'kits', status: 'low', lastRestocked: '2024-03-08' },
-  { id: 'ST-006', name: 'Urine Analysis Strips', category: 'Kit', quantity: 65, alertThreshold: 30, unit: 'boxes', status: 'in-stock', lastRestocked: '2024-03-14' },
-  { id: 'ST-007', name: 'ESR Reagent', category: 'Reagent', quantity: 2, alertThreshold: 10, unit: 'bottles', status: 'low', lastRestocked: '2024-02-20' },
-  { id: 'ST-008', name: 'Liver Function Test Kit', category: 'Kit', quantity: 28, alertThreshold: 15, unit: 'kits', status: 'in-stock', lastRestocked: '2024-03-11' },
-];
+const getItemStatus = (item: InventoryItem): StockStatus => {
+  if (item.quantity === 0) return 'out';
+  if (item.quantity < item.alert_threshold) return 'low';
+  return 'in-stock';
+};
 
 export function Inventory() {
+  const { currentBranchId } = useBranchStore();
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [modalError, setModalError] = useState('');
   
   // Form states
   const [formName, setFormName] = useState('');
@@ -37,19 +32,39 @@ export function Inventory() {
   const [formAlertThreshold, setFormAlertThreshold] = useState('');
   const [formUnit, setFormUnit] = useState('');
 
-  const filteredStock = MOCK_STOCK.filter(item => {
+  useEffect(() => {
+    if (currentBranchId) {
+      fetchItems();
+    }
+  }, [currentBranchId]);
+
+  const fetchItems = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await inventoryApi.getAll(currentBranchId!);
+      setItems(res.data);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to load inventory');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filteredStock = items.filter(item => {
+    const status = getItemStatus(item);
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
-    const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
+    const matchesStatus = statusFilter === 'all' || status === statusFilter;
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  const lowStockCount = MOCK_STOCK.filter(i => i.status === 'low').length;
-  const outOfStockCount = MOCK_STOCK.filter(i => i.status === 'out').length;
-  const inStockCount = MOCK_STOCK.filter(i => i.status === 'in-stock').length;
+  const lowStockCount = items.filter(i => getItemStatus(i) === 'low').length;
+  const outOfStockCount = items.filter(i => getItemStatus(i) === 'out').length;
+  const inStockCount = items.filter(i => getItemStatus(i) === 'in-stock').length;
 
-  const getStatusBadge = (status: StockItem['status']) => {
+  const getStatusBadge = (status: StockStatus) => {
     if (status === 'in-stock') {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] uppercase tracking-wide bg-success/10 text-success">
@@ -81,18 +96,84 @@ export function Inventory() {
     setFormQuantity('');
     setFormAlertThreshold('');
     setFormUnit('');
+    setModalError('');
     setShowModal(true);
   };
 
-  const handleEdit = (item: StockItem) => {
+  const handleEdit = (item: InventoryItem) => {
     setSelectedItem(item);
     setFormName(item.name);
     setFormCategory(item.category);
     setFormQuantity(item.quantity.toString());
-    setFormAlertThreshold(item.alertThreshold.toString());
+    setFormAlertThreshold(item.alert_threshold.toString());
     setFormUnit(item.unit);
+    setModalError('');
     setShowModal(true);
   };
+
+  const handleSave = async () => {
+    if (!formName.trim() || !formUnit.trim()) {
+      setModalError('Name and unit are required');
+      return;
+    }
+    setIsSaving(true);
+    setModalError('');
+    try {
+      const data = {
+        name: formName.trim(),
+        category: formCategory,
+        quantity: parseInt(formQuantity) || 0,
+        alert_threshold: parseInt(formAlertThreshold) || 0,
+        unit: formUnit.trim(),
+        branch_id: currentBranchId!,
+      };
+      if (selectedItem) {
+        await inventoryApi.update(selectedItem.id, data);
+      } else {
+        await inventoryApi.create(data);
+      }
+      setShowModal(false);
+      fetchItems();
+    } catch (err: any) {
+      setModalError(err.response?.data?.error || 'Failed to save item');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAddStock = async (item: InventoryItem) => {
+    const qty = prompt(`Add stock for "${item.name}" — enter quantity:`);
+    if (!qty) return;
+    const num = parseInt(qty);
+    if (isNaN(num) || num <= 0) {
+      alert('Please enter a valid positive number');
+      return;
+    }
+    try {
+      await inventoryApi.addStock(item.id, num);
+      fetchItems();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to add stock');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-destructive/10 border border-destructive/20 rounded p-4 flex items-center gap-2">
+        <AlertCircle className="w-4 h-4 text-destructive" />
+        <span className="text-sm text-destructive">{error}</span>
+        <button onClick={fetchItems} className="ml-auto text-xs text-primary hover:underline">Retry</button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -132,7 +213,7 @@ export function Inventory() {
             <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Total Items</span>
             <Package className="w-3.5 h-3.5 text-muted-foreground" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">{MOCK_STOCK.length}</div>
+          <div className="text-foreground text-xl tabular-nums">{items.length}</div>
           <div className="text-[10px] text-muted-foreground mt-0.5">Items tracked</div>
         </div>
 
@@ -217,10 +298,17 @@ export function Inventory() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredStock.map((item) => {
-                const rowClass = item.status === 'low' 
+              {filteredStock.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                    No inventory items found
+                  </td>
+                </tr>
+              ) : filteredStock.map((item) => {
+                const status = getItemStatus(item);
+                const rowClass = status === 'low' 
                   ? 'bg-warning/5' 
-                  : item.status === 'out' 
+                  : status === 'out' 
                     ? 'bg-destructive/5' 
                     : '';
                 
@@ -232,7 +320,7 @@ export function Inventory() {
                     <td className="px-3 py-2">
                       <div className="flex flex-col">
                         <span className="text-xs text-foreground font-medium">{item.name}</span>
-                        <span className="text-[10px] text-muted-foreground">{item.id}</span>
+                        <span className="text-[10px] text-muted-foreground">{item.id.slice(0, 8)}</span>
                       </div>
                     </td>
                     <td className="px-3 py-2 text-center">
@@ -242,8 +330,8 @@ export function Inventory() {
                     </td>
                     <td className="px-3 py-2 text-center">
                       <span className={`text-xs font-medium tabular-nums ${
-                        item.status === 'out' ? 'text-destructive' : 
-                        item.status === 'low' ? 'text-warning' : 
+                        status === 'out' ? 'text-destructive' : 
+                        status === 'low' ? 'text-warning' : 
                         'text-foreground'
                       }`}>
                         {item.quantity} {item.unit}
@@ -251,22 +339,28 @@ export function Inventory() {
                     </td>
                     <td className="px-3 py-2 text-center">
                       <span className="text-xs text-muted-foreground tabular-nums">
-                        {item.alertThreshold} {item.unit}
+                        {item.alert_threshold} {item.unit}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-center">
-                      {getStatusBadge(item.status)}
+                      {getStatusBadge(status)}
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {new Date(item.lastRestocked).toLocaleDateString()}
+                      {item.last_restocked ? new Date(item.last_restocked).toLocaleDateString() : '—'}
                     </td>
                     <td className="px-3 py-2">
-                      <div className="flex items-center justify-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button 
+                          onClick={() => handleAddStock(item)}
+                          className="h-7 px-2 flex items-center gap-1 bg-secondary border border-border rounded hover:bg-accent transition-colors text-xs"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
                         <button 
                           onClick={() => handleEdit(item)}
                           className="h-7 px-2 flex items-center gap-1 bg-secondary border border-border rounded hover:bg-accent transition-colors text-xs"
                         >
-                          Add Stock
+                          <Pen className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>
@@ -280,7 +374,7 @@ export function Inventory() {
         {/* Footer */}
         <div className="border-t border-border bg-secondary/30 px-3 py-2 flex justify-between items-center">
           <div className="text-xs text-muted-foreground">
-            Showing <span className="text-foreground">{filteredStock.length}</span> of <span className="text-foreground">{MOCK_STOCK.length}</span> items
+            Showing <span className="text-foreground">{filteredStock.length}</span> of <span className="text-foreground">{items.length}</span> items
           </div>
         </div>
       </div>
@@ -304,6 +398,13 @@ export function Inventory() {
 
             {/* Modal Content */}
             <div className="p-4 space-y-3">
+              {modalError && (
+                <div className="bg-destructive/10 border border-destructive/20 rounded p-2.5 flex items-center gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 text-destructive" />
+                  <span className="text-xs text-destructive">{modalError}</span>
+                </div>
+              )}
+
               <div>
                 <label className="text-xs text-foreground block mb-1">Item Name *</label>
                 <input 
@@ -369,14 +470,17 @@ export function Inventory() {
             <div className="border-t border-border px-4 py-3 flex items-center justify-end gap-2">
               <button 
                 onClick={() => setShowModal(false)}
-                className="h-8 px-3 bg-secondary border border-border rounded text-xs hover:bg-accent transition-colors"
+                disabled={isSaving}
+                className="h-8 px-3 bg-secondary border border-border rounded text-xs hover:bg-accent transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button 
-                onClick={() => setShowModal(false)}
-                className="h-8 px-3 bg-primary text-white rounded text-xs hover:opacity-90 transition-opacity"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="h-8 px-3 bg-primary text-white rounded text-xs hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5"
               >
+                {isSaving && <Loader2 className="w-3 h-3 animate-spin" />}
                 {selectedItem ? 'Update Stock' : 'Add Item'}
               </button>
             </div>

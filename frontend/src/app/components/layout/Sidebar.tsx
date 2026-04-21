@@ -17,43 +17,135 @@ import {
   FlaskConical,
   User,
   Stethoscope,
+  CheckSquare,
+  Clock,
+  Timer,
 } from 'lucide-react';
+import { useAuthStore, PERMISSIONS } from '../../../stores';
 
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
 }
 
+/**
+ * Menu items with permission-based visibility
+ * Each item can have an optional permission or permissions array
+ * Items without permissions are visible to all authenticated users
+ */
 const menuItems = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/reports', label: 'Reports', icon: FileText },
-  { path: '/patients', label: 'Patients', icon: User },
-  { path: '/sample-collection', label: 'Sample Collection', icon: Syringe },
-  { path: '/tests', label: 'Test Management', icon: Beaker },
-  { path: '/doctors', label: 'Doctor Management', icon: Stethoscope },
-  { path: '/branches', label: 'Branches', icon: Building2 },
-  { path: '/users', label: 'Users', icon: Users },
-  { path: '/inventory', label: 'Inventory', icon: Package },
-  { path: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { path: '/settings', label: 'Settings', icon: Settings },
+  { 
+    path: '/', 
+    label: 'Dashboard', 
+    icon: LayoutDashboard,
+    // Dashboard visible to all
+  },
+  { 
+    path: '/reports', 
+    label: 'Reports', 
+    icon: FileText,
+    permission: PERMISSIONS.REPORT_READ,
+  },
+  { 
+    path: '/reports/review', 
+    label: 'Review Reports', 
+    icon: CheckSquare,
+    permission: PERMISSIONS.REPORT_APPROVE,
+  },
+  { 
+    path: '/patients', 
+    label: 'Patients', 
+    icon: User,
+    permission: PERMISSIONS.PATIENT_READ,
+  },
+  { 
+    path: '/sample-collection', 
+    label: 'Sample Collection', 
+    icon: Syringe,
+    permission: PERMISSIONS.COLLECTION_READ,
+  },
+  { 
+    path: '/tests', 
+    label: 'Test Management', 
+    icon: Beaker,
+    permission: PERMISSIONS.TEST_READ,
+  },
+  { 
+    path: '/doctors', 
+    label: 'Doctor Management', 
+    icon: Stethoscope,
+    permission: PERMISSIONS.DOCTOR_UPDATE,
+  },
+  { 
+    path: '/branches', 
+    label: 'Branches', 
+    icon: Building2,
+    permission: PERMISSIONS.BRANCH_UPDATE,
+  },
+  { 
+    path: '/users', 
+    label: 'Users', 
+    icon: Users,
+    permission: PERMISSIONS.USER_READ,
+  },
+  { 
+    path: '/inventory', 
+    label: 'Inventory', 
+    icon: Package,
+    // Placeholder - visible to admin only for now
+    permission: PERMISSIONS.SETTINGS_UPDATE,
+  },
+  { 
+    path: '/time-tracking', 
+    label: 'Time Tracking', 
+    icon: Clock,
+    // Visible to all authenticated users (no permission needed)
+  },
+  { 
+    path: '/working-hours', 
+    label: 'Working Hours', 
+    icon: Timer,
+    permission: PERMISSIONS.TIMELOG_VIEW_ALL,
+  },
+  { 
+    path: '/analytics', 
+    label: 'Analytics', 
+    icon: BarChart3,
+    permission: PERMISSIONS.ANALYTICS_VIEW,
+  },
+  { 
+    path: '/settings', 
+    label: 'Settings', 
+    icon: Settings,
+    permission: PERMISSIONS.SETTINGS_VIEW,
+  },
 ];
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const location = useLocation();
+  const { can } = useAuthStore();
+
+  // Filter menu items based on user permissions
+  const visibleMenuItems = menuItems.filter(item => {
+    // No permission required - visible to all
+    if (!item.permission) return true;
+    // Check single permission
+    return can(item.permission);
+  });
 
   return (
-    <div className={`fixed left-0 top-0 h-full bg-white border-r border-gray-200 transition-all duration-300 ${
+    <div className={`fixed left-0 top-0 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 print:hidden ${
       collapsed ? 'w-14' : 'w-56'
     }`}>
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           {!collapsed && (
-            <h1 className="text-xl font-bold text-gray-800">VisionLab</h1>
+            <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">DiagnoPro</h1>
           )}
           <button
             onClick={onToggle}
-            className="p-1 rounded-md hover:bg-gray-100 transition-colors"
+            className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors dark:text-gray-400"
           >
             {collapsed ? (
               <ChevronRight className="w-5 h-5" />
@@ -65,7 +157,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
         {/* Menu Items */}
         <nav className="flex-1 p-4 space-y-2">
-          {menuItems.map((item) => {
+          {visibleMenuItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
 
@@ -75,8 +167,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 to={item.path}
                 className={`flex items-center px-3 py-2 rounded-md transition-colors ${
                   isActive
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400'
+                    : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
                 }`}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />

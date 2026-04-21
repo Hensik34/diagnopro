@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useParams, useNavigate, useLocation, useSearchParams, Link } from "react-router";
 import {
   Save,
   CheckCircle,
@@ -13,155 +13,436 @@ import {
   Info,
   History,
   ChevronRight,
+  Search,
+  Stethoscope,
+  X,
+  Loader2,
+  Send,
+  Lock,
+  Sparkles,
+  BrainCircuit,
+  ChevronDown as ChevronDownIcon,
 } from "lucide-react";
 import { format } from "date-fns";
-
-// Mock Data for the selected patient/test
-const MOCK_PATIENT_DETAILS = {
-  id: "PT-8901",
-  name: "Sarah Jenkins",
-  age: 34,
-  gender: "Female",
-  dob: "1989-05-12",
-  mobile: "+1 (555) 012-3456",
-  referringDr: "Dr. Emily Chen",
-  collectionDate: new Date().toISOString(),
-};
-
-const TEST_PARAMETERS = [
-  {
-    id: 1,
-    name: "Hemoglobin",
-    unit: "g/dL",
-    min: 12.0,
-    max: 15.5,
-    step: 0.1,
-  },
-  {
-    id: 2,
-    name: "RBC Count",
-    unit: "mil/µL",
-    min: 3.5,
-    max: 5.5,
-    step: 0.01,
-  },
-  {
-    id: 3,
-    name: "HCT",
-    unit: "%",
-    min: 37.0,
-    max: 47.0,
-    step: 0.1,
-  },
-  {
-    id: 4,
-    name: "MCV",
-    unit: "fL",
-    min: 80.0,
-    max: 100.0,
-    step: 0.1,
-  },
-  {
-    id: 5,
-    name: "MCH",
-    unit: "pg",
-    min: 27.0,
-    max: 31.0,
-    step: 0.1,
-  },
-  {
-    id: 6,
-    name: "MCHC",
-    unit: "g/dL",
-    min: 32.0,
-    max: 36.0,
-    step: 0.1,
-  },
-  {
-    id: 7,
-    name: "RDW",
-    unit: "%",
-    min: 11.5,
-    max: 14.5,
-    step: 0.1,
-  },
-  {
-    id: 8,
-    name: "Platelet Count",
-    unit: "thou/µL",
-    min: 150,
-    max: 450,
-    step: 1,
-  },
-  {
-    id: 9,
-    name: "WBC Count",
-    unit: "thou/µL",
-    min: 4.5,
-    max: 11.0,
-    step: 0.1,
-  },
-];
-
-const MOCK_VERSION_HISTORY = [
-  {
-    id: 1,
-    timestamp: "2024-02-26 14:23",
-    user: "Dr. Sarah Mitchell",
-    action: "Created draft",
-    changes: 5,
-  },
-  {
-    id: 2,
-    timestamp: "2024-02-26 14:45",
-    user: "Tech. John Doe",
-    action: "Updated values",
-    changes: 3,
-  },
-  {
-    id: 3,
-    timestamp: "2024-02-26 15:02",
-    user: "Dr. Sarah Mitchell",
-    action: "Reviewed",
-    changes: 0,
-  },
-];
+import { useDoctorStore, useReportStore, usePatientStore, useTestStore, useBranchStore } from "../../stores";
+import { useAuthStore } from "../../stores/authStore";
+import { reportApi } from "../../api/reports";
+import { useBillingStore } from "../../stores/billingStore";
+import type { Doctor, Patient, Report, Test, TestField } from "../../types";
+import { BillingSection } from "../components/reports/BillingSection";
 
 
 
 export function ReportEntry() {
-  const [values, setValues] = useState<Record<number, string>>(
-    {},
-  );
-  const [statuses, setStatuses] = useState<
-    Record<number, "low" | "high" | "normal" | "empty">
-  >({});
-  const [showHistory, setShowHistory] = useState(false);
+  const { reportId } = useParams<{ reportId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const isEditMode = searchParams.get('edit') === 'true';
+  
+  // Get initial data from navigation state (from CreateReport page)
+  const initialData = location.state as {
+    patient?: Patient;
+    testName?: string;
+    reportAmount?: number;
+  } | null;
 
-  const handleValueChange = (id: number, value: string) => {
-    setValues((prev) => ({ ...prev, [id]: value }));
+  // Stores
+  const { doctors, fetchDoctors, isLoading: doctorsLoading } = useDoctorStore();
+  const { 
+    selectedReport, 
+    fetchReportById, 
+    updateReport, 
+    submitReport,
+    setSelectedReport,
+    isLoading: reportLoading,
+    error: reportError 
+  } = useReportStore();
+  const { fetchPatientById, updatePatient } = usePatientStore();
+  const { currentBranchId } = useBranchStore();
+  const { can } = useAuthStore();
+  const { tests, testFields, fetchTests, fetchTestFields, fetchTestFieldsMulti } = useTestStore();
+  const canAutoApprove = can('report:approve');
+  const { loadFromReport, reset: resetBilling, saveBilling } = useBillingStore();
+
+  // Dynamic test parameters derived from testFields (memoized to prevent re-render loops)
+  const dynamicParams = useMemo(() => 
+    [...testFields]
+      .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+      .map((field) => ({
+        id: field.id,
+        test_id: field.test_id,
+        name: field.field_name,
+        unit: field.unit || '',
+        min: field.min_value != null ? Number(field.min_value) : 0,
+        max: field.max_value != null ? Number(field.max_value) : 0,
+        step: field.input_type === 'number' ? 0.1 : 1,
+        input_type: field.input_type || 'number',
+        field_type: (field.field_type || 'input') as 'input' | 'calculated' | 'flag',
+        formula: field.formula || '',
+        depends_on: field.depends_on || '',
+        section_group: field.section_group || '',
+      })),
+    [testFields]
+  );
+
+  // Group parameters by test for multi-test section rendering
+  const testSections = useMemo(() => {
+    const testIds = selectedReport?.test_data?.testIds || [];
+    const grouped = new Map<string, typeof dynamicParams>();
+    
+    for (const param of dynamicParams) {
+      const list = grouped.get(param.test_id) || [];
+      list.push(param);
+      grouped.set(param.test_id, list);
+    }
+
+    // Build ordered sections: preserve the order from testIds
+    const sections: { testId: string; testName: string; params: typeof dynamicParams }[] = [];
+    const orderedIds = testIds.length > 0 ? testIds : [...grouped.keys()];
+    
+    for (const tid of orderedIds) {
+      const params = grouped.get(tid);
+      if (!params || params.length === 0) continue;
+      const masterTest = tests.find(t => t.id === tid);
+      sections.push({
+        testId: tid,
+        testName: masterTest?.test_name || `Test ${tid.slice(0, 8)}`,
+        params,
+      });
+    }
+    return sections;
+  }, [dynamicParams, selectedReport, tests]);
+
+  // Safe formula evaluator: builds a scope of field values by name, then evaluates the expression
+  const evaluateFormula = useCallback((formula: string, currentValues: Record<string, string>): number | null => {
+    if (!formula) return null;
+    try {
+      // Build a name→value map from all dynamicParams
+      const scope: Record<string, number> = {};
+      for (const param of dynamicParams) {
+        const raw = currentValues[param.id];
+        if (raw !== undefined && raw !== '') {
+          const num = parseFloat(raw);
+          if (!isNaN(num)) {
+            scope[param.name] = num;
+            // Also add alias without parenthetical suffix, e.g. "HCT (PCV)" → "HCT"
+            const baseName = param.name.replace(/\s*\(.*\)\s*$/, '').trim();
+            if (baseName && baseName !== param.name && !(baseName in scope)) {
+              scope[baseName] = num;
+            }
+          }
+        }
+      }
+
+      // Replace field names in formula with their numeric values
+      // Sort by name length descending to avoid partial replacement
+      const sortedNames = Object.keys(scope).sort((a, b) => b.length - a.length);
+      let expression = formula;
+      for (const name of sortedNames) {
+        // Escape special regex chars in the name and replace
+        const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        expression = expression.replace(new RegExp(escaped, 'g'), String(scope[name]));
+      }
+
+      // Only allow safe characters: digits, operators, parens, dots, spaces
+      if (!/^[\d\s+\-*/().]+$/.test(expression)) {
+        return null;
+      }
+
+      // Evaluate using Function (safe since we've sanitized the expression)
+      const result = new Function(`"use strict"; return (${expression});`)();
+      if (typeof result === 'number' && isFinite(result)) {
+        return Math.round(result * 100) / 100; // Round to 2 decimal places
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }, [dynamicParams]);
+
+  // Patient & Doctor state
+  const [patient, setPatient] = useState<Patient | null>(initialData?.patient || null);
+  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
+  const [isSelfReport, setIsSelfReport] = useState(true);
+  const [doctorSearch, setDoctorSearch] = useState("");
+  const [showDoctorDropdown, setShowDoctorDropdown] = useState(false);
+  const doctorSearchRef = useRef<HTMLDivElement>(null);
+
+  // Test parameters state
+  const [testName, setTestName] = useState(initialData?.testName || "Complete Blood Count (CBC)");
+  const [reportAmount, setReportAmount] = useState(initialData?.reportAmount || 0);
+
+  // Initialize billing from initialData if creating a new report entry
+  useEffect(() => {
+    if (initialData?.reportAmount && !reportId) {
+      loadFromReport({ base_amount: initialData.reportAmount, report_amount: initialData.reportAmount });
+    }
+    return () => {
+      resetBilling();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [statuses, setStatuses] = useState<Record<string, "low" | "high" | "normal" | "empty">>({});
+  const [technicianNotes, setTechnicianNotes] = useState("");
+  
+  // AI Interpretation state
+  const [aiInterpretation, setAiInterpretation] = useState<{
+    summary: string;
+    keyFindings: string;
+    clinicalIndications: string;
+    recommendation: string;
+  } | null>(null);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [showAiResult, setShowAiResult] = useState(true);
+  
+  // UI state
+  const [showHistory, setShowHistory] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [reportStatus, setReportStatus] = useState<string>("draft");
+  const [isEditable, setIsEditable] = useState(true);
+  const [loadingReport, setLoadingReport] = useState(false);
+
+  // Fetch report data when reportId is provided
+  useEffect(() => {
+    if (reportId) {
+      setLoadingReport(true);
+      fetchReportById(reportId).finally(() => setLoadingReport(false));
+    }
+  }, [reportId, fetchReportById]);
+
+  // Fetch tests list on mount for looking up test IDs
+  useEffect(() => {
+    if (currentBranchId) {
+      fetchTests(currentBranchId);
+    }
+  }, [fetchTests, currentBranchId]);
+
+  // Fetch test fields when report loads (use testIds from test_data, or look up by name)
+  useEffect(() => {
+    if (!selectedReport) return;
+
+    const testIds = selectedReport.test_data?.testIds;
+    if (testIds && testIds.length > 1) {
+      // Fetch fields for all selected tests
+      fetchTestFieldsMulti(testIds);
+    } else if (testIds && testIds.length === 1) {
+      fetchTestFields(testIds[0]);
+    } else if (selectedReport.report_type && tests.length > 0) {
+      // Fallback: look up tests by name
+      const testNames = selectedReport.report_type.split(',').map(n => n.trim());
+      const matchedIds = tests
+        .filter(t => testNames.includes(t.test_name))
+        .map(t => t.id);
+      if (matchedIds.length > 1) {
+        fetchTestFieldsMulti(matchedIds);
+      } else if (matchedIds.length === 1) {
+        fetchTestFields(matchedIds[0]);
+      }
+    }
+  }, [selectedReport, tests, fetchTestFields, fetchTestFieldsMulti]);
+
+  // Track whether we've already populated values from the report (to avoid overwriting user input)
+  const hasPopulatedValues = useRef(false);
+  // Track whether billing has been loaded from the report (to avoid overwriting user's discount changes)
+  const hasBillingLoaded = useRef(false);
+
+  // Reset the populated flag and form state when reportId changes (navigating to a different report)
+  useEffect(() => {
+    hasPopulatedValues.current = false;
+    hasBillingLoaded.current = false;
+    setSelectedReport(null); // Clear stale report data before fetching new one
+    setValues({});
+    setStatuses({});
+    setTechnicianNotes('');
+    setLastSaved(null);
+    setReportStatus('draft');
+    resetBilling();
+  }, [reportId]);
+
+  // Populate form data when selectedReport changes
+  useEffect(() => {
+    if (selectedReport && reportId && selectedReport.id === reportId) {
+      // Set patient data
+      if (selectedReport.patient_name) {
+        setPatient({
+          id: selectedReport.patient_id,
+          name: selectedReport.patient_name || '',
+          phone: selectedReport.patient_phone || '',
+          gender: selectedReport.patient_gender || '',
+          age: selectedReport.patient_age,
+          address: '',
+          branch_id: '',
+          created_by: '',
+          created_at: '',
+          updated_at: '',
+        });
+      }
+
+      // Set report status
+      setReportStatus(selectedReport.status);
+      setIsEditable(true);
+
+      // Set test name and amount
+      if (selectedReport.report_type) setTestName(selectedReport.report_type);
+      if (selectedReport.report_amount) setReportAmount(selectedReport.report_amount);
+      if (selectedReport.clinical_notes) setTechnicianNotes(selectedReport.clinical_notes);
+
+      // Set doctor selection
+      if (selectedReport.doctor_id) {
+        setIsSelfReport(false);
+        const doctor = doctors.find(d => d.id === selectedReport.doctor_id);
+        if (doctor) {
+          setSelectedDoctor(doctor);
+          setDoctorSearch(`${doctor.title || 'Dr'}. ${doctor.name}`);
+        }
+      } else {
+        setIsSelfReport(selectedReport.is_self_report ?? true);
+      }
+
+      // Load billing data from the report ONCE (avoid overwriting user's discount changes)
+      if (!hasBillingLoaded.current) {
+        loadFromReport(selectedReport);
+        hasBillingLoaded.current = true;
+      }
+    }
+  }, [selectedReport, reportId, doctors, loadFromReport]);
+
+  // Populate test values from report's test_data ONCE when dynamic params arrive
+  useEffect(() => {
+    if (hasPopulatedValues.current) return;
+    if (!selectedReport?.test_data || dynamicParams.length === 0) return;
+    // Guard: only populate when selectedReport matches the current URL reportId
+    if (selectedReport.id !== reportId) return;
+
+    const existingValues: Record<string, string> = {};
+
+    // Collect all saved parameters — support both grouped (tests[]) and legacy flat (parameters[])
+    const allSavedParams: { name: string; value: string | number | null }[] = [];
+    if (selectedReport.test_data.tests?.length) {
+      for (const group of selectedReport.test_data.tests) {
+        for (const p of group.parameters) {
+          allSavedParams.push(p);
+        }
+      }
+    } else if (selectedReport.test_data.parameters?.length) {
+      for (const p of selectedReport.test_data.parameters) {
+        allSavedParams.push(p);
+      }
+    }
+
+    allSavedParams.forEach((param) => {
+      const matchedParam = dynamicParams.find(p => p.name === param.name);
+      // Only populate fields that have actual values (skip null/undefined/empty)
+      if (matchedParam && param.value != null && param.value !== '') {
+        existingValues[matchedParam.id] = param.value.toString();
+      }
+    });
+
+    if (Object.keys(existingValues).length > 0) {
+      setValues(existingValues);
+    }
+    hasPopulatedValues.current = true;
+  }, [selectedReport, dynamicParams, reportId]);
+
+  // Fetch doctors on mount
+  useEffect(() => {
+    fetchDoctors(currentBranchId ? { branch_id: currentBranchId } : undefined);
+  }, [fetchDoctors, currentBranchId]);
+
+  // Click outside handler for doctor dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (doctorSearchRef.current && !doctorSearchRef.current.contains(event.target as Node)) {
+        setShowDoctorDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Filter doctors based on search
+  const filteredDoctors = doctors.filter((d) => {
+    const fullName = `${d.title || 'Dr'} ${d.name}`.toLowerCase();
+    return fullName.includes(doctorSearch.toLowerCase()) ||
+           d.phone?.toLowerCase().includes(doctorSearch.toLowerCase()) ||
+           d.specialization?.toLowerCase().includes(doctorSearch.toLowerCase());
+  });
+
+  // Handle doctor selection
+  const handleSelectDoctor = (doctor: Doctor | null) => {
+    if (doctor) {
+      setSelectedDoctor(doctor);
+      setIsSelfReport(false);
+      setDoctorSearch(`${doctor.title || 'Dr'}. ${doctor.name}`);
+    } else {
+      // Self selected
+      setSelectedDoctor(null);
+      setIsSelfReport(true);
+      setDoctorSearch("");
+    }
+    setShowDoctorDropdown(false);
+  };
+
+  const handleValueChange = (id: string, value: string) => {
+    setValues((prev) => {
+      const next = { ...prev, [id]: value };
+
+      // Auto-calculate derived fields whose dependencies may have changed
+      const changedParam = dynamicParams.find(p => p.id === id);
+      if (changedParam) {
+        const calculatedFields = dynamicParams.filter(p => p.field_type === 'calculated' && p.formula);
+        for (const calc of calculatedFields) {
+          // Check if the changed field is one of this calculated field's dependencies
+          let dependsOnNames: string[] = [];
+          try {
+            dependsOnNames = calc.depends_on ? JSON.parse(calc.depends_on) : [];
+          } catch {
+            // If depends_on isn't valid JSON, try to detect from formula
+            dependsOnNames = dynamicParams
+              .filter(p => p.field_type !== 'calculated' && calc.formula.includes(p.name))
+              .map(p => p.name);
+          }
+
+          if (dependsOnNames.includes(changedParam.name) || dependsOnNames.length === 0) {
+            const result = evaluateFormula(calc.formula, next);
+            if (result !== null) {
+              next[calc.id] = result.toString();
+            }
+          }
+        }
+      }
+
+      return next;
+    });
+    setReportStatus("draft");
   };
 
   useEffect(() => {
-    const newStatuses: Record<
-      number,
-      "low" | "high" | "normal" | "empty"
-    > = {};
+    const newStatuses: Record<string, "low" | "high" | "normal" | "empty"> = {};
 
-    TEST_PARAMETERS.forEach((param) => {
+    dynamicParams.forEach((param) => {
       const valStr = values[param.id];
       if (!valStr || valStr === "") {
         newStatuses[param.id] = "empty";
         return;
       }
 
+      // Text fields don't have numeric ranges — any non-empty value is "normal"
+      if (param.input_type === 'text') {
+        newStatuses[param.id] = "normal";
+        return;
+      }
+
       const val = parseFloat(valStr);
       if (isNaN(val)) {
         newStatuses[param.id] = "empty";
-      } else if (val < param.min) {
+      } else if (param.min && val < param.min) {
         newStatuses[param.id] = "low";
-      } else if (val > param.max) {
+      } else if (param.max && val > param.max) {
         newStatuses[param.id] = "high";
       } else {
         newStatuses[param.id] = "normal";
@@ -169,10 +450,10 @@ export function ReportEntry() {
     });
 
     setStatuses(newStatuses);
-  }, [values]);
+  }, [values, dynamicParams]);
 
   const getStatusBadge = (
-    status: "low" | "high" | "normal" | "empty",
+    status: "low" | "high" | "normal" | "empty" | undefined,
   ) => {
     const styles = {
       low: {
@@ -189,7 +470,7 @@ export function ReportEntry() {
       },
     };
 
-    if (status === "empty") {
+    if (!status || status === "empty") {
       return (
         <span className="text-muted-foreground text-xs">-</span>
       );
@@ -207,7 +488,7 @@ export function ReportEntry() {
   };
 
   const getInputClass = (
-    status: "low" | "high" | "normal" | "empty",
+    status: "low" | "high" | "normal" | "empty" | undefined,
   ) => {
     const base =
       "w-full px-2 py-1.5 text-xs border rounded focus:outline-none focus:ring-1 transition-colors text-right tabular-nums";
@@ -227,42 +508,335 @@ export function ReportEntry() {
     (s) => s === "low" || s === "high",
   ).length;
 
+  // Build test_data object for saving — grouped by test
+  const buildTestData = () => {
+    const testIds = selectedReport?.test_data?.testIds;
 
-const handleApprove = () => {
+    // Build grouped structure: each test gets its own parameter list
+    const groupedTests = testSections.map(section => ({
+      testId: section.testId,
+      testName: section.testName,
+      parameters: section.params.map(param => {
+        const localStatus = statuses[param.id];
+        const mappedStatus = localStatus === 'empty' ? undefined : localStatus as 'normal' | 'high' | 'low' | 'critical' | undefined;
+        const rawValue = values[param.id];
+        const value = rawValue !== undefined && rawValue !== ''
+          ? (param.input_type === 'text' ? rawValue : parseFloat(rawValue))
+          : null;
 
-  if (Object.keys(values).length === 0) {
-    alert("Please enter test values before approving.");
-    return;
-  }
+        return {
+          name: param.name,
+          value,
+          unit: param.unit,
+          referenceRange: param.min || param.max ? `${param.min} - ${param.max}` : '',
+          status: mappedStatus,
+          fieldType: param.field_type,
+          group: param.section_group || undefined,
+        };
+      }),
+    }));
 
-  const parameters = TEST_PARAMETERS.map(p => ({
-    name: p.name,
-    result: values[p.id] || '',
-    unit: p.unit,
-    refRange: `${p.min} - ${p.max}`,
-    isAbnormal: statuses[p.id] === 'low' || statuses[p.id] === 'high',
-    status: statuses[p.id] || 'empty'
-  }));
+    // Also build flat parameters list for backward compatibility
+    const allParameters = groupedTests.flatMap(g => g.parameters);
 
-  const reportData = {
-    patient: MOCK_PATIENT_DETAILS,
-    test: {
-      name: "Complete Blood Count (CBC)",
-      category: "Hematology"
-    },
-    parameters
+    return {
+      testName,
+      testType: selectedReport?.test_data?.testType || 'General',
+      testIds,
+      tests: groupedTests,
+      parameters: allParameters,
+      remarks: technicianNotes
+    };
   };
 
-  navigate(`/reports/preview/1`, {
-    state: { reportData }
-  });
-};
+  // Save draft functionality - saves to backend
+  const handleSaveDraft = async () => {
+    if (!reportId) {
+      alert("No report ID available. Please create a report first.");
+      return;
+    }
+
+    if (!isEditable) {
+      alert("This report is no longer editable.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const testData = buildTestData();
+
+      // Save patient info if changed
+      if (patient) {
+        await updatePatient(patient.id, {
+          name: patient.name,
+          phone: patient.phone,
+          gender: patient.gender,
+          age: patient.age,
+        });
+      }
+
+      const result = await updateReport(reportId, {
+        clinical_notes: technicianNotes,
+        doctor_id: selectedDoctor?.id,
+        is_self_report: isSelfReport,
+        test_data: testData
+      });
+
+      // Also save billing data (discounts, base amount)
+      await saveBilling(reportId);
+
+      if (result) {
+        setLastSaved(new Date());
+        navigate('/reports');
+      } else {
+        alert(reportError || "Failed to save draft. Please try again.");
+      }
+    } catch (error) {
+      console.error("Failed to save draft:", error);
+      alert("Failed to save draft. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Submit for review - changes status to under_review
+  const handleSubmitForReview = async () => {
+    if (!reportId) {
+      alert("No report ID available.");
+      return;
+    }
+
+    // First save any pending changes
+    const testData = buildTestData();
+    // Check that at least one parameter has an actual non-empty value
+    const filledValues = Object.values(values).filter(v => v !== undefined && v !== '');
+    
+    if (filledValues.length === 0) {
+      alert("Please enter test values before submitting for review.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // Save patient info if changed
+      if (patient) {
+        await updatePatient(patient.id, {
+          name: patient.name,
+          phone: patient.phone,
+          gender: patient.gender,
+          age: patient.age,
+        });
+      }
+
+      // Save the data first
+      const saveResult = await updateReport(reportId, {
+        clinical_notes: technicianNotes,
+        doctor_id: selectedDoctor?.id,
+        is_self_report: isSelfReport,
+        test_data: testData
+      });
+
+      if (!saveResult) {
+        alert(reportError || "Failed to save changes.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Also save billing data (discounts, base amount)
+      await saveBilling(reportId);
+
+      // Then submit for review
+      const submitResult = await submitReport(reportId);
+      
+      if (submitResult) {
+        const newStatus = submitResult.status || (canAutoApprove ? 'approved' : 'under_review');
+        setReportStatus(newStatus);
+        setIsEditable(false);
+        alert(canAutoApprove ? "Report approved successfully!" : "Report submitted for review successfully!");
+        navigate('/reports');
+      } else {
+        alert(reportError || "Failed to submit report for review.");
+      }
+    } catch (error) {
+      console.error("Failed to submit for review:", error);
+      alert("Failed to submit report. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Generate AI interpretation
+  const handleGenerateInterpretation = async () => {
+    if (!reportId) {
+      setAiError("Please save the report first before generating interpretation.");
+      return;
+    }
+
+    // Check if there are filled values
+    const filledValues = Object.values(values).filter(v => v !== undefined && v !== '');
+    if (filledValues.length === 0) {
+      setAiError("Please enter test values before generating interpretation.");
+      return;
+    }
+
+    // Save current data first so backend has latest values
+    setIsGeneratingAI(true);
+    setAiError(null);
+    try {
+      const testData = buildTestData();
+      await updateReport(reportId, {
+        clinical_notes: technicianNotes,
+        doctor_id: selectedDoctor?.id,
+        is_self_report: isSelfReport,
+        test_data: testData,
+      });
+
+      const response = await reportApi.generateInterpretation(reportId);
+      if (response.data) {
+        setAiInterpretation(response.data);
+        setShowAiResult(true);
+      }
+    } catch (err: any) {
+      setAiError(err.message || "Failed to generate interpretation. Please try again.");
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  // Keyboard shortcut for save
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (isEditable) handleSaveDraft();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (isEditable) handleSubmitForReview();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [reportId, values, selectedDoctor, isSelfReport, isEditable]);
+
+  // Preview report (navigate to preview page)
+  const handlePreview = () => {
+    if (!patient) {
+      alert("No patient data available.");
+      return;
+    }
+
+    const parameters = dynamicParams.map(p => ({
+      name: p.name,
+      result: values[p.id] || '',
+      unit: p.unit,
+      refRange: p.min || p.max ? `${p.min} - ${p.max}` : '',
+      isAbnormal: statuses[p.id] === 'low' || statuses[p.id] === 'high',
+      status: statuses[p.id] || 'empty'
+    }));
+
+    // Calculate age from date of birth
+    const calculateAge = (dob: string | undefined) => {
+      if (!dob) return 0;
+      const birthDate = new Date(dob);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      return age;
+    };
+
+    const reportData = {
+      lab: {
+        name: 'DiagnoPro Diagnostics',
+        address: '123 Healthcare Avenue, Medical District',
+        city: 'New York, NY 10001',
+        phone: '+1 (555) 123-4567',
+        email: 'lab@DiagnoPro.com',
+        license: 'LAB-NY-2024-001234',
+      },
+      report: {
+        id: reportId || `REP-${Date.now()}`,
+        date: format(new Date(), "MMMM d, yyyy"),
+        time: format(new Date(), "hh:mm a"),
+        status: reportStatus,
+      },
+      patient: {
+        name: patient.name,
+        id: patient.id.slice(0, 8),
+        age: patient.age != null ? `${patient.age}` : 'N/A',
+        gender: patient.gender || 'Unknown',
+        referringDoctor: isSelfReport ? 'Self' : `${selectedDoctor?.title || 'Dr'}. ${selectedDoctor?.name}`,
+        sampleId: `SMP-${Date.now()}`,
+        collectionDate: format(new Date(), "MMMM d, yyyy"),
+        collectionTime: format(new Date(), "hh:mm a"),
+        reportedDate: format(new Date(), "MMMM d, yyyy"),
+      },
+      test: {
+        name: testName,
+        category: selectedReport?.test_data?.testType || "General"
+      },
+      parameters,
+      technician: {
+        name: 'Lab Technician',
+        signature: 'L. Tech',
+      },
+      pathologist: {
+        name: 'Dr. Pathologist',
+        title: 'Consultant Pathologist',
+        license: 'MD-NY-45678',
+        signature: 'Pathologist',
+      },
+    };
+
+    navigate(`/reports/preview/${reportId || patient.id}`, {
+      state: { reportData }
+    });
+  };
+
+  // Loading state
+  if (loadingReport) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <span className="ml-2 text-muted-foreground">Loading report...</span>
+      </div>
+    );
+  }
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
+      {/* Non-editable warning banner */}
+      {!isEditable && (
+        <div className="bg-warning/10 border border-warning/20 rounded p-3 flex items-center gap-2">
+          <Lock className="w-4 h-4 text-warning" />
+          <span className="text-sm text-warning">
+            This report is in <strong>{reportStatus}</strong> status and cannot be edited.
+            {reportStatus === 'under_review' && ' It is awaiting approval from a doctor.'}
+            {reportStatus === 'approved' && ' The report has been approved and finalized.'}
+          </span>
+        </div>
+      )}
+
+      {/* Rejection reason banner */}
+      {reportStatus === 'rejected' && selectedReport?.rejection_reason && (
+        <div className="bg-destructive/10 border border-destructive/20 rounded p-3 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-destructive mt-0.5" />
+          <div>
+            <span className="text-sm font-medium text-destructive">Report Rejected</span>
+            <p className="text-sm text-destructive/80 mt-1">{selectedReport.rejection_reason}</p>
+          </div>
+        </div>
+      )}
+
       {/* Header / Actions */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button className="w-8 h-8 flex items-center justify-center rounded hover:bg-accent transition-colors">
+          <button 
+            onClick={() => navigate(-1)}
+            className="w-8 h-8 flex items-center justify-center rounded hover:bg-accent transition-colors"
+          >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <div>
@@ -271,14 +845,22 @@ const handleApprove = () => {
             </h1>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="tabular-nums">
-                #REP-2024-892
+                {reportId ? `#${reportId.slice(0, 8)}` : '#NEW'}
               </span>
               <span className="w-1 h-1 bg-border rounded-full"></span>
               <span
                 className="flex items-center gap-1"
-                style={{ color: "var(--warning)" }}
+                style={{ 
+                  color: reportStatus === "draft" ? "var(--warning)" : 
+                         reportStatus === "under_review" ? "var(--info)" :
+                         reportStatus === "approved" ? "var(--success)" :
+                         reportStatus === "rejected" ? "var(--destructive)" : "var(--muted-foreground)"
+                }}
               >
-                <Clock className="w-3 h-3" /> Pending Entry
+                {reportStatus === "draft" && <><Clock className="w-3 h-3" /> Draft</>}
+                {reportStatus === "under_review" && <><Clock className="w-3 h-3" /> Under Review</>}
+                {reportStatus === "approved" && <><CheckCircle className="w-3 h-3" /> Approved</>}
+                {reportStatus === "rejected" && <><AlertCircle className="w-3 h-3" /> Rejected</>}
               </span>
               {abnormalCount > 0 && (
                 <>
@@ -304,19 +886,58 @@ const handleApprove = () => {
             <History className="w-3.5 h-3.5" />
             History
           </button>
-          <button className="h-8 px-2.5 flex items-center gap-1.5 bg-card border border-border rounded hover:bg-accent transition-colors text-xs">
-            <Save className="w-3.5 h-3.5" />
-            Save Draft
-            <span className="text-muted-foreground ml-1">
-              Ctrl+S
-            </span>
-          </button>
+          
+          {isEditable && (
+            <>
+              {reportId && (
+                <button
+                  onClick={() => navigate('/reports')}
+                  className="h-8 px-2.5 flex items-center gap-1.5 bg-card border border-border rounded hover:bg-accent transition-colors text-xs"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Cancel
+                </button>
+              )}
+              <button 
+                onClick={handleSaveDraft}
+                disabled={isSaving || !reportId}
+                className="h-8 px-2.5 flex items-center gap-1.5 bg-card border border-border rounded hover:bg-accent transition-colors text-xs disabled:opacity-50"
+              >
+                {isSaving ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Save className="w-3.5 h-3.5" />
+                )}
+                {isEditMode ? 'Update' : 'Save Draft'}
+                <span className="text-muted-foreground ml-1">
+                  Ctrl+S
+                </span>
+              </button>
+              
+              {reportStatus === 'draft' && (
+                <button
+                  onClick={handleSubmitForReview}
+                  disabled={isSubmitting || !reportId || Object.keys(values).length === 0}
+                  className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Send className="w-3.5 h-3.5" />
+                  )}
+                  {canAutoApprove ? 'Submit & Approve' : 'Submit for Review'}
+                </button>
+              )}
+            </>
+          )}
+          
           <button
-            onClick={handleApprove}
-            className="h-8 px-2.5 flex items-center gap-1.5 bg-success text-white rounded hover:opacity-90 transition-opacity text-xs"
+            onClick={handlePreview}
+            disabled={!patient}
+            className="h-8 px-2.5 flex items-center gap-1.5 bg-success text-white rounded hover:opacity-90 transition-opacity text-xs disabled:opacity-50"
           >
-            <CheckCircle className="w-3.5 h-3.5" />
-            Approve & Print
+            <FileText className="w-3.5 h-3.5" />
+            Preview
           </button>
         </div>
       </div>
@@ -324,95 +945,469 @@ const handleApprove = () => {
       <div className="flex gap-4">
         {/* Main Content */}
         <div className="flex-1 space-y-4">
+
+          {/* ─── TOP ROW: Patient + Test + Doctor (horizontal cards) ─── */}
           <div className="grid grid-cols-3 gap-4">
-            {/* Left Col: Patient & Test Info */}
-            <div className="col-span-1 space-y-4">
-              {/* Patient Card */}
-              <div className="bg-card border border-border rounded">
-                <div className="px-3 py-2.5 border-b border-border flex items-center justify-between">
-                  <h3 className="text-foreground text-sm flex items-center gap-2">
-                    <User className="w-3.5 h-3.5 text-muted-foreground" />
-                    Patient Details
-                  </h3>
+            {/* Patient Card */}
+            <div className="bg-card border border-border rounded">
+              <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+                <h3 className="text-foreground text-xs font-medium flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-muted-foreground" />
+                  Patient Details
+                </h3>
+                {patient && (
                   <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded tabular-nums">
-                    {MOCK_PATIENT_DETAILS.id}
+                    {patient.id.slice(0, 8)}
                   </span>
+                )}
+              </div>
+              <div className="p-3 space-y-2 text-xs">
+                {patient ? (
+                  <>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
+                        Full Name
+                      </label>
+                      <input
+                        type="text"
+                        value={patient.name}
+                        onChange={(e) => setPatient({ ...patient, name: e.target.value })}
+                        className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
+                          Gender
+                        </label>
+                        <select
+                          value={patient.gender || ''}
+                          onChange={(e) => setPatient({ ...patient, gender: e.target.value })}
+                          className="w-full px-2 py-1.5 text-xs border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          <option value="">Select</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
+                          Age
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={150}
+                          value={patient.age ?? ''}
+                          onChange={(e) => setPatient({ ...patient, age: e.target.value ? Number(e.target.value) : undefined as any })}
+                          className="w-full px-2 py-1.5 text-xs border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary tabular-nums"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
+                        Contact
+                      </label>
+                      <input
+                        type="tel"
+                        value={patient.phone || ''}
+                        onChange={(e) => setPatient({ ...patient, phone: e.target.value })}
+                        className="w-full px-2 py-1.5 text-xs border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary tabular-nums"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">
+                    No patient selected
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Test Info Card */}
+            <div className="bg-card border border-border rounded">
+              <div className="px-3 py-2 border-b border-border">
+                <h3 className="text-foreground text-xs font-medium flex items-center gap-1.5">
+                  <Microscope className="w-3.5 h-3.5 text-muted-foreground" />
+                  Test Information
+                </h3>
+              </div>
+              <div className="p-3 space-y-2 text-xs">
+                <div>
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
+                    Test Name
+                  </label>
+                  <div className="text-foreground text-sm font-medium">
+                    {testName}
+                  </div>
                 </div>
-                <div className="p-3 space-y-2.5 text-xs">
-                  <div>
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
-                      Full Name
-                    </label>
-                    <div className="text-foreground text-sm">
-                      {MOCK_PATIENT_DETAILS.name}
-                    </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
+                    Collection Date
+                  </label>
+                  <div className="text-foreground flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-muted-foreground" />
+                    {format(new Date(), "MMM dd, yyyy HH:mm")}
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
-                        Age / Gender
-                      </label>
-                      <div className="text-foreground">
-                        {MOCK_PATIENT_DETAILS.age} /{" "}
-                        {MOCK_PATIENT_DETAILS.gender.charAt(0)}
+                </div>
+              </div>
+            </div>
+
+            {/* Doctor Card */}
+            <div className="bg-card border border-border rounded">
+              <div className="px-3 py-2 border-b border-border">
+                <h3 className="text-foreground text-xs font-medium flex items-center gap-1.5">
+                  <Stethoscope className="w-3.5 h-3.5 text-muted-foreground" />
+                  Referring Doctor
+                </h3>
+              </div>
+              <div className="p-3 text-xs">
+                <div ref={doctorSearchRef}>
+                  <div className="relative">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                      <input
+                        type="text"
+                        value={isSelfReport ? "Self (Walk-in)" : doctorSearch}
+                        onChange={(e) => {
+                          setDoctorSearch(e.target.value);
+                          setShowDoctorDropdown(true);
+                          if (e.target.value === "") {
+                            setIsSelfReport(true);
+                            setSelectedDoctor(null);
+                          }
+                        }}
+                        onFocus={() => setShowDoctorDropdown(true)}
+                        className="w-full h-8 pl-7 pr-8 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                        placeholder="Search doctor..."
+                      />
+                      {(selectedDoctor || isSelfReport) && (
+                        <button
+                          onClick={() => {
+                            setSelectedDoctor(null);
+                            setIsSelfReport(true);
+                            setDoctorSearch("");
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded-full hover:bg-accent"
+                        >
+                          <X className="w-3 h-3 text-muted-foreground" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Doctor Dropdown */}
+                    {showDoctorDropdown && (
+                      <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded shadow-lg max-h-48 overflow-y-auto">
+                        {/* Self Option */}
+                        <button
+                          onClick={() => handleSelectDoctor(null)}
+                          className={`w-full px-3 py-2 text-left hover:bg-accent transition-colors flex items-center gap-2 ${
+                            isSelfReport ? 'bg-primary/10' : ''
+                          }`}
+                        >
+                          <div className="w-6 h-6 rounded-full bg-success/20 flex items-center justify-center">
+                            <User className="w-3 h-3 text-success" />
+                          </div>
+                          <div>
+                            <div className="text-xs text-foreground font-medium">Self (Walk-in)</div>
+                            <div className="text-[10px] text-muted-foreground">Patient came directly</div>
+                          </div>
+                          {isSelfReport && (
+                            <CheckCircle className="w-3.5 h-3.5 text-success ml-auto" />
+                          )}
+                        </button>
+                        
+                        {/* Divider */}
+                        <div className="border-t border-border my-1">
+                          <div className="px-3 py-1 text-[10px] text-muted-foreground uppercase tracking-wider bg-secondary/50">
+                            Registered Doctors
+                          </div>
+                        </div>
+
+                        {/* Doctors List */}
+                        {doctorsLoading ? (
+                          <div className="px-3 py-4 text-center">
+                            <Loader2 className="w-4 h-4 animate-spin mx-auto text-muted-foreground" />
+                          </div>
+                        ) : filteredDoctors.length > 0 ? (
+                          filteredDoctors.map((doctor) => (
+                            <button
+                              key={doctor.id}
+                              onClick={() => handleSelectDoctor(doctor)}
+                              className={`w-full px-3 py-2 text-left hover:bg-accent transition-colors flex items-center gap-2 ${
+                                selectedDoctor?.id === doctor.id ? 'bg-primary/10' : ''
+                              }`}
+                            >
+                              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+                                <Stethoscope className="w-3 h-3 text-primary" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs text-foreground font-medium truncate">
+                                  {doctor.title || 'Dr'}. {doctor.name}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground truncate">
+                                  {doctor.specialization || doctor.phone}
+                                </div>
+                              </div>
+                              {doctor.commission_percentage && doctor.commission_percentage > 0 && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  {doctor.commission_percentage}%
+                                </span>
+                              )}
+                              {selectedDoctor?.id === doctor.id && (
+                                <CheckCircle className="w-3.5 h-3.5 text-primary" />
+                              )}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+                            No doctors found
+                          </div>
+                        )}
                       </div>
+                    )}
+                  </div>
+                </div>
+                {selectedDoctor && (
+                  <div className="mt-2 p-2 bg-primary/5 border border-primary/10 rounded">
+                    <div className="text-xs text-foreground font-medium">
+                      {selectedDoctor.title || 'Dr'}. {selectedDoctor.name}
                     </div>
-                    <div>
-                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
-                        DOB
-                      </label>
-                      <div className="text-foreground tabular-nums">
-                        {MOCK_PATIENT_DETAILS.dob}
-                      </div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      {selectedDoctor.specialization}{selectedDoctor.phone ? ` • ${selectedDoctor.phone}` : ''}
                     </div>
                   </div>
-                  <div>
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
-                      Contact
-                    </label>
-                    <div className="text-foreground tabular-nums">
-                      {MOCK_PATIENT_DETAILS.mobile}
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ─── MIDDLE ROW: Test Parameters grouped by test ─── */}
+          <div className="grid grid-cols-4 gap-4">
+            <div className="col-span-3 space-y-4">
+              {/* Last saved indicator */}
+              <div className="flex justify-end">
+                <span className="text-[10px] text-muted-foreground">
+                  {lastSaved ? `Last saved: ${format(lastSaved, "HH:mm")}` : 'Not saved yet'}
+                </span>
+              </div>
+
+              {testSections.length === 0 ? (
+                <div className="bg-card border border-border rounded p-8 text-center text-muted-foreground text-xs">
+                  No test parameters configured. Please configure fields for your tests in Test Management.
+                </div>
+              ) : (
+                testSections.map((section, sectionIdx) => (
+                  <div key={section.testId} className="bg-card border border-border rounded overflow-hidden">
+                    {/* Test section header */}
+                    <div className="px-4 py-2.5 border-b border-border bg-primary/5 flex items-center gap-2">
+                      <Microscope className="w-3.5 h-3.5 text-primary" />
+                      <h3 className="text-foreground text-sm font-semibold">
+                        {section.testName}
+                      </h3>
+                      <span className="text-[10px] text-muted-foreground ml-auto">
+                        {section.params.length} parameter{section.params.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+
+                    {/* Parameter table */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-secondary/30">
+                          <tr className="border-b border-border">
+                            <th className="px-4 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">
+                              Parameter
+                            </th>
+                            <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">
+                              Unit
+                            </th>
+                            <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">
+                              Ref. Range
+                            </th>
+                            <th className="px-4 py-2 text-right text-muted-foreground text-[10px] uppercase tracking-wider">
+                              Result
+                            </th>
+                            <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">
+                              Status
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {section.params.map((param, index) => (
+                            <tr
+                              key={param.id}
+                              className="hover:bg-accent/30 transition-colors"
+                            >
+                              <td className="px-4 py-2 text-foreground text-xs">
+                                {param.name}
+                                {param.field_type === 'calculated' && (
+                                  <span className="ml-1.5 text-[9px] text-primary bg-primary/10 px-1 py-0.5 rounded uppercase tracking-wide">calc</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-center text-muted-foreground text-[10px]">
+                                {param.unit}
+                              </td>
+                              <td className="px-3 py-2 text-center text-muted-foreground tabular-nums text-[10px] whitespace-nowrap">
+                                {param.min || param.max ? `${param.min} - ${param.max}` : '-'}
+                              </td>
+                              <td className="px-4 py-2">
+                                <input
+                                  type={param.input_type === 'text' ? 'text' : 'number'}
+                                  step={param.step}
+                                  className={`${getInputClass(statuses[param.id])}${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}`}
+                                  placeholder={param.field_type === 'calculated' ? 'Auto' : '0.0'}
+                                  value={values[param.id] || ""}
+                                  onChange={(e) => handleValueChange(param.id, e.target.value)}
+                                  tabIndex={param.field_type === 'calculated' ? -1 : sectionIdx * 100 + index + 1}
+                                  disabled={!isEditable}
+                                  readOnly={param.field_type === 'calculated'}
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                {getStatusBadge(statuses[param.id])}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
+                ))
+              )}
+
+              {/* Status legend */}
+              <div className="flex items-center gap-3 text-[10px] text-muted-foreground justify-end">
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full border border-info" style={{ backgroundColor: "var(--info)" }}></span>{" "}Low
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full border border-success" style={{ backgroundColor: "var(--success)" }}></span>{" "}Normal
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full border border-destructive" style={{ backgroundColor: "var(--destructive)" }}></span>{" "}High
                 </div>
               </div>
 
-              {/* Test Info Card */}
-              <div className="bg-card border border-border rounded">
-                <div className="px-3 py-2.5 border-b border-border">
-                  <h3 className="text-foreground text-sm flex items-center gap-2">
-                    <Microscope className="w-3.5 h-3.5 text-muted-foreground" />
-                    Test Information
-                  </h3>
-                </div>
-                <div className="p-3 space-y-2.5 text-xs">
-                  <div>
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
-                      Test Name
-                    </label>
-                    <div className="text-foreground text-sm">
-                      Complete Blood Count (CBC)
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
-                      Referring Doctor
-                    </label>
-                    <div className="text-foreground">
-                      {MOCK_PATIENT_DETAILS.referringDr}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
-                      Collection Date
-                    </label>
-                    <div className="text-foreground flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-muted-foreground" />
-                      {format(new Date(), "MMM dd, yyyy HH:mm")}
-                    </div>
-                  </div>
-                </div>
+              <div className="bg-card border border-border rounded p-3">
+                <h4 className="text-xs text-foreground mb-2">
+                  Technician Notes
+                </h4>
+                <textarea
+                  className="w-full border border-border rounded p-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary min-h-[80px] bg-background disabled:opacity-50 disabled:cursor-not-allowed"
+                  placeholder="Add internal notes regarding sample quality, verification methods, etc..."
+                  value={technicianNotes}
+                  onChange={(e) => {
+                    setTechnicianNotes(e.target.value);
+                  }}
+                  disabled={!isEditable}
+                ></textarea>
               </div>
+
+              {/* AI Clinical Significance Section */}
+              <div className="bg-card border border-border rounded p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs text-foreground flex items-center gap-1.5">
+                    <BrainCircuit className="w-3.5 h-3.5 text-primary" />
+                    AI Clinical Significance
+                  </h4>
+                  <button
+                    onClick={handleGenerateInterpretation}
+                    disabled={isGeneratingAI || !reportId || Object.values(values).filter(v => v).length === 0}
+                    className="h-7 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-[11px] disabled:opacity-50"
+                  >
+                    {isGeneratingAI ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3 h-3" />
+                    )}
+                    {isGeneratingAI ? 'Generating...' : aiInterpretation ? 'Regenerate' : 'Generate'}
+                  </button>
+                </div>
+
+                {aiError && (
+                  <div className="mb-2 p-2 bg-destructive/10 border border-destructive/20 rounded flex items-center gap-1.5">
+                    <AlertCircle className="w-3 h-3 text-destructive flex-shrink-0" />
+                    <span className="text-[11px] text-destructive">{aiError}</span>
+                  </div>
+                )}
+
+                {aiInterpretation && showAiResult ? (
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setShowAiResult(!showAiResult)}
+                      className="w-full flex items-center justify-between text-[10px] text-muted-foreground hover:text-foreground"
+                    >
+                      <span>Collapse</span>
+                      <ChevronDownIcon className="w-3 h-3 rotate-180" />
+                    </button>
+
+                    {aiInterpretation.summary && (
+                      <div className="p-2 bg-primary/5 border border-primary/10 rounded">
+                        <p className="text-[10px] text-primary font-semibold uppercase tracking-wider mb-0.5">Summary</p>
+                        <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.summary}</p>
+                      </div>
+                    )}
+
+                    {aiInterpretation.keyFindings && (
+                      <div className="p-2 bg-warning/5 border border-warning/10 rounded">
+                        <p className="text-[10px] text-warning font-semibold uppercase tracking-wider mb-0.5">Key Findings</p>
+                        <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.keyFindings}</p>
+                      </div>
+                    )}
+
+                    {aiInterpretation.clinicalIndications && (
+                      <div className="p-2 bg-info/5 border border-info/10 rounded">
+                        <p className="text-[10px] text-info font-semibold uppercase tracking-wider mb-0.5">Possible Clinical Indications</p>
+                        <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.clinicalIndications}</p>
+                      </div>
+                    )}
+
+                    {aiInterpretation.recommendation && (
+                      <div className="p-2 bg-success/5 border border-success/10 rounded">
+                        <p className="text-[10px] text-success font-semibold uppercase tracking-wider mb-0.5">Recommendation</p>
+                        <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.recommendation}</p>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        const text = [
+                          aiInterpretation.summary && `Summary: ${aiInterpretation.summary}`,
+                          aiInterpretation.keyFindings && `Key Findings: ${aiInterpretation.keyFindings}`,
+                          aiInterpretation.clinicalIndications && `Clinical Indications: ${aiInterpretation.clinicalIndications}`,
+                          aiInterpretation.recommendation && `Recommendation: ${aiInterpretation.recommendation}`,
+                        ].filter(Boolean).join('\n');
+                        setTechnicianNotes(prev => prev ? `${prev}\n\n--- AI Interpretation ---\n${text}` : text);
+                      }}
+                      className="w-full h-7 flex items-center justify-center gap-1.5 bg-secondary border border-border rounded hover:bg-accent transition-colors text-[11px] text-muted-foreground"
+                    >
+                      <FileText className="w-3 h-3" />
+                      Copy to Notes
+                    </button>
+                  </div>
+                ) : aiInterpretation && !showAiResult ? (
+                  <button
+                    onClick={() => setShowAiResult(true)}
+                    className="w-full flex items-center justify-between p-2 bg-primary/5 border border-primary/10 rounded text-[11px] text-primary"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3" />
+                      AI interpretation available
+                    </span>
+                    <ChevronDownIcon className="w-3 h-3" />
+                  </button>
+                ) : !isGeneratingAI ? (
+                  <p className="text-[11px] text-muted-foreground text-center py-3">
+                    Enter test values and click "Generate" to get AI-powered clinical interpretation.
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            {/* Right sidebar: Billing + Shortcuts */}
+            <div className="col-span-1 space-y-4">
+              <BillingSection reportId={reportId} isEditable={isEditable} />
 
               <div
                 className="bg-info/10 border border-info/20 rounded p-2.5 text-xs flex items-start gap-2"
@@ -459,125 +1454,6 @@ const handleApprove = () => {
                 </div>
               </div>
             </div>
-
-            {/* Right Col: Parameter Entry */}
-            <div className="col-span-2">
-              <div className="bg-card border border-border rounded">
-                <div className="px-4 py-2.5 border-b border-border flex justify-between items-center">
-                  <h3 className="text-foreground text-sm">
-                    Test Parameters
-                  </h3>
-                  <span className="text-[10px] text-muted-foreground">
-                    Last auto-saved: 2 mins ago
-                  </span>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-secondary/30">
-                      <tr className="border-b border-border">
-                        <th className="px-4 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">
-                          Parameter
-                        </th>
-                        <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">
-                          Unit
-                        </th>
-                        <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">
-                          Ref. Range
-                        </th>
-                        <th className="px-4 py-2 text-right text-muted-foreground text-[10px] uppercase tracking-wider">
-                          Result
-                        </th>
-                        <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">
-                          Status
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {TEST_PARAMETERS.map((param) => (
-                        <tr
-                          key={param.id}
-                          className="hover:bg-accent/30 transition-colors"
-                        >
-                          <td className="px-4 py-2 text-foreground text-xs">
-                            {param.name}
-                          </td>
-                          <td className="px-3 py-2 text-center text-muted-foreground text-[10px]">
-                            {param.unit}
-                          </td>
-                          <td className="px-3 py-2 text-center text-muted-foreground tabular-nums text-[10px] whitespace-nowrap">
-                            {param.min} - {param.max}
-                          </td>
-                          <td className="px-4 py-2">
-                            <input
-                              type="number"
-                              step={param.step}
-                              className={getInputClass(
-                                statuses[param.id],
-                              )}
-                              placeholder="0.0"
-                              value={values[param.id] || ""}
-                              onChange={(e) =>
-                                handleValueChange(
-                                  param.id,
-                                  e.target.value,
-                                )
-                              }
-                              tabIndex={param.id}
-                            />
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {getStatusBadge(statuses[param.id])}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="px-3 py-2 bg-secondary/30 border-t border-border">
-                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground justify-end">
-                    <div className="flex items-center gap-1">
-                      <span
-                        className="w-2 h-2 rounded-full border border-info"
-                        style={{
-                          backgroundColor: "var(--info)",
-                        }}
-                      ></span>{" "}
-                      Low
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span
-                        className="w-2 h-2 rounded-full border border-success"
-                        style={{
-                          backgroundColor: "var(--success)",
-                        }}
-                      ></span>{" "}
-                      Normal
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span
-                        className="w-2 h-2 rounded-full border border-destructive"
-                        style={{
-                          backgroundColor: "var(--destructive)",
-                        }}
-                      ></span>{" "}
-                      High
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 bg-card border border-border rounded p-3">
-                <h4 className="text-xs text-foreground mb-2">
-                  Technician Notes
-                </h4>
-                <textarea
-                  className="w-full border border-border rounded p-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary min-h-[80px] bg-background"
-                  placeholder="Add internal notes regarding sample quality, verification methods, etc..."
-                ></textarea>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -587,7 +1463,7 @@ const handleApprove = () => {
             <div className="px-3 py-2.5 border-b border-border flex items-center justify-between bg-secondary/30">
               <h3 className="text-foreground text-sm flex items-center gap-2">
                 <History className="w-3.5 h-3.5" />
-                Version History
+                History
               </h3>
               <button
                 onClick={() => setShowHistory(false)}
@@ -597,29 +1473,26 @@ const handleApprove = () => {
               </button>
             </div>
             <div className="p-3 space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto">
-              {MOCK_VERSION_HISTORY.map((version) => (
-                <div
-                  key={version.id}
-                  className="p-2.5 bg-secondary/30 border border-border rounded hover:bg-accent/30 transition-colors cursor-pointer"
-                >
+              {lastSaved ? (
+                <div className="p-2.5 bg-secondary/30 border border-border rounded">
                   <div className="flex items-start justify-between mb-1">
-                    <span className="text-xs text-foreground">
-                      {version.action}
+                    <span className="text-xs text-foreground">Draft Saved</span>
+                    <span className="text-[10px] bg-success text-white px-1.5 py-0.5 rounded">
+                      Local
                     </span>
-                    {version.changes > 0 && (
-                      <span className="text-[10px] bg-primary text-white px-1.5 py-0.5 rounded">
-                        {version.changes} changes
-                      </span>
-                    )}
                   </div>
                   <div className="text-[10px] text-muted-foreground">
-                    {version.user}
+                    {isSelfReport ? 'Self Report' : `${selectedDoctor?.title || 'Dr'}. ${selectedDoctor?.name}`}
                   </div>
                   <div className="text-[10px] text-muted-foreground tabular-nums mt-1">
-                    {version.timestamp}
+                    {format(lastSaved, "yyyy-MM-dd HH:mm")}
                   </div>
                 </div>
-              ))}
+              ) : (
+                <div className="text-center py-8 text-muted-foreground text-xs">
+                  No history yet. Save a draft to begin tracking.
+                </div>
+              )}
             </div>
           </div>
         )}
