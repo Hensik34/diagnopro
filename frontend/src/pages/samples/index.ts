@@ -1,0 +1,1 @@
+export { SampleCollection } from './SampleCollection';

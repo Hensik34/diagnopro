@@ -62,35 +62,44 @@ export function TopNav({ sidebarCollapsed }: TopNavProps) {
       }`}
     >
       <div className="h-full flex items-center justify-between px-4 gap-4">
-        {/* Branch Selector - Prominent */}
+        {/* Branch Selector */}
         <div className="flex items-center gap-3">
-          <div className="relative" ref={branchDropdownRef}>
-            <button 
-              onClick={() => setShowBranchDropdown(!showBranchDropdown)}
-              className="h-8 pl-3 pr-8 flex items-center gap-2 bg-primary text-white rounded text-[13px] hover:opacity-90 transition-opacity"
-            >
+          {branches.length > 1 ? (
+            /* Multiple branches — show dropdown */
+            <div className="relative" ref={branchDropdownRef}>
+              <button 
+                onClick={() => setShowBranchDropdown(!showBranchDropdown)}
+                className="h-8 pl-3 pr-8 flex items-center gap-2 bg-primary text-white rounded text-[13px] hover:opacity-90 transition-opacity"
+              >
+                <Building2 className="w-4 h-4" />
+                <span className="whitespace-nowrap max-w-[150px] truncate">{displayBranchName}</span>
+                <ChevronDown className={`w-3.5 h-3.5 absolute right-2.5 transition-transform ${showBranchDropdown ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {/* Branch Dropdown */}
+              {showBranchDropdown && (
+                <div className="absolute top-full left-0 mt-1 w-56 bg-card border border-border rounded-md shadow-lg py-1 z-50">
+                  {branches.map((branch) => (
+                    <button
+                      key={branch.id}
+                      onClick={() => handleBranchSelect(branch.id)}
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors ${
+                        branch.id === currentBranchId ? 'bg-accent text-primary' : 'text-foreground'
+                      }`}
+                    >
+                      {branch.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : branches.length === 1 ? (
+            /* Single branch — show static name, no dropdown */
+            <div className="h-8 px-3 flex items-center gap-2 bg-primary text-white rounded text-[13px]">
               <Building2 className="w-4 h-4" />
-              <span className="whitespace-nowrap max-w-[150px] truncate">{displayBranchName}</span>
-              <ChevronDown className={`w-3.5 h-3.5 absolute right-2.5 transition-transform ${showBranchDropdown ? 'rotate-180' : ''}`} />
-            </button>
-            
-            {/* Branch Dropdown */}
-            {showBranchDropdown && branches.length > 0 && (
-              <div className="absolute top-full left-0 mt-1 w-56 bg-card border border-border rounded-md shadow-lg py-1 z-50">
-                {branches.map((branch) => (
-                  <button
-                    key={branch.id}
-                    onClick={() => handleBranchSelect(branch.id)}
-                    className={`w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors ${
-                      branch.id === currentBranchId ? 'bg-accent text-primary' : 'text-foreground'
-                    }`}
-                  >
-                    {branch.name}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+              <span className="whitespace-nowrap max-w-[150px] truncate">{branches[0].name}</span>
+            </div>
+          ) : null}
           
           {/* Current Time - Compact */}
           <div className="hidden lg:flex items-center text-xs text-muted-foreground border-l border-border pl-3">

@@ -24,11 +24,12 @@ interface TestState {
   categoryFilter: string | null;
 
   // Actions - Master tests
-  fetchTests: (branchId: string, category?: string) => Promise<void>;
+  fetchTests: (branchId?: string, category?: string) => Promise<void>;
   fetchTestById: (id: string) => Promise<void>;
   createTest: (data: CreateTestData) => Promise<Test | null>;
   updateTest: (id: string, data: Partial<CreateTestData>) => Promise<Test | null>;
   deleteTest: (id: string) => Promise<boolean>;
+  resetTestToDefault: (testId: string) => Promise<boolean>;
   
   // Actions - Test fields
   fetchTestFields: (testId: string) => Promise<void>;
@@ -76,9 +77,10 @@ export const useTestStore = create<TestState>((set, get) => ({
   /**
    * Fetch all tests for a branch with optional category filter
    */
-  fetchTests: async (branchId: string, category?: string) => {
+  fetchTests: async (branchId?: string, category?: string) => {
+    if (!branchId) return;
     set({ isLoading: true, error: null });
-    
+
     try {
       const filterCategory = category ?? get().categoryFilter ?? undefined;
       const response = await testApi.getAll(branchId, filterCategory);
@@ -137,27 +139,31 @@ export const useTestStore = create<TestState>((set, get) => ({
   },
 
   /**
-   * Update test
+   * Update test (admin updates global test, non-admins can create personal overrides)
    */
   updateTest: async (id: string, data: Partial<CreateTestData>): Promise<Test | null> => {
     set({ isLoading: true, error: null });
     
     try {
-      const response = await testApi.update(id, data);
-      const updatedTest = response.data;
+      await testApi.update(id, data);
       
-      // Update local cache
+      // Re-fetch the test with merged data from backend
+      // Backend will automatically apply merge logic based on user role
+      const mergedResponse = await testApi.getById(id);
+      const mergedTest = mergedResponse.data;
+      
+      // Update local cache with merged data from backend
       set((state) => ({
         tests: state.tests.map((t) => 
-          t.id === id ? updatedTest : t
+          t.id === id ? mergedTest : t
         ),
         selectedTest: state.selectedTest?.id === id 
-          ? updatedTest 
+          ? mergedTest
           : state.selectedTest,
         isLoading: false,
       }));
       
-      return updatedTest;
+      return mergedTest;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update test';
       set({ error: errorMessage, isLoading: false });
@@ -186,6 +192,35 @@ export const useTestStore = create<TestState>((set, get) => ({
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete test';
+      set({ error: errorMessage, isLoading: false });
+      return false;
+    }
+  },
+
+  /**
+   * Reset test to default (remove user override)
+   */
+  resetTestToDefault: async (testId: string): Promise<boolean> => {
+    set({ isLoading: true, error: null });
+    
+    try {
+      const response = await testApi.resetToDefault(testId);
+      const defaultTest = response.data;
+      
+      // Update local cache — replace with default data, remove override flag
+      set((state) => ({
+        tests: state.tests.map((t) => 
+          t.id === testId ? { ...defaultTest, has_user_override: false } : t
+        ),
+        selectedTest: state.selectedTest?.id === testId 
+          ? { ...defaultTest, has_user_override: false }
+          : state.selectedTest,
+        isLoading: false,
+      }));
+      
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reset test';
       set({ error: errorMessage, isLoading: false });
       return false;
     }
@@ -232,7 +267,9 @@ export const useTestStore = create<TestState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const response = await testApi.setFields(testId, fields);
+      await testApi.setFields(testId, fields);
+      // Refetch the merged fields from backend (includes admin changes + user overrides)
+      const response = await testApi.getFields(testId);
       set({ testFields: response.data, isLoading: false });
       return true;
     } catch (error) {

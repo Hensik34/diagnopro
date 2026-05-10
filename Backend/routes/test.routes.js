@@ -31,6 +31,9 @@ router.post("/sample/:sampleId", authorize(PERMISSIONS.TEST_CREATE), testControl
 // Update test result (for sample_tests)
 router.patch("/result/:sampleTestId", authorize(PERMISSIONS.TEST_RESULT_UPDATE), testController.updateTestResult);
 
+// Reset user-specific test override (revert to default)
+router.delete("/:id/override", authorize(PERMISSIONS.TEST_UPDATE), testController.resetTestOverride);
+
 // ==========================================
 // TEST FIELDS (Dynamic Parameters)
 // ==========================================

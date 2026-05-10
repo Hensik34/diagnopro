@@ -20,13 +20,13 @@ exports.getById = async (id) => {
 
 // Create new inventory item
 exports.create = async (data) => {
-  const { name, category, quantity, alert_threshold, unit, branch_id } = data;
+  const { name, category, quantity, alert_threshold, branch_id } = data;
 
   const result = await pool.query(
-    `INSERT INTO inventory (name, category, quantity, alert_threshold, unit, branch_id, last_restocked)
-     VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $3 > 0 THEN CURRENT_TIMESTAMP ELSE NULL END)
+    `INSERT INTO inventory (name, category, quantity, alert_threshold, branch_id, last_restocked)
+     VALUES ($1, $2, $3, $4, $5, CASE WHEN $3 > 0 THEN CURRENT_TIMESTAMP ELSE NULL END)
      RETURNING *`,
-    [name, category, quantity || 0, alert_threshold || 0, unit, branch_id]
+    [name, category, quantity || 0, alert_threshold || 0, branch_id]
   );
 
   return result.rows[0];
@@ -34,7 +34,7 @@ exports.create = async (data) => {
 
 // Update inventory item
 exports.update = async (id, data) => {
-  const { name, category, quantity, alert_threshold, unit } = data;
+  const { name, category, quantity, alert_threshold } = data;
 
   const result = await pool.query(
     `UPDATE inventory
@@ -42,11 +42,10 @@ exports.update = async (id, data) => {
          category = COALESCE($2, category),
          quantity = COALESCE($3, quantity),
          alert_threshold = COALESCE($4, alert_threshold),
-         unit = COALESCE($5, unit),
          updated_at = CURRENT_TIMESTAMP
-     WHERE id = $6
+     WHERE id = $5
      RETURNING *`,
-    [name, category, quantity, alert_threshold, unit, id]
+    [name, category, quantity, alert_threshold, id]
   );
 
   return result.rows[0] || null;

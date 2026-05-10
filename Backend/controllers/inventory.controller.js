@@ -36,10 +36,10 @@ exports.getById = async (req, res) => {
 // CREATE ITEM
 exports.create = async (req, res) => {
   try {
-    const { name, category, quantity, alert_threshold, unit, branch_id } = req.body;
+    const { name, category, quantity, alert_threshold, branch_id } = req.body;
 
-    if (!name || !unit || !branch_id) {
-      return res.status(400).json({ error: "name, unit, and branch_id are required" });
+    if (!name || !branch_id) {
+      return res.status(400).json({ error: "name and branch_id are required" });
     }
 
     const item = await Inventory.create({
@@ -47,7 +47,6 @@ exports.create = async (req, res) => {
       category,
       quantity,
       alert_threshold,
-      unit,
       branch_id,
     });
 
@@ -61,14 +60,13 @@ exports.create = async (req, res) => {
 // UPDATE ITEM
 exports.update = async (req, res) => {
   try {
-    const { name, category, quantity, alert_threshold, unit } = req.body;
+    const { name, category, quantity, alert_threshold } = req.body;
 
     const item = await Inventory.update(req.params.id, {
       name,
       category,
       quantity,
       alert_threshold,
-      unit,
     });
 
     if (!item) {

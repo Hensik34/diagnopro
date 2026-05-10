@@ -5,6 +5,7 @@ const TestField = require("../models/TestField");
 exports.getTests = async (req, res) => {
   try {
     const { category, branch_id } = req.query;
+    const userId = req.user?.id; // Get user ID from authenticated request
 
     if (!branch_id) {
       return res.status(400).json({ error: "branch_id is required" });
@@ -12,9 +13,9 @@ exports.getTests = async (req, res) => {
 
     let tests;
     if (category) {
-      tests = await Test.getTestsByCategory(category, branch_id);
+      tests = await Test.getTestsByCategory(category, branch_id, userId);
     } else {
-      tests = await Test.getAllTests(branch_id);
+      tests = await Test.getAllTests(branch_id, userId);
     }
 
     res.json({
@@ -32,8 +33,9 @@ exports.getTests = async (req, res) => {
 exports.getTestById = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user?.id;
 
-    const test = await Test.getTestById(id);
+    const test = await Test.getTestById(id, userId);
 
     if (!test) {
       return res.status(404).json({ error: "Test not found" });
@@ -90,6 +92,8 @@ exports.updateTest = async (req, res) => {
   try {
     const { id } = req.params;
     const { test_name, category, sample_type, price, turnaround_time, description } = req.body;
+    const userId = req.user?.id;
+    const userRole = req.user?.role; // Get user's role
 
     const test = await Test.updateTest(id, {
       test_name,
@@ -98,7 +102,7 @@ exports.updateTest = async (req, res) => {
       price,
       turnaround_time,
       description
-    });
+    }, userId, userRole); // Pass role for permission check
 
     if (!test) {
       return res.status(404).json({ error: "Test not found" });
@@ -215,7 +219,8 @@ exports.updateTestResult = async (req, res) => {
 exports.getTestFields = async (req, res) => {
   try {
     const { testId } = req.params;
-    const fields = await TestField.getFieldsByTestId(testId);
+    const userId = req.user?.id;
+    const fields = await TestField.getFieldsByTestId(testId, userId);
     res.json({ message: "Test fields retrieved", data: fields });
   } catch (err) {
     console.error("Get test fields error:", err);
@@ -227,10 +232,12 @@ exports.getTestFields = async (req, res) => {
 exports.getMultiTestFields = async (req, res) => {
   try {
     const { testIds } = req.body;
+    const userId = req.user?.id;
+    
     if (!Array.isArray(testIds) || testIds.length === 0) {
       return res.status(400).json({ error: "testIds must be a non-empty array" });
     }
-    const fields = await TestField.getFieldsByTestIds(testIds);
+    const fields = await TestField.getFieldsByTestIds(testIds, userId);
     res.json({ message: "Test fields retrieved", data: fields });
   } catch (err) {
     console.error("Get multi test fields error:", err);
@@ -243,6 +250,8 @@ exports.setTestFields = async (req, res) => {
   try {
     const { testId } = req.params;
     const { fields } = req.body;
+    const userId = req.user?.id;
+    const userRole = req.user?.role; // Get user's role
 
     if (!Array.isArray(fields)) {
       return res.status(400).json({ error: "fields must be an array" });
@@ -254,7 +263,7 @@ exports.setTestFields = async (req, res) => {
       }
     }
 
-    const result = await TestField.setFieldsForTest(testId, fields);
+    const result = await TestField.setFieldsForTest(testId, fields, userId, userRole); // Pass role
     res.json({ message: "Test fields saved", data: result });
   } catch (err) {
     console.error("Set test fields error:", err);
@@ -273,6 +282,31 @@ exports.deleteTestField = async (req, res) => {
     res.json({ message: "Field deleted" });
   } catch (err) {
     console.error("Delete test field error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// RESET USER TEST OVERRIDE (revert to default)
+exports.resetTestOverride = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    await Test.resetUserOverride(id, userId);
+
+    // Return the default test data after reset
+    const test = await Test.getTestById(id, userId);
+
+    res.json({
+      message: "Test reset to default successfully",
+      data: test
+    });
+  } catch (err) {
+    console.error("Reset test override error:", err);
     res.status(500).json({ error: err.message });
   }
 };

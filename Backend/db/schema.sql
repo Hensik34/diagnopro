@@ -68,9 +68,20 @@ CREATE TABLE IF NOT EXISTS doctors (
     phone VARCHAR(20) NOT NULL,
     specialization VARCHAR(255),
     license_number VARCHAR(100) UNIQUE,
-    branch_id UUID NOT NULL REFERENCES branches(id),
+    password_hash VARCHAR(255),
+    is_active BOOLEAN DEFAULT TRUE,
+    branch_id UUID REFERENCES branches(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- DOCTOR_BRANCHES TABLE - Many-to-Many relationship (Doctor can be linked to multiple branches)
+CREATE TABLE IF NOT EXISTS doctor_branches (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    doctor_id UUID NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
+    branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(doctor_id, branch_id)
 );
 
 -- SAMPLES TABLE
@@ -144,3 +155,6 @@ CREATE INDEX idx_sample_tests_sample_id ON sample_tests(sample_id);
 CREATE INDEX idx_reports_patient_id ON reports(patient_id);
 CREATE INDEX idx_user_branches_user_id ON user_branches(user_id);
 CREATE INDEX idx_user_branches_branch_id ON user_branches(branch_id);
+CREATE INDEX idx_doctor_branches_doctor_id ON doctor_branches(doctor_id);
+CREATE INDEX idx_doctor_branches_branch_id ON doctor_branches(branch_id);
+CREATE INDEX idx_doctors_email ON doctors(email);

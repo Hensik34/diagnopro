@@ -24,6 +24,8 @@ import {
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 interface DashboardCalendarProps {
   reports: Report[];
+  selectedMonth: Date;
+  onMonthChange: (date: Date) => void;
 }
 
 /* ── Helpers ───────────────────────────────────────────────────────────────── */
@@ -41,27 +43,26 @@ function groupReportsByDate(reports: Report[]): Map<string, Report[]> {
 /* ══════════════════════════════════════════════════════════════════════════════
  *  COMPONENT
  * ══════════════════════════════════════════════════════════════════════════ */
-export function DashboardCalendar({ reports }: DashboardCalendarProps) {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+export function DashboardCalendar({ reports, selectedMonth, onMonthChange }: DashboardCalendarProps) {
   const navigate = useNavigate();
 
   const reportsByDate = useMemo(() => groupReportsByDate(reports), [reports]);
 
   /* ── Calendar grid ── */
   const calendarDays = useMemo(() => {
-    const monthStart = startOfMonth(currentMonth);
-    const monthEnd = endOfMonth(currentMonth);
+    const monthStart = startOfMonth(selectedMonth);
+    const monthEnd = endOfMonth(selectedMonth);
     const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
     const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
     return eachDayOfInterval({ start: gridStart, end: gridEnd });
-  }, [currentMonth]);
+  }, [selectedMonth]);
 
   /* ── Month totals ── */
   const monthTotals = useMemo(() => {
     let rev = 0, reps = 0;
     const allPats = new Set<string>();
     for (const day of calendarDays) {
-      if (!isSameMonth(day, currentMonth)) continue;
+      if (!isSameMonth(day, selectedMonth)) continue;
       const key = format(day, 'yyyy-MM-dd');
       const dayReports = reportsByDate.get(key) || [];
       reps += dayReports.length;
@@ -71,16 +72,16 @@ export function DashboardCalendar({ reports }: DashboardCalendarProps) {
       }
     }
     return { patients: allPats.size, revenue: rev, reports: reps };
-  }, [calendarDays, currentMonth, reportsByDate]);
+  }, [calendarDays, selectedMonth, reportsByDate]);
 
   const handleDayClick = (date: Date) => {
     const key = format(date, 'yyyy-MM-dd');
     navigate(`/dashboard/${key}`);
   };
 
-  const prevMonth = () => setCurrentMonth(m => subMonths(m, 1));
-  const nextMonth = () => setCurrentMonth(m => addMonths(m, 1));
-  const goToday = () => setCurrentMonth(new Date());
+  const prevMonth = () => onMonthChange(subMonths(selectedMonth, 1));
+  const nextMonth = () => onMonthChange(addMonths(selectedMonth, 1));
+  const goToday = () => onMonthChange(new Date());
 
   const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -91,7 +92,7 @@ export function DashboardCalendar({ reports }: DashboardCalendarProps) {
       <div className="px-4 py-3 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h3 className="text-foreground text-sm font-medium">
-            {format(currentMonth, 'MMMM yyyy')}
+            {format(selectedMonth, 'MMMM yyyy')}
           </h3>
           <div className="flex items-center gap-1">
             <button
@@ -149,7 +150,7 @@ export function DashboardCalendar({ reports }: DashboardCalendarProps) {
         {calendarDays.map((day, idx) => {
           const key = format(day, 'yyyy-MM-dd');
           const dayReports = reportsByDate.get(key) || [];
-          const inMonth = isSameMonth(day, currentMonth);
+          const inMonth = isSameMonth(day, selectedMonth);
           const today = isToday(day);
           const hasData = dayReports.length > 0;
 

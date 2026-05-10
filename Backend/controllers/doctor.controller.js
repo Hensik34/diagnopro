@@ -1,12 +1,50 @@
 const Doctor = require("../models/Doctor");
+const Branch = require("../models/Branch");
+const User = require("../models/User");
+const pool = require("../config/db");
 
 // GET ALL DOCTORS
 exports.getDoctors = async (req, res) => {
   try {
     const { branch_id } = req.query;
+    const userId = req.user.id;
+    const source = req.user.source;
 
-    // branch_id is now optional - if provided, filter by branch
-    const doctors = await Doctor.getAllDoctors(branch_id || null);
+    let branchFilter = branch_id || null;
+
+    // If no branch_id provided, auto-filter by user's/doctor's branches
+    if (!branchFilter) {
+      let userBranches;
+      if (source === "doctor") {
+        userBranches = await Doctor.getDoctorBranches(userId);
+      } else {
+        userBranches = await Branch.getUserBranches(userId);
+      }
+
+      if (userBranches.length === 1) {
+        branchFilter = userBranches[0].id;
+      } else if (userBranches.length > 1) {
+        // For multi-branch users, get doctors from all their branches
+        const allDoctors = [];
+        const seenIds = new Set();
+        for (const branch of userBranches) {
+          const docs = await Doctor.getAllDoctors(branch.id);
+          for (const doc of docs) {
+            if (!seenIds.has(doc.id)) {
+              seenIds.add(doc.id);
+              allDoctors.push(doc);
+            }
+          }
+        }
+        return res.json({
+          message: "Doctors retrieved successfully",
+          count: allDoctors.length,
+          data: allDoctors
+        });
+      }
+    }
+
+    const doctors = await Doctor.getAllDoctors(branchFilter);
 
     res.json({
       message: "Doctors retrieved successfully",
@@ -30,9 +68,12 @@ exports.getDoctorById = async (req, res) => {
       return res.status(404).json({ error: "Doctor not found" });
     }
 
+    // Also get doctor's branches
+    const branches = await Doctor.getDoctorBranches(id);
+
     res.json({
       message: "Doctor retrieved successfully",
-      data: doctor
+      data: { ...doctor, branches }
     });
   } catch (err) {
     console.error("Get doctor error:", err);
@@ -41,9 +82,11 @@ exports.getDoctorById = async (req, res) => {
 };
 
 // CREATE DOCTOR
+// Doctors are now created directly in the doctors table with optional password
+// No longer creates a mirror user record
 exports.createDoctor = async (req, res) => {
   try {
-    const { title, name, firstname, lastname, email, phone, specialization, license_number, branch_id, commission_percentage } = req.body;
+    const { title, name, firstname, lastname, email, phone, specialization, license_number, branch_id, commission_percentage, password } = req.body;
 
     // Support both old (firstname+lastname) and new (name) formats
     const doctorName = name || (firstname && lastname ? `${firstname} ${lastname}`.trim() : firstname || '');
@@ -55,6 +98,19 @@ exports.createDoctor = async (req, res) => {
       });
     }
 
+    // If email provided, check uniqueness across both users and doctors
+    if (email) {
+      const existingUser = await User.findUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ error: "This email is already registered as a user. Use a different email." });
+      }
+
+      const existingDoctor = await Doctor.findDoctorByEmail(email);
+      if (existingDoctor) {
+        return res.status(400).json({ error: "This email is already registered as a doctor. Use a different email." });
+      }
+    }
+
     const doctor = await Doctor.createDoctor({
       title: title || 'Dr',
       name: doctorName,
@@ -63,7 +119,8 @@ exports.createDoctor = async (req, res) => {
       specialization,
       license_number,
       branch_id,
-      commission_percentage: commission_percentage || 0
+      commission_percentage: commission_percentage || 0,
+      password  // Will be hashed inside the model if provided
     });
 
     res.status(201).json({
@@ -85,6 +142,25 @@ exports.updateDoctor = async (req, res) => {
     // Support both old and new formats
     const doctorName = name || (firstname && lastname ? `${firstname} ${lastname}`.trim() : undefined);
 
+    // Get current doctor
+    const currentDoctor = await Doctor.getDoctorById(id);
+    if (!currentDoctor) {
+      return res.status(404).json({ error: "Doctor not found" });
+    }
+
+    // If email is changing, check uniqueness
+    if (email && email !== currentDoctor.email) {
+      const existingUser = await User.findUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ error: "This email is already registered as a user." });
+      }
+
+      const existingDoctor = await Doctor.findDoctorByEmail(email);
+      if (existingDoctor && existingDoctor.id !== id) {
+        return res.status(400).json({ error: "This email is already registered as another doctor." });
+      }
+    }
+
     const doctor = await Doctor.updateDoctor(id, {
       title,
       name: doctorName,
@@ -93,13 +169,8 @@ exports.updateDoctor = async (req, res) => {
       specialization,
       license_number,
       branch_id,
-      commission_percentage
+      commission_percentage,
     });
-    
-
-    if (!doctor) {
-      return res.status(404).json({ error: "Doctor not found" });
-    }
 
     res.json({
       message: "Doctor updated successfully",
@@ -107,6 +178,36 @@ exports.updateDoctor = async (req, res) => {
     });
   } catch (err) {
     console.error("Update doctor error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// SET DOCTOR PASSWORD - Create or update login credentials for a doctor
+// Now updates doctors.password_hash directly instead of creating a user record
+exports.setDoctorPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 4) {
+      return res.status(400).json({ error: "Password must be at least 4 characters" });
+    }
+
+    const doctor = await Doctor.getDoctorById(id);
+    if (!doctor) {
+      return res.status(404).json({ error: "Doctor not found" });
+    }
+
+    if (!doctor.email) {
+      return res.status(400).json({ error: "Doctor must have an email before setting a password" });
+    }
+
+    // Update password directly on the doctor record
+    await Doctor.updateDoctorPassword(id, password);
+
+    res.json({ message: "Doctor login credentials updated successfully" });
+  } catch (err) {
+    console.error("Set doctor password error:", err);
     res.status(500).json({ error: err.message });
   }
 };

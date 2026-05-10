@@ -45,6 +45,12 @@ exports.getAllReports = async (filters = {}) => {
     query += ` AND p.branch_id = $${paramIndex}`;
     params.push(filters.branch_id);
     paramIndex++;
+  } else if (filters.branch_ids && filters.branch_ids.length > 0) {
+    // Filter by multiple branch IDs (user's branches)
+    const placeholders = filters.branch_ids.map((_, i) => `$${paramIndex + i}`).join(', ');
+    query += ` AND p.branch_id IN (${placeholders})`;
+    params.push(...filters.branch_ids);
+    paramIndex += filters.branch_ids.length;
   }
 
   if (filters.technician_id) {
@@ -68,8 +74,10 @@ exports.getReportById = async (id) => {
             d.title as doctor_title, d.name as doctor_name,
             d.firstname as doctor_firstname, d.lastname as doctor_lastname,
             d.phone as doctor_phone, d.email as doctor_email,
+            d.signature_url as doctor_signature_url,
             t.firstname as technician_firstname, t.lastname as technician_lastname,
             s.sample_id_code, s.sample_type,
+            st.letterhead_url, st.owner_signature_url,
             approved_user.firstname as approved_by_firstname, approved_user.lastname as approved_by_lastname,
             submitted_user.firstname as submitted_by_firstname, submitted_user.lastname as submitted_by_lastname,
             rejected_user.firstname as rejected_by_firstname, rejected_user.lastname as rejected_by_lastname
@@ -78,6 +86,7 @@ exports.getReportById = async (id) => {
      LEFT JOIN doctors d ON r.doctor_id = d.id
      LEFT JOIN users t ON r.technician_id = t.id
      LEFT JOIN samples s ON r.sample_id = s.id
+     LEFT JOIN settings st ON p.branch_id = st.branch_id
      LEFT JOIN users approved_user ON r.approved_by = approved_user.id
      LEFT JOIN users submitted_user ON r.submitted_by = submitted_user.id
      LEFT JOIN users rejected_user ON r.rejected_by = rejected_user.id

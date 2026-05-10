@@ -1,32 +1,40 @@
 import { createBrowserRouter } from 'react-router';
-import { Root } from './pages/Root';
-import { Dashboard } from './pages/Dashboard';
-import { Reports } from './pages/Reports';
-import { Patients } from './pages/Patients';
-import { Branches } from './pages/Branches';
-import { Users } from './pages/Users';
-import { TestManagement } from './pages/TestManagement';
-import { SampleCollection } from './pages/SampleCollection';
-import { CreateReport } from './pages/CreateReport';
-import { ReportEntry } from './pages/ReportEntry';
-import { ReportPreview } from './pages/ReportPreview';
-import { InvoicePage } from './pages/InvoicePage';
-import { DoctorManagement } from './pages/DoctorManagement';
-import { DoctorDetail } from './pages/DoctorDetail';
-import { ReportReview } from './pages/ReportReview';
-import { DashboardDayDetail } from './pages/DashboardDayDetail';
-import { TimeTracking } from './pages/TimeTracking';
-import { WorkingHours } from './pages/WorkingHours';
-import { Login } from './pages/Login';
-import { Register } from './pages/Register';
-import { Onboarding } from './pages/Onboarding';
-import Unauthorized from './pages/Unauthorized';
-import {
-  Inventory,
-  Analytics,
-  Settings,
-  NotFound,
-} from './pages/OtherPages';
+// Layout
+import { Root } from '../pages/layout';
+// Auth
+import { Login, Register } from '../pages/auth';
+// Dashboard
+import { Dashboard, Analytics, DashboardDayDetail } from '../pages/dashboard';
+// Reports
+import { Reports, CreateReport, ReportEntry, ReportPreview, ReportReview } from '../pages/reports';
+// Patients
+import { Patients } from '../pages/patients';
+// Samples
+import { SampleCollection } from '../pages/samples';
+// Tests
+import { TestManagement } from '../pages/tests';
+// Doctors
+import { DoctorManagement, DoctorDetail } from '../pages/doctors';
+// Branches
+import { Branches } from '../pages/branches';
+// Users
+import { Users } from '../pages/users';
+// Inventory
+import { Inventory } from '../pages/inventory';
+// Time Tracking
+import { TimeTracking, WorkingHours } from '../pages/time-tracking';
+// Billing
+import { InvoicePage } from '../pages/billing';
+// Error Pages
+import { NotFound, Unauthorized } from '../pages/error-pages';
+// Onboarding
+import { Onboarding } from '../pages/onboarding';
+// Doctor Portal
+import { DoctorDashboard, DoctorReports, DoctorProfile } from '../pages/doctor-portal';
+// Settings
+import { Settings } from '../pages/settings';
+// B2B
+import { B2BDashboard, B2BLabManagement, B2BLabDetail, B2BOrders, B2BOrderDetail, B2BCreateOrder, B2BSettlements } from '../pages/b2b';
 
 export const router = createBrowserRouter([
   // Public routes
@@ -72,6 +80,17 @@ export const router = createBrowserRouter([
       { path: 'working-hours', Component: WorkingHours },
       { path: 'analytics', Component: Analytics },
       { path: 'settings', Component: Settings },
+      { path: 'doctor-dashboard', Component: DoctorDashboard },
+      { path: 'doctor-reports', Component: DoctorReports },
+      { path: 'profile', Component: DoctorProfile },
+      // B2B Reference Lab
+      { path: 'b2b', Component: B2BDashboard },
+      { path: 'b2b/labs', Component: B2BLabManagement },
+      { path: 'b2b/labs/:id', Component: B2BLabDetail },
+      { path: 'b2b/orders', Component: B2BOrders },
+      { path: 'b2b/orders/new', Component: B2BCreateOrder },
+      { path: 'b2b/orders/:id', Component: B2BOrderDetail },
+      { path: 'b2b/settlements', Component: B2BSettlements },
       { path: '*', Component: NotFound },
     ],
   },

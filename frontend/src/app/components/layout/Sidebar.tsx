@@ -20,6 +20,7 @@ import {
   CheckSquare,
   Clock,
   Timer,
+  GitBranch,
 } from 'lucide-react';
 import { useAuthStore, PERMISSIONS } from '../../../stores';
 
@@ -32,6 +33,7 @@ interface SidebarProps {
  * Menu items with permission-based visibility
  * Each item can have an optional permission or permissions array
  * Items without permissions are visible to all authenticated users
+ * Items with doctorOnly are only visible to doctor role users
  */
 const menuItems = [
   { 
@@ -40,11 +42,25 @@ const menuItems = [
     icon: LayoutDashboard,
     // Dashboard visible to all
   },
+  // Doctor-specific items
+  {
+    path: '/doctor-reports',
+    label: 'My Reports',
+    icon: FileText,
+    doctorOnly: true,
+  },
+  {
+    path: '/profile',
+    label: 'My Profile',
+    icon: User,
+    doctorOnly: true,
+  },
   { 
     path: '/reports', 
     label: 'Reports', 
     icon: FileText,
     permission: PERMISSIONS.REPORT_READ,
+    hideForDoctor: true,
   },
   { 
     path: '/reports/review', 
@@ -57,6 +73,7 @@ const menuItems = [
     label: 'Patients', 
     icon: User,
     permission: PERMISSIONS.PATIENT_READ,
+    hideForDoctor: true,
   },
   { 
     path: '/sample-collection', 
@@ -69,6 +86,7 @@ const menuItems = [
     label: 'Test Management', 
     icon: Beaker,
     permission: PERMISSIONS.TEST_READ,
+    hideForDoctor: true,
   },
   { 
     path: '/doctors', 
@@ -113,6 +131,14 @@ const menuItems = [
     icon: BarChart3,
     permission: PERMISSIONS.ANALYTICS_VIEW,
   },
+  // B2B Reference Lab section
+  {
+    path: '/b2b',
+    label: 'B2B Lab',
+    icon: GitBranch,
+    permission: PERMISSIONS.B2B_LAB_READ,
+    hideForDoctor: true,
+  },
   { 
     path: '/settings', 
     label: 'Settings', 
@@ -123,14 +149,31 @@ const menuItems = [
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const location = useLocation();
-  const { can } = useAuthStore();
+  const { can, getBranchRole } = useAuthStore();
+  const currentRole = getBranchRole();
+  const isDoctor = currentRole === 'doctor';
 
-  // Filter menu items based on user permissions
-  const visibleMenuItems = menuItems.filter(item => {
+  // Filter menu items based on user permissions and role
+  const visibleMenuItems = menuItems.filter((item: any) => {
+    // Doctor-only items
+    if (item.doctorOnly) return isDoctor;
+    // Items hidden for doctor
+    if (item.hideForDoctor && isDoctor) return false;
     // No permission required - visible to all
     if (!item.permission) return true;
     // Check single permission
     return can(item.permission);
+  });
+
+  let longestMatch = '';
+  visibleMenuItems.forEach((item: any) => {
+    if (item.path === '/' && location.pathname === '/') {
+      longestMatch = '/';
+    } else if (item.path !== '/' && (location.pathname === item.path || location.pathname.startsWith(`${item.path}/`))) {
+      if (item.path.length > longestMatch.length) {
+        longestMatch = item.path;
+      }
+    }
   });
 
   return (
@@ -157,17 +200,21 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
         {/* Menu Items */}
         <nav className="flex-1 p-4 space-y-2">
-          {visibleMenuItems.map((item) => {
+          {visibleMenuItems.map((item: any) => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.path;
+            const isActive = item.path === longestMatch;
 
             return (
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center px-3 py-2 rounded-md transition-colors ${
+                className={`flex items-center transition-all duration-200 rounded-lg ${
+                  collapsed ? 'justify-center px-4 py-2' : 'px-3 py-2'
+                } ${
                   isActive
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400'
+                    ? collapsed
+                      ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                      : 'bg-blue-50 text-blue-700 border-r-2 border-blue-700 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400'
                     : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
                 }`}
               >

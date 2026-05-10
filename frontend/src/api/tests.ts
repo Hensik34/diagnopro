@@ -111,6 +111,14 @@ export const testApi = {
     return response.data;
   },
 
+  /**
+   * Reset user-specific test override (revert to global default)
+   */
+  resetToDefault: async (testId: string): Promise<ApiResponse<Test>> => {
+    const response = await api.delete<ApiResponse<Test>>(`/tests/${testId}/override`);
+    return response.data;
+  },
+
   deleteField: async (fieldId: string): Promise<{ message: string }> => {
     const response = await api.delete<{ message: string }>(`/tests/fields/${fieldId}`);
     return response.data;

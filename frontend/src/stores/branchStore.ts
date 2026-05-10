@@ -42,19 +42,29 @@ const initialState = {
 // Branch Store Implementation
 // ==========================================
 
-export const useBranchStore = create<BranchState>((set) => ({
+export const useBranchStore = create<BranchState>((set, get) => ({
   ...initialState,
 
   /**
    * Fetch all branches
+   * Auto-selects first branch if none is currently selected
    */
   fetchBranches: async () => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await branchApi.getAll();
+      const branches = response.data;
+      const current = get().currentBranchId;
+
+      // Auto-select first branch if no branch is selected,
+      // or if the previously selected branch no longer exists
+      const validCurrent = current && branches.some((b: Branch) => b.id === current);
+      const selectedId = validCurrent ? current : (branches.length > 0 ? branches[0].id : null);
+
       set({
-        branches: response.data,
+        branches,
+        currentBranchId: selectedId,
         isLoading: false,
       });
     } catch (error) {
@@ -68,7 +78,7 @@ export const useBranchStore = create<BranchState>((set) => ({
    */
   fetchBranchById: async (id: string) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await branchApi.getById(id);
       set({
@@ -86,16 +96,16 @@ export const useBranchStore = create<BranchState>((set) => ({
    */
   createBranch: async (data: Partial<Branch>): Promise<Branch | null> => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await branchApi.create(data);
       const newBranch = response.data;
-      
+
       set((state) => ({
         branches: [newBranch, ...state.branches],
         isLoading: false,
       }));
-      
+
       return newBranch;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create branch';
@@ -109,21 +119,21 @@ export const useBranchStore = create<BranchState>((set) => ({
    */
   updateBranch: async (id: string, data: Partial<Branch>): Promise<Branch | null> => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await branchApi.update(id, data);
       const updatedBranch = response.data;
-      
+
       set((state) => ({
-        branches: state.branches.map((b) => 
+        branches: state.branches.map((b) =>
           b.id === id ? updatedBranch : b
         ),
-        selectedBranch: state.selectedBranch?.id === id 
-          ? updatedBranch 
+        selectedBranch: state.selectedBranch?.id === id
+          ? updatedBranch
           : state.selectedBranch,
         isLoading: false,
       }));
-      
+
       return updatedBranch;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update branch';
@@ -137,18 +147,18 @@ export const useBranchStore = create<BranchState>((set) => ({
    */
   deleteBranch: async (id: string): Promise<boolean> => {
     set({ isLoading: true, error: null });
-    
+
     try {
       await branchApi.delete(id);
-      
+
       set((state) => ({
         branches: state.branches.filter((b) => b.id !== id),
-        selectedBranch: state.selectedBranch?.id === id 
-          ? null 
+        selectedBranch: state.selectedBranch?.id === id
+          ? null
           : state.selectedBranch,
         isLoading: false,
       }));
-      
+
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete branch';
@@ -197,7 +207,7 @@ export const useBranchLoading = () => useBranchStore((state) => state.isLoading)
 export const useBranchError = () => useBranchStore((state) => state.error);
 
 // Get current branch object
-export const useCurrentBranch = () => 
-  useBranchStore((state) => 
+export const useCurrentBranch = () =>
+  useBranchStore((state) =>
     state.branches.find((b) => b.id === state.currentBranchId) || null
   );

@@ -2,6 +2,8 @@ const Report = require("../models/Report");
 const reportService = require("../services/report.service");
 const sampleService = require("../services/sample.service");
 const Sample = require("../models/Sample");
+const Branch = require("../models/Branch");
+const Doctor = require("../models/Doctor");
 const aiService = require("../services/ai.service");
 
 // Use the new status from service
@@ -42,8 +44,28 @@ const isValidTransition = (currentStatus, newStatus) => {
 exports.getReports = async (req, res) => {
   try {
     const { patient_id, status, branch_id } = req.query;
+    const userId = req.user.id;
 
-    const reports = await Report.getAllReports({ patient_id, status, branch_id });
+    // Build filters
+    const filters = { patient_id, status };
+
+    if (branch_id) {
+      // Explicit branch filter from query
+      filters.branch_id = branch_id;
+    } else {
+      // Auto-filter by user's/doctor's branches to prevent cross-org data leakage
+      let userBranches;
+      if (req.user.source === "doctor") {
+        userBranches = await Doctor.getDoctorBranches(userId);
+      } else {
+        userBranches = await Branch.getUserBranches(userId);
+      }
+      if (userBranches.length > 0) {
+        filters.branch_ids = userBranches.map(b => b.id);
+      }
+    }
+
+    const reports = await Report.getAllReports(filters);
 
     res.json({
       message: "Reports retrieved successfully",
@@ -315,10 +337,27 @@ exports.reviseReport = async (req, res) => {
 exports.getReportsSummary = async (req, res) => {
   try {
     const { branch_id } = req.query;
+    const userId = req.user.id;
+
+    // Build filters
+    const filters = {};
+
+    if (branch_id) {
+      filters.branch_id = branch_id;
+    } else {
+      // Auto-filter by user's/doctor's branches
+      let userBranches;
+      if (req.user.source === "doctor") {
+        userBranches = await Doctor.getDoctorBranches(userId);
+      } else {
+        userBranches = await Branch.getUserBranches(userId);
+      }
+      if (userBranches.length > 0) {
+        filters.branch_ids = userBranches.map(b => b.id);
+      }
+    }
     
-    const { reports, summary } = await reportService.getReportsWithSummary({ 
-      branch_id 
-    });
+    const { reports, summary } = await reportService.getReportsWithSummary(filters);
 
     res.json({
       message: "Reports summary retrieved successfully",

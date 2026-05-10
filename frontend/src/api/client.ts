@@ -49,7 +49,7 @@ api.interceptors.response.use(
     }
 
     // Extract error message from response
-    const errorMessage = 
+    const errorMessage =
       (error.response?.data as { error?: string })?.error ||
       error.message ||
       'An unexpected error occurred';

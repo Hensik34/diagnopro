@@ -47,19 +47,19 @@ function authorize(permission, options = {}) {
       const authHeader = req.headers.authorization;
 
       if (!authHeader) {
-        return res.status(401).json({ 
+        return res.status(401).json({
           error: 'Authorization token is missing',
           code: 'AUTH_TOKEN_MISSING'
         });
       }
 
       // Extract token from "Bearer <token>"
-      const token = authHeader.startsWith('Bearer ') 
-        ? authHeader.slice(7) 
+      const token = authHeader.startsWith('Bearer ')
+        ? authHeader.slice(7)
         : authHeader;
 
       if (!token) {
-        return res.status(401).json({ 
+        return res.status(401).json({
           error: 'Invalid token format',
           code: 'AUTH_TOKEN_INVALID_FORMAT'
         });
@@ -67,7 +67,7 @@ function authorize(permission, options = {}) {
 
       // Verify and decode token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      
+
       // Attach user to request
       req.user = decoded;
 
@@ -77,7 +77,7 @@ function authorize(permission, options = {}) {
       const userRole = decoded.role;
 
       if (!userRole) {
-        return res.status(403).json({ 
+        return res.status(403).json({
           error: 'User role not found in token',
           code: 'RBAC_ROLE_MISSING'
         });
@@ -85,7 +85,7 @@ function authorize(permission, options = {}) {
 
       // Handle array of permissions
       let hasPermission = false;
-      
+
       if (Array.isArray(permission)) {
         if (requireAll) {
           // User must have ALL permissions
@@ -100,7 +100,7 @@ function authorize(permission, options = {}) {
       }
 
       if (!hasPermission) {
-        return res.status(403).json({ 
+        return res.status(403).json({
           error: 'You do not have permission to perform this action',
           code: 'RBAC_FORBIDDEN',
           requiredPermission: permission,
@@ -116,20 +116,20 @@ function authorize(permission, options = {}) {
     } catch (err) {
       // Handle JWT errors
       if (err.name === 'TokenExpiredError') {
-        return res.status(401).json({ 
+        return res.status(401).json({
           error: 'Token has expired',
           code: 'AUTH_TOKEN_EXPIRED'
         });
       }
       if (err.name === 'JsonWebTokenError') {
-        return res.status(401).json({ 
+        return res.status(401).json({
           error: 'Invalid token',
           code: 'AUTH_TOKEN_INVALID'
         });
       }
-      
+
       // Generic error
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Authentication failed',
         code: 'AUTH_FAILED'
       });
@@ -149,18 +149,18 @@ function authenticate(req, res, next) {
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Authorization token is missing',
         code: 'AUTH_TOKEN_MISSING'
       });
     }
 
-    const token = authHeader.startsWith('Bearer ') 
-      ? authHeader.slice(7) 
+    const token = authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7)
       : authHeader;
 
     if (!token) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Invalid token format',
         code: 'AUTH_TOKEN_INVALID_FORMAT'
       });
@@ -172,18 +172,18 @@ function authenticate(req, res, next) {
 
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Token has expired',
         code: 'AUTH_TOKEN_EXPIRED'
       });
     }
     if (err.name === 'JsonWebTokenError') {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Invalid token',
         code: 'AUTH_TOKEN_INVALID'
       });
     }
-    return res.status(401).json({ 
+    return res.status(401).json({
       error: 'Authentication failed',
       code: 'AUTH_FAILED'
     });

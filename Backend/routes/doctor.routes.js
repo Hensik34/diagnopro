@@ -19,6 +19,9 @@ router.get("/:id", authorize(PERMISSIONS.DOCTOR_READ), doctorController.getDocto
 // Create new doctor
 router.post("/", authorize(PERMISSIONS.DOCTOR_CREATE), doctorController.createDoctor);
 
+// Set/update doctor login password
+router.put("/:id/password", authorize(PERMISSIONS.DOCTOR_UPDATE), doctorController.setDoctorPassword);
+
 // Update doctor
 router.put("/:id", authorize(PERMISSIONS.DOCTOR_UPDATE), doctorController.updateDoctor);
 
@@ -26,3 +29,4 @@ router.put("/:id", authorize(PERMISSIONS.DOCTOR_UPDATE), doctorController.update
 router.delete("/:id", authorize(PERMISSIONS.DOCTOR_DELETE), doctorController.deleteDoctor);
 
 module.exports = router;
+

@@ -1,11 +1,21 @@
 const Branch = require("../models/Branch");
+const Doctor = require("../models/Doctor");
 const Test = require("../models/Test");
 
-// GET ALL BRANCHES (user's branches only)
+// GET ALL BRANCHES (user's or doctor's branches)
 exports.getAllBranches = async (req, res) => {
   try {
-    const { id } = req.user;
-    const branches = await Branch.getAllBranches(id);
+    const { id, source } = req.user;
+
+    let branches;
+    if (source === "doctor") {
+      // Direct doctor login — fetch from doctor_branches
+      branches = await Doctor.getDoctorBranches(id);
+      // Add user_role for compatibility
+      branches = branches.map(b => ({ ...b, user_role: "doctor" }));
+    } else {
+      branches = await Branch.getAllBranches(id);
+    }
 
     res.json({
       message: "Branches retrieved successfully",
@@ -18,12 +28,18 @@ exports.getAllBranches = async (req, res) => {
   }
 };
 
-// GET USER'S BRANCHES
+// GET USER'S BRANCHES (handles both user and doctor login)
 exports.getUserBranches = async (req, res) => {
   try {
-    const { id } = req.user; // From auth middleware
+    const { id, source } = req.user; // From auth middleware
 
-    const branches = await Branch.getUserBranches(id);
+    let branches;
+    if (source === "doctor") {
+      branches = await Doctor.getDoctorBranches(id);
+      branches = branches.map(b => ({ ...b, user_role: "doctor" }));
+    } else {
+      branches = await Branch.getUserBranches(id);
+    }
 
     res.json({
       message: "User branches retrieved successfully",

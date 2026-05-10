@@ -87,10 +87,28 @@ const PERMISSIONS = {
   TIMELOG_DELETE: 'timelog:delete',
 
   // Settings & System
-  SETTINGS_VIEW: 'settings:view',
+  SETTINGS_READ: 'settings:read',
   SETTINGS_UPDATE: 'settings:update',
   ANALYTICS_VIEW: 'analytics:view',
   AUDIT_LOG_VIEW: 'audit:view',
+
+  // B2B Lab Management
+  B2B_LAB_CREATE: 'b2b:lab_create',
+  B2B_LAB_READ: 'b2b:lab_read',
+  B2B_LAB_UPDATE: 'b2b:lab_update',
+  B2B_LAB_DELETE: 'b2b:lab_delete',
+  B2B_ORDER_CREATE: 'b2b:order_create',
+  B2B_ORDER_READ: 'b2b:order_read',
+  B2B_ORDER_UPDATE: 'b2b:order_update',
+  B2B_REPORT_UPLOAD: 'b2b:report_upload',
+  B2B_REPORT_APPROVE: 'b2b:report_approve',
+  B2B_REPORT_RELEASE: 'b2b:report_release',
+  B2B_REPORT_DOWNLOAD: 'b2b:report_download',
+  B2B_PAYMENT_CREATE: 'b2b:payment_create',
+  B2B_PAYMENT_READ: 'b2b:payment_read',
+  B2B_PAYMENT_DELETE: 'b2b:payment_delete',
+  B2B_DASHBOARD_VIEW: 'b2b:dashboard_view',
+  B2B_AUDIT_VIEW: 'b2b:audit_view',
 };
 
 // ==========================================
@@ -105,6 +123,7 @@ const ROLES = {
   DOCTOR: 'doctor',
   TECHNICIAN: 'lab_technician',
   STAFF: 'staff',
+  B2B_LAB: 'b2b_lab',
 };
 
 // ==========================================
@@ -220,6 +239,20 @@ const ROLE_PERMISSIONS = {
     PERMISSIONS.COLLECTION_READ,
     PERMISSIONS.COLLECTION_UPDATE,
   ],
+
+  // B2B Lab: Partner lab with restricted access to own data
+  [ROLES.B2B_LAB]: [
+    PERMISSIONS.PATIENT_READ,
+    PERMISSIONS.REPORT_READ,
+    PERMISSIONS.REPORT_DOWNLOAD,
+    PERMISSIONS.TEST_READ,
+    PERMISSIONS.BRANCH_READ,
+    PERMISSIONS.B2B_ORDER_CREATE,
+    PERMISSIONS.B2B_ORDER_READ,
+    PERMISSIONS.B2B_REPORT_DOWNLOAD,
+    PERMISSIONS.B2B_DASHBOARD_VIEW,
+    PERMISSIONS.B2B_PAYMENT_READ,
+  ],
 };
 
 // ==========================================
@@ -298,10 +331,28 @@ const PERMISSION_GROUPS = {
     PERMISSIONS.TIMELOG_DELETE,
   ],
   'System': [
-    PERMISSIONS.SETTINGS_VIEW,
+    PERMISSIONS.SETTINGS_READ,
     PERMISSIONS.SETTINGS_UPDATE,
     PERMISSIONS.ANALYTICS_VIEW,
     PERMISSIONS.AUDIT_LOG_VIEW,
+  ],
+  'B2B Lab Management': [
+    PERMISSIONS.B2B_LAB_CREATE,
+    PERMISSIONS.B2B_LAB_READ,
+    PERMISSIONS.B2B_LAB_UPDATE,
+    PERMISSIONS.B2B_LAB_DELETE,
+    PERMISSIONS.B2B_ORDER_CREATE,
+    PERMISSIONS.B2B_ORDER_READ,
+    PERMISSIONS.B2B_ORDER_UPDATE,
+    PERMISSIONS.B2B_REPORT_UPLOAD,
+    PERMISSIONS.B2B_REPORT_APPROVE,
+    PERMISSIONS.B2B_REPORT_RELEASE,
+    PERMISSIONS.B2B_REPORT_DOWNLOAD,
+    PERMISSIONS.B2B_PAYMENT_CREATE,
+    PERMISSIONS.B2B_PAYMENT_READ,
+    PERMISSIONS.B2B_PAYMENT_DELETE,
+    PERMISSIONS.B2B_DASHBOARD_VIEW,
+    PERMISSIONS.B2B_AUDIT_VIEW,
   ],
 };
 

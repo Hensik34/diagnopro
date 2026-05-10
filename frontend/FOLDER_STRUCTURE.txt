@@ -1,0 +1,174 @@
+frontend/src/
+├── pages/                              # MAIN: All page components organized by feature
+│   ├── index.ts                        # Barrel export - import from here
+│   │
+│   ├── auth/
+│   │   ├── Login.tsx
+│   │   ├── Register.tsx
+│   │   └── index.ts
+│   │
+│   ├── layout/
+│   │   ├── Root.tsx
+│   │   └── index.ts
+│   │
+│   ├── dashboard/
+│   │   ├── Dashboard.tsx
+│   │   ├── Analytics.tsx
+│   │   ├── DashboardDayDetail.tsx
+│   │   └── index.ts
+│   │
+│   ├── patients/
+│   │   ├── Patients.tsx
+│   │   └── index.ts
+│   │
+│   ├── samples/
+│   │   ├── SampleCollection.tsx
+│   │   └── index.ts
+│   │
+│   ├── reports/
+│   │   ├── Reports.tsx
+│   │   ├── CreateReport.tsx
+│   │   ├── ReportEntry.tsx
+│   │   ├── ReportPreview.tsx
+│   │   ├── ReportReview.tsx
+│   │   └── index.ts
+│   │
+│   ├── doctors/
+│   │   ├── DoctorManagement.tsx
+│   │   ├── DoctorDetail.tsx
+│   │   └── index.ts
+│   │
+│   ├── doctor-portal/
+│   │   ├── DoctorDashboard.tsx
+│   │   ├── DoctorReports.tsx
+│   │   ├── DoctorProfile.tsx
+│   │   └── index.ts
+│   │
+│   ├── tests/
+│   │   ├── TestManagement.tsx
+│   │   └── index.ts
+│   │
+│   ├── users/
+│   │   ├── Users.tsx
+│   │   └── index.ts
+│   │
+│   ├── branches/
+│   │   ├── Branches.tsx
+│   │   └── index.ts
+│   │
+│   ├── inventory/
+│   │   ├── Inventory.tsx
+│   │   └── index.ts
+│   │
+│   ├── billing/
+│   │   ├── InvoicePage.tsx
+│   │   └── index.ts
+│   │
+│   ├── time-tracking/
+│   │   ├── TimeTracking.tsx
+│   │   ├── WorkingHours.tsx
+│   │   └── index.ts
+│   │
+│   ├── settings/
+│   │   ├── Settings.tsx
+│   │   └── index.ts
+│   │
+│   ├── error-pages/
+│   │   ├── NotFound.tsx
+│   │   ├── Unauthorized.tsx
+│   │   └── index.ts
+│   │
+│   └── onboarding/
+│       ├── Onboarding.tsx
+│       └── index.ts
+│
+├── app/                                # App configuration
+│   ├── App.tsx
+│   ├── routes.ts                       # ✓ Updated with new imports
+│   ├── components/                     # Page-level components (layout pieces)
+│   │   ├── auth/
+│   │   ├── dashboard/
+│   │   ├── figma/
+│   │   ├── layout/
+│   │   ├── patients/
+│   │   ├── reports/
+│   │   ├── ui/
+│   │   └── ...
+│   └── pages/                          # DEPRECATED - Old page files (can delete after testing)
+│
+├── components/                         # Shared reusable components
+│   ├── auth/
+│   ├── dashboard/
+│   ├── layout/
+│   ├── patients/
+│   ├── reports/
+│   └── ui/
+│
+├── stores/                             # Zustand state management
+│   ├── authStore.ts
+│   ├── patientStore.ts
+│   ├── branchStore.ts
+│   ├── testStore.ts
+│   ├── settingsStore.ts
+│   ├── index.ts
+│   └── ...
+│
+├── api/                                # API client & services
+│   ├── auth.ts
+│   ├── patients.ts
+│   ├── reports.ts
+│   ├── tests.ts
+│   ├── index.ts
+│   └── ...
+│
+├── types/                              # TypeScript types & interfaces
+│   ├── index.ts
+│   ├── auth.ts
+│   ├── patient.ts
+│   ├── report.ts
+│   └── ...
+│
+├── utils/                              # Utility functions
+│   ├── index.ts
+│   └── ...
+│
+├── styles/                             # Global styles
+│   ├── globals.css
+│   └── ...
+│
+├── main.tsx                            # App entry point
+└── vite-env.d.ts                       # Vite environment types
+
+
+════════════════════════════════════════════════════════════════
+QUICK IMPORT REFERENCE
+════════════════════════════════════════════════════════════════
+
+Import from new pages structure:
+────────────────────────────────
+import { Login, Register } from '../pages/auth';
+import { Dashboard, Analytics } from '../pages/dashboard';
+import { Patients } from '../pages/patients';
+import { Reports, CreateReport } from '../pages/reports';
+import { DoctorManagement } from '../pages/doctors';
+import { TestManagement } from '../pages/tests';
+import { Root } from '../pages/layout';
+
+
+════════════════════════════════════════════════════════════════
+STATUS
+════════════════════════════════════════════════════════════════
+
+✓ Folder structure created
+✓ All page files copied
+✓ Index files created in each folder
+✓ Main pages/index.ts barrel export created
+✓ routes.ts updated with new imports
+✓ Verification: All page files are in correct locations
+
+📝 NEXT STEPS:
+1. Run the app and verify it starts without errors: npm run dev
+2. Test all routes to ensure navigation works
+3. Check browser console for any import/reference errors
+4. Once fully tested, can optionally delete old app/pages folder
+5. Update any other files that import from old app/pages location

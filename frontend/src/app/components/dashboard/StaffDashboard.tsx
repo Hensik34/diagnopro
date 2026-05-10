@@ -13,10 +13,12 @@ import {
 import { useTimeLogStore } from '../../../stores/timeLogStore';
 import { useReportStore } from '../../../stores/reportStore';
 import { useAuthStore } from '../../../stores/authStore';
+import { useBranchStore } from '../../../stores/branchStore';
 
 export function StaffDashboard() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { currentBranchId } = useBranchStore();
   const {
     activeSession,
     isLoading: timeLoading,
@@ -26,36 +28,16 @@ export function StaffDashboard() {
   } = useTimeLogStore();
   const { reports, fetchReports, isLoading: reportsLoading } = useReportStore();
 
-  const [elapsedTime, setElapsedTime] = useState('');
   const [clockOutNotes, setClockOutNotes] = useState('');
   const [showNotesModal, setShowNotesModal] = useState(false);
 
   useEffect(() => {
     fetchActiveSession();
-    fetchReports({});
-  }, [fetchActiveSession, fetchReports]);
+    const filters = currentBranchId ? { branch_id: currentBranchId } : {};
+    fetchReports(filters);
+  }, [fetchActiveSession, fetchReports, currentBranchId]);
 
-  // Live elapsed timer
-  useEffect(() => {
-    if (!activeSession) {
-      setElapsedTime('');
-      return;
-    }
-    const updateTimer = () => {
-      const start = new Date(activeSession.clock_in).getTime();
-      const now = Date.now();
-      const diff = now - start;
-      const hours = Math.floor(diff / 3600000);
-      const mins = Math.floor((diff % 3600000) / 60000);
-      const secs = Math.floor((diff % 60000) / 1000);
-      setElapsedTime(
-        `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
-      );
-    };
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
-    return () => clearInterval(interval);
-  }, [activeSession]);
+  // Active timer logic removed as requested
 
   const handleClockIn = async () => {
     await clockIn();
@@ -119,8 +101,8 @@ export function StaffDashboard() {
             <div>
               {activeSession ? (
                 <>
-                  <p className="text-xs text-muted-foreground">Clocked in since {new Date(activeSession.clock_in).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
-                  <p className="text-3xl font-mono font-bold text-green-600 dark:text-green-400">{elapsedTime}</p>
+                  <p className="text-sm font-medium text-foreground">You are clocked in</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Started at {new Date(activeSession.clock_in).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
                 </>
               ) : (
                 <>

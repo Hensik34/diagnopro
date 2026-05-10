@@ -41,6 +41,7 @@ export const PERMISSIONS = {
   REPORT_APPROVE: 'report:approve',
   REPORT_DOWNLOAD: 'report:download',
   REPORT_ASSIGN_TECHNICIAN: 'report:assign_technician',
+  REPORT_REVIEW: 'report:review',
 
   // Sample Management
   SAMPLE_CREATE: 'sample:create',
@@ -98,6 +99,24 @@ export const PERMISSIONS = {
   SETTINGS_UPDATE: 'settings:update',
   ANALYTICS_VIEW: 'analytics:view',
   AUDIT_LOG_VIEW: 'audit:view',
+
+  // B2B Lab Management
+  B2B_LAB_CREATE: 'b2b:lab_create',
+  B2B_LAB_READ: 'b2b:lab_read',
+  B2B_LAB_UPDATE: 'b2b:lab_update',
+  B2B_LAB_DELETE: 'b2b:lab_delete',
+  B2B_ORDER_CREATE: 'b2b:order_create',
+  B2B_ORDER_READ: 'b2b:order_read',
+  B2B_ORDER_UPDATE: 'b2b:order_update',
+  B2B_REPORT_UPLOAD: 'b2b:report_upload',
+  B2B_REPORT_APPROVE: 'b2b:report_approve',
+  B2B_REPORT_RELEASE: 'b2b:report_release',
+  B2B_REPORT_DOWNLOAD: 'b2b:report_download',
+  B2B_PAYMENT_CREATE: 'b2b:payment_create',
+  B2B_PAYMENT_READ: 'b2b:payment_read',
+  B2B_PAYMENT_DELETE: 'b2b:payment_delete',
+  B2B_DASHBOARD_VIEW: 'b2b:dashboard_view',
+  B2B_AUDIT_VIEW: 'b2b:audit_view',
 } as const;
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
@@ -111,6 +130,7 @@ export const ROLES = {
   DOCTOR: 'doctor',
   TECHNICIAN: 'lab_technician',
   STAFF: 'staff',
+  B2B_LAB: 'b2b_lab',
 } as const;
 
 export type Role = typeof ROLES[keyof typeof ROLES];
@@ -129,28 +149,28 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   // Admin has full access to everything
   [ROLES.ADMIN]: ['*'],
 
-  // Doctor: Can view patients, reports, approve reports, view commissions
+  // Doctor: Can view patients, reports, create reports, view commissions (no review access)
   [ROLES.DOCTOR]: [
     PERMISSIONS.PATIENT_READ,
     PERMISSIONS.REPORT_READ,
     PERMISSIONS.REPORT_CREATE,
     PERMISSIONS.REPORT_UPDATE,
-    PERMISSIONS.REPORT_APPROVE,
     PERMISSIONS.REPORT_DOWNLOAD,
     PERMISSIONS.SAMPLE_READ,
     PERMISSIONS.TEST_READ,
     PERMISSIONS.DOCTOR_COMMISSION_VIEW,
     PERMISSIONS.BRANCH_READ,
     PERMISSIONS.INVENTORY_READ,
-    PERMISSIONS.ANALYTICS_VIEW,
   ],
 
-  // Lab Technician: Sample collection, test processing, report creation
+  // Lab Technician: Sample collection, test processing, report creation and review
   [ROLES.TECHNICIAN]: [
     PERMISSIONS.PATIENT_READ,
     PERMISSIONS.REPORT_READ,
     PERMISSIONS.REPORT_CREATE,
     PERMISSIONS.REPORT_UPDATE,
+    PERMISSIONS.REPORT_APPROVE,
+    PERMISSIONS.REPORT_REVIEW,
     PERMISSIONS.REPORT_DOWNLOAD,
     PERMISSIONS.SAMPLE_CREATE,
     PERMISSIONS.SAMPLE_READ,
@@ -187,6 +207,20 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.COLLECTION_CREATE,
     PERMISSIONS.COLLECTION_READ,
     PERMISSIONS.COLLECTION_UPDATE,
+  ],
+
+  // B2B Lab: Partner lab with restricted access to own data
+  [ROLES.B2B_LAB]: [
+    PERMISSIONS.PATIENT_READ,
+    PERMISSIONS.REPORT_READ,
+    PERMISSIONS.REPORT_DOWNLOAD,
+    PERMISSIONS.TEST_READ,
+    PERMISSIONS.BRANCH_READ,
+    PERMISSIONS.B2B_ORDER_CREATE,
+    PERMISSIONS.B2B_ORDER_READ,
+    PERMISSIONS.B2B_REPORT_DOWNLOAD,
+    PERMISSIONS.B2B_DASHBOARD_VIEW,
+    PERMISSIONS.B2B_PAYMENT_READ,
   ],
 };
 
@@ -311,6 +345,7 @@ export const ROLE_LABELS: Record<string, string> = {
   [ROLES.DOCTOR]: 'Doctor',
   [ROLES.TECHNICIAN]: 'Lab Technician',
   [ROLES.STAFF]: 'Staff',
+  [ROLES.B2B_LAB]: 'B2B Partner Lab',
 };
 
 export function getRoleLabel(role: string): string {

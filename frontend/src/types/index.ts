@@ -21,10 +21,31 @@ export interface LoginCredentials {
   password: string;
 }
 
+export interface LoginBranch {
+  id: string;
+  name: string;
+  location?: string;
+  city?: string;
+  role: string;
+}
+
+export interface DoctorProfile {
+  id: string;
+  title?: string;
+  name: string;
+  specialization?: string;
+  commission_percentage?: number;
+  phone?: string;
+  email?: string;
+  signature_url?: string | null;
+}
+
 export interface AuthResponse {
   message: string;
   token: string;
   user: User;
+  branches?: LoginBranch[];
+  doctorProfile?: DoctorProfile | null;
 }
 
 // ==========================================
@@ -97,6 +118,8 @@ export interface Doctor {
   specialization?: string;
   license_number?: string;
   commission_percentage?: number;
+  signature_url?: string | null;
+  user_id?: string | null;
   branch_id: string;
   created_at: string;
   updated_at: string;
@@ -111,6 +134,7 @@ export interface CreateDoctorData {
   license_number?: string;
   commission_percentage?: number;
   branch_id: string;
+  password?: string;
 }
 
 // Doctor Statement Types (for commission settlement)
@@ -191,6 +215,7 @@ export interface Test {
   turnaround_time?: number; // in hours
   description?: string;
   branch_id: string;
+  has_user_override?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -484,7 +509,6 @@ export interface InventoryItem {
   category: 'Reagent' | 'Kit';
   quantity: number;
   alert_threshold: number;
-  unit: string;
   branch_id: string;
   last_restocked: string | null;
   created_at: string;
@@ -496,7 +520,6 @@ export interface CreateInventoryData {
   category: string;
   quantity?: number;
   alert_threshold?: number;
-  unit: string;
   branch_id?: string;
 }
 

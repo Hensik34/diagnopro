@@ -14,6 +14,9 @@ router.use("/doctors", require("./doctor.routes"));
 router.use("/inventory", require("./inventory.routes"));
 router.use("/collection-tracking", require("./collectionTracking.routes"));
 router.use("/time-logs", require("./timeLog.routes"));
+router.use("/settings", require("./settings.routes"));
+router.use("/doctor-portal", require("./doctorPortal.routes"));
+router.use("/b2b", require("./b2b.routes"));
 
 // Health check endpoint
 router.get("/health", (req, res) => {

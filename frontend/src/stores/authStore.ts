@@ -1,12 +1,12 @@
 import { create } from 'zustand';
 import { authApi, setAuthToken, getAuthToken } from '../api';
-import type { User, LoginCredentials } from '../types';
-import { 
-  checkRolePermission, 
-  checkRolePermissionAny, 
+import type { User, LoginCredentials, DoctorProfile, LoginBranch } from '../types';
+import {
+  checkRolePermission,
+  checkRolePermissionAny,
   checkRolePermissionAll,
   PERMISSIONS,
-  type Permission 
+  type Permission
 } from '../utils/permissions';
 
 // ==========================================
@@ -27,6 +27,8 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  doctorProfile: DoctorProfile | null;
+  loginBranches: LoginBranch[];
 
   // Actions
   login: (credentials: LoginCredentials) => Promise<boolean>;
@@ -35,6 +37,9 @@ interface AuthState {
   fetchProfile: () => Promise<void>;
   clearError: () => void;
   initialize: () => Promise<void>;
+
+  // Role helpers
+  getBranchRole: () => string | undefined;
 
   // RBAC Permission Checks
   can: (permission: string) => boolean;
@@ -52,6 +57,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: !!getAuthToken(),
   isLoading: false,
   error: null,
+  doctorProfile: null,
+  loginBranches: [],
 
   // ==========================================
   // Actions
@@ -60,24 +67,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   /**
    * Login with email and password
    * Stores token in localStorage, user data in Zustand
+   * Handles both user and doctor login responses
    */
   login: async (credentials: LoginCredentials): Promise<boolean> => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await authApi.login(credentials);
-      
+
       // Store token in localStorage (only token allowed)
       setAuthToken(response.token);
-      
+
       // Store user in Zustand state (not localStorage)
       set({
         user: response.user,
         isAuthenticated: true,
         isLoading: false,
         error: null,
+        doctorProfile: response.doctorProfile || null,
+        loginBranches: response.branches || [],
       });
-      
+
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
@@ -86,6 +96,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         error: errorMessage,
         isAuthenticated: false,
         user: null,
+        doctorProfile: null,
+        loginBranches: [],
       });
       return false;
     }
@@ -96,21 +108,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    */
   register: async (data: RegisterData): Promise<boolean> => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await authApi.register(data);
-      
+
       // Store token in localStorage
       setAuthToken(response.token);
-      
+
       // Store user in Zustand state
       set({
         user: response.user,
         isAuthenticated: true,
         isLoading: false,
         error: null,
+        doctorProfile: null,
+        loginBranches: [],
       });
-      
+
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Registration failed';
@@ -134,6 +148,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user: null,
       isAuthenticated: false,
       error: null,
+      doctorProfile: null,
+      loginBranches: [],
     });
   },
 
@@ -147,7 +163,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     set({ isLoading: true });
-    
+
     try {
       const response = await authApi.getProfile();
       set({
@@ -162,6 +178,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         user: null,
         isAuthenticated: false,
         isLoading: false,
+        doctorProfile: null,
+        loginBranches: [],
       });
     }
   },
@@ -179,7 +197,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    */
   initialize: async () => {
     const token = getAuthToken();
-    
+
     if (!token) {
       set({ isAuthenticated: false, user: null, isLoading: false });
       return;
@@ -187,6 +205,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // Token exists, try to fetch profile
     await get().fetchProfile();
+  },
+
+  /**
+   * Get the current user's role (used for branch-specific role checks)
+   * Returns the user's role from the stored user object
+   */
+  getBranchRole: (): string | undefined => {
+    return get().user?.role;
   },
 
   // ==========================================
@@ -232,6 +258,8 @@ export const useUser = () => useAuthStore((state) => state.user);
 export const useIsAuthenticated = () => useAuthStore((state) => state.isAuthenticated);
 export const useAuthLoading = () => useAuthStore((state) => state.isLoading);
 export const useAuthError = () => useAuthStore((state) => state.error);
+export const useDoctorProfile = () => useAuthStore((state) => state.doctorProfile);
+export const useLoginBranches = () => useAuthStore((state) => state.loginBranches);
 
 // ==========================================
 // RBAC Permission Hooks
