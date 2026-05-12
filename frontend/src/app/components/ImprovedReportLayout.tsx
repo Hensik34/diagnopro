@@ -1,6 +1,7 @@
 /**
  * ImprovedReportLayout.tsx
  * Helper components and utilities for better report layout and spacing
+ * Styled to match professional pathology lab reports (SRL / Metropolis style)
  */
 
 import React from 'react';
@@ -18,24 +19,24 @@ export const ReportLayoutConfig = {
   
   // Margins for sections
   sectionMargin: {
-    top: 14,
-    bottom: 16,
-    between: 18,
+    top: 10,
+    bottom: 12,
+    between: 14,
   },
   
   // Padding for boxes
   boxPadding: {
-    dense: 10,
-    normal: 12,
-    spacious: 16,
+    dense: 7,
+    normal: 10,
+    spacious: 14,
   },
   
   // Font sizes
   fontSize: {
     label: 9,
-    value: 10,
-    header: 10.5,
-    sectionTitle: 13,
+    value: 10.5,
+    header: 10,
+    sectionTitle: 12,
     patientName: 15,
   },
   
@@ -49,9 +50,9 @@ export const ReportLayoutConfig = {
   
   // Table column widths (percentages)
   tableColumns: {
-    investigation: '38%',
-    result: '16%',
-    status: '7%',
+    investigation: '40%',
+    result: '14%',
+    flag: '7%',
     refRange: '24%',
     unit: '15%',
   },
@@ -101,86 +102,39 @@ export function PatientInfoRow({
 }
 
 /**
- * InvestigationTableHeader - Properly styled table header
+ * InvestigationTableHeader - Clean professional header with FLAG column
  */
 export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<string, string> }) {
+  const thStyle = (width: string, align: string = 'center', extra: React.CSSProperties = {}): React.CSSProperties => ({
+    textAlign: align as any,
+    padding: `${ReportLayoutConfig.boxPadding.normal}px 8px`,
+    fontWeight: 700,
+    color: colorTokens.white,
+    fontSize: `${ReportLayoutConfig.fontSize.header}px`,
+    letterSpacing: '0.5px',
+    textTransform: 'uppercase',
+    whiteSpace: 'nowrap',
+    width,
+    borderRight: `1px solid rgba(255,255,255,0.15)`,
+    ...extra,
+  });
+
   return (
     <thead>
       <tr style={{ background: colorTokens.brand }}>
-        <th
-          style={{
-            textAlign: 'left',
-            padding: `${ReportLayoutConfig.boxPadding.normal}px 10px`,
-            fontWeight: 700,
-            color: colorTokens.white,
-            fontSize: `${ReportLayoutConfig.fontSize.header}px`,
-            letterSpacing: '0.3px',
-            textTransform: 'uppercase',
-            whiteSpace: 'nowrap',
-            width: ReportLayoutConfig.tableColumns.investigation,
-            borderRight: `1px solid rgba(255,255,255,0.2)`,
-          }}
-        >
+        <th style={thStyle(ReportLayoutConfig.tableColumns.investigation, 'left')}>
           Investigation
         </th>
-        <th
-          style={{
-            textAlign: 'center',
-            padding: `${ReportLayoutConfig.boxPadding.normal}px 10px`,
-            fontWeight: 700,
-            color: colorTokens.white,
-            fontSize: `${ReportLayoutConfig.fontSize.header}px`,
-            letterSpacing: '0.3px',
-            textTransform: 'uppercase',
-            whiteSpace: 'nowrap',
-            width: ReportLayoutConfig.tableColumns.result,
-            borderRight: `1px solid rgba(255,255,255,0.2)`,
-          }}
-        >
+        <th style={thStyle(ReportLayoutConfig.tableColumns.result)}>
           Result
         </th>
-        <th
-          style={{
-            textAlign: 'center',
-            padding: `${ReportLayoutConfig.boxPadding.normal}px 4px`,
-            fontWeight: 700,
-            color: colorTokens.white,
-            fontSize: `${ReportLayoutConfig.fontSize.header}px`,
-            width: ReportLayoutConfig.tableColumns.status,
-            borderRight: `1px solid rgba(255,255,255,0.2)`,
-          }}
-        >
-          {/* Status column - no header */}
+        <th style={thStyle(ReportLayoutConfig.tableColumns.flag)}>
+          Flag
         </th>
-        <th
-          style={{
-            textAlign: 'center',
-            padding: `${ReportLayoutConfig.boxPadding.normal}px 10px`,
-            fontWeight: 700,
-            color: colorTokens.white,
-            fontSize: `${ReportLayoutConfig.fontSize.header}px`,
-            letterSpacing: '0.3px',
-            textTransform: 'uppercase',
-            whiteSpace: 'nowrap',
-            width: ReportLayoutConfig.tableColumns.refRange,
-            borderRight: `1px solid rgba(255,255,255,0.2)`,
-          }}
-        >
-          Reference Value
+        <th style={thStyle(ReportLayoutConfig.tableColumns.refRange)}>
+          Bio. Ref. Range
         </th>
-        <th
-          style={{
-            textAlign: 'center',
-            padding: `${ReportLayoutConfig.boxPadding.normal}px 10px`,
-            fontWeight: 700,
-            color: colorTokens.white,
-            fontSize: `${ReportLayoutConfig.fontSize.header}px`,
-            letterSpacing: '0.3px',
-            textTransform: 'uppercase',
-            whiteSpace: 'nowrap',
-            width: ReportLayoutConfig.tableColumns.unit,
-          }}
-        >
+        <th style={thStyle(ReportLayoutConfig.tableColumns.unit, 'center', { borderRight: 'none' })}>
           Unit
         </th>
       </tr>
@@ -189,7 +143,11 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
 }
 
 /**
- * InvestigationTableRow - Properly styled table row with improved spacing
+ * InvestigationTableRow - Compact professional row matching pathology lab style
+ * - No alternating colors, clean white background
+ * - Abnormal values in bold with color
+ * - Ref range and unit also bold when abnormal
+ * - Indentation support for grouped sub-parameters
  */
 export function InvestigationTableRow({
   investigation,
@@ -200,6 +158,7 @@ export function InvestigationTableRow({
   isAbnormal = false,
   statusColor = '#212121',
   rowIndex = 0,
+  indented = false,
   colorTokens,
 }: {
   investigation: string;
@@ -210,80 +169,87 @@ export function InvestigationTableRow({
   isAbnormal?: boolean;
   statusColor?: string;
   rowIndex?: number;
+  indented?: boolean;
   colorTokens: Record<string, string>;
 }) {
-  const rowBg = isAbnormal
-    ? statusColor === colorTokens.high
-      ? 'rgba(198,40,40,0.04)'
-      : 'rgba(21,101,192,0.04)'
-    : rowIndex % 2 === 0
-    ? colorTokens.white
-    : colorTokens.tableStripe;
+  const cellBorder = `1px solid ${colorTokens.borderLight}`;
+  const vPad = `${ReportLayoutConfig.boxPadding.dense}px`;
+  const hPad = '8px';
+  const fontSize = `${ReportLayoutConfig.fontSize.value}px`;
 
   return (
-    <tr style={{ background: rowBg }}>
+    <tr style={{ background: colorTokens.white }}>
+      {/* Investigation name */}
       <td
         style={{
-          padding: `${ReportLayoutConfig.boxPadding.dense}px 10px`,
-          fontWeight: 500,
-          color: colorTokens.text,
-          borderBottom: `1px solid ${colorTokens.borderLight}`,
-          fontSize: `${ReportLayoutConfig.fontSize.value}px`,
+          padding: `${vPad} ${hPad}`,
+          paddingLeft: indented ? '24px' : hPad,
+          fontWeight: isAbnormal ? 700 : 400,
+          color: isAbnormal ? statusColor : colorTokens.text,
+          borderBottom: cellBorder,
+          fontSize,
           textAlign: 'left',
+          lineHeight: 1.4,
         }}
       >
         {investigation}
       </td>
+      {/* Result value */}
       <td
         style={{
-          padding: `${ReportLayoutConfig.boxPadding.dense}px 10px`,
+          padding: `${vPad} ${hPad}`,
           textAlign: 'center',
-          fontWeight: isAbnormal ? 700 : 500,
-          color: statusColor,
-          fontSize: `${ReportLayoutConfig.fontSize.value}px`,
+          fontWeight: isAbnormal ? 700 : 400,
+          color: isAbnormal ? statusColor : colorTokens.text,
+          fontSize,
           fontVariantNumeric: 'tabular-nums',
-          borderBottom: `1px solid ${colorTokens.borderLight}`,
-          borderLeft: `1px solid ${colorTokens.borderLight}`,
+          borderBottom: cellBorder,
+          borderLeft: cellBorder,
           whiteSpace: 'nowrap',
         }}
       >
         {result}
       </td>
+      {/* Flag (H/L) */}
       <td
         style={{
-          padding: `${ReportLayoutConfig.boxPadding.dense}px 4px`,
+          padding: `${vPad} 4px`,
           textAlign: 'center',
-          borderBottom: `1px solid ${colorTokens.borderLight}`,
-          borderLeft: `1px solid ${colorTokens.borderLight}`,
+          borderBottom: cellBorder,
+          borderLeft: cellBorder,
           whiteSpace: 'nowrap',
-          fontSize: '8px',
+          fontSize: '9px',
           fontWeight: 700,
           color: statusColor,
         }}
       >
-        {status}
+        {status === 'High' ? 'H' : status === 'Low' ? 'L' : ''}
       </td>
+      {/* Reference Range */}
       <td
         style={{
-          padding: `${ReportLayoutConfig.boxPadding.dense}px 10px`,
+          padding: `${vPad} ${hPad}`,
           textAlign: 'center',
-          color: colorTokens.secondary,
-          borderBottom: `1px solid ${colorTokens.borderLight}`,
-          borderLeft: `1px solid ${colorTokens.borderLight}`,
-          fontSize: `${ReportLayoutConfig.fontSize.value}px`,
+          color: isAbnormal ? colorTokens.text : colorTokens.secondary,
+          fontWeight: isAbnormal ? 700 : 400,
+          borderBottom: cellBorder,
+          borderLeft: cellBorder,
+          fontSize,
           whiteSpace: 'nowrap',
         }}
       >
         {refRange}
       </td>
+      {/* Unit */}
       <td
         style={{
-          padding: `${ReportLayoutConfig.boxPadding.dense}px 10px`,
+          padding: `${vPad} ${hPad}`,
           textAlign: 'center',
-          color: colorTokens.secondary,
-          borderBottom: `1px solid ${colorTokens.borderLight}`,
-          borderLeft: `1px solid ${colorTokens.borderLight}`,
-          fontSize: `${ReportLayoutConfig.fontSize.value}px`,
+          color: isAbnormal ? colorTokens.text : colorTokens.secondary,
+          fontWeight: isAbnormal ? 700 : 400,
+          borderBottom: cellBorder,
+          borderLeft: cellBorder,
+          fontSize,
           whiteSpace: 'nowrap',
         }}
       >
@@ -294,7 +260,8 @@ export function InvestigationTableRow({
 }
 
 /**
- * SectionGroupHeader - Header for grouped sections (e.g., HEMOGLOBIN, RBC COUNT)
+ * SectionGroupHeader - Clean sub-group header (e.g., "Differential Leucocyte Count", "RBC Indices")
+ * Plain bold text, left-aligned, no colored background – matches professional lab style
  */
 export function SectionGroupHeader({
   title,
@@ -304,17 +271,16 @@ export function SectionGroupHeader({
   colorTokens: Record<string, string>;
 }) {
   return (
-    <tr style={{ background: colorTokens.brandLight }}>
+    <tr>
       <td
         colSpan={5}
         style={{
-          padding: `${ReportLayoutConfig.boxPadding.dense}px 10px`,
-          fontWeight: 800,
-          fontSize: `${ReportLayoutConfig.fontSize.value * 0.9}px`,
-          color: colorTokens.brand,
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
+          padding: `${ReportLayoutConfig.boxPadding.dense + 1}px 8px ${ReportLayoutConfig.boxPadding.dense - 1}px`,
+          fontWeight: 700,
+          fontSize: `${ReportLayoutConfig.fontSize.value}px`,
+          color: colorTokens.text,
           borderBottom: `1px solid ${colorTokens.borderLight}`,
+          letterSpacing: '0.2px',
         }}
       >
         {title}
@@ -325,6 +291,7 @@ export function SectionGroupHeader({
 
 /**
  * ImprovedPatientBox - Better structured patient information display
+ * Styled as a clean bordered info table matching professional lab reports
  */
 export function ImprovedPatientBox({
   patientName,
@@ -360,61 +327,83 @@ export function ImprovedPatientBox({
   return (
     <div
       style={{
-        display: 'flex',
-        borderBottom: `2px solid ${colorTokens.borderLight}`,
-        paddingBottom: '16px',
-        alignItems: 'stretch',
+        border: `1px solid ${colorTokens.borderLight}`,
+        borderRadius: '2px',
+        overflow: 'hidden',
       }}
     >
-      {/* Column 1: Patient Details & QR */}
-      <div style={{ flex: '1.2', borderRight: `1px solid ${colorTokens.borderLight}`, paddingRight: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 8px 0', color: colorTokens.text }}>
-              {patientName}
-            </h2>
-            <div style={{ fontSize: '13px', color: '#444', lineHeight: 1.6 }}>
-              <div>Age : {age} Years</div>
-              <div>Sex : {gender}</div>
-              <div>PID : {patientId}</div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'stretch',
+        }}
+      >
+        {/* Column 1: Patient Details */}
+        <div style={{
+          flex: '1.2',
+          borderRight: `1px solid ${colorTokens.borderLight}`,
+          padding: '12px 14px',
+        }}>
+          <h2 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 6px 0', color: colorTokens.text }}>
+            {patientName}
+          </h2>
+          <div style={{ fontSize: '12px', color: '#444', lineHeight: 1.7 }}>
+            <div>Age : {age} Years</div>
+            <div>Sex : {gender}</div>
+            <div>PID : {patientId}</div>
+          </div>
+        </div>
+
+        {/* Column 2: Registration ID & Ref Doctor & QR */}
+        <div style={{
+          flex: '1.5',
+          borderRight: `1px solid ${colorTokens.borderLight}`,
+          padding: '12px 14px',
+          display: 'flex',
+          alignItems: 'center',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', width: '100%' }}>
+            {/* Left: Registration info */}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: colorTokens.secondary, marginBottom: '2px' }}>
+                Registration ID:
+              </div>
+              <div style={{ fontSize: '14px', color: colorTokens.text, marginBottom: '6px', fontWeight: 800 }}>
+                {sampleId}
+              </div>
+              <div style={{ fontSize: '12px', color: colorTokens.text }}>
+                Ref. By: <span style={{ fontWeight: 700 }}>{referringDoctor}</span>
+              </div>
+            </div>
+            {/* Right: QR Code */}
+            <div style={{ flexShrink: 0 }}>
+              {qrCode}
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Column 2: Registration ID & Ref Doctor & QR */}
-      <div style={{ flex: '1.5', borderRight: `1px solid ${colorTokens.borderLight}`, padding: '0 16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',flexDirection:'column' }}>
-        <h3 style={{ fontSize: '13px', fontWeight: 700, margin: '0 0 4px 0', color: colorTokens.text }}>
-          Registration ID:
-        </h3>
-        
-            <div style={{ fontSize: '15px', color: colorTokens.text, marginBottom: '8px', fontWeight: 800 }}>
-              {sampleId}
+        {/* Column 3: Barcode & Dates */}
+        <div style={{
+          flex: '1.3',
+          padding: '12px 14px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <div style={{ marginBottom: '6px' }}>
+            {barcode}
+          </div>
+          <div style={{ fontSize: '10.5px', color: colorTokens.text, width: '100%', lineHeight: 1.5 }}>
+            <div>
+              <span style={{ fontWeight: 700 }}>Registered on:</span> {reportDate}, {reportTime}
             </div>
-            <div style={{ fontSize: '13px', color: colorTokens.text }}>
-              Ref. By: <span style={{ fontWeight: 800 }}>{referringDoctor}</span>
-            </div></div>
-          <div style={{ flexShrink: 0, background: '#fff' }}>
-            {qrCode}
-          </div>
-        
-      </div>
-
-      {/* Column 3: Barcode & Dates */}
-      <div style={{ flex: '1.3', paddingLeft: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{ marginBottom: '6px' }}>
-          {barcode}
-        </div>
-        <div style={{ fontSize: '11px', color: colorTokens.text, width: '100%', lineHeight: 1.4 }}>
-          <div>
-            <span style={{ fontWeight: 700 }}>Registered on:</span> {reportDate}, {reportTime}
-          </div>
-          <div>
-            <span style={{ fontWeight: 700 }}>Collected on:</span> {collectionDate}
-          </div>
-          <div>
-            <span style={{ fontWeight: 700 }}>Reported on:</span> {reportedDate}
+            <div>
+              <span style={{ fontWeight: 700 }}>Collected on:</span> {collectionDate}
+            </div>
+            <div>
+              <span style={{ fontWeight: 700 }}>Reported on:</span> {reportedDate}
+            </div>
           </div>
         </div>
       </div>
@@ -424,6 +413,7 @@ export function ImprovedPatientBox({
 
 /**
  * TestSectionBlock - Container for each test with proper spacing
+ * Clean centered heading with underline
  */
 export function TestSectionBlock({
   testName,
@@ -455,12 +445,12 @@ export function TestSectionBlock({
             margin: 0,
             fontSize: `${ReportLayoutConfig.fontSize.sectionTitle}px`,
             fontWeight: 800,
-            color: colorTokens.brand,
+            color: colorTokens.text,
             textTransform: 'uppercase',
             letterSpacing: '1.5px',
             display: 'inline-block',
-            paddingBottom: '4px',
-            borderBottom: `2px solid ${colorTokens.brand}`,
+            paddingBottom: '3px',
+            borderBottom: `2px solid ${colorTokens.text}`,
           }}
         >
           {testName}

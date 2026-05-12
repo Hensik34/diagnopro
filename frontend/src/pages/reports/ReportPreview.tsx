@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Loader2, AlertCircle, ArrowLeft, Printer, Send, Download } from 'lucide-react';
+import { Loader2, AlertCircle, ArrowLeft, Printer, Send, Download, FileImage } from 'lucide-react';
 import { useParams, Link, useSearchParams } from 'react-router';
 import { useReportStore } from '../../stores/reportStore';
 import { useBranchStore } from '../../stores/branchStore';
@@ -50,19 +50,21 @@ const A4_MIN_HEIGHT = '1123px'; // ~A4 at 96dpi
 /* ── Print styles ──────────────────────────────────────────────────────────── */
 const printStyles = `
 @media print {
-  @page { size: A4; margin: 8mm 10mm; }
-  html, body { margin: 0; padding: 0; }
+  @page { size: A4; margin: 0; }
+  html, body { margin: 0; padding: 0; width: 100%; }
   body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .no-print { display: none !important; }
   .report-page {
     box-shadow: none !important;
     margin: 0 !important;
     border-radius: 0 !important;
-    min-height: 100vh !important;
     width: 100% !important;
     max-width: 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
   }
-  .report-inner { padding: 0 10mm !important; }
+  .report-inner { padding-left: 8mm !important; padding-right: 8mm !important; }
+  .report-bg-wrapper { background: white !important; }
 }
 @media screen {
   .report-page { min-height: ${A4_MIN_HEIGHT}; }
@@ -145,6 +147,7 @@ export function ReportPreview() {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [showLetterhead, setShowLetterhead] = useState(true);
   const reportPageRef = useRef<HTMLDivElement>(null);
   const shareAutoOpened = useRef(false);
 
@@ -175,22 +178,35 @@ export function ReportPreview() {
       });
 
       const imgWidth = 210; // A4 width in mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const pageHeight = 297; // A4 height in mm
       const pdf = new jsPDF('p', 'mm', 'a4');
 
-      // Handle multi-page if content is taller than A4
-      const pageHeight = 297; // A4 height in mm
-      let position = 0;
-      let remainingHeight = imgHeight;
+      // Calculate the pixel height that corresponds to one A4 page
+      const pxPerMm = canvas.width / imgWidth;
+      const pageHeightPx = Math.floor(pageHeight * pxPerMm);
+      const totalPages = Math.ceil(canvas.height / pageHeightPx);
 
-      while (remainingHeight > 0) {
-        if (position > 0) pdf.addPage();
+      for (let page = 0; page < totalPages; page++) {
+        if (page > 0) pdf.addPage();
+
+        // Slice the canvas for this page
+        const srcY = page * pageHeightPx;
+        const srcH = Math.min(pageHeightPx, canvas.height - srcY);
+
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = pageHeightPx; // Always full A4 height canvas
+        const ctx = pageCanvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+          ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+        }
+
         pdf.addImage(
-          canvas.toDataURL('image/jpeg', 0.95),
-          'JPEG', 0, -position, imgWidth, imgHeight
+          pageCanvas.toDataURL('image/jpeg', 0.95),
+          'JPEG', 0, 0, imgWidth, pageHeight
         );
-        remainingHeight -= pageHeight;
-        position += pageHeight;
       }
 
       const fileName = `Report-${reportData?.patient?.name?.replace(/\s+/g, '_') || 'Patient'}-${reportData?.report?.id || 'report'}.pdf`;
@@ -220,12 +236,15 @@ export function ReportPreview() {
     if (id) { fetchReportById(id); fetchBranches(); }
   }, [id, fetchReportById, fetchBranches]);
 
+  // Use report's branch_id for settings (so technicians also see letterhead)
+  const reportBranchId = (rawReport as any)?.branch_id || currentBranchId;
+
   useEffect(() => {
-    if (currentBranchId) {
-      fetchSettings(currentBranchId);
-      fetchDoctors({ branch_id: currentBranchId });
+    if (reportBranchId) {
+      fetchSettings(reportBranchId);
+      fetchDoctors({ branch_id: reportBranchId });
     }
-  }, [currentBranchId, fetchSettings, fetchDoctors]);
+  }, [reportBranchId, fetchSettings, fetchDoctors]);
 
   const getImageUrl = useCallback((path: string | null | undefined) => {
     if (!path) return null;
@@ -372,6 +391,15 @@ export function ReportPreview() {
   const refDoctor = doctors.find(d => d.id === rawReport?.doctor_id);
   const doctorSignatureUrl = refDoctor?.signature_url;
 
+  // Check if any letterhead/header/footer is uploaded
+  const hasLetterhead = !!(settings?.letterhead_url);
+  const hasHeaderFooter = !!(settings?.header_url || settings?.footer_url);
+  const hasAnyCustomHeader = hasLetterhead || hasHeaderFooter;
+  // Active letterhead state: only show if uploaded AND user toggle is ON
+  const letterheadActive = showLetterhead && hasLetterhead;
+  const headerActive = showLetterhead && hasHeaderFooter && !hasLetterhead;
+  const footerActive = showLetterhead && !!settings?.footer_url && !hasLetterhead;
+
   const abnormalParams = useMemo(
     () => (reportData?.parameters ?? []).filter(p => p.status === 'high' || p.status === 'low'),
     [reportData],
@@ -447,6 +475,22 @@ export function ReportPreview() {
             <ArrowLeft className="w-4 h-4" /> Reports
           </Link>
           <div className="flex items-center gap-2">
+            {/* Letterhead toggle – only show when letterhead/header is uploaded */}
+            {hasAnyCustomHeader && (
+              <button
+                onClick={() => setShowLetterhead(prev => !prev)}
+                className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded border transition-colors"
+                style={{
+                  borderColor: showLetterhead ? C.brand : '#D1D5DB',
+                  backgroundColor: showLetterhead ? C.brandLight : '#F9FAFB',
+                  color: showLetterhead ? C.brand : '#6B7280',
+                }}
+                title={showLetterhead ? 'Hide Letterhead' : 'Show Letterhead'}
+              >
+                <FileImage className="w-3.5 h-3.5" />
+                {showLetterhead ? 'Letterhead On' : 'Letterhead Off'}
+              </button>
+            )}
             <button
               onClick={() => setShowShareModal(true)}
               className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
@@ -472,26 +516,33 @@ export function ReportPreview() {
       </div>
 
       {/* ── A4 Report Page ── */}
-      <div className="min-h-screen print:bg-white" style={{ backgroundColor: '#E8EAF0' }}>
+      <div className="report-bg-wrapper min-h-screen print:bg-white" style={{ backgroundColor: '#E8EAF0' }}>
         <div
           ref={reportPageRef}
           className="report-page max-w-[850px] mx-auto my-6 print:my-0 bg-white print:shadow-none"
           style={{
             boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-            minHeight: A4_MIN_HEIGHT,
             display: 'flex',
             flexDirection: 'column',
             fontFamily: "'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
             position: 'relative',
             overflow: 'hidden',
-            paddingTop: settings?.report_margin_top !== undefined ? `${settings.report_margin_top}px` : (settings?.letterhead_url || settings?.header_url ? '160px' : '0px'),
-            paddingBottom: settings?.report_margin_bottom !== undefined ? `${settings.report_margin_bottom}px` : (settings?.letterhead_url || settings?.footer_url ? '120px' : '0px'),
+            paddingTop: letterheadActive
+              ? (settings?.report_margin_top !== undefined ? `${settings.report_margin_top}px` : '160px')
+              : headerActive
+                ? (settings?.report_margin_top !== undefined ? `${settings.report_margin_top}px` : '160px')
+                : '16px',
+            paddingBottom: letterheadActive
+              ? (settings?.report_margin_bottom !== undefined ? `${settings.report_margin_bottom}px` : '120px')
+              : footerActive
+                ? (settings?.report_margin_bottom !== undefined ? `${settings.report_margin_bottom}px` : '120px')
+                : '16px',
             paddingLeft: settings?.report_margin_left !== undefined ? `${settings.report_margin_left}px` : '0px',
             paddingRight: settings?.report_margin_right !== undefined ? `${settings.report_margin_right}px` : '0px',
           }}
         >
           {/* Full Letterhead Background — covers entire page like pre-printed paper */}
-          {settings?.letterhead_url && (
+          {letterheadActive && settings?.letterhead_url && (
             <img
               src={getImageUrl(settings.letterhead_url) || ''}
               alt="Letterhead"
@@ -500,8 +551,9 @@ export function ReportPreview() {
                 top: 0,
                 left: 0,
                 width: '100%',
-                height: '100%',
-                objectFit: 'fill',
+                height: 'auto',
+                objectFit: 'contain',
+                objectPosition: 'top center',
                 zIndex: 0,
                 pointerEvents: 'none',
               }}
@@ -509,7 +561,7 @@ export function ReportPreview() {
           )}
 
           {/* Header Image (only when no full letterhead) */}
-          {settings?.header_url && !settings?.letterhead_url && (
+          {headerActive && settings?.header_url && (
             <img
               src={getImageUrl(settings.header_url) || ''}
               alt="Report Header"
@@ -526,7 +578,7 @@ export function ReportPreview() {
           )}
 
           {/* Footer Image (only when no full letterhead) */}
-          {settings?.footer_url && !settings?.letterhead_url && (
+          {footerActive && settings?.footer_url && (
             <img
               src={getImageUrl(settings.footer_url) || ''}
               alt="Report Footer"
@@ -552,72 +604,7 @@ export function ReportPreview() {
             {reportData.lab.name}
           </div>
 
-          {/* ═══════════════════════════════════════════════════════════════
-           *  HEADER OR LETTERHEAD BACKGROUND
-           * ═════════════════════════════════════════════════════════════ */}
-          {!settings?.letterhead_url && !settings?.header_url && (
-            <>
-              {/* TOP GRADIENT BAND */}
-              <div style={{
-                height: '5px',
-                background: `linear-gradient(90deg, ${C.brand} 0%, ${C.brandAccent} 50%, ${C.accent} 100%)`,
-              }} />
-
-              {/* HEADER – Lab Identity */}
-              <header style={{ padding: '14px 28px 10px', position: 'relative', zIndex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                  {/* Left: Lab identity */}
-                  <div style={{ flex: 1 }}>
-                    <h1 style={{
-                      margin: 0, fontSize: '26px', fontWeight: 800, color: C.brand,
-                      letterSpacing: '0.8px', textTransform: 'uppercase',
-                      lineHeight: 1.1,
-                    }}>
-                      {reportData.lab.name}
-                    </h1>
-                    <p style={{
-                      margin: '3px 0 0', fontSize: '10px', color: C.accent,
-                      fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase',
-                    }}>
-                      Pathology &amp; Diagnostic Laboratory
-                    </p>
-                    <p style={{
-                      margin: '6px 0 0', fontSize: '10px', color: C.secondary, lineHeight: 1.5,
-                    }}>
-                      {reportData.lab.address}{reportData.lab.city ? `, ${reportData.lab.city}` : ''}
-                    </p>
-                  </div>
-
-                  {/* Right: Contact info only */}
-                  <div style={{ flexShrink: 0, textAlign: 'right', fontSize: '10px', color: C.secondary, lineHeight: 1.9 }}>
-                    {reportData.lab.phone && (
-                      <p style={{ margin: 0 }}>
-                        <span style={{ fontWeight: 600, color: C.text }}>Ph:</span> {reportData.lab.phone}
-                      </p>
-                    )}
-                    {reportData.lab.email && (
-                      <p style={{ margin: 0 }}>
-                        <span style={{ fontWeight: 600, color: C.text }}>Email:</span> {reportData.lab.email}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </header>
-
-              {/* ACCREDITATION BAR (License + NABL) */}
-              <div style={{
-                background: C.brand, padding: '4px 28px',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              }}>
-                <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: '9px', letterSpacing: '0.3px' }}>
-                  Lic: {reportData.lab.license}
-                </span>
-                <span style={{ color: C.white, fontSize: '9.5px', fontWeight: 600, letterSpacing: '0.5px' }}>
-                  NABL Accredited Laboratory
-                </span>
-              </div>
-            </>
-          )}
+          {/* No default header — only uploaded letterhead/header images are shown */}
 
           {/* ═══════════════════════════════════════════════════════════════
            *  PATIENT & SAMPLE INFO – Improved Layout
@@ -691,6 +678,7 @@ export function ReportPreview() {
                       borderCollapse: 'collapse',
                       tableLayout: 'fixed',
                       fontSize: `${ReportLayoutConfig.fontSize.value}px`,
+                      border: `1px solid ${C.borderLight}`,
                     }}
                   >
                     <InvestigationTableHeader colorTokens={C} />
@@ -726,6 +714,7 @@ export function ReportPreview() {
                                 isAbnormal={isAbnormal}
                                 statusColor={statusColor}
                                 rowIndex={rowIndex}
+                                indented={!!param.group}
                                 colorTokens={C}
                               />
                             </React.Fragment>
@@ -856,41 +845,7 @@ export function ReportPreview() {
           {/* ═══════════════════════════════════════════════════════════════
            *  FOOTER
            * ═════════════════════════════════════════════════════════════ */}
-          {!settings?.letterhead_url && !settings?.footer_url && (
-            <>
-              <footer style={{ padding: '0 28px', position: 'relative', zIndex: 1 }}>
-                <div style={{
-                  borderTop: `1px solid ${C.borderLight}`, paddingTop: '6px', paddingBottom: '6px',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  fontSize: '8px', color: C.muted, lineHeight: 1.5,
-                }}>
-                  <div>
-                    <p style={{ margin: 0 }}>
-                      Report Generated : {reportData.patient.reportedDate}
-                    </p>
-                    {(reportData.lab.phone || reportData.lab.email) && (
-                      <p style={{ margin: '1px 0 0' }}>
-                        {reportData.lab.phone && <>Ph: {reportData.lab.phone}</>}
-                        {reportData.lab.phone && reportData.lab.email && <> | </>}
-                        {reportData.lab.email && <>Email: {reportData.lab.email}</>}
-                      </p>
-                    )}
-                  </div>
-                  <p style={{ margin: 0 }}>Page 1 of 1</p>
-                </div>
-              </footer>
-
-              {/* Bottom band */}
-              <div style={{
-                height: '28px', background: C.brand,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '8.5px', letterSpacing: '0.3px' }}>
-                  This is a computer-generated report and does not require a physical signature.
-                </span>
-              </div>
-            </>
-          )}
+          {/* No default footer — only uploaded footer images are shown */}
         </div>{/* /report-page */}
       </div>
 
