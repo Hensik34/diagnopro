@@ -144,12 +144,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: () => {
     setAuthToken(null);
     localStorage.removeItem('onboarding_complete');
+    
+    // Clear auth state
     set({
       user: null,
       isAuthenticated: false,
       error: null,
       doctorProfile: null,
       loginBranches: [],
+    });
+    
+    // Reset all other stores to prevent data leaks between users
+    import('./resetStores').then(({ resetAllStores }) => {
+      resetAllStores();
     });
   },
 

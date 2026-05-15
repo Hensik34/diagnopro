@@ -89,45 +89,46 @@ export function DashboardCalendar({ reports, selectedMonth, onMonthChange }: Das
   return (
     <div className="bg-card border border-border rounded overflow-hidden">
       {/* ── Calendar Header ── */}
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h3 className="text-foreground text-sm font-medium">
-            {format(selectedMonth, 'MMMM yyyy')}
+      <div className="px-3 md:px-4 py-2 md:py-3 border-b border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 md:gap-3">
+          <h3 className="text-foreground text-xs md:text-sm font-medium whitespace-nowrap">
+            {format(selectedMonth, 'MMM yyyy')}
           </h3>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5 md:gap-1">
             <button
               onClick={prevMonth}
-              className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors"
+              className="w-6 md:w-7 h-6 md:h-7 flex items-center justify-center rounded hover:bg-accent transition-colors"
             >
-              <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+              <ChevronLeft className="w-3.5 md:w-4 h-3.5 md:h-4 text-muted-foreground" />
             </button>
             <button
               onClick={goToday}
-              className="px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
+              className="px-1.5 md:px-2 py-0.5 md:py-1 text-[10px] md:text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors whitespace-nowrap"
             >
               Today
             </button>
             <button
               onClick={nextMonth}
-              className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors"
+              className="w-6 md:w-7 h-6 md:h-7 flex items-center justify-center rounded hover:bg-accent transition-colors"
             >
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              <ChevronRight className="w-3.5 md:w-4 h-3.5 md:h-4 text-muted-foreground" />
             </button>
           </div>
         </div>
 
-        {/* Mini month totals */}
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <Users className="w-3.5 h-3.5" />
-            {monthTotals.patients} patients
+        {/* Mini month totals - Hidden on small mobile */}
+        <div className="hidden sm:flex items-center gap-2 md:gap-4 text-[10px] md:text-xs text-muted-foreground flex-wrap">
+          <span className="flex items-center gap-0.5 md:gap-1 whitespace-nowrap">
+            <Users className="w-3 md:w-3.5 h-3 md:h-3.5" />
+            <span className="hidden sm:inline">{monthTotals.patients} patients</span>
+            <span className="sm:hidden">{monthTotals.patients}pt</span>
           </span>
-          <span className="flex items-center gap-1">
-            <FileText className="w-3.5 h-3.5" />
-            {monthTotals.reports} reports
+          <span className="flex items-center gap-0.5 md:gap-1 whitespace-nowrap">
+            <FileText className="w-3 md:w-3.5 h-3 md:h-3.5" />
+            {monthTotals.reports}
           </span>
-          <span className="flex items-center gap-1">
-            <IndianRupee className="w-3.5 h-3.5" />
+          <span className="flex items-center gap-0.5 md:gap-1 whitespace-nowrap">
+            <IndianRupee className="w-3 md:w-3.5 h-3 md:h-3.5" />
             {monthTotals.revenue.toLocaleString('en-IN')}
           </span>
         </div>
@@ -138,9 +139,10 @@ export function DashboardCalendar({ reports, selectedMonth, onMonthChange }: Das
         {weekDays.map(d => (
           <div
             key={d}
-            className="px-2 py-1.5 text-center text-[10px] uppercase tracking-wider text-muted-foreground font-medium"
+            className="px-0.5 md:px-2 py-1 md:py-1.5 text-center text-[8px] md:text-[10px] uppercase tracking-wider text-muted-foreground font-medium"
           >
-            {d}
+            <span className="hidden sm:inline">{d}</span>
+            <span className="sm:hidden">{d.substring(0, 1)}</span>
           </div>
         ))}
       </div>
@@ -163,7 +165,7 @@ export function DashboardCalendar({ reports, selectedMonth, onMonthChange }: Das
               onClick={() => inMonth && handleDayClick(day)}
               disabled={!inMonth}
               className={`
-                relative min-h-[82px] p-1.5 border-b border-r border-border text-left transition-colors
+                relative min-h-[60px] md:min-h-[82px] p-1 md:p-1.5 border-b border-r border-border text-left transition-colors text-xs md:text-sm
                 ${!inMonth ? 'bg-secondary/20 opacity-40 cursor-default' : 'hover:bg-accent/40 cursor-pointer'}
                 ${today ? 'bg-accent/30' : ''}
               `}
@@ -171,7 +173,7 @@ export function DashboardCalendar({ reports, selectedMonth, onMonthChange }: Das
               {/* Date number */}
               <span
                 className={`
-                  inline-flex items-center justify-center w-6 h-6 text-xs rounded-full
+                  inline-flex items-center justify-center w-5 md:w-6 h-5 md:h-6 text-[10px] md:text-xs rounded-full
                   ${today ? 'bg-primary text-primary-foreground font-semibold' : 'text-foreground'}
                 `}
               >
@@ -180,18 +182,18 @@ export function DashboardCalendar({ reports, selectedMonth, onMonthChange }: Das
 
               {/* Day stats */}
               {hasData && inMonth && (
-                <div className="mt-1 space-y-0.5">
-                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <Users className="w-3 h-3 shrink-0" />
-                    <span className="truncate">{patCount} pt</span>
+                <div className="mt-0.5 md:mt-1 space-y-0 md:space-y-0.5">
+                  <div className="flex items-center gap-0.5 md:gap-1 text-[8px] md:text-[10px] text-muted-foreground">
+                    <Users className="w-2.5 md:w-3 h-2.5 md:h-3 flex-shrink-0" />
+                    <span className="truncate">{patCount}</span>
                   </div>
-                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <FileText className="w-3 h-3 shrink-0" />
+                  <div className="flex items-center gap-0.5 md:gap-1 text-[8px] md:text-[10px] text-muted-foreground">
+                    <FileText className="w-2.5 md:w-3 h-2.5 md:h-3 flex-shrink-0" />
                     <span className="truncate">{dayReports.length}</span>
                   </div>
                   {dayRev > 0 && (
-                    <div className="flex items-center gap-0.5 text-[10px] font-medium text-success">
-                      <IndianRupee className="w-3 h-3 shrink-0" />
+                    <div className="flex items-center gap-0.5 text-[8px] md:text-[10px] font-medium text-success hidden sm:flex">
+                      <IndianRupee className="w-2.5 md:w-3 h-2.5 md:h-3 flex-shrink-0" />
                       <span className="truncate">{dayRev.toLocaleString('en-IN')}</span>
                     </div>
                   )}

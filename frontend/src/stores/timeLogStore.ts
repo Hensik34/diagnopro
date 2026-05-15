@@ -124,6 +124,17 @@ export const useTimeLogStore = create<TimeLogState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  reset: () => set({
+    activeSession: null,
+    myLogs: [],
+    myTotalHours: 0,
+    allLogs: [],
+    userSummary: [],
+    totalHoursAll: 0,
+    isLoading: false,
+    error: null,
+  }),
 }));
 
 // Selector hooks

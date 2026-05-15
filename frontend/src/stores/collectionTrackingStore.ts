@@ -137,6 +137,16 @@ export const useCollectionTrackingStore = create<CollectionTrackingState>((set, 
   },
 
   clearError: () => set({ error: null }),
+
+  reset: () => set({
+    records: [],
+    todayRecords: [],
+    myRecords: [],
+    staffList: [],
+    summary: null,
+    isLoading: false,
+    error: null,
+  }),
 }));
 
 // Selector hooks

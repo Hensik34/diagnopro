@@ -395,6 +395,22 @@ export const useB2BStore = create<B2BState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  reset: () => set({
+    labs: [],
+    selectedLab: null,
+    rateList: [],
+    orders: [],
+    selectedOrder: null,
+    dashboard: null,
+    notifications: [],
+    payments: [],
+    ledger: null,
+    auditLog: [],
+    reportVersions: [],
+    isLoading: false,
+    error: null,
+  }),
 }));
 
 // ==========================================

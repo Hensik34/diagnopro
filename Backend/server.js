@@ -30,6 +30,10 @@ app.use((req, res, next) => {
 const routes = require("./routes");
 app.use("/api", routes);
 
+app.get("/", (req, res) => {
+  res.json({ message: "Welcome to the Lab Management System API" });
+});
+
 // 404 Handler
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });

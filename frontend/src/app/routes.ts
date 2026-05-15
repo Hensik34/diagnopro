@@ -1,4 +1,7 @@
-import { createBrowserRouter } from 'react-router';
+import React from 'react';
+import { createBrowserRouter, Navigate } from 'react-router';
+import { useAuthStore } from '../stores';
+import { PERMISSIONS } from '../utils/permissions';
 // Layout
 import { Root } from '../pages/layout';
 // Auth
@@ -36,6 +39,36 @@ import { Settings } from '../pages/settings';
 // B2B
 import { B2BDashboard, B2BLabManagement, B2BLabDetail, B2BOrders, B2BOrderDetail, B2BCreateOrder, B2BSettlements } from '../pages/b2b';
 
+// ==========================================
+// Route Protection Helper
+// ==========================================
+
+/**
+ * Wraps a page component with permission check.
+ * 
+ * Root.tsx guarantees that user is fully loaded before any child renders.
+ * This HOC only needs to check the permission — no loading/null guards needed.
+ * The `!user` check is kept as a defense-in-depth safety net.
+ */
+function withPermission(Component: any, requiredPermission: string) {
+  const ProtectedComponent = (props: any): React.ReactElement | null => {
+    const { can, user } = useAuthStore();
+
+    // Safety net — Root.tsx should prevent this, but just in case
+    if (!user) return null;
+
+    // Check permission
+    if (!can(requiredPermission)) {
+      return React.createElement(Navigate, { to: '/unauthorized', replace: true });
+    }
+
+    return React.createElement(Component, props);
+  };
+  
+  ProtectedComponent.displayName = `Protected(${Component.displayName || Component.name || 'Component'})`;
+  return ProtectedComponent;
+}
+
 export const router = createBrowserRouter([
   // Public routes
   {
@@ -61,36 +94,36 @@ export const router = createBrowserRouter([
     children: [
       { index: true, Component: Dashboard },
       { path: 'dashboard/:date', Component: DashboardDayDetail },
-      { path: 'reports', Component: Reports },
-      { path: 'reports/new', Component: CreateReport },
-      { path: 'reports/entry', Component: ReportEntry },
-      { path: 'reports/:reportId/entry', Component: ReportEntry },
-      { path: 'reports/preview/:id', Component: ReportPreview },
-      { path: 'reports/:reportId/invoice', Component: InvoicePage },
-      { path: 'reports/review', Component: ReportReview },
-      { path: 'patients', Component: Patients },
-      { path: 'sample-collection', Component: SampleCollection },
-      { path: 'tests', Component: TestManagement },
-      { path: 'doctors', Component: DoctorManagement },
-      { path: 'doctors/:id', Component: DoctorDetail },
-      { path: 'branches', Component: Branches },
-      { path: 'users', Component: Users },
-      { path: 'inventory', Component: Inventory },
-      { path: 'time-tracking', Component: TimeTracking },
-      { path: 'working-hours', Component: WorkingHours },
-      { path: 'analytics', Component: Analytics },
-      { path: 'settings', Component: Settings },
+      { path: 'reports', Component: withPermission(Reports, PERMISSIONS.REPORT_READ) },
+      { path: 'reports/new', Component: withPermission(CreateReport, PERMISSIONS.REPORT_CREATE) },
+      { path: 'reports/entry', Component: withPermission(ReportEntry, PERMISSIONS.REPORT_UPDATE) },
+      { path: 'reports/:reportId/entry', Component: withPermission(ReportEntry, PERMISSIONS.REPORT_UPDATE) },
+      { path: 'reports/preview/:id', Component: withPermission(ReportPreview, PERMISSIONS.REPORT_READ) },
+      { path: 'reports/:reportId/invoice', Component: withPermission(InvoicePage, PERMISSIONS.REPORT_READ) },
+      { path: 'reports/review', Component: withPermission(ReportReview, PERMISSIONS.REPORT_REVIEW) },
+      { path: 'patients', Component: withPermission(Patients, PERMISSIONS.PATIENT_READ) },
+      { path: 'sample-collection', Component: withPermission(SampleCollection, PERMISSIONS.SAMPLE_COLLECT) },
+      { path: 'tests', Component: withPermission(TestManagement, PERMISSIONS.TEST_READ) },
+      { path: 'doctors', Component: withPermission(DoctorManagement, PERMISSIONS.DOCTOR_READ) },
+      { path: 'doctors/:id', Component: withPermission(DoctorDetail, PERMISSIONS.DOCTOR_READ) },
+      { path: 'branches', Component: withPermission(Branches, PERMISSIONS.BRANCH_READ) },
+      { path: 'users', Component: withPermission(Users, PERMISSIONS.USER_READ) },
+      { path: 'inventory', Component: withPermission(Inventory, PERMISSIONS.INVENTORY_READ) },
+      { path: 'time-tracking', Component: withPermission(TimeTracking, PERMISSIONS.TIMELOG_VIEW_ALL) },
+      { path: 'working-hours', Component: withPermission(WorkingHours, PERMISSIONS.TIMELOG_VIEW_ALL) },
+      { path: 'analytics', Component: withPermission(Analytics, PERMISSIONS.ANALYTICS_VIEW) },
+      { path: 'settings', Component: withPermission(Settings, PERMISSIONS.SETTINGS_VIEW) },
       { path: 'doctor-dashboard', Component: DoctorDashboard },
       { path: 'doctor-reports', Component: DoctorReports },
       { path: 'profile', Component: DoctorProfile },
       // B2B Reference Lab
-      { path: 'b2b', Component: B2BDashboard },
-      { path: 'b2b/labs', Component: B2BLabManagement },
-      { path: 'b2b/labs/:id', Component: B2BLabDetail },
-      { path: 'b2b/orders', Component: B2BOrders },
-      { path: 'b2b/orders/new', Component: B2BCreateOrder },
-      { path: 'b2b/orders/:id', Component: B2BOrderDetail },
-      { path: 'b2b/settlements', Component: B2BSettlements },
+      { path: 'b2b', Component: withPermission(B2BDashboard, PERMISSIONS.B2B_DASHBOARD_VIEW) },
+      { path: 'b2b/labs', Component: withPermission(B2BLabManagement, PERMISSIONS.B2B_LAB_READ) },
+      { path: 'b2b/labs/:id', Component: withPermission(B2BLabDetail, PERMISSIONS.B2B_LAB_READ) },
+      { path: 'b2b/orders', Component: withPermission(B2BOrders, PERMISSIONS.B2B_ORDER_READ) },
+      { path: 'b2b/orders/new', Component: withPermission(B2BCreateOrder, PERMISSIONS.B2B_ORDER_CREATE) },
+      { path: 'b2b/orders/:id', Component: withPermission(B2BOrderDetail, PERMISSIONS.B2B_ORDER_READ) },
+      { path: 'b2b/settlements', Component: withPermission(B2BSettlements, PERMISSIONS.B2B_PAYMENT_READ) },
       { path: '*', Component: NotFound },
     ],
   },

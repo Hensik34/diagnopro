@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import {
   CheckCircle,
   XCircle,
@@ -18,14 +18,12 @@ import { format } from 'date-fns';
 import { useReportStore } from '../../stores/reportStore';
 import { useAuthStore } from '../../stores/authStore';
 import type { Report } from '../../types';
-import { PERMISSIONS } from '../../utils/permissions';
 
 /**
  * ReportReview Page - For authorized users to review and approve/reject reports
  * Requires 'report:review' permission
  */
 export function ReportReview() {
-  const navigate = useNavigate();
   // Store
   const { 
     reports,
@@ -33,17 +31,12 @@ export function ReportReview() {
     approveReport, 
     rejectReport,
     isLoading, 
+    isActionLoading,
+    actionId,
     error,
     clearError 
   } = useReportStore();
-  const { user, can } = useAuthStore();
-
-  // Permission check - redirect if user doesn't have report:review permission
-  useEffect(() => {
-    if (!can(PERMISSIONS.REPORT_REVIEW)) {
-      navigate('/unauthorized', { replace: true });
-    }
-  }, [can, navigate]);
+  const { user } = useAuthStore();
 
   // Filter for under_review reports using useMemo to prevent infinite loops
   const underReviewReports = useMemo(
@@ -55,7 +48,6 @@ export function ReportReview() {
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
-  const [processingId, setProcessingId] = useState<string | null>(null);
 
   // Fetch reports on mount
   useEffect(() => {
@@ -66,13 +58,11 @@ export function ReportReview() {
    * Handle approve action
    */
   const handleApprove = async (reportId: string) => {
-    setProcessingId(reportId);
     const result = await approveReport(reportId);
     if (result) {
       // Remove from list by refreshing
       fetchReports({ status: 'under_review' });
     }
-    setProcessingId(null);
   };
 
   /**
@@ -85,7 +75,6 @@ export function ReportReview() {
       return;
     }
 
-    setProcessingId(selectedReport.id);
     const result = await rejectReport(selectedReport.id, rejectReason);
     if (result) {
       setShowRejectModal(false);
@@ -93,7 +82,6 @@ export function ReportReview() {
       setRejectReason('');
       fetchReports({ status: 'under_review' });
     }
-    setProcessingId(null);
   };
 
   /**
@@ -290,10 +278,10 @@ export function ReportReview() {
                     </Link>
                     <button
                       onClick={() => openRejectModal(report)}
-                      disabled={processingId === report.id}
+                      disabled={isActionLoading && actionId === report.id}
                       className="h-8 px-3 flex items-center gap-1.5 bg-destructive/10 border border-destructive/20 text-destructive rounded hover:bg-destructive/20 transition-colors text-xs disabled:opacity-50"
                     >
-                      {processingId === report.id ? (
+                      {isActionLoading && actionId === report.id ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
                         <XCircle className="w-3.5 h-3.5" />
@@ -302,10 +290,10 @@ export function ReportReview() {
                     </button>
                     <button
                       onClick={() => handleApprove(report.id)}
-                      disabled={processingId === report.id}
+                      disabled={isActionLoading && actionId === report.id}
                       className="h-8 px-3 flex items-center gap-1.5 bg-success text-white rounded hover:opacity-90 transition-opacity text-xs disabled:opacity-50"
                     >
-                      {processingId === report.id ? (
+                      {isActionLoading && actionId === report.id ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
                         <CheckCircle className="w-3.5 h-3.5" />
@@ -429,10 +417,10 @@ export function ReportReview() {
               </button>
               <button
                 onClick={handleReject}
-                disabled={!rejectReason.trim() || processingId === selectedReport.id}
+                disabled={!rejectReason.trim() || (isActionLoading && actionId === selectedReport.id)}
                 className="h-8 px-4 bg-destructive text-white rounded hover:opacity-90 transition-opacity text-xs disabled:opacity-50 flex items-center gap-1.5"
               >
-                {processingId === selectedReport.id ? (
+                {isActionLoading && actionId === selectedReport.id ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : (
                   <XCircle className="w-3.5 h-3.5" />

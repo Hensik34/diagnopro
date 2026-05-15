@@ -15,7 +15,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useBranchStore } from '../../stores';
-import type { Branch, CreateBranchData } from '../../types';
+import { Branch, CreateBranchData } from '../../types';
 
 export function Branches() {
   const { 
@@ -75,50 +75,51 @@ export function Branches() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 md:space-y-4">
       {/* Page Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-foreground text-lg mb-0.5">Branch Management</h1>
-          <p className="text-muted-foreground text-xs">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3">
+        <div className="min-w-0">
+          <h1 className="text-base md:text-lg text-foreground mb-0.5 font-semibold">Branch Management</h1>
+          <p className="text-muted-foreground text-xs line-clamp-2">
             Manage all laboratory locations
           </p>
         </div>
         <button 
           onClick={handleAdd}
-          className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs"
+          className="h-8 px-2.5 flex items-center justify-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs w-full sm:w-auto flex-shrink-0"
         >
           <Plus className="w-3.5 h-3.5" />
-          Add Branch
+          <span className="hidden sm:inline">Add Branch</span>
+          <span className="sm:hidden">Add</span>
         </button>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-card border border-border rounded p-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
+        <div className="bg-card border border-border rounded p-2 md:p-3">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Total Branches</span>
-            <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+            <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">{branches.length}</div>
+          <div className="text-foreground text-lg md:text-xl tabular-nums">{branches.length}</div>
           <div className="text-[10px] text-muted-foreground mt-0.5">Locations</div>
         </div>
 
-        <div className="bg-card border border-border rounded p-3">
+        <div className="bg-card border border-border rounded p-2 md:p-3">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Cities</span>
-            <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+            <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">
+          <div className="text-foreground text-lg md:text-xl tabular-nums">
             {new Set(branches.map(b => b.city).filter(Boolean)).size}
           </div>
           <div className="text-[10px] text-muted-foreground mt-0.5">Unique locations</div>
         </div>
 
-        <div className="bg-card border border-border rounded p-3">
+        <div className="bg-card border border-border rounded p-2 md:p-3">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Latest Added</span>
-            <Activity className="w-3.5 h-3.5 text-muted-foreground" />
+            <Activity className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
           </div>
           <div className="text-foreground text-sm truncate">
             {branches.length > 0 ? branches[branches.length - 1]?.name : '-'}

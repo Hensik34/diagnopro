@@ -264,7 +264,7 @@ export function CreateReport() {
   }, []);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2 md:space-y-3">
       {/* Error Banner */}
       {formError && (
         <div className="bg-destructive/10 border border-destructive/20 rounded p-3 flex items-center justify-between">
@@ -308,7 +308,7 @@ export function CreateReport() {
             </h2>
           </div>
           <div className="p-2">
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               <div>
                 <label className="text-xs text-muted-foreground block mb-0.5">
                   Date <span className="text-destructive">*</span>
@@ -326,13 +326,13 @@ export function CreateReport() {
 
               <div>
                 <label className="text-xs text-muted-foreground block mb-0.5">
-                  Sample ID <span className="text-[10px] text-muted-foreground">(generated on save)</span>
+                  Sample ID <span className="text-[10px] text-muted-foreground">(auto)</span>
                 </label>
                 <div className="relative">
                   <Hash className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
                   <input
                     type="text"
-                    className="w-full h-9 pl-8 pr-2.5 bg-muted border border-border rounded text-sm cursor-not-allowed"
+                    className="w-full h-9 pl-8 pr-2.5 bg-muted border border-border rounded text-sm cursor-not-allowed text-xs"
                     value={sampleIdCode}
                     readOnly
                     disabled
@@ -431,9 +431,9 @@ export function CreateReport() {
             </div>
 
             {/* Patient Details Form */}
-            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
               {/* Row 1: Name */}
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <label className="text-xs text-muted-foreground block mb-0.5">
                   Patient Name <span className="text-destructive">*</span>
                 </label>
@@ -506,7 +506,7 @@ export function CreateReport() {
               </div>
 
               {/* Row 4: Address */}
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <label className="text-xs text-muted-foreground block mb-0.5">
                   Address
                 </label>
@@ -521,7 +521,7 @@ export function CreateReport() {
               </div>
 
               {/* Row 5: Referring Doctor */}
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <label className="text-xs text-muted-foreground block mb-0.5">
                   Referring Doctor
                 </label>
@@ -678,10 +678,10 @@ export function CreateReport() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
           <button
             onClick={() => navigate("/reports")}
-            className="h-9 px-4 flex items-center gap-2 bg-secondary border border-border rounded hover:bg-accent transition-colors text-sm"
+            className="h-9 px-4 flex items-center justify-center gap-2 bg-secondary border border-border rounded hover:bg-accent transition-colors text-sm w-full sm:w-auto"
             disabled={isSubmitting}
           >
             Cancel
@@ -689,7 +689,7 @@ export function CreateReport() {
           <button
             onClick={handleCreateReport}
             disabled={isSubmitting || selectedTests.length === 0}
-            className="h-9 px-4 flex items-center gap-2 rounded text-sm text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            className="h-9 px-4 flex items-center justify-center gap-2 rounded text-sm text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
             style={{ backgroundColor: "var(--primary)" }}
           >
             {isSubmitting ? (
