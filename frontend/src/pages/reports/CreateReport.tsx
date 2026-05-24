@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Hash,
   ArrowLeft,
+  Building2,
 } from "lucide-react";
 import { usePatientStore } from "../../stores/patientStore";
 import { useTestStore } from "../../stores/testStore";
@@ -21,6 +22,7 @@ import { useDoctorStore } from "../../stores/doctorStore";
 import { useBranchStore } from "../../stores/branchStore";
 import { useReportStore } from "../../stores/reportStore";
 import { useAuthStore } from "../../stores/authStore";
+import { useB2BStore } from "../../stores/b2bStore";
 import { sampleApi } from "../../api/samples";
 import type { Patient, Test, Doctor } from "../../types";
 
@@ -38,6 +40,7 @@ export function CreateReport() {
   const { currentBranchId } = useBranchStore();
   const { createReport, isLoading: reportLoading, error: reportError } = useReportStore();
   const { user } = useAuthStore();
+  const { labs: b2bLabs, fetchLabs: fetchB2BLabs } = useB2BStore();
 
   // Patient search and selection
   const [patientSearch, setPatientSearch] = useState("");
@@ -66,6 +69,11 @@ export function CreateReport() {
   );
   const [sampleIdCode, setSampleIdCode] = useState<string>("");
 
+  // B2B partner lab
+  const [isB2B, setIsB2B] = useState(false);
+  const [selectedB2BLabId, setSelectedB2BLabId] = useState("");
+  const [b2bCharge, setB2bCharge] = useState<string>("");
+
 
   // Form state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -84,6 +92,7 @@ export function CreateReport() {
       fetchTests(currentBranchId);
     }
     fetchDoctors();
+    fetchB2BLabs();
     // Peek at next sample ID (does NOT increment counter)
     sampleApi.getNextId().then((res) => {
       setSampleIdCode(res.data.sample_id_code);
@@ -94,7 +103,7 @@ export function CreateReport() {
       const mm = String(now.getMonth() + 1).padStart(2, '0');
       setSampleIdCode(`SM-${yy}${mm}-XXXX`);
     });
-  }, [fetchPatients, fetchTests, fetchDoctors, currentBranchId]);
+  }, [fetchPatients, fetchTests, fetchDoctors, fetchB2BLabs, currentBranchId]);
 
 
 
@@ -226,6 +235,8 @@ export function CreateReport() {
           parameters: [],
           remarks: '',
         },
+        b2b_lab_id: isB2B && selectedB2BLabId ? selectedB2BLabId : undefined,
+        b2b_charge: isB2B && b2bCharge ? parseFloat(b2bCharge) : undefined,
       });
 
       if (!report) {
@@ -264,7 +275,7 @@ export function CreateReport() {
   }, []);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2 md:space-y-3">
       {/* Error Banner */}
       {formError && (
         <div className="bg-destructive/10 border border-destructive/20 rounded p-3 flex items-center justify-between">
@@ -308,7 +319,7 @@ export function CreateReport() {
             </h2>
           </div>
           <div className="p-2">
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               <div>
                 <label className="text-xs text-muted-foreground block mb-0.5">
                   Date <span className="text-destructive">*</span>
@@ -326,13 +337,13 @@ export function CreateReport() {
 
               <div>
                 <label className="text-xs text-muted-foreground block mb-0.5">
-                  Sample ID <span className="text-[10px] text-muted-foreground">(generated on save)</span>
+                  Sample ID <span className="text-[10px] text-muted-foreground">(auto)</span>
                 </label>
                 <div className="relative">
                   <Hash className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
                   <input
                     type="text"
-                    className="w-full h-9 pl-8 pr-2.5 bg-muted border border-border rounded text-sm cursor-not-allowed"
+                    className="w-full h-9 pl-8 pr-2.5 bg-muted border border-border rounded text-sm cursor-not-allowed text-xs"
                     value={sampleIdCode}
                     readOnly
                     disabled
@@ -431,9 +442,9 @@ export function CreateReport() {
             </div>
 
             {/* Patient Details Form */}
-            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
               {/* Row 1: Name */}
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <label className="text-xs text-muted-foreground block mb-0.5">
                   Patient Name <span className="text-destructive">*</span>
                 </label>
@@ -506,7 +517,7 @@ export function CreateReport() {
               </div>
 
               {/* Row 4: Address */}
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <label className="text-xs text-muted-foreground block mb-0.5">
                   Address
                 </label>
@@ -521,7 +532,7 @@ export function CreateReport() {
               </div>
 
               {/* Row 5: Referring Doctor */}
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <label className="text-xs text-muted-foreground block mb-0.5">
                   Referring Doctor
                 </label>
@@ -677,11 +688,110 @@ export function CreateReport() {
           </div>
         </div>
 
+        {/* B2B Partner Lab Section */}
+        <div className="bg-card border border-border rounded">
+          <div className="px-3 py-1.5 border-b border-border bg-secondary/30 flex items-center justify-between">
+            <h2 className="text-sm text-foreground flex items-center gap-2">
+              <Building2 className="w-3.5 h-3.5" />
+              B2B Partner Lab
+            </h2>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="text-xs text-muted-foreground">
+                {isB2B ? 'Active' : 'Off'}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsB2B(!isB2B);
+                  if (isB2B) {
+                    setSelectedB2BLabId('');
+                    setB2bCharge('');
+                  }
+                }}
+                className={`relative w-9 h-5 rounded-full transition-colors ${
+                  isB2B ? 'bg-primary' : 'bg-border'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                    isB2B ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </label>
+          </div>
+          {isB2B && (
+            <div className="p-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-0.5">
+                    Select Partner Lab <span className="text-destructive">*</span>
+                  </label>
+                  <select
+                    className="w-full h-9 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    value={selectedB2BLabId}
+                    onChange={(e) => setSelectedB2BLabId(e.target.value)}
+                  >
+                    <option value="">Select a lab...</option>
+                    {b2bLabs.filter(l => l.status === 'active').map((lab) => (
+                      <option key={lab.id} value={lab.id}>
+                        {lab.lab_name} {lab.contact_person ? `(${lab.contact_person})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-0.5">
+                    B2B Charge (₹) <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="w-full h-9 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    value={b2bCharge}
+                    onChange={(e) => setB2bCharge(e.target.value)}
+                    placeholder="Amount payable to partner lab"
+                  />
+                </div>
+              </div>
+              {selectedB2BLabId && b2bCharge && totalPrice > 0 && (
+                <div className="mt-1.5 px-3 py-2 bg-primary/5 border border-primary/20 rounded">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Report Total</span>
+                    <span className="text-foreground tabular-nums">₹{totalPrice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs mt-0.5">
+                    <span className="text-muted-foreground">B2B Charge</span>
+                    <span className="text-destructive tabular-nums">−₹{parseFloat(b2bCharge).toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs mt-0.5 pt-1 border-t border-border">
+                    <span className="text-foreground font-medium">Net Lab Income</span>
+                    <span className="text-foreground font-medium tabular-nums">
+                      ₹{Math.max(0, totalPrice - parseFloat(b2bCharge)).toFixed(2)}
+                    </span>
+                  </div>
+                  {selectedDoctor && (
+                    <div className="flex items-center justify-between text-xs mt-0.5">
+                      <span className="text-muted-foreground">
+                        Commission ({selectedDoctor.commission_percentage || 0}% on net)
+                      </span>
+                      <span className="text-warning tabular-nums">
+                        ₹{(Math.max(0, totalPrice - parseFloat(b2bCharge)) * (selectedDoctor.commission_percentage || 0) / 100).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
           <button
             onClick={() => navigate("/reports")}
-            className="h-9 px-4 flex items-center gap-2 bg-secondary border border-border rounded hover:bg-accent transition-colors text-sm"
+            className="h-9 px-4 flex items-center justify-center gap-2 bg-secondary border border-border rounded hover:bg-accent transition-colors text-sm w-full sm:w-auto"
             disabled={isSubmitting}
           >
             Cancel
@@ -689,7 +799,7 @@ export function CreateReport() {
           <button
             onClick={handleCreateReport}
             disabled={isSubmitting || selectedTests.length === 0}
-            className="h-9 px-4 flex items-center gap-2 rounded text-sm text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            className="h-9 px-4 flex items-center justify-center gap-2 rounded text-sm text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
             style={{ backgroundColor: "var(--primary)" }}
           >
             {isSubmitting ? (

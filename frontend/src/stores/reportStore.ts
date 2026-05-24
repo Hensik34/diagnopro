@@ -17,7 +17,9 @@ interface ReportState {
   // State
   reports: Report[];
   selectedReport: Report | null;
-  isLoading: boolean;
+  isLoading: boolean; // For list fetching
+  isActionLoading: boolean; // For mutations (approve/reject/submit)
+  actionId: string | null; // ID of the report being mutated
   error: string | null;
   filters: ReportFilters;
   summary: ReportsSummary | null;
@@ -53,6 +55,8 @@ const initialState = {
   reports: [],
   selectedReport: null,
   isLoading: false,
+  isActionLoading: false,
+  actionId: null,
   error: null,
   filters: {},
   summary: null,
@@ -142,7 +146,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
    * Create new report (status: draft)
    */
   createReport: async (data: CreateReportData): Promise<Report | null> => {
-    set({ isLoading: true, error: null });
+    set({ isActionLoading: true, actionId: 'new', error: null });
     
     try {
       const response = await reportApi.create(data);
@@ -151,13 +155,14 @@ export const useReportStore = create<ReportState>((set, get) => ({
       // Add to local cache
       set((state) => ({
         reports: [newReport, ...state.reports],
-        isLoading: false,
+        isActionLoading: false,
+        actionId: null,
       }));
       
       return newReport;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create report';
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, isActionLoading: false, actionId: null });
       return null;
     }
   },
@@ -166,7 +171,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
    * Update report content (findings, recommendations, etc.)
    */
   updateReport: async (id: string, data: UpdateReportData): Promise<Report | null> => {
-    set({ isLoading: true, error: null });
+    set({ isActionLoading: true, actionId: id, error: null });
     
     try {
       const response = await reportApi.update(id, data);
@@ -180,13 +185,14 @@ export const useReportStore = create<ReportState>((set, get) => ({
         selectedReport: state.selectedReport?.id === id 
           ? updatedReport 
           : state.selectedReport,
-        isLoading: false,
+        isActionLoading: false,
+        actionId: null,
       }));
       
       return updatedReport;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update report';
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, isActionLoading: false, actionId: null });
       return null;
     }
   },
@@ -195,7 +201,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
    * Update report status (workflow: Created → Collected → Processing → Completed → Approved)
    */
   updateReportStatus: async (id: string, status: ReportStatus): Promise<Report | null> => {
-    set({ isLoading: true, error: null });
+    set({ isActionLoading: true, actionId: id, error: null });
     
     try {
       const response = await reportApi.updateStatus(id, status);
@@ -209,13 +215,14 @@ export const useReportStore = create<ReportState>((set, get) => ({
         selectedReport: state.selectedReport?.id === id 
           ? updatedReport 
           : state.selectedReport,
-        isLoading: false,
+        isActionLoading: false,
+        actionId: null,
       }));
       
       return updatedReport;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update report status';
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, isActionLoading: false, actionId: null });
       return null;
     }
   },
@@ -224,7 +231,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
    * Assign technician to report
    */
   assignTechnician: async (id: string, technicianId: string): Promise<Report | null> => {
-    set({ isLoading: true, error: null });
+    set({ isActionLoading: true, actionId: id, error: null });
     
     try {
       const response = await reportApi.assignTechnician(id, technicianId);
@@ -238,13 +245,14 @@ export const useReportStore = create<ReportState>((set, get) => ({
         selectedReport: state.selectedReport?.id === id 
           ? updatedReport 
           : state.selectedReport,
-        isLoading: false,
+        isActionLoading: false,
+        actionId: null,
       }));
       
       return updatedReport;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to assign technician';
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, isActionLoading: false, actionId: null });
       return null;
     }
   },
@@ -257,7 +265,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
    * Submit report for review (draft/rejected → under_review)
    */
   submitReport: async (id: string): Promise<Report | null> => {
-    set({ isLoading: true, error: null });
+    set({ isActionLoading: true, actionId: id, error: null });
     
     try {
       const response = await reportApi.submit(id);
@@ -271,13 +279,14 @@ export const useReportStore = create<ReportState>((set, get) => ({
         selectedReport: state.selectedReport?.id === id 
           ? updatedReport 
           : state.selectedReport,
-        isLoading: false,
+        isActionLoading: false,
+        actionId: null,
       }));
       
       return updatedReport;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to submit report';
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, isActionLoading: false, actionId: null });
       return null;
     }
   },
@@ -286,7 +295,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
    * Approve report (under_review → approved)
    */
   approveReport: async (id: string): Promise<Report | null> => {
-    set({ isLoading: true, error: null });
+    set({ isActionLoading: true, actionId: id, error: null });
     
     try {
       const response = await reportApi.approve(id);
@@ -300,13 +309,14 @@ export const useReportStore = create<ReportState>((set, get) => ({
         selectedReport: state.selectedReport?.id === id 
           ? updatedReport 
           : state.selectedReport,
-        isLoading: false,
+        isActionLoading: false,
+        actionId: null,
       }));
       
       return updatedReport;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to approve report';
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, isActionLoading: false, actionId: null });
       return null;
     }
   },
@@ -315,7 +325,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
    * Reject report (under_review → rejected)
    */
   rejectReport: async (id: string, reason: string): Promise<Report | null> => {
-    set({ isLoading: true, error: null });
+    set({ isActionLoading: true, actionId: id, error: null });
     
     try {
       const response = await reportApi.reject(id, reason);
@@ -329,13 +339,14 @@ export const useReportStore = create<ReportState>((set, get) => ({
         selectedReport: state.selectedReport?.id === id 
           ? updatedReport 
           : state.selectedReport,
-        isLoading: false,
+        isActionLoading: false,
+        actionId: null,
       }));
       
       return updatedReport;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to reject report';
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, isActionLoading: false, actionId: null });
       return null;
     }
   },
@@ -344,7 +355,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
    * Revise rejected report (rejected → draft)
    */
   reviseReport: async (id: string): Promise<Report | null> => {
-    set({ isLoading: true, error: null });
+    set({ isActionLoading: true, actionId: id, error: null });
     
     try {
       const response = await reportApi.revise(id);
@@ -358,13 +369,14 @@ export const useReportStore = create<ReportState>((set, get) => ({
         selectedReport: state.selectedReport?.id === id 
           ? updatedReport 
           : state.selectedReport,
-        isLoading: false,
+        isActionLoading: false,
+        actionId: null,
       }));
       
       return updatedReport;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to revise report';
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, isActionLoading: false, actionId: null });
       return null;
     }
   },
@@ -373,7 +385,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
    * Delete report
    */
   deleteReport: async (id: string): Promise<boolean> => {
-    set({ isLoading: true, error: null });
+    set({ isActionLoading: true, actionId: id, error: null });
     
     try {
       await reportApi.delete(id);
@@ -384,13 +396,14 @@ export const useReportStore = create<ReportState>((set, get) => ({
         selectedReport: state.selectedReport?.id === id 
           ? null 
           : state.selectedReport,
-        isLoading: false,
+        isActionLoading: false,
+        actionId: null,
       }));
       
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete report';
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, isActionLoading: false, actionId: null });
       return false;
     }
   },
@@ -431,6 +444,8 @@ export const useReportStore = create<ReportState>((set, get) => ({
 export const useReports = () => useReportStore((state) => state.reports);
 export const useSelectedReport = () => useReportStore((state) => state.selectedReport);
 export const useReportLoading = () => useReportStore((state) => state.isLoading);
+export const useReportActionLoading = () => useReportStore((state) => state.isActionLoading);
+export const useReportActionId = () => useReportStore((state) => state.actionId);
 export const useReportError = () => useReportStore((state) => state.error);
 export const useReportSummary = () => useReportStore((state) => state.summary);
 

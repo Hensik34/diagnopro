@@ -1,169 +1,144 @@
-const pool = require("../config/db");
+const { Op, literal, fn, col } = require("sequelize");
+const { SampleCollectionTracking, User, Branch } = require("./index");
 
 /**
  * Get all collection tracking records with filters
  */
 exports.getAll = async (filters = {}) => {
-  let query = `
-    SELECT sct.*, 
-      u.firstname AS staff_firstname, 
-      u.lastname AS staff_lastname,
-      u.petrol_price_per_km AS staff_petrol_price,
-      b.name AS branch_name
-    FROM sample_collection_tracking sct
-    LEFT JOIN users u ON sct.staff_id = u.id
-    LEFT JOIN branches b ON sct.branch_id = b.id
-    WHERE 1=1
-  `;
-  const params = [];
-  let paramIndex = 1;
-
-  if (filters.staff_id) {
-    query += ` AND sct.staff_id = $${paramIndex++}`;
-    params.push(filters.staff_id);
+  const where = {};
+  if (filters.staff_id) where.staff_id = filters.staff_id;
+  if (filters.branch_id) where.branch_id = filters.branch_id;
+  if (filters.date) where.date = filters.date;
+  if (filters.date_from && filters.date_to) {
+    where.date = { [Op.between]: [filters.date_from, filters.date_to] };
+  } else if (filters.date_from) {
+    where.date = { [Op.gte]: filters.date_from };
+  } else if (filters.date_to) {
+    where.date = { [Op.lte]: filters.date_to };
   }
 
-  if (filters.branch_id) {
-    query += ` AND sct.branch_id = $${paramIndex++}`;
-    params.push(filters.branch_id);
-  }
+  const rows = await SampleCollectionTracking.findAll({
+    where,
+    include: [
+      { model: User, as: "staff", attributes: ["firstname", "lastname", "petrol_price_per_km"] },
+      { model: Branch, as: "branch", attributes: ["name"] },
+    ],
+    order: [["date", "DESC"], ["created_at", "DESC"]],
+    raw: true,
+    nest: true,
+  });
 
-  if (filters.date_from) {
-    query += ` AND sct.date >= $${paramIndex++}`;
-    params.push(filters.date_from);
-  }
-
-  if (filters.date_to) {
-    query += ` AND sct.date <= $${paramIndex++}`;
-    params.push(filters.date_to);
-  }
-
-  if (filters.date) {
-    query += ` AND sct.date = $${paramIndex++}`;
-    params.push(filters.date);
-  }
-
-  query += ` ORDER BY sct.date DESC, sct.created_at DESC`;
-
-  const result = await pool.query(query, params);
-  return result.rows;
+  return rows.map((r) => ({
+    ...r,
+    staff_firstname: r.staff?.firstname,
+    staff_lastname: r.staff?.lastname,
+    staff_petrol_price: r.staff?.petrol_price_per_km,
+    branch_name: r.branch?.name,
+  }));
 };
 
 /**
  * Get a single record by id
  */
 exports.getById = async (id) => {
-  const result = await pool.query(
-    `SELECT sct.*, 
-      u.firstname AS staff_firstname, 
-      u.lastname AS staff_lastname,
-      b.name AS branch_name
-    FROM sample_collection_tracking sct
-    LEFT JOIN users u ON sct.staff_id = u.id
-    LEFT JOIN branches b ON sct.branch_id = b.id
-    WHERE sct.id = $1`,
-    [id]
-  );
-  return result.rows[0];
+  const r = await SampleCollectionTracking.findByPk(id, {
+    include: [
+      { model: User, as: "staff", attributes: ["firstname", "lastname"] },
+      { model: Branch, as: "branch", attributes: ["name"] },
+    ],
+    raw: true,
+    nest: true,
+  });
+  if (!r) return null;
+  return {
+    ...r,
+    staff_firstname: r.staff?.firstname,
+    staff_lastname: r.staff?.lastname,
+    branch_name: r.branch?.name,
+  };
 };
 
 /**
- * Get today's records for a specific staff member (multiple per day)
+ * Get today's records for a specific staff member
  */
 exports.getTodayByStaff = async (staffId) => {
-  const result = await pool.query(
-    `SELECT sct.*, 
-      u.firstname AS staff_firstname, 
-      u.lastname AS staff_lastname
-    FROM sample_collection_tracking sct
-    LEFT JOIN users u ON sct.staff_id = u.id
-    WHERE sct.staff_id = $1 AND sct.date = CURRENT_DATE
-    ORDER BY sct.created_at DESC`,
-    [staffId]
-  );
-  return result.rows;
+  const today = new Date().toISOString().split("T")[0];
+  const rows = await SampleCollectionTracking.findAll({
+    where: { staff_id: staffId, date: today },
+    include: [
+      { model: User, as: "staff", attributes: ["firstname", "lastname"] },
+    ],
+    order: [["created_at", "DESC"]],
+    raw: true,
+    nest: true,
+  });
+  return rows.map((r) => ({
+    ...r,
+    staff_firstname: r.staff?.firstname,
+    staff_lastname: r.staff?.lastname,
+  }));
 };
 
 /**
  * Create a new tracking record
  */
 exports.create = async (data) => {
-  const result = await pool.query(
-    `INSERT INTO sample_collection_tracking 
-      (staff_id, branch_id, date, start_km, end_km, start_meter_image, end_meter_image, bike_image, visit_charge, per_km_rate)
-    VALUES ($1, $2, COALESCE($3, CURRENT_DATE), $4, $5, $6, $7, $8, $9, $10)
-    RETURNING *`,
-    [
-      data.staff_id,
-      data.branch_id || null,
-      data.date || null,
-      data.start_km || null,
-      data.end_km || null,
-      data.start_meter_image || null,
-      data.end_meter_image || null,
-      data.bike_image || null,
-      data.visit_charge || 0,
-      data.per_km_rate || 0,
-    ]
-  );
-  return result.rows[0];
+  return await SampleCollectionTracking.create({
+    staff_id: data.staff_id,
+    branch_id: data.branch_id || null,
+    date: data.date || new Date(),
+    start_km: data.start_km || null,
+    end_km: data.end_km || null,
+    start_meter_image: data.start_meter_image || null,
+    end_meter_image: data.end_meter_image || null,
+    bike_image: data.bike_image || null,
+    visit_charge: data.visit_charge || 0,
+    per_km_rate: data.per_km_rate || 0,
+  });
 };
 
 /**
- * Update a tracking record (partial update)
+ * Update a tracking record
  */
 exports.update = async (id, data) => {
-  const result = await pool.query(
-    `UPDATE sample_collection_tracking SET
-      start_km = COALESCE($1, start_km),
-      end_km = COALESCE($2, end_km),
-      start_meter_image = COALESCE($3, start_meter_image),
-      end_meter_image = COALESCE($4, end_meter_image),
-      bike_image = COALESCE($5, bike_image),
-      visit_charge = COALESCE($6, visit_charge),
-      per_km_rate = COALESCE($7, per_km_rate),
-      updated_at = NOW()
-    WHERE id = $8
-    RETURNING *`,
-    [
-      data.start_km ?? null,
-      data.end_km ?? null,
-      data.start_meter_image ?? null,
-      data.end_meter_image ?? null,
-      data.bike_image ?? null,
-      data.visit_charge ?? null,
-      data.per_km_rate ?? null,
-      id,
-    ]
-  );
-  return result.rows[0];
+  const record = await SampleCollectionTracking.findByPk(id);
+  if (!record) return null;
+
+  if (data.start_km !== undefined) record.start_km = data.start_km;
+  if (data.end_km !== undefined) record.end_km = data.end_km;
+  if (data.start_meter_image !== undefined) record.start_meter_image = data.start_meter_image;
+  if (data.end_meter_image !== undefined) record.end_meter_image = data.end_meter_image;
+  if (data.bike_image !== undefined) record.bike_image = data.bike_image;
+  if (data.visit_charge !== undefined) record.visit_charge = data.visit_charge;
+  if (data.per_km_rate !== undefined) record.per_km_rate = data.per_km_rate;
+
+  await record.save();
+  return record.toJSON();
 };
 
 /**
  * Delete a tracking record
  */
 exports.delete = async (id) => {
-  const result = await pool.query(
-    "DELETE FROM sample_collection_tracking WHERE id = $1 RETURNING id",
-    [id]
-  );
-  return result.rows[0];
+  const deleted = await SampleCollectionTracking.destroy({ where: { id } });
+  return deleted ? { id } : null;
 };
 
 /**
  * Get salary summary for a staff member over a date range
  */
 exports.getSalarySummary = async (staffId, dateFrom, dateTo) => {
-  const result = await pool.query(
-    `SELECT 
-      COUNT(*) AS total_days,
-      SUM(total_km) AS total_km,
-      SUM(total_km * per_km_rate) AS km_payment,
-      SUM(visit_charge) AS total_visit_charges,
-      SUM(total_km * per_km_rate + visit_charge) AS total_amount
-    FROM sample_collection_tracking
-    WHERE staff_id = $1 AND date >= $2 AND date <= $3`,
-    [staffId, dateFrom, dateTo]
+  const { sequelize } = require("./index");
+  const [result] = await sequelize.query(
+    `SELECT
+       COUNT(*) AS total_days,
+       SUM(GREATEST(0, COALESCE(end_km, 0) - COALESCE(start_km, 0))) AS total_km,
+       SUM(GREATEST(0, COALESCE(end_km, 0) - COALESCE(start_km, 0)) * per_km_rate) AS km_payment,
+       SUM(visit_charge) AS total_visit_charges,
+       SUM(GREATEST(0, COALESCE(end_km, 0) - COALESCE(start_km, 0)) * per_km_rate + visit_charge) AS total_amount
+     FROM sample_collection_tracking
+     WHERE staff_id = :staffId AND date >= :dateFrom AND date <= :dateTo`,
+    { replacements: { staffId, dateFrom, dateTo }, type: sequelize.QueryTypes ? sequelize.QueryTypes.SELECT : 'SELECT' }
   );
-  return result.rows[0];
+  return result || {};
 };

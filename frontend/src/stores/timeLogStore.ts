@@ -23,6 +23,7 @@ interface TimeLogState {
   fetchUserLogs: (userId: string, startDate?: string, endDate?: string) => Promise<TimeLog[]>;
   deleteLog: (id: string) => Promise<boolean>;
   clearError: () => void;
+  reset: () => void;
 }
 
 export const useTimeLogStore = create<TimeLogState>((set, get) => ({
@@ -124,6 +125,17 @@ export const useTimeLogStore = create<TimeLogState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  reset: () => set({
+    activeSession: null,
+    myLogs: [],
+    myTotalHours: 0,
+    allLogs: [],
+    userSummary: [],
+    totalHoursAll: 0,
+    isLoading: false,
+    error: null,
+  }),
 }));
 
 // Selector hooks

@@ -1,6 +1,5 @@
-const Doctor = require("../models/Doctor");
-const Report = require("../models/Report");
-const pool = require("../config/db");
+const { Doctor, Report, Patient, User, Sample, sequelize } = require("../models");
+const { Op, fn, col } = require("sequelize");
 
 /**
  * Doctor Portal Controller
@@ -17,11 +16,11 @@ async function resolveDoctor(req) {
   
   if (source === "doctor") {
     // Direct doctor login — id IS the doctor id
-    return await Doctor.getDoctorById(id);
+    return await Doctor.findByPk(id);
   }
   
   // Legacy: user logged in with doctor role — find doctor by user_id
-  return await Doctor.getDoctorByUserId(id);
+  return await Doctor.findOne({ where: { user_id: id } });
 }
 
 // GET DOCTOR DASHBOARD - Summary stats for the logged-in doctor
@@ -34,49 +33,74 @@ exports.getDashboard = async (req, res) => {
     }
 
     // Get stats: total referred reports, total commission, patients referred
-    const statsResult = await pool.query(
-      `SELECT 
-         COUNT(*) as total_reports,
-         COUNT(DISTINCT r.patient_id) as total_patients,
-         COALESCE(SUM(r.report_amount), 0) as total_revenue,
-         COALESCE(SUM(r.doctor_commission), 0) as total_commission,
-         COUNT(CASE WHEN r.status = 'approved' THEN 1 END) as approved_reports,
-         COUNT(CASE WHEN r.status = 'draft' OR r.status = 'under_review' THEN 1 END) as pending_reports
-       FROM reports r
-       WHERE r.doctor_id = $1 AND r.is_self_report = FALSE`,
-      [doctor.id]
-    );
+    const statsResult = await Report.findOne({
+      where: {
+        doctor_id: doctor.id,
+        is_self_report: false,
+      },
+      attributes: [
+        [fn("COUNT", col("id")), "total_reports"],
+        [fn("COUNT", fn("DISTINCT", col("patient_id"))), "total_patients"],
+        [fn("COALESCE", fn("SUM", col("report_amount")), 0), "total_revenue"],
+        [fn("COALESCE", fn("SUM", col("doctor_commission")), 0), "total_commission"],
+        [fn("COUNT", sequelize.literal("CASE WHEN status = 'approved' THEN 1 END")), "approved_reports"],
+        [fn("COUNT", sequelize.literal("CASE WHEN status = 'draft' OR status = 'under_review' THEN 1 END")), "pending_reports"],
+      ],
+      raw: true,
+    });
 
     // Get this month's stats
     const monthStart = new Date();
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
     
-    const monthStatsResult = await pool.query(
-      `SELECT 
-         COUNT(*) as month_reports,
-         COALESCE(SUM(r.report_amount), 0) as month_revenue,
-         COALESCE(SUM(r.doctor_commission), 0) as month_commission
-       FROM reports r
-       WHERE r.doctor_id = $1 AND r.is_self_report = FALSE
-         AND r.created_at >= $2`,
-      [doctor.id, monthStart.toISOString()]
-    );
+    const monthStatsResult = await Report.findOne({
+      where: {
+        doctor_id: doctor.id,
+        is_self_report: false,
+        created_at: {
+          [Op.gte]: monthStart,
+        },
+      },
+      attributes: [
+        [fn("COUNT", col("id")), "month_reports"],
+        [fn("COALESCE", fn("SUM", col("report_amount")), 0), "month_revenue"],
+        [fn("COALESCE", fn("SUM", col("doctor_commission")), 0), "month_commission"],
+      ],
+      raw: true,
+    });
 
     // Get recent 5 reports
-    const recentReports = await pool.query(
-      `SELECT r.id, r.status, r.report_amount, r.doctor_commission, r.created_at,
-              p.name as patient_name, p.phone as patient_phone
-       FROM reports r
-       JOIN patients p ON r.patient_id = p.id
-       WHERE r.doctor_id = $1 AND r.is_self_report = FALSE
-       ORDER BY r.created_at DESC
-       LIMIT 5`,
-      [doctor.id]
-    );
+    const recentReports = await Report.findAll({
+      where: {
+        doctor_id: doctor.id,
+        is_self_report: false,
+      },
+      attributes: ["id", "status", "report_amount", "doctor_commission", "created_at"],
+      include: [
+        {
+          model: Patient,
+          as: "patient",
+          attributes: ["name", "phone"],
+        },
+      ],
+      order: [["created_at", "DESC"]],
+      limit: 5,
+    });
 
-    const stats = statsResult.rows[0];
-    const monthStats = monthStatsResult.rows[0];
+    // Format recent reports to match legacy raw query response
+    const formattedReports = recentReports.map((r) => {
+      const json = r.toJSON();
+      return {
+        id: json.id,
+        status: json.status,
+        report_amount: json.report_amount,
+        doctor_commission: json.doctor_commission,
+        created_at: json.created_at,
+        patient_name: json.patient?.name,
+        patient_phone: json.patient?.phone,
+      };
+    });
 
     res.json({
       message: "Dashboard data retrieved",
@@ -88,19 +112,19 @@ exports.getDashboard = async (req, res) => {
           commission_percentage: doctor.commission_percentage,
         },
         allTime: {
-          total_reports: parseInt(stats.total_reports) || 0,
-          total_patients: parseInt(stats.total_patients) || 0,
-          total_revenue: parseFloat(stats.total_revenue) || 0,
-          total_commission: parseFloat(stats.total_commission) || 0,
-          approved_reports: parseInt(stats.approved_reports) || 0,
-          pending_reports: parseInt(stats.pending_reports) || 0,
+          total_reports: parseInt(statsResult?.total_reports) || 0,
+          total_patients: parseInt(statsResult?.total_patients) || 0,
+          total_revenue: parseFloat(statsResult?.total_revenue) || 0,
+          total_commission: parseFloat(statsResult?.total_commission) || 0,
+          approved_reports: parseInt(statsResult?.approved_reports) || 0,
+          pending_reports: parseInt(statsResult?.pending_reports) || 0,
         },
         thisMonth: {
-          reports: parseInt(monthStats.month_reports) || 0,
-          revenue: parseFloat(monthStats.month_revenue) || 0,
-          commission: parseFloat(monthStats.month_commission) || 0,
+          reports: parseInt(monthStatsResult?.month_reports) || 0,
+          revenue: parseFloat(monthStatsResult?.month_revenue) || 0,
+          commission: parseFloat(monthStatsResult?.month_commission) || 0,
         },
-        recentReports: recentReports.rows,
+        recentReports: formattedReports,
       }
     });
   } catch (err) {
@@ -119,42 +143,63 @@ exports.getMyReports = async (req, res) => {
       return res.status(404).json({ error: "No doctor profile linked to your account" });
     }
 
-    let query = `
-      SELECT r.*, 
-             p.name as patient_name, p.phone as patient_phone,
-             p.gender as patient_gender, p.age as patient_age,
-             t.firstname as technician_firstname, t.lastname as technician_lastname,
-             s.sample_id_code, s.sample_type
-      FROM reports r
-      LEFT JOIN patients p ON r.patient_id = p.id
-      LEFT JOIN users t ON r.technician_id = t.id
-      LEFT JOIN samples s ON r.sample_id = s.id
-      WHERE r.doctor_id = $1 AND r.is_self_report = FALSE`;
-    
-    const params = [doctor.id];
-    let paramIndex = 2;
+    const where = {
+      doctor_id: doctor.id,
+      is_self_report: false,
+    };
 
     if (status) {
-      query += ` AND r.status = $${paramIndex}`;
-      params.push(status);
-      paramIndex++;
+      where.status = status;
     }
 
     // Count total
-    const countQuery = query.replace(/SELECT r\.\*[\s\S]*?FROM/, 'SELECT COUNT(*) as total FROM');
-    const countResult = await pool.query(countQuery, params);
-    const total = parseInt(countResult.rows[0]?.total) || 0;
+    const total = await Report.count({ where });
 
-    // Add pagination
+    // Fetch with pagination
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    query += ` ORDER BY r.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    params.push(parseInt(limit), offset);
+    const reports = await Report.findAll({
+      where,
+      include: [
+        {
+          model: Patient,
+          as: "patient",
+          attributes: ["name", "phone", "gender", "age"],
+        },
+        {
+          model: User,
+          as: "technician",
+          attributes: ["firstname", "lastname"],
+        },
+        {
+          model: Sample,
+          as: "sample",
+          attributes: ["sample_id_code", "sample_type"],
+        },
+      ],
+      order: [["created_at", "DESC"]],
+      limit: parseInt(limit),
+      offset,
+    });
 
-    const result = await pool.query(query, params);
+    // Format reports to match legacy raw query response
+    const formattedReports = reports.map((r) => {
+      const json = r.toJSON();
+      return {
+        ...json,
+        patient_name: json.patient?.name,
+        patient_phone: json.patient?.phone,
+        patient_gender: json.patient?.gender,
+        patient_age: json.patient?.age,
+        technician_firstname: json.technician?.firstname,
+        technician_lastname: json.technician?.lastname,
+        sample_id_code: json.sample?.sample_id_code,
+        sample_type: json.sample?.sample_type,
+      };
+    });
 
     res.json({
       message: "Reports retrieved",
-      data: result.rows,
+      data: formattedReports,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -200,9 +245,10 @@ exports.getMyStatement = async (req, res) => {
       return res.status(404).json({ error: "No doctor profile linked to your account" });
     }
 
+    const doctorModel = require("../models/Doctor");
     const [reports, summary] = await Promise.all([
-      Doctor.getDoctorStatement(doctor.id, start_date, end_date + ' 23:59:59'),
-      Doctor.getDoctorStatementSummary(doctor.id, start_date, end_date + ' 23:59:59')
+      doctorModel.getDoctorStatement(doctor.id, start_date, end_date + ' 23:59:59'),
+      doctorModel.getDoctorStatementSummary(doctor.id, start_date, end_date + ' 23:59:59')
     ]);
 
     res.json({

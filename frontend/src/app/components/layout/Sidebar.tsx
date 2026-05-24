@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router';
 import {
   LayoutDashboard,
@@ -152,6 +152,17 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { can, getBranchRole } = useAuthStore();
   const currentRole = getBranchRole();
   const isDoctor = currentRole === 'doctor';
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // Handle window resize to detect mobile
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Filter menu items based on user permissions and role
   const visibleMenuItems = menuItems.filter((item: any) => {
@@ -177,56 +188,111 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   });
 
   return (
-    <div className={`fixed left-0 top-0 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 print:hidden ${
-      collapsed ? 'w-14' : 'w-56'
-    }`}>
-      <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          {!collapsed && (
-            <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">DiagnoPro</h1>
-          )}
-          <button
-            onClick={onToggle}
-            className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors dark:text-gray-400"
-          >
-            {collapsed ? (
-              <ChevronRight className="w-5 h-5" />
-            ) : (
-              <ChevronLeft className="w-5 h-5" />
+    <>
+      {/* Desktop Sidebar */}
+      <div className={`fixed left-0 top-0 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 print:hidden hidden md:block ${
+        collapsed ? 'w-14' : 'w-56'
+      }`}>
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            {!collapsed && (
+              <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">DiagnoPro</h1>
             )}
-          </button>
+            <button
+              onClick={onToggle}
+              className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors dark:text-gray-400"
+            >
+              {collapsed ? (
+                <ChevronRight className="w-5 h-5" />
+              ) : (
+                <ChevronLeft className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+
+          {/* Menu Items */}
+          <nav className={`flex-1 space-y-2 overflow-y-auto scrollbar-hide ${
+            collapsed ? 'p-2' : 'p-4'
+          }`}>
+            {visibleMenuItems.map((item: any) => {
+              const Icon = item.icon;
+              const isActive = item.path === longestMatch;
+
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center transition-all duration-200 rounded-lg ${
+                    collapsed ? 'justify-center px-4 py-2' : 'px-3 py-2'
+                  } ${
+                    isActive
+                      ? collapsed
+                        ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                        : 'bg-blue-50 text-blue-700 border-r-2 border-blue-700 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400'
+                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  {!collapsed && (
+                    <span className="ml-3 text-sm font-medium">{item.label}</span>
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
-
-        {/* Menu Items */}
-        <nav className="flex-1 p-4 space-y-2">
-          {visibleMenuItems.map((item: any) => {
-            const Icon = item.icon;
-            const isActive = item.path === longestMatch;
-
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center transition-all duration-200 rounded-lg ${
-                  collapsed ? 'justify-center px-4 py-2' : 'px-3 py-2'
-                } ${
-                  isActive
-                    ? collapsed
-                      ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                      : 'bg-blue-50 text-blue-700 border-r-2 border-blue-700 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400'
-                    : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
-                }`}
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                {!collapsed && (
-                  <span className="ml-3 text-sm font-medium">{item.label}</span>
-                )}
-              </Link>
-            );
-          })}
-        </nav>
       </div>
-    </div>
+
+      {/* Mobile Sidebar (Drawer) */}
+      {!collapsed && isMobile && (
+        <>
+          {/* Overlay */}
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={onToggle}
+          />
+          {/* Mobile Drawer */}
+          <div className="fixed left-0 top-0 h-full w-56 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transition-transform duration-300 print:hidden md:hidden z-50 transform translate-x-0">
+            <div className="flex flex-col h-full">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">DiagnoPro</h1>
+                <button
+                  onClick={onToggle}
+                  className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors dark:text-gray-400"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Menu Items */}
+              <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                {visibleMenuItems.map((item: any) => {
+                  const Icon = item.icon;
+                  const isActive = item.path === longestMatch;
+
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={onToggle}
+                      className={`flex items-center transition-all duration-200 rounded-lg px-3 py-2 ${
+                        isActive
+                          ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400'
+                          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0" />
+                      <span className="ml-3 text-sm font-medium">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          </div>
+        </>
+      )}
+    </>
   );
 }

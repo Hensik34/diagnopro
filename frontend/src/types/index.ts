@@ -144,6 +144,7 @@ export interface DoctorStatementReport {
   report_type: string;
   report_amount: number;
   doctor_commission: number;
+  b2b_charge: number;
   status: string;
   patient_id: string;
   patient_name: string;
@@ -166,6 +167,7 @@ export interface DoctorStatement {
     total_reports: number;
     total_amount: number;
     total_commission: number;
+    total_b2b_charge: number;
   };
   reports: DoctorStatementReport[];
 }
@@ -375,6 +377,10 @@ export interface Report {
   doctor_discount?: number;
   final_amount?: number;
   payment_status?: 'paid' | 'partial' | 'pending';
+  // B2B Partner Lab
+  b2b_lab_id?: string;
+  b2b_charge?: number;
+  b2b_lab_name?: string;
   created_at: string;
   updated_at: string;
   // Joined fields
@@ -419,6 +425,8 @@ export interface CreateReportData {
   lab_discount_value?: number;
   doctor_discount?: number;
   final_amount?: number;
+  b2b_lab_id?: string;
+  b2b_charge?: number;
 }
 
 export interface UpdateReportData {

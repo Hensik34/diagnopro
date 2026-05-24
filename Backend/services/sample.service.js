@@ -64,9 +64,9 @@ const SAMPLE_TYPES = [
  * @returns {Promise<string>}
  */
 async function generateSampleId() {
-  const pool = require('../config/db');
-  const result = await pool.query('SELECT generate_sample_id() as sample_id');
-  return result.rows[0].sample_id;
+  const { sequelize } = require('../models');
+  const [result] = await sequelize.query('SELECT generate_sample_id() as sample_id');
+  return result[0].sample_id;
 }
 
 /**
@@ -75,18 +75,18 @@ async function generateSampleId() {
  * @returns {Promise<string>}
  */
 async function peekNextSampleId() {
-  const pool = require('../config/db');
+  const { sequelize } = require('../models');
   const currentYm = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
   const yy = currentYm.slice(2, 4);
   const mm = currentYm.slice(5, 7);
   
-  const result = await pool.query(
-    'SELECT last_number FROM sample_id_counter WHERE year_month = $1',
-    [currentYm]
+  const [rows] = await sequelize.query(
+    'SELECT last_number FROM sample_id_counter WHERE year_month = :currentYm',
+    { replacements: { currentYm } }
   );
   
   // If no row exists for this month, next will be 1001
-  const nextNum = result.rows.length > 0 ? result.rows[0].last_number + 1 : 1001;
+  const nextNum = rows.length > 0 ? rows[0].last_number + 1 : 1001;
   return `SM-${yy}${mm}-${nextNum}`;
 }
 

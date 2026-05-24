@@ -41,7 +41,12 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     // Handle 401 Unauthorized - Token expired or invalid
     if (error.response?.status === 401) {
+      // Clear the token immediately
       localStorage.removeItem('token');
+      // Wipe all stores via dynamic import (avoids circular dependency)
+      import('../stores/resetStores').then(({ resetAllStores }) => {
+        resetAllStores();
+      });
       // Redirect to login if not already there
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';

@@ -805,47 +805,32 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
                           </button>
                         </td>
                       </tr>
-                      {/* Formula row for calculated fields */}
+                      {/* Formula row for calculated fields - READ ONLY */}
                       {field.field_type === 'calculated' && (
                         <tr className="bg-primary/5">
                           <td className="px-2 py-1.5"></td>
                           <td colSpan={4} className="px-2 py-1.5">
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] text-primary font-medium whitespace-nowrap">Formula:</span>
-                              <input
-                                type="text"
-                                value={field.formula || ''}
-                                onChange={e => updateField(index, { formula: e.target.value })}
-                                className="flex-1 h-7 px-2 bg-secondary border border-primary/30 rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary font-mono"
-                                placeholder="e.g., TotalCholesterol / HDL"
-                              />
+                              <div className="flex-1 h-7 px-2 bg-gray-100 dark:bg-gray-800 border border-primary/20 rounded text-xs flex items-center font-mono text-gray-600 dark:text-gray-400">
+                                {field.formula || '(No formula set)'}
+                              </div>
                               <span className="text-[10px] text-primary font-medium whitespace-nowrap">Depends on:</span>
-                              <input
-                                type="text"
-                                value={field.depends_on || ''}
-                                onChange={e => updateField(index, { depends_on: e.target.value })}
-                                className="flex-1 h-7 px-2 bg-secondary border border-primary/30 rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary font-mono"
-                                placeholder='["FieldA","FieldB"]'
-                              />
+                              <div className="flex-1 h-7 px-2 bg-gray-100 dark:bg-gray-800 border border-primary/20 rounded text-xs flex items-center font-mono text-gray-600 dark:text-gray-400">
+                                {field.depends_on || '(Not specified)'}
+                              </div>
                             </div>
                           </td>
                           <td colSpan={2}></td>
                         </tr>
                       )}
-                      {/* Options row for qualitative fields (Color, Appearance, etc.) */}
+                      {/* Options row for qualitative fields - READ ONLY */}
                       {QUALITATIVE_UNITS.includes(field.unit || '') && field.field_type !== 'calculated' && (
                         <tr className="bg-amber-50/50 dark:bg-amber-950/20">
                           <td className="px-2 py-1.5"></td>
                           <td colSpan={4} className="px-2 py-1.5">
-                            <div className="flex items-center gap-2">
+                            <div>
                               <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium whitespace-nowrap">Options:</span>
-                              <input
-                                type="text"
-                                value={field.formula || ''}
-                                onChange={e => updateField(index, { formula: e.target.value })}
-                                className="flex-1 h-7 px-2 bg-secondary border border-amber-300/50 rounded text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
-                                placeholder="Comma-separated options, e.g., Pale Yellow, Yellow, Dark Yellow"
-                              />
                             </div>
                             {field.formula && (
                               <div className="flex flex-wrap gap-1 mt-1.5">
@@ -855,6 +840,9 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
                                   </span>
                                 ))}
                               </div>
+                            )}
+                            {!field.formula && (
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">No options defined</p>
                             )}
                           </td>
                           <td colSpan={2}></td>

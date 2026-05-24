@@ -31,11 +31,6 @@ export function Unauthorized() {
         {/* Description */}
         <p className="text-muted-foreground mb-6">
           You don't have permission to access this page.
-          {user && (
-            <span className="block mt-2 text-sm">
-              Your current role: <strong>{getRoleLabel(user.role)}</strong>
-            </span>
-          )}
         </p>
 
         {/* Actions */}

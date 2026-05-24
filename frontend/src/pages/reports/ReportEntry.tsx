@@ -97,7 +97,7 @@ export function ReportEntry() {
     }
 
     // Build ordered sections: preserve the order from testIds
-    const sections: { testId: string; testName: string; params: typeof dynamicParams }[] = [];
+    const sections: { testId: string; testName: string; testCode: string; params: typeof dynamicParams }[] = [];
     const orderedIds = testIds.length > 0 ? testIds : [...grouped.keys()];
     
     for (const tid of orderedIds) {
@@ -107,6 +107,7 @@ export function ReportEntry() {
       sections.push({
         testId: tid,
         testName: masterTest?.test_name || `Test ${tid.slice(0, 8)}`,
+        testCode: masterTest?.test_code || '',
         params,
       });
     }
@@ -1240,6 +1241,9 @@ export function ReportEntry() {
                       <Microscope className="w-3.5 h-3.5 text-primary" />
                       <h3 className="text-foreground text-sm font-semibold">
                         {section.testName}
+                        {section.testCode && (
+                          <span className="text-muted-foreground ml-1 text-xs">({section.testCode})</span>
+                        )}
                       </h3>
                       <span className="text-[10px] text-muted-foreground ml-auto">
                         {section.params.length}P

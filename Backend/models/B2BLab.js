@@ -1,4 +1,5 @@
-const pool = require("../config/db");
+const { B2BLab, B2BRateList, Test, sequelize } = require("./index");
+const { Op } = require("sequelize");
 
 /**
  * B2B Lab Model — Partner lab CRUD with credit limit, soft delete, optimistic locking
@@ -8,150 +9,103 @@ const pool = require("../config/db");
 // LAB CRUD
 // ==========================================
 
-exports.createLab = async (data, client = null) => {
-  const db = client || pool;
-  const {
-    lab_name, lab_code, contact_person, mobile, email, address, city, state, pincode,
-    gst_number, commission_type, commission_value, credit_limit, lab_type,
-    owner_branch_id, user_id, logo_url, show_processing_lab, custom_footer, created_by
-  } = data;
-
-  const result = await db.query(
-    `INSERT INTO b2b_labs (
-      lab_name, lab_code, contact_person, mobile, email, address, city, state, pincode,
-      gst_number, commission_type, commission_value, credit_limit, lab_type,
-      owner_branch_id, user_id, logo_url, show_processing_lab, custom_footer, created_by
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
-    RETURNING *`,
-    [lab_name, lab_code, contact_person, mobile, email, address, city, state, pincode,
-     gst_number, commission_type || 'percentage', commission_value || 0, credit_limit || 0,
-     lab_type || 'collection', owner_branch_id, user_id || null, logo_url || null,
-     show_processing_lab || false, custom_footer || null, created_by]
-  );
-  return result.rows[0];
+exports.createLab = async (data, transaction = null) => {
+  return await B2BLab.create(data, { transaction });
 };
 
 exports.getAllLabs = async (ownerBranchId = null) => {
-  let query = `SELECT * FROM b2b_labs WHERE is_deleted = false`;
-  const params = [];
-  if (ownerBranchId) {
-    query += ` AND owner_branch_id = $1`;
-    params.push(ownerBranchId);
-  }
-  query += ` ORDER BY created_at DESC`;
-  const result = await pool.query(query, params);
-  return result.rows;
+  const where = {};
+  if (ownerBranchId) where.owner_branch_id = ownerBranchId;
+  return await B2BLab.findAll({ where, order: [["created_at", "DESC"]], raw: true });
 };
 
 exports.getLabById = async (id) => {
-  const result = await pool.query(
-    `SELECT * FROM b2b_labs WHERE id = $1 AND is_deleted = false`, [id]
-  );
-  return result.rows[0] || null;
+  return await B2BLab.findByPk(id, { raw: true });
 };
 
 exports.getLabByCode = async (code) => {
-  const result = await pool.query(
-    `SELECT * FROM b2b_labs WHERE lab_code = $1 AND is_deleted = false`, [code]
-  );
-  return result.rows[0] || null;
+  return await B2BLab.findOne({ where: { lab_code: code }, raw: true });
 };
 
 exports.getLabByUserId = async (userId) => {
-  const result = await pool.query(
-    `SELECT * FROM b2b_labs WHERE user_id = $1 AND is_deleted = false`, [userId]
-  );
-  return result.rows[0] || null;
+  return await B2BLab.findOne({ where: { user_id: userId }, raw: true });
 };
 
 exports.updateLab = async (id, data, expectedVersion = null) => {
-  const fields = [];
-  const values = [];
-  let idx = 1;
-
   const allowedFields = [
-    'lab_name', 'contact_person', 'mobile', 'email', 'address', 'city', 'state', 'pincode',
-    'gst_number', 'commission_type', 'commission_value', 'credit_limit', 'lab_type',
-    'status', 'logo_url', 'show_processing_lab', 'custom_footer', 'user_id'
+    "lab_name", "contact_person", "mobile", "email", "address", "city", "state", "pincode",
+    "gst_number", "commission_type", "commission_value", "credit_limit", "lab_type",
+    "status", "logo_url", "show_processing_lab", "custom_footer", "user_id",
   ];
 
+  const updateObj = {};
   for (const [key, value] of Object.entries(data)) {
-    if (allowedFields.includes(key) && value !== undefined) {
-      fields.push(`${key} = $${idx}`);
-      values.push(value);
-      idx++;
-    }
+    if (allowedFields.includes(key) && value !== undefined) updateObj[key] = value;
   }
 
-  if (fields.length === 0) return exports.getLabById(id);
+  if (Object.keys(updateObj).length === 0) return exports.getLabById(id);
 
-  fields.push(`version = version + 1`);
-  fields.push(`updated_at = CURRENT_TIMESTAMP`);
+  const where = { id, is_deleted: false };
+  if (expectedVersion != null) where.version = expectedVersion;
 
-  let query = `UPDATE b2b_labs SET ${fields.join(', ')} WHERE id = $${idx} AND is_deleted = false`;
-  values.push(id);
-  idx++;
+  // Increment version
+  updateObj.version = sequelize.literal("version + 1");
 
-  // Optimistic locking
-  if (expectedVersion != null) {
-    query += ` AND version = $${idx}`;
-    values.push(expectedVersion);
-    idx++;
+  const [count] = await B2BLab.update(updateObj, { where });
+
+  if (count === 0 && expectedVersion != null) {
+    throw new Error("CONFLICT: Lab was modified by another user. Please refresh and try again.");
   }
 
-  query += ` RETURNING *`;
-  const result = await pool.query(query, values);
-
-  if (result.rows.length === 0 && expectedVersion != null) {
-    throw new Error('CONFLICT: Lab was modified by another user. Please refresh and try again.');
-  }
-
-  return result.rows[0] || null;
+  return await B2BLab.findByPk(id, { raw: true });
 };
 
 exports.softDeleteLab = async (id) => {
-  const result = await pool.query(
-    `UPDATE b2b_labs SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP, status = 'inactive'
-     WHERE id = $1 RETURNING id`,
-    [id]
+  const [count] = await B2BLab.update(
+    { is_deleted: true, deleted_at: new Date(), status: "inactive" },
+    { where: { id } }
   );
-  return result.rows[0] || null;
+  return count ? { id } : null;
 };
 
 // ==========================================
 // CREDIT / BALANCE
 // ==========================================
 
-exports.updateBalance = async (labId, amount, client = null) => {
-  const db = client || pool;
-  const result = await db.query(
-    `UPDATE b2b_labs SET current_balance = current_balance + $1, updated_at = CURRENT_TIMESTAMP
-     WHERE id = $2 AND is_deleted = false RETURNING id, current_balance, credit_limit`,
-    [amount, labId]
+exports.updateBalance = async (labId, amount, transaction = null) => {
+  const [count] = await B2BLab.update(
+    { current_balance: sequelize.literal(`current_balance + ${parseFloat(amount)}`) },
+    { where: { id: labId, is_deleted: false }, transaction }
   );
-  return result.rows[0] || null;
+  if (!count) return null;
+  return await B2BLab.findByPk(labId, {
+    attributes: ["id", "current_balance", "credit_limit"],
+    raw: true,
+    transaction,
+  });
 };
 
 exports.checkCreditLimit = async (labId, additionalAmount = 0) => {
-  const result = await pool.query(
-    `SELECT current_balance, credit_limit FROM b2b_labs WHERE id = $1 AND is_deleted = false`,
-    [labId]
-  );
-  if (!result.rows[0]) return { allowed: false, reason: 'Lab not found' };
+  const lab = await B2BLab.findByPk(labId, {
+    attributes: ["current_balance", "credit_limit"],
+    raw: true,
+  });
+  if (!lab) return { allowed: false, reason: "Lab not found" };
 
-  const { current_balance, credit_limit } = result.rows[0];
-  const projectedBalance = parseFloat(current_balance) + parseFloat(additionalAmount);
+  const currentBalance = parseFloat(lab.current_balance);
+  const creditLimit = parseFloat(lab.credit_limit);
+  const projected = currentBalance + parseFloat(additionalAmount);
 
-  if (credit_limit > 0 && projectedBalance > credit_limit) {
+  if (creditLimit > 0 && projected > creditLimit) {
     return {
       allowed: false,
-      reason: 'Credit limit exceeded',
-      current_balance: parseFloat(current_balance),
-      credit_limit: parseFloat(credit_limit),
-      projected: projectedBalance
+      reason: "Credit limit exceeded",
+      current_balance: currentBalance,
+      credit_limit: creditLimit,
+      projected,
     };
   }
-  return { allowed: true, current_balance: parseFloat(current_balance), credit_limit: parseFloat(credit_limit) };
+  return { allowed: true, current_balance: currentBalance, credit_limit: creditLimit };
 };
 
 // ==========================================
@@ -159,67 +113,56 @@ exports.checkCreditLimit = async (labId, additionalAmount = 0) => {
 // ==========================================
 
 exports.getRateList = async (labId) => {
-  const result = await pool.query(
-    `SELECT r.*, t.test_name, t.test_code, t.category, t.sample_type
-     FROM b2b_rate_lists r
-     JOIN tests t ON r.test_id = t.id
-     WHERE r.b2b_lab_id = $1 AND r.is_active = true
-     ORDER BY t.category, t.test_name`,
-    [labId]
-  );
-  return result.rows;
+  return await B2BRateList.findAll({
+    where: { b2b_lab_id: labId, is_active: true },
+    include: [{
+      model: Test,
+      as: "test",
+      attributes: ["test_name", "test_code", "category", "sample_type"],
+    }],
+    order: [[{ model: Test, as: "test" }, "category", "ASC"], [{ model: Test, as: "test" }, "test_name", "ASC"]],
+    raw: true,
+    nest: true,
+  });
 };
 
 exports.upsertRate = async (labId, testId, collectionPrice, processingPrice) => {
-  const result = await pool.query(
-    `INSERT INTO b2b_rate_lists (b2b_lab_id, test_id, collection_price, processing_price)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT (b2b_lab_id, test_id)
-     DO UPDATE SET collection_price = $3, processing_price = $4, updated_at = CURRENT_TIMESTAMP
-     RETURNING *`,
-    [labId, testId, collectionPrice, processingPrice]
+  const [record] = await B2BRateList.upsert(
+    { b2b_lab_id: labId, test_id: testId, collection_price: collectionPrice, processing_price: processingPrice },
+    { returning: true }
   );
-  return result.rows[0];
+  return record.toJSON();
 };
 
 exports.bulkUpsertRates = async (labId, rates) => {
-  const client = await pool.connect();
+  const t = await sequelize.transaction();
   try {
-    await client.query("BEGIN");
     const results = [];
     for (const rate of rates) {
-      const r = await client.query(
-        `INSERT INTO b2b_rate_lists (b2b_lab_id, test_id, collection_price, processing_price)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (b2b_lab_id, test_id)
-         DO UPDATE SET collection_price = $3, processing_price = $4, updated_at = CURRENT_TIMESTAMP
-         RETURNING *`,
-        [labId, rate.test_id, rate.collection_price, rate.processing_price]
+      const [record] = await B2BRateList.upsert(
+        { b2b_lab_id: labId, test_id: rate.test_id, collection_price: rate.collection_price, processing_price: rate.processing_price },
+        { returning: true, transaction: t }
       );
-      results.push(r.rows[0]);
+      results.push(record.toJSON());
     }
-    await client.query("COMMIT");
+    await t.commit();
     return results;
   } catch (err) {
-    await client.query("ROLLBACK");
+    await t.rollback();
     throw err;
-  } finally {
-    client.release();
   }
 };
 
 exports.deleteRate = async (labId, rateId) => {
-  const result = await pool.query(
-    `DELETE FROM b2b_rate_lists WHERE id = $1 AND b2b_lab_id = $2 RETURNING id`,
-    [rateId, labId]
-  );
-  return result.rows[0] || null;
+  const deleted = await B2BRateList.destroy({
+    where: { id: rateId, b2b_lab_id: labId },
+  });
+  return deleted ? { id: rateId } : null;
 };
 
 exports.getRate = async (labId, testId) => {
-  const result = await pool.query(
-    `SELECT * FROM b2b_rate_lists WHERE b2b_lab_id = $1 AND test_id = $2 AND is_active = true`,
-    [labId, testId]
-  );
-  return result.rows[0] || null;
+  return await B2BRateList.findOne({
+    where: { b2b_lab_id: labId, test_id: testId, is_active: true },
+    raw: true,
+  });
 };
