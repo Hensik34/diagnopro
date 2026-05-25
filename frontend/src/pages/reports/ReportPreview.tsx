@@ -47,7 +47,7 @@ const C = {
 /* ── A4 dimensions ─────────────────────────────────────────────────────────── */
 const A4_MIN_HEIGHT = '1123px'; // ~A4 at 96dpi
 
-/* ── Print styles ──────────────────────────────────────────────────────────── */
+/* ── Print & Responsive styles ─────────────────────────────────────────────── */
 const printStyles = `
 @media print {
   @page { size: A4; margin: 0; }
@@ -66,8 +66,104 @@ const printStyles = `
   .report-inner { padding-left: 8mm !important; padding-right: 8mm !important; }
   .report-bg-wrapper { background: white !important; }
 }
+
 @media screen {
   .report-page { min-height: ${A4_MIN_HEIGHT}; }
+  
+  /* Mobile optimizations */
+  @media (max-width: 768px) {
+    .report-page {
+      max-width: 100% !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+    }
+    
+    .report-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      padding: 8px 12px;
+    }
+    
+    .toolbar-content {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    
+    .toolbar-btn {
+      font-size: 10px !important;
+      padding: 6px 8px !important;
+    }
+    
+    .toolbar-left {
+      flex-basis: 100%;
+      order: -1;
+    }
+    
+    .report-inner {
+      padding: 12px !important;
+      font-size: 10px !important;
+    }
+    
+    .patient-info-box {
+      flex-direction: column !important;
+    }
+    
+    .patient-info-box > div {
+      flex: 1 !important;
+      border-right: none !important;
+      border-bottom: 1px solid #e0e0e0 !important;
+      padding: 10px 8px !important;
+    }
+    
+    .patient-info-box > div:last-child {
+      border-bottom: none !important;
+    }
+    
+    table {
+      font-size: 9px !important;
+    }
+    
+    table th {
+      padding: 6px 4px !important;
+      font-size: 8px !important;
+    }
+    
+    table td {
+      padding: 5px 4px !important;
+      font-size: 9px !important;
+    }
+    
+    .signature-section {
+      grid-template-columns: 1fr !important;
+      gap: 20px !important;
+    }
+    
+    .signature-block {
+      text-align: left !important;
+    }
+    
+    .signature-block-right {
+      text-align: left !important;
+    }
+  }
+  
+  /* Tablet optimizations */
+  @media (max-width: 1024px) and (min-width: 769px) {
+    .report-page {
+      max-width: 95% !important;
+    }
+    
+    .patient-info-box > div {
+      flex: 1 !important;
+      padding: 10px !important;
+    }
+    
+    table {
+      font-size: 10px;
+    }
+  }
 }
 `;
 
@@ -469,17 +565,19 @@ export function ReportPreview() {
       <style>{printStyles}</style>
 
       {/* ── Screen-only toolbar ── */}
-      <div className="no-print sticky top-12 z-20 bg-white/95 backdrop-blur border-b border-gray-200">
-        <div className="max-w-[850px] mx-auto px-6 h-12 flex items-center justify-between">
-          <Link to="/reports" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Reports
-          </Link>
-          <div className="flex items-center gap-2">
+      <div className="no-print report-toolbar sticky top-12 z-20 bg-white/95 backdrop-blur border-b border-gray-200">
+        <div className="report-toolbar-inner max-w-[850px] mx-auto px-4 sm:px-6 h-auto sm:h-12 py-2 sm:py-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
+          <div className="toolbar-left flex items-center gap-1.5 w-full sm:w-auto">
+            <Link to="/reports" className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-gray-500 hover:text-gray-800 transition-colors whitespace-nowrap">
+              <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4" /> Reports
+            </Link>
+          </div>
+          <div className="toolbar-content flex flex-wrap items-center gap-1 sm:gap-2 w-full sm:w-auto">
             {/* Letterhead toggle – only show when letterhead/header is uploaded */}
             {hasAnyCustomHeader && (
               <button
                 onClick={() => setShowLetterhead(prev => !prev)}
-                className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded border transition-colors"
+                className="toolbar-btn inline-flex items-center gap-1 text-xs px-2 sm:px-3 py-1 sm:py-1.5 rounded border transition-colors"
                 style={{
                   borderColor: showLetterhead ? C.brand : '#D1D5DB',
                   backgroundColor: showLetterhead ? C.brandLight : '#F9FAFB',
@@ -487,29 +585,33 @@ export function ReportPreview() {
                 }}
                 title={showLetterhead ? 'Hide Letterhead' : 'Show Letterhead'}
               >
-                <FileImage className="w-3.5 h-3.5" />
-                {showLetterhead ? 'Letterhead On' : 'Letterhead Off'}
+                <FileImage className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                <span className="hidden sm:inline">{showLetterhead ? 'Letterhead On' : 'Letterhead Off'}</span>
+                <span className="sm:hidden">{showLetterhead ? 'On' : 'Off'}</span>
               </button>
             )}
             <button
               onClick={() => setShowShareModal(true)}
-              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+              className="toolbar-btn inline-flex items-center gap-1 text-xs px-2 sm:px-3 py-1 sm:py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              <Send className="w-3.5 h-3.5" /> Share
+              <Send className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <span className="hidden sm:inline">Share</span>
             </button>
             <button
               onClick={handleDownloadPdf}
               disabled={isGeneratingPdf}
-              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="toolbar-btn inline-flex items-center gap-1 text-xs px-2 sm:px-3 py-1 sm:py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
-              {isGeneratingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} PDF
+              {isGeneratingPdf ? <Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin" /> : <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
+              <span className="hidden sm:inline">PDF</span>
             </button>
             <button
               onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded text-white transition-colors"
+              className="toolbar-btn inline-flex items-center gap-1 text-xs px-2 sm:px-3 py-1 sm:py-1.5 rounded text-white transition-colors"
               style={{ backgroundColor: C.brand }}
             >
-              <Printer className="w-3.5 h-3.5" /> Print
+              <Printer className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <span className="hidden sm:inline">Print</span>
             </button>
           </div>
         </div>
@@ -519,7 +621,7 @@ export function ReportPreview() {
       <div className="report-bg-wrapper min-h-screen print:bg-white" style={{ backgroundColor: '#E8EAF0' }}>
         <div
           ref={reportPageRef}
-          className="report-page max-w-[850px] mx-auto my-6 print:my-0 bg-white print:shadow-none"
+          className="report-page max-w-[850px] mx-auto my-3 sm:my-6 print:my-0 bg-white print:shadow-none"
           style={{
             boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
             display: 'flex',
@@ -527,6 +629,8 @@ export function ReportPreview() {
             fontFamily: "'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
             position: 'relative',
             overflow: 'hidden',
+            width: '100%',
+            margin: '0 auto',
             paddingTop: letterheadActive
               ? (settings?.report_margin_top !== undefined ? `${settings.report_margin_top}px` : '160px')
               : headerActive
@@ -610,8 +714,9 @@ export function ReportPreview() {
            *  PATIENT & SAMPLE INFO – Improved Layout
            * ═════════════════════════════════════════════════════════════ */}
           <div
+            className="patient-info-box"
             style={{
-              padding: `${ReportLayoutConfig.boxPadding.normal}px 28px ${ReportLayoutConfig.spacing.lg}px`,
+              padding: `${ReportLayoutConfig.boxPadding.normal}px 12px ${ReportLayoutConfig.spacing.lg}px`,
               position: 'relative',
               zIndex: 1,
             }}
@@ -649,14 +754,15 @@ export function ReportPreview() {
             className="report-inner"
             style={{
               flex: 1,
-              padding: `${ReportLayoutConfig.spacing.md}px 28px 0`,
+              padding: `${ReportLayoutConfig.spacing.md}px 14px 0`,
               color: C.text,
-              fontSize: '11px',
+              fontSize: '10.5px',
               lineHeight: 1.55,
               display: 'flex',
               flexDirection: 'column',
               position: 'relative',
               zIndex: 1,
+              overflowX: 'auto',
             }}
           >
 
@@ -781,6 +887,7 @@ export function ReportPreview() {
              *  SIGNATURE SECTION – pushed to bottom via flex
              * ═════════════════════════════════════════════════════════════ */}
             <section
+              className="signature-section"
               style={{
                 marginTop: 'auto',
                 paddingTop: `${ReportLayoutConfig.sectionMargin.between}px`,
@@ -788,6 +895,7 @@ export function ReportPreview() {
               }}
             >
               <div
+                className="signature-section"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '1fr 1fr',
@@ -795,7 +903,7 @@ export function ReportPreview() {
                 }}
               >
                 {/* Lab Owner / Technician */}
-                <div>
+                <div className="signature-block">
                   <div style={{ height: '40px', display: 'flex', alignItems: 'flex-end', paddingBottom: '4px' }}>
                     {settings?.owner_signature_url && (
                       <img
@@ -817,7 +925,7 @@ export function ReportPreview() {
 
                 {/* Reference Doctor Signature */}
                 {!isSelfReport && (
-                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                  <div className="signature-block-right" style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                     <div style={{ height: '40px', display: 'flex', alignItems: 'flex-end', paddingBottom: '4px' }}>
                       {doctorSignatureUrl && (
                         <img

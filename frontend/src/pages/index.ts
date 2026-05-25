@@ -69,8 +69,8 @@ export { NotFound, Unauthorized } from './error-pages';
 // Onboarding Pages
 export { Onboarding } from './onboarding';
 
-// B2B Reference Lab Pages
-export { B2BDashboard, B2BLabManagement, B2BLabDetail, B2BOrders, B2BOrderDetail, B2BCreateOrder, B2BSettlements } from './b2b';
+// B2B Partner Labs
+export { B2BLabManagement } from './b2b';
 
 // Layout
 export { Root } from './layout';

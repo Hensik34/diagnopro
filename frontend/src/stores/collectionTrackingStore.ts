@@ -26,6 +26,7 @@ interface CollectionTrackingState {
   updateRecord: (id: string, data: Partial<CreateCollectionTrackingData>) => Promise<CollectionTracking>;
   deleteRecord: (id: string) => Promise<void>;
   clearError: () => void;
+  reset: () => void;
 }
 
 export const useCollectionTrackingStore = create<CollectionTrackingState>((set, get) => ({
@@ -137,6 +138,16 @@ export const useCollectionTrackingStore = create<CollectionTrackingState>((set, 
   },
 
   clearError: () => set({ error: null }),
+
+  reset: () => set({
+    records: [],
+    todayRecords: [],
+    myRecords: [],
+    staffList: [],
+    summary: null,
+    isLoading: false,
+    error: null,
+  }),
 }));
 
 // Selector hooks

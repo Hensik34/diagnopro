@@ -23,6 +23,7 @@ import {
 import { useReportStore, useReportSummary } from '../../stores/reportStore';
 import { useBranchStore } from '../../stores/branchStore';
 import { useAuthStore } from '../../stores/authStore';
+import { useTestStore } from '../../stores/testStore';
 import type { Report, ReportStatus } from '../../types';
 
 /**
@@ -40,6 +41,8 @@ export function Reports() {
   const {
     reports,
     isLoading,
+    isActionLoading,
+    actionId,
     error,
     fetchReports,
     fetchSummary,
@@ -50,11 +53,40 @@ export function Reports() {
   const summary = useReportSummary();
   const { branches, fetchBranches, currentBranchId } = useBranchStore();
   const { can } = useAuthStore();
+  const { tests, fetchTests } = useTestStore();
 
   // Permission checks
   const canEdit = can('report:update');
   const canDelete = can('report:delete');
   const hasAnyAction = canEdit || canDelete || can('report:create') || can('report:read') || can('report:approve');
+
+  /**
+   * Get test codes for a report - extracts short codes from test data
+   * Example: ["CBC", "KFT"] for multiple tests
+   */
+  const getTestCodes = (report: Report): string => {
+    // If report has test_data with tests array, use test names
+    if (report.test_data?.tests && report.test_data.tests.length > 0) {
+      return report.test_data.tests
+        .map(t => t.testName)
+        .join(', ')
+        .substring(0, 50); // Limit display length
+    }
+
+    // If report has testIds, look them up in the tests list
+    if (report.test_data?.testIds && report.test_data.testIds.length > 0) {
+      const codes = report.test_data.testIds
+        .map(testId => {
+          const test = tests.find(t => t.id === testId);
+          return test?.test_code || test?.test_name?.substring(0, 4) || 'Test';
+        })
+        .filter(code => code.length > 0);
+      return codes.join(', ');
+    }
+
+    // Fallback: use report_type (the old format)
+    return report.report_type || 'General Test';
+  };
 
   // Keyboard shortcut: N or A to create new report
   useEffect(() => {
@@ -71,7 +103,10 @@ export function Reports() {
   // Fetch data on mount - use currentBranchId as default filter
   useEffect(() => {
     fetchBranches();
-  }, [fetchBranches]);
+    if (currentBranchId) {
+      fetchTests(currentBranchId);
+    }
+  }, [fetchBranches, fetchTests, currentBranchId]);
 
   // Set initial branch filter to user's current branch
   useEffect(() => {
@@ -233,17 +268,17 @@ export function Reports() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 md:space-y-4">
       {/* Error Banner */}
       {error && (
-        <div className="bg-destructive/10 border border-destructive/20 rounded p-3 flex items-center justify-between">
+        <div className="bg-destructive/10 border border-destructive/20 rounded p-2 md:p-3 flex items-center justify-between text-sm">
           <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-destructive" />
-            <span className="text-sm text-destructive">{error}</span>
+            <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
+            <span className="text-xs md:text-sm text-destructive">{error}</span>
           </div>
           <button
             onClick={clearError}
-            className="text-xs text-destructive hover:underline"
+            className="text-xs text-destructive hover:underline ml-2 flex-shrink-0"
           >
             Dismiss
           </button>
@@ -251,91 +286,92 @@ export function Reports() {
       )}
 
       {/* Page Header */}
-      <div className="sticky top-12 z-20 bg-background/95 backdrop-blur py-2 flex items-start justify-between">
-        <div>
-          <h1 className="text-foreground text-lg mb-0.5">Reports</h1>
-          <p className="text-muted-foreground text-xs">
+      <div className="sticky top-12 z-20 bg-background/95 backdrop-blur py-2 md:py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8">
+        <div className="min-w-0">
+          <h1 className="text-base md:text-lg text-foreground mb-0.5 font-semibold">Reports</h1>
+          <p className="text-muted-foreground text-xs line-clamp-2">
             View and manage all laboratory reports
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
           <button
             onClick={() => {
               fetchReports();
               fetchSummary();
             }}
-            className="h-8 px-3 flex items-center gap-1.5 rounded text-xs bg-secondary border border-border hover:bg-accent transition-colors"
+            className="h-8 px-2 md:px-3 flex items-center gap-1.5 rounded text-xs bg-secondary border border-border hover:bg-accent transition-colors flex-1 sm:flex-none justify-center sm:justify-start"
             disabled={isLoading}
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw className={`w-3.5 h-3.5 flex-shrink-0 ${isLoading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </button>
           <Link
             to="/reports/new"
-            className="h-8 px-3 flex items-center gap-1.5 rounded text-xs text-white hover:opacity-90 transition-opacity"
+            className="h-8 px-2 md:px-3 flex items-center gap-1.5 rounded text-xs text-white hover:opacity-90 transition-opacity flex-1 sm:flex-none justify-center sm:justify-start"
             style={{ backgroundColor: 'var(--primary)' }}
           >
-            <FileText className="w-3.5 h-3.5" />
-            Create New Report
+            <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="hidden sm:inline">Create New Report</span>
+            <span className="sm:hidden">New</span>
           </Link>
         </div>
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-4 gap-3">
-        <div className="bg-card border border-border rounded p-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+        <div className="bg-card border border-border rounded p-2 md:p-3">
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
             Total Reports
           </div>
-          <div className="text-xl text-foreground font-semibold">
+          <div className="text-lg md:text-xl text-foreground font-semibold">
             {summary?.total || reports.length}
           </div>
         </div>
-        <div className="bg-card border border-border rounded p-3">
+        <div className="bg-card border border-border rounded p-2 md:p-3">
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
             Draft
           </div>
-          <div className="text-xl text-foreground font-semibold">
+          <div className="text-lg md:text-xl text-foreground font-semibold">
             {summary?.draft || 0}
           </div>
         </div>
-        <div className="bg-card border border-border rounded p-3">
+        <div className="bg-card border border-border rounded p-2 md:p-3">
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
             Under Review
           </div>
-          <div className="text-xl text-foreground font-semibold">
+          <div className="text-lg md:text-xl text-foreground font-semibold">
             {summary?.under_review || 0}
           </div>
         </div>
-        <div className="bg-card border border-border rounded p-3">
+        <div className="bg-card border border-border rounded p-2 md:p-3">
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
             Approved
           </div>
-          <div className="text-xl text-foreground font-semibold">
+          <div className="text-lg md:text-xl text-foreground font-semibold">
             {summary?.approved || 0}
           </div>
         </div>
       </div>
 
       {/* Filters and Search */}
-      <div className="bg-card border border-border rounded p-3">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="bg-card border border-border rounded p-2 md:p-3">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 md:gap-3">
           {/* Search */}
-          <div className="relative flex-1 min-w-[250px]">
+          <div className="relative flex-1 min-w-0 sm:min-w-[200px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
             <input
               type="text"
-              placeholder="Search by patient name, ID, or report number..."
-              className="w-full h-8 pl-8 pr-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Search patient, ID..."
+              className="w-full h-8 pl-8 pr-3 bg-secondary border border-border rounded text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
           {/* Status Filter */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <select
-              className="h-8 pl-2.5 pr-7 bg-secondary border border-border rounded text-xs appearance-none focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full h-8 pl-2.5 pr-7 bg-secondary border border-border rounded text-xs appearance-none focus:outline-none focus:ring-2 focus:ring-primary"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -438,7 +474,7 @@ export function Reports() {
                       </td>
                       <td className="px-3 py-2.5">
                         <span className="text-xs text-foreground">
-                          {report.report_type || 'General Test'}
+                          {getTestCodes(report)}
                         </span>
                       </td>
                       <td className="px-3 py-2.5">
@@ -513,14 +549,18 @@ export function Reports() {
 
                             {/* Submit for Review - for draft reports with test data */}
                             {report.status === 'draft' && report.test_data && canEdit && (
-                              <button
-                                onClick={() => handleSubmitForReview(report.id)}
-                                className="h-7 w-7 flex items-center justify-center bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity"
-                                title="Submit for Review"
-                                disabled={isLoading}
-                              >
-                                <Send className="w-3.5 h-3.5" />
-                              </button>
+                                <button
+                                  onClick={() => handleSubmitForReview(report.id)}
+                                  className="h-7 w-7 flex items-center justify-center bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity"
+                                  title="Submit for Review"
+                                  disabled={isActionLoading && actionId === report.id}
+                                >
+                                  {isActionLoading && actionId === report.id ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Send className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
                             )}
 
                             {/* View - for under_review or approved reports */}
@@ -556,14 +596,18 @@ export function Reports() {
 
                             {/* Delete - admin only */}
                             {canDelete && (
-                              <button
-                                onClick={() => handleDeleteReport(report)}
-                                className="h-7 w-7 flex items-center justify-center bg-red-50 border border-red-200 text-red-700 rounded hover:bg-red-100 transition-colors dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
-                                title="Delete Report"
-                                disabled={isLoading}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                                <button
+                                  onClick={() => handleDeleteReport(report)}
+                                  className="h-7 w-7 flex items-center justify-center bg-red-50 border border-red-200 text-red-700 rounded hover:bg-red-100 transition-colors dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
+                                  title="Delete Report"
+                                  disabled={isActionLoading && actionId === report.id}
+                                >
+                                  {isActionLoading && actionId === report.id ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
                             )}
                           </div>
                         </td>

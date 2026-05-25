@@ -130,17 +130,16 @@ exports.updateBilling = async (req, res) => {
     // Final amount
     const finalAmount = Math.max(0, baseAmt - labDiscount - docDiscount);
 
-    // Recalculate doctor commission: original commission minus doctor discount
+    // Recalculate doctor commission: commission applies on (base - b2b_charge)
     let doctor_commission = parseFloat(report.doctor_commission) || 0;
     if (report.doctor_id && !report.is_self_report) {
-      const pool = require("../config/db");
-      const doctorResult = await pool.query(
-        'SELECT commission_percentage FROM doctors WHERE id = $1',
-        [report.doctor_id]
-      );
-      if (doctorResult.rows[0]) {
-        const commissionPercent = parseFloat(doctorResult.rows[0].commission_percentage) || 0;
-        const originalCommission = (baseAmt * commissionPercent) / 100;
+      const { Doctor } = require("../models");
+      const doctor = await Doctor.findByPk(report.doctor_id, { attributes: ["commission_percentage"], raw: true });
+      if (doctor) {
+        const commissionPercent = parseFloat(doctor.commission_percentage) || 0;
+        const b2bCharge = parseFloat(report.b2b_charge) || 0;
+        const commissionBase = Math.max(0, baseAmt - b2bCharge);
+        const originalCommission = (commissionBase * commissionPercent) / 100;
         doctor_commission = Math.max(0, originalCommission - docDiscount);
       }
     }

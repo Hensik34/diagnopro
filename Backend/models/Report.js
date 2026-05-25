@@ -1,282 +1,247 @@
-const pool = require("../config/db");
+const { Op, fn, col } = require("sequelize");
+const { Report, Patient, Doctor, User, Sample, Settings, B2BLab } = require("./index");
 
 // ==========================================
 // REPORT STATUS CONSTANTS
 // ==========================================
 const REPORT_STATUS = {
-  DRAFT: 'draft',
-  UNDER_REVIEW: 'under_review',
-  APPROVED: 'approved',
-  REJECTED: 'rejected',
+  DRAFT: "draft",
+  UNDER_REVIEW: "under_review",
+  APPROVED: "approved",
+  REJECTED: "rejected",
 };
 
 // Get all reports
 exports.getAllReports = async (filters = {}) => {
-  let query = `
-    SELECT r.*, 
-           p.name as patient_name, p.phone as patient_phone,
-           p.gender as patient_gender, p.age as patient_age, p.email as patient_email,
-           d.title as doctor_title, d.name as doctor_name,
-           d.firstname as doctor_firstname, d.lastname as doctor_lastname,
-           t.firstname as technician_firstname, t.lastname as technician_lastname,
-           s.sample_id_code, s.sample_type
-    FROM reports r
-    LEFT JOIN patients p ON r.patient_id = p.id
-    LEFT JOIN doctors d ON r.doctor_id = d.id
-    LEFT JOIN users t ON r.technician_id = t.id
-    LEFT JOIN samples s ON r.sample_id = s.id
-    WHERE 1=1`;
-  const params = [];
-  let paramIndex = 1;
+  const where = {};
+  const include = [
+    { model: Patient, as: "patient", attributes: ["name", "phone", "gender", "age", "email", "branch_id"] },
+    { model: Doctor, as: "doctor", attributes: ["title", "name", "firstname", "lastname"] },
+    { model: User, as: "technician", attributes: ["firstname", "lastname"] },
+    { model: Sample, as: "sample", attributes: ["sample_id_code", "sample_type"] },
+    { model: B2BLab, as: "b2bLab", attributes: ["lab_name"], required: false },
+  ];
 
-  if (filters.patient_id) {
-    query += ` AND r.patient_id = $${paramIndex}`;
-    params.push(filters.patient_id);
-    paramIndex++;
-  }
+  if (filters.patient_id) where.patient_id = filters.patient_id;
+  if (filters.status) where.status = filters.status;
+  if (filters.technician_id) where.technician_id = filters.technician_id;
 
-  if (filters.status) {
-    query += ` AND r.status = $${paramIndex}`;
-    params.push(filters.status);
-    paramIndex++;
-  }
-
+  // Branch filtering via patient
   if (filters.branch_id) {
-    query += ` AND p.branch_id = $${paramIndex}`;
-    params.push(filters.branch_id);
-    paramIndex++;
+    include[0].where = { branch_id: filters.branch_id };
+    include[0].required = true;
   } else if (filters.branch_ids && filters.branch_ids.length > 0) {
-    // Filter by multiple branch IDs (user's branches)
-    const placeholders = filters.branch_ids.map((_, i) => `$${paramIndex + i}`).join(', ');
-    query += ` AND p.branch_id IN (${placeholders})`;
-    params.push(...filters.branch_ids);
-    paramIndex += filters.branch_ids.length;
+    include[0].where = { branch_id: { [Op.in]: filters.branch_ids } };
+    include[0].required = true;
   }
 
-  if (filters.technician_id) {
-    query += ` AND r.technician_id = $${paramIndex}`;
-    params.push(filters.technician_id);
-    paramIndex++;
-  }
+  const rows = await Report.findAll({
+    where,
+    include,
+    order: [["created_at", "DESC"]],
+    raw: true,
+    nest: true,
+  });
 
-  query += " ORDER BY r.created_at DESC";
-
-  const result = await pool.query(query, params);
-  return result.rows;
+  // Flatten nested includes to match old field names
+  return rows.map((r) => ({
+    ...r,
+    patient_name: r.patient?.name,
+    patient_phone: r.patient?.phone,
+    patient_gender: r.patient?.gender,
+    patient_age: r.patient?.age,
+    patient_email: r.patient?.email,
+    doctor_title: r.doctor?.title,
+    doctor_name: r.doctor?.name,
+    doctor_firstname: r.doctor?.firstname,
+    doctor_lastname: r.doctor?.lastname,
+    technician_firstname: r.technician?.firstname,
+    technician_lastname: r.technician?.lastname,
+    sample_id_code: r.sample?.sample_id_code,
+    sample_type: r.sample?.sample_type,
+    b2b_lab_name: r.b2bLab?.lab_name,
+  }));
 };
 
 // Get report by ID
 exports.getReportById = async (id) => {
-  const result = await pool.query(
-    `SELECT r.*, 
-            p.name as patient_name, p.phone as patient_phone,
-            p.gender as patient_gender, p.age as patient_age,
-            d.title as doctor_title, d.name as doctor_name,
-            d.firstname as doctor_firstname, d.lastname as doctor_lastname,
-            d.phone as doctor_phone, d.email as doctor_email,
-            d.signature_url as doctor_signature_url,
-            t.firstname as technician_firstname, t.lastname as technician_lastname,
-            s.sample_id_code, s.sample_type,
-            st.letterhead_url, st.owner_signature_url,
-            approved_user.firstname as approved_by_firstname, approved_user.lastname as approved_by_lastname,
-            submitted_user.firstname as submitted_by_firstname, submitted_user.lastname as submitted_by_lastname,
-            rejected_user.firstname as rejected_by_firstname, rejected_user.lastname as rejected_by_lastname
-     FROM reports r
-     LEFT JOIN patients p ON r.patient_id = p.id
-     LEFT JOIN doctors d ON r.doctor_id = d.id
-     LEFT JOIN users t ON r.technician_id = t.id
-     LEFT JOIN samples s ON r.sample_id = s.id
-     LEFT JOIN settings st ON p.branch_id = st.branch_id
-     LEFT JOIN users approved_user ON r.approved_by = approved_user.id
-     LEFT JOIN users submitted_user ON r.submitted_by = submitted_user.id
-     LEFT JOIN users rejected_user ON r.rejected_by = rejected_user.id
-     WHERE r.id = $1`,
-    [id]
-  );
-  return result.rows[0] || null;
+  const row = await Report.findByPk(id, {
+    include: [
+      { model: Patient, as: "patient", attributes: ["name", "phone", "gender", "age", "branch_id"] },
+      { model: Doctor, as: "doctor", attributes: ["title", "name", "firstname", "lastname", "phone", "email", "signature_url"] },
+      { model: User, as: "technician", attributes: ["firstname", "lastname"] },
+      { model: Sample, as: "sample", attributes: ["sample_id_code", "sample_type"] },
+      { model: User, as: "approvedByUser", attributes: ["firstname", "lastname"] },
+      { model: User, as: "submittedByUser", attributes: ["firstname", "lastname"] },
+      { model: User, as: "rejectedByUser", attributes: ["firstname", "lastname"] },
+      { model: B2BLab, as: "b2bLab", attributes: ["lab_name"], required: false },
+    ],
+    raw: true,
+    nest: true,
+  });
+
+  if (!row) return null;
+
+  // Get settings for patient's branch
+  let settings = null;
+  if (row.patient?.branch_id) {
+    settings = await Settings.findOne({
+      where: { branch_id: row.patient.branch_id },
+      raw: true,
+    });
+  }
+
+  return {
+    ...row,
+    patient_name: row.patient?.name,
+    patient_phone: row.patient?.phone,
+    patient_gender: row.patient?.gender,
+    patient_age: row.patient?.age,
+    doctor_title: row.doctor?.title,
+    doctor_name: row.doctor?.name,
+    doctor_firstname: row.doctor?.firstname,
+    doctor_lastname: row.doctor?.lastname,
+    doctor_phone: row.doctor?.phone,
+    doctor_email: row.doctor?.email,
+    doctor_signature_url: row.doctor?.signature_url,
+    technician_firstname: row.technician?.firstname,
+    technician_lastname: row.technician?.lastname,
+    sample_id_code: row.sample?.sample_id_code,
+    sample_type: row.sample?.sample_type,
+    letterhead_url: settings?.letterhead_url,
+    owner_signature_url: settings?.owner_signature_url,
+    approved_by_firstname: row.approvedByUser?.firstname,
+    approved_by_lastname: row.approvedByUser?.lastname,
+    submitted_by_firstname: row.submittedByUser?.firstname,
+    submitted_by_lastname: row.submittedByUser?.lastname,
+    rejected_by_firstname: row.rejectedByUser?.firstname,
+    rejected_by_lastname: row.rejectedByUser?.lastname,
+    b2b_lab_name: row.b2bLab?.lab_name,
+  };
 };
 
-// Create new report (status: draft by default)
+// Create new report
 exports.createReport = async (reportData) => {
-  const { 
-    patient_id, 
-    doctor_id, 
-    report_type, 
-    sample_id, 
-    clinical_notes, 
-    technician_id, 
-    status = 'draft',
-    report_amount = 0,
-    is_self_report = false,
-    test_data = {},
-    findings = '',
-    recommendations = '',
-    branch_id,
-    delivery_preferences = {},
-    base_amount,
-    lab_discount_type = 'percent',
-    lab_discount_value = 0,
-    doctor_discount = 0,
-    final_amount
+  const {
+    patient_id, doctor_id, report_type, sample_id, clinical_notes, technician_id,
+    status = "draft", report_amount = 0, is_self_report = false,
+    test_data = {}, findings = "", recommendations = "", branch_id,
+    delivery_preferences = {}, base_amount, lab_discount_type = "percent",
+    lab_discount_value = 0, doctor_discount = 0, final_amount,
+    b2b_lab_id = null, b2b_charge = 0,
   } = reportData;
-  
-  // Calculate doctor commission if doctor is assigned and not self-report
+
+  const parsedB2bCharge = parseFloat(b2b_charge) || 0;
+
+  // Calculate doctor commission
   let doctor_commission = 0;
   if (doctor_id && !is_self_report && report_amount > 0) {
-    // Get doctor's commission percentage
-    const doctorResult = await pool.query(
-      'SELECT commission_percentage FROM doctors WHERE id = $1',
-      [doctor_id]
-    );
-    if (doctorResult.rows[0]) {
-      const commissionPercent = parseFloat(doctorResult.rows[0].commission_percentage) || 0;
-      doctor_commission = (report_amount * commissionPercent) / 100;
-      // Deduct doctor discount from commission
+    const doctor = await Doctor.findByPk(doctor_id, { attributes: ["commission_percentage"], raw: true });
+    if (doctor) {
+      const commissionPercent = parseFloat(doctor.commission_percentage) || 0;
+      const commissionBase = Math.max(0, report_amount - parsedB2bCharge);
+      doctor_commission = (commissionBase * commissionPercent) / 100;
       if (doctor_discount > 0) {
         doctor_commission = Math.max(0, doctor_commission - doctor_discount);
       }
     }
   }
-  
-  // Calculate billing amounts
+
   const computedBase = base_amount != null ? base_amount : report_amount;
   const computedFinal = final_amount != null ? final_amount : computedBase;
 
-  const result = await pool.query(
-    `INSERT INTO reports (
-      patient_id, doctor_id, report_type, sample_id, clinical_notes, 
-      technician_id, status, report_amount, doctor_commission, is_self_report,
-      test_data, findings, recommendations, delivery_preferences,
-      base_amount, lab_discount_type, lab_discount_value, doctor_discount, final_amount, payment_status
-    )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, 'pending')
-     RETURNING *`,
-    [
-      patient_id, doctor_id, report_type, sample_id, clinical_notes, 
-      technician_id, status, report_amount, doctor_commission, is_self_report,
-      JSON.stringify(test_data), findings, recommendations, JSON.stringify(delivery_preferences),
-      computedBase, lab_discount_type, lab_discount_value, doctor_discount, computedFinal
-    ]
-  );
-  
-  return result.rows[0];
+  return await Report.create({
+    patient_id, doctor_id, report_type, sample_id, clinical_notes,
+    technician_id, status, report_amount, doctor_commission, is_self_report,
+    test_data, findings, recommendations, delivery_preferences,
+    base_amount: computedBase, lab_discount_type, lab_discount_value,
+    doctor_discount, final_amount: computedFinal, payment_status: "pending",
+    b2b_lab_id: b2b_lab_id || null, b2b_charge: parsedB2bCharge, branch_id,
+  });
 };
 
-// Update report (flexible update for any fields)
+// Update report
 exports.updateReport = async (id, reportData) => {
   const allowedFields = [
-    'findings', 'recommendations', 'clinical_notes', 'technician_id',
-    'test_data', 'status', 'reviewed_by', 'approved_by',
-    'approved_at', 'submitted_by', 'submitted_at', 'rejected_by', 'rejected_at',
-    'rejection_reason', 'doctor_id', 'report_type', 'report_amount', 'is_self_report',
-    'delivery_preferences',
-    'base_amount', 'lab_discount_type', 'lab_discount_value', 'doctor_discount',
-    'final_amount', 'payment_status', 'doctor_commission'
+    "findings", "recommendations", "clinical_notes", "technician_id",
+    "test_data", "status", "reviewed_by", "approved_by",
+    "approved_at", "submitted_by", "submitted_at", "rejected_by", "rejected_at",
+    "rejection_reason", "doctor_id", "report_type", "report_amount", "is_self_report",
+    "delivery_preferences", "base_amount", "lab_discount_type", "lab_discount_value",
+    "doctor_discount", "final_amount", "payment_status", "doctor_commission",
+    "b2b_lab_id", "b2b_charge",
   ];
-  
-  const updates = [];
-  const values = [];
-  let paramIndex = 1;
 
+  const updateObj = {};
   for (const [key, value] of Object.entries(reportData)) {
     if (allowedFields.includes(key) && value !== undefined) {
-      // Handle JSON fields
-      if (key === 'test_data' || key === 'delivery_preferences') {
-        updates.push(`${key} = $${paramIndex}`);
-        values.push(JSON.stringify(value));
-      } else {
-        updates.push(`${key} = $${paramIndex}`);
-        values.push(value);
-      }
-      paramIndex++;
+      updateObj[key] = value;
     }
   }
 
-  if (updates.length === 0) {
-    // No valid fields to update
-    return exports.getReportById(id);
-  }
+  if (Object.keys(updateObj).length === 0) return exports.getReportById(id);
 
-  updates.push(`updated_at = CURRENT_TIMESTAMP`);
-  values.push(id);
-
-  const query = `
-    UPDATE reports 
-    SET ${updates.join(', ')}
-    WHERE id = $${paramIndex}
-    RETURNING *
-  `;
-
-  const result = await pool.query(query, values);
-  return result.rows[0] || null;
+  const [count, [updated]] = await Report.update(updateObj, {
+    where: { id },
+    returning: true,
+  });
+  return updated ? updated.toJSON() : null;
 };
 
-// Update report status (workflow: Created → Collected → Processing → Completed → Approved)
+// Update report status
 exports.updateReportStatus = async (id, status, userId) => {
-  const result = await pool.query(
-    `UPDATE reports 
-     SET status = $1,
-         reviewed_by = CASE WHEN $1 IN ('processing', 'completed') THEN $2 ELSE reviewed_by END,
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $3
-     RETURNING *`,
-    [status, userId, id]
-  );
-  
-  return result.rows[0] || null;
+  const updateObj = { status };
+  if (["processing", "completed"].includes(status)) updateObj.reviewed_by = userId;
+
+  const [count, [updated]] = await Report.update(updateObj, {
+    where: { id },
+    returning: true,
+  });
+  return updated ? updated.toJSON() : null;
 };
 
-// Assign technician to report
+// Assign technician
 exports.assignTechnician = async (id, technicianId) => {
-  const result = await pool.query(
-    `UPDATE reports 
-     SET technician_id = $1,
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $2
-     RETURNING *`,
-    [technicianId, id]
+  const [count, [updated]] = await Report.update(
+    { technician_id: technicianId },
+    { where: { id }, returning: true }
   );
-  
-  return result.rows[0] || null;
+  return updated ? updated.toJSON() : null;
 };
 
 // Approve report
 exports.approveReport = async (id, approvedBy) => {
-  const result = await pool.query(
-    `UPDATE reports 
-     SET status = 'approved',
-         approved_by = $1,
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $2
-     RETURNING *`,
-    [approvedBy, id]
+  const [count, [updated]] = await Report.update(
+    { status: "approved", approved_by: approvedBy },
+    { where: { id }, returning: true }
   );
-  
-  return result.rows[0] || null;
+  return updated ? updated.toJSON() : null;
 };
 
 // Get reports by patient
 exports.getReportsByPatient = async (patientId) => {
-  const result = await pool.query(
-    `SELECT r.*, 
-            d.firstname as doctor_firstname, d.lastname as doctor_lastname,
-            t.firstname as technician_firstname, t.lastname as technician_lastname
-     FROM reports r
-     LEFT JOIN doctors d ON r.doctor_id = d.id
-     LEFT JOIN users t ON r.technician_id = t.id
-     WHERE r.patient_id = $1 
-     ORDER BY r.created_at DESC`,
-    [patientId]
-  );
-  
-  return result.rows;
+  const rows = await Report.findAll({
+    where: { patient_id: patientId },
+    include: [
+      { model: Doctor, as: "doctor", attributes: ["firstname", "lastname"] },
+      { model: User, as: "technician", attributes: ["firstname", "lastname"] },
+    ],
+    order: [["created_at", "DESC"]],
+    raw: true,
+    nest: true,
+  });
+
+  return rows.map((r) => ({
+    ...r,
+    doctor_firstname: r.doctor?.firstname,
+    doctor_lastname: r.doctor?.lastname,
+    technician_firstname: r.technician?.firstname,
+    technician_lastname: r.technician?.lastname,
+  }));
 };
 
 // Delete report
 exports.deleteReport = async (id) => {
-  const result = await pool.query(
-    "DELETE FROM reports WHERE id = $1 RETURNING id",
-    [id]
-  );
-  return result.rows[0] || null;
+  const deleted = await Report.destroy({ where: { id } });
+  return deleted ? { id } : null;
 };

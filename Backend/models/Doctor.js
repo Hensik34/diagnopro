@@ -1,53 +1,30 @@
-const pool = require("../config/db");
 const bcrypt = require("bcrypt");
+const { Doctor, DoctorBranch, Branch, User, Report, Patient, sequelize } = require("./index");
+const { Op, fn, col, literal } = require("sequelize");
 
 // Get all doctors (optionally filtered by branch)
 exports.getAllDoctors = async (branchId = null) => {
   if (branchId) {
-    const result = await pool.query(
-      `SELECT d.* FROM doctors d
-       JOIN doctor_branches db ON d.id = db.doctor_id
-       WHERE db.branch_id = $1 
-       ORDER BY d.created_at DESC`,
-      [branchId]
-    );
-    return result.rows;
+    const junctions = await DoctorBranch.findAll({
+      where: { branch_id: branchId },
+      include: [{ model: Doctor }],
+    });
+    return junctions.map((j) => j.Doctor.toJSON());
   }
-
-  const result = await pool.query(
-    `SELECT * FROM doctors ORDER BY created_at DESC`
-  );
-  return result.rows;
+  return await Doctor.findAll({ order: [["created_at", "DESC"]] });
 };
 
-// Get all doctors for a branch (kept for backwards compatibility)
-exports.getDoctorsByBranch = async (branchId) => {
-  const result = await pool.query(
-    `SELECT d.* FROM doctors d
-     JOIN doctor_branches db ON d.id = db.doctor_id
-     WHERE db.branch_id = $1 
-     ORDER BY d.created_at DESC`,
-    [branchId]
-  );
-  return result.rows;
-};
+// Get doctors by branch (backward compat)
+exports.getDoctorsByBranch = exports.getAllDoctors;
 
 // Get doctor by ID
 exports.getDoctorById = async (id) => {
-  const result = await pool.query(
-    "SELECT * FROM doctors WHERE id = $1",
-    [id]
-  );
-  return result.rows[0] || null;
+  return await Doctor.findByPk(id);
 };
 
 // Find doctor by email (for unified login)
 exports.findDoctorByEmail = async (email) => {
-  const result = await pool.query(
-    "SELECT * FROM doctors WHERE email = $1 AND is_active = TRUE LIMIT 1",
-    [email]
-  );
-  return result.rows[0] || null;
+  return await Doctor.findOne({ where: { email, is_active: true } });
 };
 
 // Verify doctor password
@@ -55,42 +32,29 @@ exports.verifyPassword = async (plainPassword, hashedPassword) => {
   return await bcrypt.compare(plainPassword, hashedPassword);
 };
 
-// Get doctor by linked user_id (for doctor login/portal)
+// Get doctor by linked user_id
 exports.getDoctorByUserId = async (userId) => {
-  const result = await pool.query(
-    "SELECT * FROM doctors WHERE user_id = $1",
-    [userId]
-  );
-  return result.rows[0] || null;
+  return await Doctor.findOne({ where: { user_id: userId } });
 };
 
 // Create new doctor
 exports.createDoctor = async (doctorData) => {
-  const { title = 'Dr', name, email, phone, specialization, license_number, branch_id, commission_percentage = 0, user_id = null, password } = doctorData;
+  const { title = "Dr", name, email, phone, specialization, license_number, branch_id, commission_percentage = 0, user_id = null, password } = doctorData;
 
-  // Hash password if provided
-  let passwordHash = null;
-  if (password) {
-    passwordHash = await bcrypt.hash(password, 10);
-  }
+  let password_hash = null;
+  if (password) password_hash = await bcrypt.hash(password, 10);
 
-  const result = await pool.query(
-    `INSERT INTO doctors (title, name, firstname, lastname, email, phone, specialization, license_number, branch_id, commission_percentage, user_id, password_hash)
-     VALUES ($1, $2, $2, '', $3, $4, $5, $6, $7, $8, $9, $10)
-     RETURNING *`,
-    [title, name, email, phone, specialization, license_number, branch_id, commission_percentage, user_id, passwordHash]
-  );
+  const doctor = await Doctor.create({
+    title, name, firstname: name, lastname: "",
+    email, phone, specialization, license_number,
+    branch_id, commission_percentage, user_id, password_hash,
+  });
 
-  const doctor = result.rows[0];
-
-  // Also insert into doctor_branches if branch_id provided
   if (branch_id) {
-    await pool.query(
-      `INSERT INTO doctor_branches (doctor_id, branch_id)
-       VALUES ($1, $2)
-       ON CONFLICT (doctor_id, branch_id) DO NOTHING`,
-      [doctor.id, branch_id]
-    );
+    await DoctorBranch.findOrCreate({
+      where: { doctor_id: doctor.id, branch_id },
+      defaults: { doctor_id: doctor.id, branch_id },
+    });
   }
 
   return doctor;
@@ -100,147 +64,132 @@ exports.createDoctor = async (doctorData) => {
 exports.updateDoctor = async (id, doctorData) => {
   const { title, name, email, phone, specialization, license_number, branch_id, commission_percentage, signature_url, user_id } = doctorData;
 
-  const result = await pool.query(
-    `UPDATE doctors 
-     SET title = COALESCE($1, title),
-         name = COALESCE($2, name),
-         firstname = COALESCE($2, firstname),
-         email = COALESCE($3, email),
-         phone = COALESCE($4, phone),
-         specialization = COALESCE($5, specialization),
-         license_number = COALESCE($6, license_number),
-         branch_id = COALESCE($7, branch_id),
-         commission_percentage = COALESCE($8, commission_percentage),
-         signature_url = COALESCE($9, signature_url),
-         user_id = COALESCE($10, user_id),
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $11
-     RETURNING *`,
-    [title, name, email, phone, specialization, license_number, branch_id, commission_percentage, signature_url, user_id, id]
-  );
+  const updateObj = {};
+  if (title !== undefined) updateObj.title = title;
+  if (name !== undefined) { updateObj.name = name; updateObj.firstname = name; }
+  if (email !== undefined) updateObj.email = email;
+  if (phone !== undefined) updateObj.phone = phone;
+  if (specialization !== undefined) updateObj.specialization = specialization;
+  if (license_number !== undefined) updateObj.license_number = license_number;
+  if (branch_id !== undefined) updateObj.branch_id = branch_id;
+  if (commission_percentage !== undefined) updateObj.commission_percentage = commission_percentage;
+  if (signature_url !== undefined) updateObj.signature_url = signature_url;
+  if (user_id !== undefined) updateObj.user_id = user_id;
 
-  // If branch_id provided, also add to doctor_branches
+  const [count, [updated]] = await Doctor.update(updateObj, {
+    where: { id },
+    returning: true,
+  });
+
   if (branch_id) {
-    await pool.query(
-      `INSERT INTO doctor_branches (doctor_id, branch_id)
-       VALUES ($1, $2)
-       ON CONFLICT (doctor_id, branch_id) DO NOTHING`,
-      [id, branch_id]
-    );
+    await DoctorBranch.findOrCreate({
+      where: { doctor_id: id, branch_id },
+      defaults: { doctor_id: id, branch_id },
+    });
   }
 
-  return result.rows[0] || null;
+  return updated ? updated.toJSON() : null;
 };
 
 // Update doctor password
 exports.updateDoctorPassword = async (id, password) => {
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const result = await pool.query(
-    `UPDATE doctors SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id`,
-    [hashedPassword, id]
+  const password_hash = await bcrypt.hash(password, 10);
+  const [count, [updated]] = await Doctor.update(
+    { password_hash },
+    { where: { id }, returning: true }
   );
-  return result.rows[0] || null;
+  return updated ? { id: updated.id } : null;
 };
 
 // Delete doctor
 exports.deleteDoctor = async (id) => {
-  const result = await pool.query(
-    "DELETE FROM doctors WHERE id = $1 RETURNING id",
-    [id]
-  );
-  return result.rows[0] || null;
+  const deleted = await Doctor.destroy({ where: { id } });
+  return deleted ? { id } : null;
 };
 
-// Get doctor's branches (from doctor_branches table)
+// Get doctor's branches
 exports.getDoctorBranches = async (doctorId) => {
-  const result = await pool.query(
-    `SELECT b.*, db.created_at as assigned_at
-     FROM branches b
-     JOIN doctor_branches db ON b.id = db.branch_id
-     WHERE db.doctor_id = $1
-     ORDER BY db.created_at DESC`,
-    [doctorId]
-  );
-  return result.rows;
+  const junctions = await DoctorBranch.findAll({
+    where: { doctor_id: doctorId },
+    include: [{ model: Branch }],
+    order: [["created_at", "DESC"]],
+  });
+  return junctions.map((j) => ({
+    ...j.Branch.toJSON(),
+    assigned_at: j.created_at,
+  }));
 };
 
 // Assign doctor to branch
 exports.assignDoctorToBranch = async (doctorId, branchId) => {
-  const result = await pool.query(
-    `INSERT INTO doctor_branches (doctor_id, branch_id)
-     VALUES ($1, $2)
-     ON CONFLICT (doctor_id, branch_id) DO NOTHING
-     RETURNING *`,
-    [doctorId, branchId]
-  );
-  return result.rows[0] || null;
+  const [record, created] = await DoctorBranch.findOrCreate({
+    where: { doctor_id: doctorId, branch_id: branchId },
+    defaults: { doctor_id: doctorId, branch_id: branchId },
+  });
+  return record;
 };
 
 // Remove doctor from branch
 exports.removeDoctorFromBranch = async (doctorId, branchId) => {
-  const result = await pool.query(
-    "DELETE FROM doctor_branches WHERE doctor_id = $1 AND branch_id = $2 RETURNING id",
-    [doctorId, branchId]
-  );
-  return result.rows[0] || null;
+  const deleted = await DoctorBranch.destroy({
+    where: { doctor_id: doctorId, branch_id: branchId },
+  });
+  return deleted ? { id: "deleted" } : null;
 };
 
 // Deactivate doctor
 exports.deactivateDoctor = async (id) => {
-  const result = await pool.query(
-    `UPDATE doctors SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
-    [id]
+  const [count, [updated]] = await Doctor.update(
+    { is_active: false },
+    { where: { id }, returning: true }
   );
-  return result.rows[0] || null;
+  return updated ? updated.toJSON() : null;
 };
 
 // Activate doctor
 exports.activateDoctor = async (id) => {
-  const result = await pool.query(
-    `UPDATE doctors SET is_active = true, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
-    [id]
+  const [count, [updated]] = await Doctor.update(
+    { is_active: true },
+    { where: { id }, returning: true }
   );
-  return result.rows[0] || null;
+  return updated ? updated.toJSON() : null;
 };
 
 // Get doctor statement (all reports with commission for a date range)
 exports.getDoctorStatement = async (doctorId, startDate, endDate) => {
-  const result = await pool.query(
-    `SELECT 
-       r.id as report_id,
-       r.created_at as report_date,
-       r.report_type,
-       r.report_amount,
-       r.doctor_commission,
-       r.status,
-       p.id as patient_id,
-       p.name as patient_name,
-       p.phone as patient_phone
-     FROM reports r
-     JOIN patients p ON r.patient_id = p.id
-     WHERE r.doctor_id = $1 
-       AND r.is_self_report = FALSE
-       AND r.created_at >= $2 
-       AND r.created_at <= $3
-     ORDER BY r.created_at DESC`,
-    [doctorId, startDate, endDate]
-  );
-  return result.rows;
+  return await Report.findAll({
+    where: {
+      doctor_id: doctorId,
+      is_self_report: false,
+      created_at: { [Op.between]: [startDate, endDate] },
+    },
+    include: [{
+      model: Patient,
+      as: "patient",
+      attributes: ["id", "name", "phone"],
+    }],
+    attributes: ["id", "created_at", "report_type", "report_amount", "doctor_commission", "b2b_charge", "status"],
+    order: [["created_at", "DESC"]],
+    raw: true,
+    nest: true,
+  });
 };
 
 // Get doctor statement summary
 exports.getDoctorStatementSummary = async (doctorId, startDate, endDate) => {
-  const result = await pool.query(
-    `SELECT 
-       COUNT(*) as total_reports,
-       COALESCE(SUM(report_amount), 0) as total_amount,
-       COALESCE(SUM(doctor_commission), 0) as total_commission
-     FROM reports
-     WHERE doctor_id = $1 
-       AND is_self_report = FALSE
-       AND created_at >= $2 
-       AND created_at <= $3`,
-    [doctorId, startDate, endDate]
-  );
-  return result.rows[0];
+  const result = await Report.findOne({
+    where: {
+      doctor_id: doctorId,
+      is_self_report: false,
+      created_at: { [Op.between]: [startDate, endDate] },
+    },
+    attributes: [
+      [fn("COUNT", col("id")), "total_reports"],
+      [fn("COALESCE", fn("SUM", col("report_amount")), 0), "total_amount"],
+      [fn("COALESCE", fn("SUM", col("doctor_commission")), 0), "total_commission"],
+      [fn("COALESCE", fn("SUM", col("b2b_charge")), 0), "total_b2b_charge"],
+    ],
+    raw: true,
+  });
+  return result;
 };

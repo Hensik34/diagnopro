@@ -1,7 +1,6 @@
 const Doctor = require("../models/Doctor");
 const Branch = require("../models/Branch");
 const User = require("../models/User");
-const pool = require("../config/db");
 
 // GET ALL DOCTORS
 exports.getDoctors = async (req, res) => {

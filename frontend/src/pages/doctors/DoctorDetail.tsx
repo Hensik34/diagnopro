@@ -158,11 +158,12 @@ export function DoctorDetail() {
     printWindow.print();
   };
 
-  const rawSummary = statement?.summary || { total_reports: 0, total_amount: 0, total_commission: 0 };
+  const rawSummary = statement?.summary || { total_reports: 0, total_amount: 0, total_commission: 0, total_b2b_charge: 0 };
   const summary = {
     total_reports: Number(rawSummary.total_reports) || 0,
     total_amount: Number(rawSummary.total_amount) || 0,
     total_commission: Number(rawSummary.total_commission) || 0,
+    total_b2b_charge: Number(rawSummary.total_b2b_charge) || 0,
   };
   const reports = statement?.reports || [];
 
@@ -352,13 +353,14 @@ export function DoctorDetail() {
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Test Type</th>
                   <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Status</th>
                   <th className="px-3 py-2 text-right text-muted-foreground text-[10px] uppercase tracking-wider">Amount</th>
+                  <th className="px-3 py-2 text-right text-muted-foreground text-[10px] uppercase tracking-wider">B2B</th>
                   <th className="px-3 py-2 text-right text-muted-foreground text-[10px] uppercase tracking-wider">Sharing</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {reports.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                    <td colSpan={8} className="px-3 py-8 text-center text-sm text-muted-foreground">
                       No reports found for this period
                     </td>
                   </tr>
@@ -381,6 +383,13 @@ export function DoctorDetail() {
                           </span>
                         </td>
                         <td className="px-3 py-2 text-xs text-foreground text-right tabular-nums">₹{Number(r.report_amount || 0).toFixed(2)}</td>
+                        <td className="px-3 py-2 text-xs text-right tabular-nums">
+                          {Number(r.b2b_charge || 0) > 0 ? (
+                            <span className="text-destructive">₹{Number(r.b2b_charge).toFixed(2)}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
                         <td className="px-3 py-2 text-xs text-primary font-medium text-right tabular-nums">₹{Number(r.doctor_commission || 0).toFixed(2)}</td>
                       </tr>
                     ))}
@@ -390,6 +399,9 @@ export function DoctorDetail() {
                         Total ({reports.length} reports)
                       </td>
                       <td className="px-3 py-2 text-xs text-foreground text-right tabular-nums">₹{summary.total_amount.toFixed(2)}</td>
+                      <td className="px-3 py-2 text-xs text-destructive text-right tabular-nums">
+                        {summary.total_b2b_charge > 0 ? `₹${summary.total_b2b_charge.toFixed(2)}` : '—'}
+                      </td>
                       <td className="px-3 py-2 text-xs text-primary font-semibold text-right tabular-nums">₹{summary.total_commission.toFixed(2)}</td>
                     </tr>
                   </>

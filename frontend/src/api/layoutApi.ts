@@ -1,4 +1,4 @@
-import { apiClient } from './index';
+import { api as apiClient } from './index';
 import type { TestLayout, ReportLayoutTemplate } from '../types/reportLayout';
 
 export const layoutApi = {

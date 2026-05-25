@@ -1,67 +1,58 @@
-const pool = require("../config/db");
+const { fn, col } = require("sequelize");
+const { Payment, Report } = require("./index");
 
 // Get all payments for a report
 exports.getPaymentsByReportId = async (reportId) => {
-  const result = await pool.query(
-    `SELECT * FROM payments WHERE report_id = $1 ORDER BY created_at ASC`,
-    [reportId]
-  );
-  return result.rows;
+  return await Payment.findAll({
+    where: { report_id: reportId },
+    order: [["created_at", "ASC"]],
+    raw: true,
+  });
 };
 
 // Add a payment to a report
 exports.addPayment = async ({ report_id, payment_mode, amount }) => {
-  const result = await pool.query(
-    `INSERT INTO payments (report_id, payment_mode, amount)
-     VALUES ($1, $2, $3)
-     RETURNING *`,
-    [report_id, payment_mode, amount]
-  );
-  return result.rows[0];
+  return await Payment.create({ report_id, payment_mode, amount });
 };
 
 // Delete a payment by ID
 exports.deletePayment = async (id) => {
-  const result = await pool.query(
-    `DELETE FROM payments WHERE id = $1 RETURNING *`,
-    [id]
-  );
-  return result.rows[0] || null;
+  const payment = await Payment.findByPk(id);
+  if (!payment) return null;
+  await payment.destroy();
+  return payment.toJSON();
 };
 
 // Get total paid for a report
 exports.getTotalPaid = async (reportId) => {
-  const result = await pool.query(
-    `SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE report_id = $1`,
-    [reportId]
-  );
-  return parseFloat(result.rows[0].total_paid);
+  const result = await Payment.findOne({
+    where: { report_id: reportId },
+    attributes: [[fn("COALESCE", fn("SUM", col("amount")), 0), "total_paid"]],
+    raw: true,
+  });
+  return parseFloat(result?.total_paid) || 0;
 };
 
-// Calculate and update payment status on a report based on payments table
+// Calculate and update payment status on a report
 exports.recalcPaymentStatus = async (reportId) => {
   const totalPaid = await exports.getTotalPaid(reportId);
 
-  // Get the final_amount from the report
-  const reportResult = await pool.query(
-    `SELECT final_amount FROM reports WHERE id = $1`,
-    [reportId]
-  );
-  if (!reportResult.rows[0]) return null;
+  const report = await Report.findByPk(reportId, {
+    attributes: ["final_amount"],
+    raw: true,
+  });
+  if (!report) return null;
 
-  const finalAmount = parseFloat(reportResult.rows[0].final_amount) || 0;
+  const finalAmount = parseFloat(report.final_amount) || 0;
 
-  let paymentStatus = 'pending';
+  let paymentStatus = "pending";
   if (totalPaid >= finalAmount && finalAmount > 0) {
-    paymentStatus = 'paid';
+    paymentStatus = "paid";
   } else if (totalPaid > 0) {
-    paymentStatus = 'partial';
+    paymentStatus = "partial";
   }
 
-  await pool.query(
-    `UPDATE reports SET payment_status = $1 WHERE id = $2`,
-    [paymentStatus, reportId]
-  );
+  await Report.update({ payment_status: paymentStatus }, { where: { id: reportId } });
 
   return { totalPaid, finalAmount, paymentStatus };
 };

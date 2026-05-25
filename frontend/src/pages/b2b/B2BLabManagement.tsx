@@ -1,189 +1,323 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
-import { Plus, Building2, Search, Edit2, Trash2, Eye } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import {
+  Building2,
+  Plus,
+  Loader2,
+  AlertCircle,
+  Phone,
+  Mail,
+  Pencil,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useB2BStore } from '../../stores/b2bStore';
-import type { CreateB2BLabData } from '../../types/b2b';
+import { useBranchStore } from '../../stores/branchStore';
+import type { B2BLab, CreateB2BLabData } from '../../types/b2b';
 
+/**
+ * B2B Partner Labs — Simple CRUD list
+ */
 export function B2BLabManagement() {
-  const { labs, fetchLabs, createLab, deleteLab, isLoading } = useB2BStore();
-  const [showForm, setShowForm] = useState(false);
-  const [search, setSearch] = useState('');
-  const [form, setForm] = useState<CreateB2BLabData>({
-    lab_name: '', lab_code: '', contact_person: '', mobile: '', email: '',
-    address: '', city: '', state: '', pincode: '', commission_type: 'percentage',
-    commission_value: 0, credit_limit: 0, lab_type: 'collection',
+  const { labs, isLoading, error, fetchLabs, createLab, updateLab, deleteLab, clearError } = useB2BStore();
+  const { currentBranchId } = useBranchStore();
+
+  // Modal state
+  const [showModal, setShowModal] = useState(false);
+  const [editingLab, setEditingLab] = useState<B2BLab | null>(null);
+  const [formData, setFormData] = useState<CreateB2BLabData>({
+    lab_name: '',
+    contact_person: '',
+    mobile: '',
+    email: '',
   });
+  const [isSaving, setIsSaving] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  useEffect(() => { fetchLabs(); }, [fetchLabs]);
+  useEffect(() => {
+    fetchLabs();
+  }, [fetchLabs]);
 
-  const filtered = labs.filter((l) =>
-    l.lab_name.toLowerCase().includes(search.toLowerCase()) ||
-    l.lab_code.toLowerCase().includes(search.toLowerCase()) ||
-    (l.contact_person || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const openCreate = () => {
+    setEditingLab(null);
+    setFormData({ lab_name: '', contact_person: '', mobile: '', email: '', owner_branch_id: currentBranchId || undefined });
+    setShowModal(true);
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const openEdit = (lab: B2BLab) => {
+    setEditingLab(lab);
+    setFormData({
+      lab_name: lab.lab_name,
+      contact_person: lab.contact_person || '',
+      mobile: lab.mobile || '',
+      email: lab.email || '',
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.lab_name.trim()) return;
+    setIsSaving(true);
     try {
-      await createLab(form);
-      setShowForm(false);
-      setForm({ lab_name: '', lab_code: '', contact_person: '', mobile: '', email: '',
-        address: '', city: '', state: '', pincode: '', commission_type: 'percentage',
-        commission_value: 0, credit_limit: 0, lab_type: 'collection' });
-    } catch { /* error handled in store */ }
+      if (editingLab) {
+        await updateLab(editingLab.id, formData);
+      } else {
+        await createLab({ ...formData, owner_branch_id: currentBranchId || undefined });
+      }
+      setShowModal(false);
+    } catch {
+      // error shown by store
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const statusColor: Record<string, { bg: string; color: string }> = {
-    active: { bg: '#ecfdf5', color: '#10b981' },
-    inactive: { bg: '#f1f5f9', color: '#64748b' },
-    suspended: { bg: '#fef2f2', color: '#ef4444' },
+  const handleDelete = async (id: string) => {
+    await deleteLab(id);
+    setDeleteConfirmId(null);
   };
+
+  const activeLabs = labs.filter(l => l.status === 'active');
+  const inactiveLabs = labs.filter(l => l.status !== 'active');
 
   return (
-    <div>
+    <div className="space-y-3">
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div className="flex items-center justify-between">
         <div>
-          <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: '#1e293b' }}>Partner Labs</h2>
-          <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '14px' }}>{labs.length} labs registered</p>
+          <h1 className="text-foreground text-lg mb-0.5">B2B Partner Labs</h1>
+          <p className="text-muted-foreground text-xs">
+            Manage partner laboratories for outsourced reports
+          </p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} style={{
-          display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 18px',
-          background: '#6366f1', color: 'white', border: 'none', borderRadius: '10px',
-          cursor: 'pointer', fontSize: '14px', fontWeight: '500'
-        }}>
-          <Plus size={16} /> Add Lab
+        <button
+          onClick={openCreate}
+          className="h-8 px-3 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Add Lab
         </button>
       </div>
 
-      {/* Search */}
-      <div style={{ position: 'relative', marginBottom: '16px' }}>
-        <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search labs..."
-          style={{ width: '100%', padding: '10px 12px 10px 36px', border: '1px solid #e2e8f0',
-            borderRadius: '10px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
-      </div>
-
-      {/* Create Form Modal */}
-      {showForm && (
-        <div style={{ background: 'white', borderRadius: '12px', padding: '24px', marginBottom: '20px',
-          border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600' }}>New Partner Lab</h3>
-          <form onSubmit={handleSubmit}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-              {[
-                { key: 'lab_name', label: 'Lab Name*', required: true },
-                { key: 'lab_code', label: 'Lab Code*', required: true },
-                { key: 'contact_person', label: 'Contact Person' },
-                { key: 'mobile', label: 'Mobile' },
-                { key: 'email', label: 'Email' },
-                { key: 'city', label: 'City' },
-                { key: 'state', label: 'State' },
-                { key: 'pincode', label: 'Pincode' },
-                { key: 'gst_number', label: 'GST Number' },
-              ].map((f) => (
-                <div key={f.key}>
-                  <label style={{ fontSize: '12px', color: '#64748b', display: 'block', marginBottom: '4px' }}>{f.label}</label>
-                  <input value={(form as any)[f.key] || ''} required={f.required}
-                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #e2e8f0',
-                      borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
-                </div>
-              ))}
-              <div>
-                <label style={{ fontSize: '12px', color: '#64748b', display: 'block', marginBottom: '4px' }}>Commission Type</label>
-                <select value={form.commission_type} onChange={(e) => setForm({ ...form, commission_type: e.target.value as any })}
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px' }}>
-                  <option value="percentage">Percentage</option>
-                  <option value="fixed">Fixed</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', color: '#64748b', display: 'block', marginBottom: '4px' }}>Commission Value</label>
-                <input type="number" value={form.commission_value || ''} onChange={(e) => setForm({ ...form, commission_value: parseFloat(e.target.value) || 0 })}
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', color: '#64748b', display: 'block', marginBottom: '4px' }}>Credit Limit (₹)</label>
-                <input type="number" value={form.credit_limit || ''} onChange={(e) => setForm({ ...form, credit_limit: parseFloat(e.target.value) || 0 })}
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }} />
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => setShowForm(false)} style={{
-                padding: '8px 16px', background: '#f1f5f9', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Cancel</button>
-              <button type="submit" disabled={isLoading} style={{
-                padding: '8px 16px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
-                {isLoading ? 'Creating...' : 'Create Lab'}
-              </button>
-            </div>
-          </form>
+      {/* Error */}
+      {error && (
+        <div className="bg-destructive/10 border border-destructive/20 rounded p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-destructive" />
+            <span className="text-sm text-destructive">{error}</span>
+          </div>
+          <button onClick={clearError} className="text-xs text-destructive hover:underline">Dismiss</button>
         </div>
       )}
 
-      {/* Labs Table */}
-      <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-          <thead>
-            <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-              {['Lab', 'Code', 'Contact', 'Commission', 'Balance', 'Credit Limit', 'Status', 'Actions'].map((h) => (
-                <th key={h} style={{ padding: '12px', textAlign: 'left', color: '#64748b', fontWeight: '600', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr><td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Loading...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No labs found</td></tr>
-            ) : filtered.map((lab) => (
-              <tr key={lab.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}>
-                <td style={{ padding: '12px', fontWeight: '500', color: '#1e293b' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Building2 size={16} color="#6366f1" />
-                    {lab.lab_name}
-                  </div>
-                </td>
-                <td style={{ padding: '12px' }}>
-                  <code style={{ padding: '2px 6px', background: '#f1f5f9', borderRadius: '4px', fontSize: '12px' }}>{lab.lab_code}</code>
-                </td>
-                <td style={{ padding: '12px' }}>
-                  <div>{lab.contact_person || '—'}</div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>{lab.mobile || ''}</div>
-                </td>
-                <td style={{ padding: '12px' }}>
-                  {lab.commission_value}{lab.commission_type === 'percentage' ? '%' : ' (fixed)'}
-                </td>
-                <td style={{ padding: '12px', fontWeight: '600', color: lab.current_balance > 0 ? '#f59e0b' : '#10b981' }}>
-                  ₹{parseFloat(String(lab.current_balance)).toLocaleString()}
-                </td>
-                <td style={{ padding: '12px' }}>₹{parseFloat(String(lab.credit_limit)).toLocaleString()}</td>
-                <td style={{ padding: '12px' }}>
-                  <span style={{
-                    padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '500',
-                    background: statusColor[lab.status]?.bg || '#f1f5f9',
-                    color: statusColor[lab.status]?.color || '#64748b'
-                  }}>{lab.status}</span>
-                </td>
-                <td style={{ padding: '12px' }}>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <Link to={`/b2b/labs/${lab.id}`} style={{
-                      padding: '6px', borderRadius: '6px', border: '1px solid #e2e8f0',
-                      background: 'white', cursor: 'pointer', display: 'flex', textDecoration: 'none' }}>
-                      <Eye size={14} color="#64748b" />
-                    </Link>
-                    <button onClick={() => { if (confirm('Deactivate this lab?')) deleteLab(lab.id); }} style={{
-                      padding: '6px', borderRadius: '6px', border: '1px solid #fecaca',
-                      background: '#fff5f5', cursor: 'pointer', display: 'flex' }}>
-                      <Trash2 size={14} color="#ef4444" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Loading */}
+      {isLoading && labs.length === 0 && (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!isLoading && labs.length === 0 && (
+        <div className="bg-card border border-border rounded p-8 text-center">
+          <Building2 className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+          <h3 className="text-sm text-foreground mb-1">No Partner Labs</h3>
+          <p className="text-xs text-muted-foreground mb-4">
+            Add your first B2B partner lab to start outsourcing reports.
+          </p>
+          <button
+            onClick={openCreate}
+            className="h-8 px-4 bg-primary text-white rounded text-xs hover:opacity-90 transition-opacity"
+          >
+            <Plus className="w-3.5 h-3.5 inline mr-1.5" />
+            Add Partner Lab
+          </button>
+        </div>
+      )}
+
+      {/* Lab List */}
+      {labs.length > 0 && (
+        <div className="bg-card border border-border rounded">
+          <div className="px-4 py-2.5 border-b border-border bg-secondary/30 flex items-center justify-between">
+            <h2 className="text-sm text-foreground">Partner Labs ({labs.length})</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-secondary/30">
+                <tr className="border-b border-border">
+                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">#</th>
+                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Lab Name</th>
+                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Contact Person</th>
+                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Mobile</th>
+                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Email</th>
+                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Status</th>
+                  <th className="px-3 py-2 text-right text-muted-foreground text-[10px] uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {[...activeLabs, ...inactiveLabs].map((lab, i) => (
+                  <tr key={lab.id} className="hover:bg-accent/30 transition-colors">
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{i + 1}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center">
+                          <Building2 className="w-3.5 h-3.5 text-primary" />
+                        </div>
+                        <span className="text-xs text-foreground font-medium">{lab.lab_name}</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-foreground">{lab.contact_person || '—'}</td>
+                    <td className="px-3 py-2 text-xs text-foreground">
+                      {lab.mobile ? (
+                        <span className="flex items-center gap-1">
+                          <Phone className="w-3 h-3 text-muted-foreground" />
+                          {lab.mobile}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-foreground">
+                      {lab.email ? (
+                        <span className="flex items-center gap-1">
+                          <Mail className="w-3 h-3 text-muted-foreground" />
+                          {lab.email}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wide ${
+                        lab.status === 'active'
+                          ? 'bg-success/10 text-success'
+                          : 'bg-destructive/10 text-destructive'
+                      }`}>
+                        {lab.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => openEdit(lab)}
+                          className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+                          title="Edit"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        {deleteConfirmId === lab.id ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleDelete(lab.id)}
+                              className="h-6 px-2 bg-destructive text-white rounded text-[10px] hover:opacity-90"
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirmId(null)}
+                              className="h-6 px-2 bg-secondary text-foreground rounded text-[10px] hover:bg-accent"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setDeleteConfirmId(lab.id)}
+                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-card border border-border rounded-lg w-full max-w-md mx-4 shadow-xl">
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+              <h3 className="text-sm text-foreground font-medium">
+                {editingLab ? 'Edit Partner Lab' : 'Add Partner Lab'}
+              </h3>
+              <button onClick={() => setShowModal(false)} className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">
+                  Lab Name <span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="w-full h-9 px-3 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={formData.lab_name}
+                  onChange={e => setFormData(prev => ({ ...prev, lab_name: e.target.value }))}
+                  placeholder="e.g. Metro Diagnostics"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Contact Person</label>
+                <input
+                  type="text"
+                  className="w-full h-9 px-3 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={formData.contact_person}
+                  onChange={e => setFormData(prev => ({ ...prev, contact_person: e.target.value }))}
+                  placeholder="Name"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1">Mobile</label>
+                  <input
+                    type="tel"
+                    className="w-full h-9 px-3 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    value={formData.mobile}
+                    onChange={e => setFormData(prev => ({ ...prev, mobile: e.target.value }))}
+                    placeholder="+91 9XXXXXXX"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1">Email</label>
+                  <input
+                    type="email"
+                    className="w-full h-9 px-3 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    value={formData.email}
+                    onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    placeholder="lab@email.com"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t border-border flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowModal(false)}
+                className="h-8 px-4 bg-secondary border border-border rounded text-xs hover:bg-accent transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={!formData.lab_name.trim() || isSaving}
+                className="h-8 px-4 bg-primary text-white rounded text-xs hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin inline mr-1" />
+                    Saving...
+                  </>
+                ) : (
+                  editingLab ? 'Update Lab' : 'Add Lab'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

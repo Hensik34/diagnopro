@@ -349,55 +349,57 @@ export function Settings() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto h-[calc(100vh-5rem)] flex flex-col">
+    <div className="p-3 md:p-4 lg:p-6 max-w-full md:max-w-7xl mx-auto h-auto md:h-[calc(100vh-5rem)] flex flex-col md:flex-row gap-4 md:gap-0">
       {/* Success Message overlay */}
       {uploadSuccess && (
-        <div className="fixed top-20 right-6 z-50 p-4 bg-green-50 border border-green-200 rounded-lg shadow-lg flex items-center gap-3 text-green-700 animate-in slide-in-from-top-2">
-          <Check className="w-5 h-5 text-green-600" />
-          <span className="font-medium text-sm">{uploadSuccess}</span>
+        <div className="fixed top-20 right-6 z-50 p-3 md:p-4 bg-green-50 border border-green-200 rounded-lg shadow-lg flex items-center gap-3 text-green-700 animate-in slide-in-from-top-2 text-sm md:text-base">
+          <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
+          <span className="font-medium">{uploadSuccess}</span>
         </div>
       )}
 
       {/* Main Settings Container (Desktop App Style) */}
-      <div className="bg-card border border-border rounded-xl shadow-sm flex flex-1 overflow-hidden min-h-0">
+      <div className="bg-card border border-border rounded-xl shadow-sm flex flex-1 flex-col md:flex-row overflow-hidden min-h-0">
         
         {/* Sidebar Navigation */}
-        <div className="w-64 bg-secondary/20 border-r border-border flex flex-col flex-shrink-0">
-          <div className="p-5 border-b border-border">
-            <h1 className="text-xl font-bold text-foreground">Settings</h1>
+        <div className="w-full md:w-64 bg-secondary/20 border-b md:border-b-0 md:border-r border-border flex flex-col flex-shrink-0">
+          <div className="p-4 md:p-5 border-b border-border">
+            <h1 className="text-base md:text-xl font-bold text-foreground">Settings</h1>
             <p className="text-xs text-muted-foreground mt-1">Manage your lab preferences</p>
           </div>
           
-          <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+          <nav className="flex flex-row md:flex-col flex-1 overflow-x-auto md:overflow-y-auto p-2 md:p-3 space-x-1 md:space-x-0 md:space-y-1">
             <button
               onClick={() => setActiveTab('letterhead-sign')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'letterhead-sign' 
                   ? 'bg-primary/10 text-primary' 
                   : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
               }`}
             >
-              <FileSignature className="w-4 h-4" />
-              <span>Letterhead & Sign</span>
-              {activeTab === 'letterhead-sign' && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
+              <FileSignature className="w-4 h-4 flex-shrink-0" />
+              <span className="hidden md:inline">Letterhead & Sign</span>
+              <span className="md:hidden">Letterhead</span>
+              {activeTab === 'letterhead-sign' && <ChevronRight className="w-4 h-4 ml-auto opacity-50 hidden md:block" />}
             </button>
             
             <button
               onClick={() => setActiveTab('profile')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'profile' 
                   ? 'bg-primary/10 text-primary' 
                   : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
               }`}
             >
-              <User className="w-4 h-4" />
-              <span>User Profile</span>
-              {activeTab === 'profile' && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
+              <User className="w-4 h-4 flex-shrink-0" />
+              <span className="hidden md:inline">User Profile</span>
+              <span className="md:hidden">Profile</span>
+              {activeTab === 'profile' && <ChevronRight className="w-4 h-4 ml-auto opacity-50 hidden md:block" />}
             </button>
             
             <button
               onClick={() => setActiveTab('general')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'general' 
                   ? 'bg-primary/10 text-primary' 
                   : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
