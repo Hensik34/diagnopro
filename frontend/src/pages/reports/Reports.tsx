@@ -229,8 +229,29 @@ export function Reports() {
   /**
    * Handle submit for review action
    */
-  const handleSubmitForReview = async (reportId: string) => {
-    await submitReport(reportId);
+  const isReportReadyForSubmit = (report: Report) => {
+    const grouped = report.test_data?.tests || [];
+    const fromGrouped = grouped.flatMap((group) => group.parameters || []);
+    const flat = report.test_data?.parameters || [];
+    const allParams = fromGrouped.length > 0 ? fromGrouped : flat;
+
+    if (allParams.length === 0) return false;
+
+    const nonCalculated = allParams.filter((param) => (param as any).fieldType !== 'calculated');
+    const requiredParams = nonCalculated.length > 0 ? nonCalculated : allParams;
+
+    return requiredParams.every((param) => {
+      const value = param.value;
+      return value !== null && value !== undefined && String(value).trim() !== '';
+    });
+  };
+
+  const handleSubmitForReview = async (report: Report) => {
+    if (!isReportReadyForSubmit(report)) {
+      alert('Please fill all required test values before submitting for review.');
+      return;
+    }
+    await submitReport(report.id);
   };
 
   /**
@@ -550,10 +571,10 @@ export function Reports() {
                             {/* Submit for Review - for draft reports with test data */}
                             {report.status === 'draft' && report.test_data && canEdit && (
                                 <button
-                                  onClick={() => handleSubmitForReview(report.id)}
+                                  onClick={() => handleSubmitForReview(report)}
                                   className="h-7 w-7 flex items-center justify-center bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity"
-                                  title="Submit for Review"
-                                  disabled={isActionLoading && actionId === report.id}
+                                  title={isReportReadyForSubmit(report) ? 'Submit for Review' : 'Fill all required values first'}
+                                  disabled={(isActionLoading && actionId === report.id) || !isReportReadyForSubmit(report)}
                                 >
                                   {isActionLoading && actionId === report.id ? (
                                     <Loader2 className="w-3.5 h-3.5 animate-spin" />

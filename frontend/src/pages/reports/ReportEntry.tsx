@@ -204,6 +204,7 @@ export function ReportEntry() {
   const [reportStatus, setReportStatus] = useState<string>("draft");
   const [isEditable, setIsEditable] = useState(true);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [activeTestId, setActiveTestId] = useState<string | null>(null);
 
   // Fetch report data when reportId is provided
   useEffect(() => {
@@ -507,6 +508,37 @@ export function ReportEntry() {
     (s) => s === "low" || s === "high",
   ).length;
 
+  const requiredParams = useMemo(() => {
+    const nonCalculated = dynamicParams.filter((param) => param.field_type !== 'calculated');
+    return nonCalculated.length > 0 ? nonCalculated : dynamicParams;
+  }, [dynamicParams]);
+
+  const allRequiredFilled = useMemo(() => {
+    if (requiredParams.length === 0) return false;
+    return requiredParams.every((param) => {
+      const val = values[param.id];
+      return val !== undefined && val !== null && String(val).trim() !== '';
+    });
+  }, [requiredParams, values]);
+
+  // For multi-test reports, keep one section visible at a time to reduce page length.
+  useEffect(() => {
+    if (testSections.length === 0) {
+      setActiveTestId(null);
+      return;
+    }
+
+    if (!activeTestId || !testSections.some((section) => section.testId === activeTestId)) {
+      setActiveTestId(testSections[0].testId);
+    }
+  }, [testSections, activeTestId]);
+
+  const visibleTestSections = useMemo(() => {
+    if (testSections.length <= 1) return testSections;
+    const activeSection = testSections.find((section) => section.testId === activeTestId);
+    return activeSection ? [activeSection] : [testSections[0]];
+  }, [testSections, activeTestId]);
+
   // Build test_data object for saving — grouped by test
   const buildTestData = () => {
     const testIds = selectedReport?.test_data?.testIds;
@@ -548,6 +580,40 @@ export function ReportEntry() {
     };
   };
 
+  const saveCurrentReportData = async () => {
+    if (!reportId) {
+      alert("No report ID available. Please create a report first.");
+      return false;
+    }
+
+    const testData = buildTestData();
+
+    if (patient) {
+      await updatePatient(patient.id, {
+        name: patient.name,
+        phone: patient.phone,
+        gender: patient.gender,
+        age: patient.age,
+      });
+    }
+
+    const result = await updateReport(reportId, {
+      clinical_notes: technicianNotes,
+      doctor_id: selectedDoctor?.id,
+      is_self_report: isSelfReport,
+      test_data: testData,
+    });
+
+    if (!result) {
+      alert(reportError || "Failed to save report data. Please try again.");
+      return false;
+    }
+
+    await saveBilling(reportId);
+    setLastSaved(new Date());
+    return true;
+  };
+
   // Save draft functionality - saves to backend
   const handleSaveDraft = async () => {
     if (!reportId) {
@@ -562,33 +628,9 @@ export function ReportEntry() {
 
     setIsSaving(true);
     try {
-      const testData = buildTestData();
-
-      // Save patient info if changed
-      if (patient) {
-        await updatePatient(patient.id, {
-          name: patient.name,
-          phone: patient.phone,
-          gender: patient.gender,
-          age: patient.age,
-        });
-      }
-
-      const result = await updateReport(reportId, {
-        clinical_notes: technicianNotes,
-        doctor_id: selectedDoctor?.id,
-        is_self_report: isSelfReport,
-        test_data: testData
-      });
-
-      // Also save billing data (discounts, base amount)
-      await saveBilling(reportId);
-
-      if (result) {
-        setLastSaved(new Date());
+      const saved = await saveCurrentReportData();
+      if (saved) {
         navigate('/reports');
-      } else {
-        alert(reportError || "Failed to save draft. Please try again.");
       }
     } catch (error) {
       console.error("Failed to save draft:", error);
@@ -605,44 +647,18 @@ export function ReportEntry() {
       return;
     }
 
-    // First save any pending changes
-    const testData = buildTestData();
-    // Check that at least one parameter has an actual non-empty value
-    const filledValues = Object.values(values).filter(v => v !== undefined && v !== '');
-    
-    if (filledValues.length === 0) {
-      alert("Please enter test values before submitting for review.");
+    if (!allRequiredFilled) {
+      alert("Please fill all required test values before submitting for review.");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // Save patient info if changed
-      if (patient) {
-        await updatePatient(patient.id, {
-          name: patient.name,
-          phone: patient.phone,
-          gender: patient.gender,
-          age: patient.age,
-        });
-      }
-
-      // Save the data first
-      const saveResult = await updateReport(reportId, {
-        clinical_notes: technicianNotes,
-        doctor_id: selectedDoctor?.id,
-        is_self_report: isSelfReport,
-        test_data: testData
-      });
-
-      if (!saveResult) {
-        alert(reportError || "Failed to save changes.");
+      const saved = await saveCurrentReportData();
+      if (!saved) {
         setIsSubmitting(false);
         return;
       }
-
-      // Also save billing data (discounts, base amount)
-      await saveBilling(reportId);
 
       // Then submit for review
       const submitResult = await submitReport(reportId);
@@ -719,10 +735,26 @@ export function ReportEntry() {
   }, [reportId, values, selectedDoctor, isSelfReport, isEditable]);
 
   // Preview report (navigate to preview page)
-  const handlePreview = () => {
+  const handlePreview = async () => {
     if (!patient) {
       alert("No patient data available.");
       return;
+    }
+
+    if (!allRequiredFilled) {
+      alert("Please fill all required test values before preview.");
+      return;
+    }
+
+    if (reportId) {
+      try {
+        const saved = await saveCurrentReportData();
+        if (!saved) return;
+      } catch (error) {
+        console.error("Failed to save before preview:", error);
+        alert("Failed to save before preview. Please try again.");
+        return;
+      }
     }
 
     const parameters = dynamicParams.map(p => ({
@@ -805,7 +837,7 @@ export function ReportEntry() {
     );
   }
   return (
-    <div className="space-y-4 max-w-7xl mx-auto">
+    <div className="space-y-3 w-full px-2 sm:px-3">
       {/* Non-editable warning banner */}
       {!isEditable && (
         <div className="bg-warning/10 border border-warning/20 rounded p-3 flex items-center gap-2">
@@ -830,7 +862,7 @@ export function ReportEntry() {
       )}
 
       {/* Header / Actions */}
-      <div className="sticky top-12 z-20 bg-background/95 backdrop-blur py-2 flex items-center justify-between">
+      <div className="sticky top-12 z-20 bg-background/95 backdrop-blur py-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <button 
             onClick={() => navigate(-1)}
@@ -877,7 +909,7 @@ export function ReportEntry() {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {isEditable && (
             <>
               {reportId && (
@@ -922,303 +954,161 @@ export function ReportEntry() {
             </>
           )}
           
-          <button
-            onClick={handlePreview}
-            disabled={!patient}
-            className="h-8 px-2.5 flex items-center gap-1.5 bg-success text-white rounded hover:opacity-90 transition-opacity text-xs disabled:opacity-50"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            Preview
-          </button>
+          {allRequiredFilled && (
+            <button
+              onClick={handlePreview}
+              disabled={!patient}
+              className="h-8 px-2.5 flex items-center gap-1.5 bg-success text-white rounded hover:opacity-90 transition-opacity text-xs disabled:opacity-50"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              Preview
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="flex flex-col">
-        {/* ─── STICKY CONTEXT HEADER: Patient + Test + Doctor (ultra-compact single row) ─── */}
-        <div className="sticky top-12 z-20 bg-background/95 backdrop-blur border-b border-border px-2 py-1.5 mb-2">
-          <div className="flex items-center gap-4 text-xs">
-            {/* Patient Info - Inline */}
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <User className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-              {patient ? (
-                <div className="min-w-0">
-                  <div className="text-foreground font-medium text-xs truncate">{patient.name}</div>
-                  <div className="text-muted-foreground text-[10px] truncate">{patient.age}y • {patient.gender?.charAt(0)} • {patient.phone}</div>
-                </div>
-              ) : (
-                <span className="text-muted-foreground">No patient</span>
-              )}
-            </div>
-
-            {/* Divider */}
-            <div className="w-px h-8 bg-border"></div>
-
-            {/* Test Info - Inline */}
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <Microscope className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-              <div className="min-w-0">
-                <div className="text-foreground font-medium text-xs truncate">{testName}</div>
-                <div className="text-muted-foreground text-[10px]">{format(new Date(), "MMM dd HH:mm")}</div>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="w-px h-8 bg-border"></div>
-
-            {/* Doctor Info - Inline */}
-            <div className="flex items-center gap-1.5">
-              <Stethoscope className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-              <div className="min-w-0">
-                <div className="text-foreground font-medium text-xs truncate">
-                  {isSelfReport ? "Self (Walk-in)" : selectedDoctor?.name ? `Dr. ${selectedDoctor.name}` : "Select Doctor"}
-                </div>
-                <div className="text-muted-foreground text-[10px] truncate">
-                  {selectedDoctor?.specialization || "Self-referral"}
-                </div>
-              </div>
-            </div>
+      <div className="space-y-2">
+        <div className="bg-card border border-border rounded p-2">
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground mb-2">
+            <span className="inline-flex items-center gap-1"><FileText className="w-3 h-3" />{reportId ? `#${reportId.slice(0, 8)}` : '#NEW'}</span>
+            <span className="inline-flex items-center gap-1"><Microscope className="w-3 h-3" />{testName}</span>
+            <span className="inline-flex items-center gap-1"><Calendar className="w-3 h-3" />{format(new Date(), "MMM dd HH:mm")}</span>
+            {!isSelfReport && selectedDoctor?.name && (
+              <span className="inline-flex items-center gap-1"><Stethoscope className="w-3 h-3" />Dr. {selectedDoctor.name}</span>
+            )}
           </div>
+
+          {patient ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-12 gap-2 text-xs">
+              <div className="col-span-2 md:col-span-2 xl:col-span-3">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-0.5">Patient Name</label>
+                <input
+                  type="text"
+                  value={patient.name}
+                  onChange={(e) => setPatient({ ...patient, name: e.target.value })}
+                  disabled={!isEditable}
+                  className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
+                />
+              </div>
+              <div className="col-span-1 md:col-span-1 xl:col-span-2">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-0.5">Gender</label>
+                <select
+                  value={patient.gender || ''}
+                  onChange={(e) => setPatient({ ...patient, gender: e.target.value })}
+                  disabled={!isEditable}
+                  className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
+                >
+                  <option value="">Select</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="col-span-1 md:col-span-1 xl:col-span-1">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-0.5">Age</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={150}
+                  value={patient.age ?? ''}
+                  onChange={(e) => setPatient({ ...patient, age: e.target.value ? Number(e.target.value) : undefined as any })}
+                  disabled={!isEditable}
+                  className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary tabular-nums disabled:opacity-60"
+                />
+              </div>
+              <div className="col-span-2 md:col-span-2 xl:col-span-2">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-0.5">Contact</label>
+                <input
+                  type="tel"
+                  value={patient.phone || ''}
+                  onChange={(e) => setPatient({ ...patient, phone: e.target.value })}
+                  disabled={!isEditable}
+                  className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary tabular-nums disabled:opacity-60"
+                />
+              </div>
+              <div className="col-span-2 md:col-span-4 xl:col-span-4" ref={doctorSearchRef}>
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-0.5">Referring Doctor</label>
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={isSelfReport ? "Self (Walk-in)" : doctorSearch}
+                    onChange={(e) => {
+                      if (!isEditable) return;
+                      setDoctorSearch(e.target.value);
+                      setShowDoctorDropdown(true);
+                      if (e.target.value === "") {
+                        setIsSelfReport(true);
+                        setSelectedDoctor(null);
+                      }
+                    }}
+                    onFocus={() => isEditable && setShowDoctorDropdown(true)}
+                    disabled={!isEditable}
+                    className="w-full h-8 pl-7 pr-14 bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
+                    placeholder="Search doctor..."
+                  />
+                  <button
+                    type="button"
+                    onClick={() => isEditable && handleSelectDoctor(null)}
+                    disabled={!isEditable}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-6 px-2 rounded border border-border bg-secondary text-[10px] text-muted-foreground hover:bg-accent disabled:opacity-60"
+                  >
+                    Self
+                  </button>
+
+                  {showDoctorDropdown && isEditable && (
+                    <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded shadow-lg max-h-56 overflow-y-auto">
+                      <button
+                        onClick={() => handleSelectDoctor(null)}
+                        className={`w-full px-2.5 py-2 text-left hover:bg-accent transition-colors flex items-center gap-2 ${
+                          isSelfReport ? 'bg-primary/10' : ''
+                        }`}
+                      >
+                        <div className="w-6 h-6 rounded-full bg-success/20 flex items-center justify-center">
+                          <User className="w-3 h-3 text-success" />
+                        </div>
+                        <div className="text-xs text-foreground">Self (Walk-in)</div>
+                        {isSelfReport && <CheckCircle className="w-3.5 h-3.5 text-success ml-auto" />}
+                      </button>
+
+                      {doctorsLoading ? (
+                        <div className="px-3 py-3 text-center">
+                          <Loader2 className="w-4 h-4 animate-spin mx-auto text-muted-foreground" />
+                        </div>
+                      ) : filteredDoctors.length > 0 ? (
+                        filteredDoctors.map((doctor) => (
+                          <button
+                            key={doctor.id}
+                            onClick={() => handleSelectDoctor(doctor)}
+                            className={`w-full px-2.5 py-2 text-left hover:bg-accent transition-colors flex items-center gap-2 ${
+                              selectedDoctor?.id === doctor.id ? 'bg-primary/10' : ''
+                            }`}
+                          >
+                            <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+                              <Stethoscope className="w-3 h-3 text-primary" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs text-foreground font-medium truncate">{doctor.title || 'Dr'}. {doctor.name}</div>
+                              <div className="text-[10px] text-muted-foreground truncate">{doctor.specialization || doctor.phone}</div>
+                            </div>
+                            {selectedDoctor?.id === doctor.id && <CheckCircle className="w-3.5 h-3.5 text-primary" />}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-3 text-center text-xs text-muted-foreground">No doctors found</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground">No patient selected</div>
+          )}
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 space-y-2">
-
-          {/* ─── HIDDEN: Expanded Patient + Test + Doctor Details (collapsible) ─── */}
-          <div className="grid grid-cols-3 gap-2 hidden">
-            {/* Patient Card */}
-            <div className="bg-card border border-border rounded">
-              <div className="px-3 py-2 border-b border-border flex items-center justify-between">
-                <h3 className="text-foreground text-xs font-medium flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-muted-foreground" />
-                  Patient Details
-                </h3>
-                {patient && (
-                  <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded tabular-nums">
-                    {patient.id.slice(0, 8)}
-                  </span>
-                )}
-              </div>
-              <div className="p-3 space-y-2 text-xs">
-                {patient ? (
-                  <>
-                    <div>
-                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
-                        Full Name
-                      </label>
-                      <input
-                        type="text"
-                        value={patient.name}
-                        onChange={(e) => setPatient({ ...patient, name: e.target.value })}
-                        className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
-                          Gender
-                        </label>
-                        <select
-                          value={patient.gender || ''}
-                          onChange={(e) => setPatient({ ...patient, gender: e.target.value })}
-                          className="w-full px-2 py-1.5 text-xs border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                        >
-                          <option value="">Select</option>
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                          <option value="Other">Other</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
-                          Age
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={150}
-                          value={patient.age ?? ''}
-                          onChange={(e) => setPatient({ ...patient, age: e.target.value ? Number(e.target.value) : undefined as any })}
-                          className="w-full px-2 py-1.5 text-xs border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary tabular-nums"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
-                        Contact
-                      </label>
-                      <input
-                        type="tel"
-                        value={patient.phone || ''}
-                        onChange={(e) => setPatient({ ...patient, phone: e.target.value })}
-                        className="w-full px-2 py-1.5 text-xs border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary tabular-nums"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center py-4 text-muted-foreground">
-                    No patient selected
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Test Info Card */}
-            <div className="bg-card border border-border rounded">
-              <div className="px-3 py-2 border-b border-border">
-                <h3 className="text-foreground text-xs font-medium flex items-center gap-1.5">
-                  <Microscope className="w-3.5 h-3.5 text-muted-foreground" />
-                  Test Information
-                </h3>
-              </div>
-              <div className="p-3 space-y-2 text-xs">
-                <div>
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
-                    Test Name
-                  </label>
-                  <div className="text-foreground text-sm font-medium">
-                    {testName}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-0.5">
-                    Collection Date
-                  </label>
-                  <div className="text-foreground flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-muted-foreground" />
-                    {format(new Date(), "MMM dd, yyyy HH:mm")}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Doctor Card */}
-            <div className="bg-card border border-border rounded">
-              <div className="px-3 py-2 border-b border-border">
-                <h3 className="text-foreground text-xs font-medium flex items-center gap-1.5">
-                  <Stethoscope className="w-3.5 h-3.5 text-muted-foreground" />
-                  Referring Doctor
-                </h3>
-              </div>
-              <div className="p-3 text-xs">
-                <div ref={doctorSearchRef}>
-                  <div className="relative">
-                    <div className="relative">
-                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-                      <input
-                        type="text"
-                        value={isSelfReport ? "Self (Walk-in)" : doctorSearch}
-                        onChange={(e) => {
-                          setDoctorSearch(e.target.value);
-                          setShowDoctorDropdown(true);
-                          if (e.target.value === "") {
-                            setIsSelfReport(true);
-                            setSelectedDoctor(null);
-                          }
-                        }}
-                        onFocus={() => setShowDoctorDropdown(true)}
-                        className="w-full h-8 pl-7 pr-8 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                        placeholder="Search doctor..."
-                      />
-                      {(selectedDoctor || isSelfReport) && (
-                        <button
-                          onClick={() => {
-                            setSelectedDoctor(null);
-                            setIsSelfReport(true);
-                            setDoctorSearch("");
-                          }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded-full hover:bg-accent"
-                        >
-                          <X className="w-3 h-3 text-muted-foreground" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Doctor Dropdown */}
-                    {showDoctorDropdown && (
-                      <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded shadow-lg max-h-48 overflow-y-auto">
-                        {/* Self Option */}
-                        <button
-                          onClick={() => handleSelectDoctor(null)}
-                          className={`w-full px-3 py-2 text-left hover:bg-accent transition-colors flex items-center gap-2 ${
-                            isSelfReport ? 'bg-primary/10' : ''
-                          }`}
-                        >
-                          <div className="w-6 h-6 rounded-full bg-success/20 flex items-center justify-center">
-                            <User className="w-3 h-3 text-success" />
-                          </div>
-                          <div>
-                            <div className="text-xs text-foreground font-medium">Self (Walk-in)</div>
-                            <div className="text-[10px] text-muted-foreground">Patient came directly</div>
-                          </div>
-                          {isSelfReport && (
-                            <CheckCircle className="w-3.5 h-3.5 text-success ml-auto" />
-                          )}
-                        </button>
-                        
-                        {/* Divider */}
-                        <div className="border-t border-border my-1">
-                          <div className="px-3 py-1 text-[10px] text-muted-foreground uppercase tracking-wider bg-secondary/50">
-                            Registered Doctors
-                          </div>
-                        </div>
-
-                        {/* Doctors List */}
-                        {doctorsLoading ? (
-                          <div className="px-3 py-4 text-center">
-                            <Loader2 className="w-4 h-4 animate-spin mx-auto text-muted-foreground" />
-                          </div>
-                        ) : filteredDoctors.length > 0 ? (
-                          filteredDoctors.map((doctor) => (
-                            <button
-                              key={doctor.id}
-                              onClick={() => handleSelectDoctor(doctor)}
-                              className={`w-full px-3 py-2 text-left hover:bg-accent transition-colors flex items-center gap-2 ${
-                                selectedDoctor?.id === doctor.id ? 'bg-primary/10' : ''
-                              }`}
-                            >
-                              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
-                                <Stethoscope className="w-3 h-3 text-primary" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-xs text-foreground font-medium truncate">
-                                  {doctor.title || 'Dr'}. {doctor.name}
-                                </div>
-                                <div className="text-[10px] text-muted-foreground truncate">
-                                  {doctor.specialization || doctor.phone}
-                                </div>
-                              </div>
-                              {doctor.commission_percentage && doctor.commission_percentage > 0 && (
-                                <span className="text-[10px] text-muted-foreground">
-                                  {doctor.commission_percentage}%
-                                </span>
-                              )}
-                              {selectedDoctor?.id === doctor.id && (
-                                <CheckCircle className="w-3.5 h-3.5 text-primary" />
-                              )}
-                            </button>
-                          ))
-                        ) : (
-                          <div className="px-3 py-4 text-center text-xs text-muted-foreground">
-                            No doctors found
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {selectedDoctor && (
-                  <div className="mt-2 p-2 bg-primary/5 border border-primary/10 rounded">
-                    <div className="text-xs text-foreground font-medium">
-                      {selectedDoctor.title || 'Dr'}. {selectedDoctor.name}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">
-                      {selectedDoctor.specialization}{selectedDoctor.phone ? ` • ${selectedDoctor.phone}` : ''}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+        <div className="space-y-2">
 
           {/* ─── TEST PARAMETERS: Full-width primary focus ─── */}
           <div className="space-y-2">
@@ -1234,7 +1124,36 @@ export function ReportEntry() {
                   No test parameters configured. Please configure fields for your tests in Test Management.
                 </div>
               ) : (
-                testSections.map((section, sectionIdx) => (
+                <>
+                  {testSections.length > 1 && (
+                    <div className="bg-card border border-border rounded p-1.5">
+                      <div className="overflow-x-auto">
+                        <div className="flex gap-1 min-w-max">
+                          {testSections.map((section) => {
+                            const isActive = section.testId === activeTestId;
+                            return (
+                              <button
+                                key={section.testId}
+                                onClick={() => setActiveTestId(section.testId)}
+                                className={`h-7 px-2.5 rounded text-[11px] whitespace-nowrap transition-colors border ${
+                                  isActive
+                                    ? 'bg-primary text-white border-primary'
+                                    : 'bg-background text-muted-foreground border-border hover:bg-accent hover:text-foreground'
+                                }`}
+                              >
+                                {section.testName}
+                                <span className={`ml-1 ${isActive ? 'text-white/90' : 'text-muted-foreground'}`}>
+                                  ({section.params.length})
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {visibleTestSections.map((section, sectionIdx) => (
                   <div key={section.testId} className="bg-card border border-border rounded overflow-hidden">
                     {/* Test section header */}
                     <div className="px-3 py-1.5 border-b border-border bg-primary/5 flex items-center gap-2">
@@ -1252,33 +1171,44 @@ export function ReportEntry() {
 
                     {/* Parameter table - Compact */}
                     <div className="overflow-x-auto">
-                      <table className="w-full text-[10px]">
+                      <table className="w-full table-fixed text-[10px] md:text-[11px]">
+                        <colgroup>
+                          <col className="w-[38%]" />
+                          <col className="w-[11%]" />
+                          <col className="w-[18%]" />
+                          <col className="w-[21%]" />
+                          <col className="w-[12%]" />
+                        </colgroup>
                         <thead className="bg-secondary/30">
                           <tr className="border-b border-border">
-                            <th className="px-2 py-1 text-left text-muted-foreground uppercase tracking-wider">Parameter</th>
-                            <th className="px-2 py-1 text-center text-muted-foreground uppercase tracking-wider">Unit</th>
-                            <th className="px-2 py-1 text-center text-muted-foreground uppercase tracking-wider">Ref. Range</th>
-                            <th className="px-2 py-1 text-right text-muted-foreground uppercase tracking-wider">Result</th>
-                            <th className="px-2 py-1 text-center text-muted-foreground uppercase tracking-wider">Status</th>
+                            <th className="px-1.5 py-1 text-left text-muted-foreground uppercase tracking-wider">Parameter</th>
+                            <th className="px-1.5 py-1 text-left text-muted-foreground uppercase tracking-wider">Unit</th>
+                            <th className="px-1.5 py-1 text-left text-muted-foreground uppercase tracking-wider">Ref. Range</th>
+                            <th className="px-1.5 py-1 text-right text-muted-foreground uppercase tracking-wider">Result</th>
+                            <th className="px-1.5 py-1 text-center text-muted-foreground uppercase tracking-wider">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
                           {section.params.map((param, index) => (
                             <tr key={param.id} className="hover:bg-accent/30 transition-colors">
-                              <td className="px-2 py-1 text-foreground text-xs">{param.name}{param.field_type === 'calculated' && (<span className="ml-1 text-[9px] text-primary bg-primary/10 px-0.5 py-0.25 rounded">calc</span>)}</td>
-                              <td className="px-2 py-1 text-center text-muted-foreground text-[10px]">{param.unit}</td>
-                              <td className="px-2 py-1 text-center text-muted-foreground tabular-nums text-[10px] whitespace-nowrap">{param.min || param.max ? `${param.min} - ${param.max}` : '-'}</td>
-                              <td className="px-2 py-1">
+                              <td className="px-1.5 py-1 text-foreground text-[10px] md:text-xs align-top">
+                                <div className="leading-tight break-words">{param.name}</div>
+                                {param.field_type === 'calculated' && (<span className="mt-0.5 inline-block text-[9px] text-primary bg-primary/10 px-0.5 py-0.25 rounded">calc</span>)}
+                              </td>
+                              <td className="px-1.5 py-1 text-left text-muted-foreground text-[10px] align-top break-words">{param.unit || '-'}</td>
+                              <td className="px-1.5 py-1 text-left text-muted-foreground tabular-nums text-[10px] align-top">{param.min || param.max ? `${param.min} - ${param.max}` : '-'}</td>
+                              <td className="px-1.5 py-1">
                                 <input type={param.input_type === 'text' ? 'text' : 'number'} step={param.step} className={`${getInputClass(statuses[param.id])} h-7 text-[10px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}`} placeholder={param.field_type === 'calculated' ? 'Auto' : '0.0'} value={values[param.id] || ""} onChange={(e) => handleValueChange(param.id, e.target.value)} tabIndex={param.field_type === 'calculated' ? -1 : sectionIdx * 100 + index + 1} disabled={!isEditable} readOnly={param.field_type === 'calculated'} />
                               </td>
-                              <td className="px-2 py-1 text-center">{getStatusBadge(statuses[param.id])}</td>
+                              <td className="px-1.5 py-1 text-center">{getStatusBadge(statuses[param.id])}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
                   </div>
-                ))
+                  ))}
+                </>
               )}
 
               {/* Status legend */}

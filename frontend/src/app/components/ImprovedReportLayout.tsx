@@ -34,9 +34,9 @@ export const ReportLayoutConfig = {
   // Font sizes
   fontSize: {
     label: 9,
-    value: 10.5,
-    header: 10,
-    sectionTitle: 12,
+    value: 11,
+    header: 10.5,
+    sectionTitle: 12.5,
     patientName: 15,
   },
   
@@ -50,11 +50,10 @@ export const ReportLayoutConfig = {
   
   // Table column widths (percentages)
   tableColumns: {
-    investigation: '40%',
-    result: '14%',
-    flag: '7%',
-    refRange: '24%',
-    unit: '15%',
+    investigation: '36%',
+    result: '17%',
+    refRange: '30%',
+    unit: '17%',
   },
 };
 
@@ -107,7 +106,7 @@ export function PatientInfoRow({
 export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<string, string> }) {
   const thStyle = (width: string, align: string = 'center', extra: React.CSSProperties = {}): React.CSSProperties => ({
     textAlign: align as any,
-    padding: `${ReportLayoutConfig.boxPadding.normal}px 8px`,
+    padding: `${ReportLayoutConfig.boxPadding.dense}px 2px`,
     fontWeight: 700,
     color: colorTokens.white,
     fontSize: `${ReportLayoutConfig.fontSize.header}px`,
@@ -115,7 +114,6 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
     textTransform: 'uppercase',
     whiteSpace: 'nowrap',
     width,
-    borderRight: `1px solid rgba(255,255,255,0.15)`,
     ...extra,
   });
 
@@ -125,16 +123,13 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
         <th style={thStyle(ReportLayoutConfig.tableColumns.investigation, 'left')}>
           Investigation
         </th>
-        <th style={thStyle(ReportLayoutConfig.tableColumns.result)}>
+        <th style={thStyle(ReportLayoutConfig.tableColumns.result, 'left')}>
           Result
         </th>
-        <th style={thStyle(ReportLayoutConfig.tableColumns.flag)}>
-          Flag
+        <th style={thStyle(ReportLayoutConfig.tableColumns.refRange, 'left')}>
+          Reference Value
         </th>
-        <th style={thStyle(ReportLayoutConfig.tableColumns.refRange)}>
-          Bio. Ref. Range
-        </th>
-        <th style={thStyle(ReportLayoutConfig.tableColumns.unit, 'center', { borderRight: 'none' })}>
+        <th style={thStyle(ReportLayoutConfig.tableColumns.unit, 'center')}>
           Unit
         </th>
       </tr>
@@ -172,9 +167,10 @@ export function InvestigationTableRow({
   indented?: boolean;
   colorTokens: Record<string, string>;
 }) {
-  const cellBorder = `1px solid ${colorTokens.borderLight}`;
+  const cellBorder = 'none';
   const vPad = `${ReportLayoutConfig.boxPadding.dense}px`;
-  const hPad = '8px';
+  const leftPad = '4px';
+  const rightPad = '2px';
   const fontSize = `${ReportLayoutConfig.fontSize.value}px`;
 
   return (
@@ -182,58 +178,43 @@ export function InvestigationTableRow({
       {/* Investigation name */}
       <td
         style={{
-          padding: `${vPad} ${hPad}`,
-          paddingLeft: indented ? '24px' : hPad,
+          padding: `${vPad} 1px`,
+          paddingLeft: indented ? '24px' : '2px',
           fontWeight: isAbnormal ? 700 : 400,
           color: isAbnormal ? statusColor : colorTokens.text,
-          borderBottom: cellBorder,
           fontSize,
           textAlign: 'left',
           lineHeight: 1.4,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
         }}
       >
         {investigation}
       </td>
-      {/* Result value */}
+      {/* Result value with inline flag */}
       <td
         style={{
-          padding: `${vPad} ${hPad}`,
-          textAlign: 'center',
+          padding: `${vPad} 1px`,
+          paddingLeft: '2px',
+          textAlign: 'left',
           fontWeight: isAbnormal ? 700 : 400,
           color: isAbnormal ? statusColor : colorTokens.text,
           fontSize,
           fontVariantNumeric: 'tabular-nums',
-          borderBottom: cellBorder,
-          borderLeft: cellBorder,
           whiteSpace: 'nowrap',
         }}
       >
-        {result}
+        {result} {status === 'High' ? <span style={{ color: statusColor, fontWeight: 700, marginLeft: '4px' }}>High</span> : status === 'Low' ? <span style={{ color: statusColor, fontWeight: 700, marginLeft: '4px' }}>Low</span> : ''}
       </td>
-      {/* Flag (H/L) */}
+      {/* Reference Value */}
       <td
         style={{
-          padding: `${vPad} 4px`,
-          textAlign: 'center',
-          borderBottom: cellBorder,
-          borderLeft: cellBorder,
-          whiteSpace: 'nowrap',
-          fontSize: '9px',
-          fontWeight: 700,
-          color: statusColor,
-        }}
-      >
-        {status === 'High' ? 'H' : status === 'Low' ? 'L' : ''}
-      </td>
-      {/* Reference Range */}
-      <td
-        style={{
-          padding: `${vPad} ${hPad}`,
-          textAlign: 'center',
+          padding: `${vPad} 1px`,
+          paddingLeft: '2px',
+          textAlign: 'left',
           color: isAbnormal ? colorTokens.text : colorTokens.secondary,
           fontWeight: isAbnormal ? 700 : 400,
-          borderBottom: cellBorder,
-          borderLeft: cellBorder,
           fontSize,
           whiteSpace: 'nowrap',
         }}
@@ -243,12 +224,11 @@ export function InvestigationTableRow({
       {/* Unit */}
       <td
         style={{
-          padding: `${vPad} ${hPad}`,
+          padding: `${vPad} 1px`,
+          paddingLeft: '2px',
           textAlign: 'center',
           color: isAbnormal ? colorTokens.text : colorTokens.secondary,
           fontWeight: isAbnormal ? 700 : 400,
-          borderBottom: cellBorder,
-          borderLeft: cellBorder,
           fontSize,
           whiteSpace: 'nowrap',
         }}
@@ -273,13 +253,12 @@ export function SectionGroupHeader({
   return (
     <tr>
       <td
-        colSpan={5}
+        colSpan={4}
         style={{
           padding: `${ReportLayoutConfig.boxPadding.dense + 1}px 8px ${ReportLayoutConfig.boxPadding.dense - 1}px`,
           fontWeight: 700,
           fontSize: `${ReportLayoutConfig.fontSize.value}px`,
           color: colorTokens.text,
-          borderBottom: `1px solid ${colorTokens.borderLight}`,
           letterSpacing: '0.2px',
         }}
       >
@@ -429,15 +408,15 @@ export function TestSectionBlock({
   return (
     <div
       style={{
-        marginBottom: `${ReportLayoutConfig.sectionMargin.between}px`,
-        marginTop: isFirstSection ? 0 : `${ReportLayoutConfig.sectionMargin.top}px`,
+        marginBottom: `${ReportLayoutConfig.sectionMargin.between - 4}px`,
+        marginTop: isFirstSection ? 0 : `${ReportLayoutConfig.sectionMargin.top - 4}px`,
       }}
     >
       {/* Test section heading */}
       <div
         style={{
           textAlign: 'center',
-          marginBottom: `${ReportLayoutConfig.spacing.md}px`,
+          marginBottom: `${ReportLayoutConfig.spacing.sm}px`,
         }}
       >
         <h2
@@ -447,10 +426,10 @@ export function TestSectionBlock({
             fontWeight: 800,
             color: colorTokens.text,
             textTransform: 'uppercase',
-            letterSpacing: '1.5px',
+            letterSpacing: '1px',
             display: 'inline-block',
-            paddingBottom: '3px',
-            borderBottom: `2px solid ${colorTokens.text}`,
+            paddingBottom: '2px',
+            borderBottom: `1px solid ${colorTokens.text}`,
           }}
         >
           {testName}
