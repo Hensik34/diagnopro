@@ -5,7 +5,6 @@ const TestField = require("../models/TestField");
 exports.getTests = async (req, res) => {
   try {
     const { category, branch_id } = req.query;
-    const userId = req.user?.id; // Get user ID from authenticated request
 
     if (!branch_id) {
       return res.status(400).json({ error: "branch_id is required" });
@@ -13,9 +12,9 @@ exports.getTests = async (req, res) => {
 
     let tests;
     if (category) {
-      tests = await Test.getTestsByCategory(category, branch_id, userId);
+      tests = await Test.getTestsByCategory(category, branch_id);
     } else {
-      tests = await Test.getAllTests(branch_id, userId);
+      tests = await Test.getAllTests(branch_id);
     }
 
     res.json({
@@ -33,9 +32,9 @@ exports.getTests = async (req, res) => {
 exports.getTestById = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user?.id;
+    const { branch_id } = req.query;
 
-    const test = await Test.getTestById(id, userId);
+    const test = await Test.getTestById(id, branch_id || null);
 
     if (!test) {
       return res.status(404).json({ error: "Test not found" });
@@ -54,12 +53,12 @@ exports.getTestById = async (req, res) => {
 // CREATE TEST
 exports.createTest = async (req, res) => {
   try {
-    const { test_name, test_code, category, sample_type, price, turnaround_time, description, branch_id } = req.body;
+    const { test_name, test_code, category, sample_type, price, turnaround_time, description } = req.body;
 
     // Validation
-    if (!test_name || !test_code || !branch_id) {
+    if (!test_name || !test_code) {
       return res.status(400).json({ 
-        error: "test_name, test_code, and branch_id are required" 
+        error: "test_name and test_code are required" 
       });
     }
 
@@ -70,8 +69,7 @@ exports.createTest = async (req, res) => {
       sample_type,
       price,
       turnaround_time,
-      description,
-      branch_id
+      description
     });
 
     res.status(201).json({
@@ -81,7 +79,7 @@ exports.createTest = async (req, res) => {
   } catch (err) {
     console.error("Create test error:", err);
     if (err.code === '23505') { // Unique violation
-      return res.status(400).json({ error: "Test code already exists for this branch" });
+      return res.status(400).json({ error: "Test code already exists" });
     }
     res.status(500).json({ error: err.message });
   }
@@ -92,7 +90,7 @@ exports.updateTest = async (req, res) => {
   try {
     const { id } = req.params;
     const { test_name, category, sample_type, price, turnaround_time, description } = req.body;
-    const userId = req.user?.id;
+    const branchId = req.body.branch_id || req.query.branch_id || null;
     const userRole = req.user?.role; // Get user's role
 
     const test = await Test.updateTest(id, {
@@ -102,7 +100,7 @@ exports.updateTest = async (req, res) => {
       price,
       turnaround_time,
       description
-    }, userId, userRole); // Pass role for permission check
+    }, branchId, userRole); // Pass role for permission check
 
     if (!test) {
       return res.status(404).json({ error: "Test not found" });
@@ -219,8 +217,8 @@ exports.updateTestResult = async (req, res) => {
 exports.getTestFields = async (req, res) => {
   try {
     const { testId } = req.params;
-    const userId = req.user?.id;
-    const fields = await TestField.getFieldsByTestId(testId, userId);
+    const branchId = req.query.branch_id || null;
+    const fields = await TestField.getFieldsByTestId(testId, branchId);
     res.json({ message: "Test fields retrieved", data: fields });
   } catch (err) {
     console.error("Get test fields error:", err);
@@ -231,13 +229,12 @@ exports.getTestFields = async (req, res) => {
 // GET FIELDS FOR MULTIPLE TESTS
 exports.getMultiTestFields = async (req, res) => {
   try {
-    const { testIds } = req.body;
-    const userId = req.user?.id;
+    const { testIds, branch_id } = req.body;
     
     if (!Array.isArray(testIds) || testIds.length === 0) {
       return res.status(400).json({ error: "testIds must be a non-empty array" });
     }
-    const fields = await TestField.getFieldsByTestIds(testIds, userId);
+    const fields = await TestField.getFieldsByTestIds(testIds, branch_id || null);
     res.json({ message: "Test fields retrieved", data: fields });
   } catch (err) {
     console.error("Get multi test fields error:", err);
@@ -250,7 +247,7 @@ exports.setTestFields = async (req, res) => {
   try {
     const { testId } = req.params;
     const { fields } = req.body;
-    const userId = req.user?.id;
+    const branchId = req.body.branch_id || req.query.branch_id || null;
     const userRole = req.user?.role; // Get user's role
 
     if (!Array.isArray(fields)) {
@@ -263,7 +260,7 @@ exports.setTestFields = async (req, res) => {
       }
     }
 
-    const result = await TestField.setFieldsForTest(testId, fields, userId, userRole); // Pass role
+    const result = await TestField.setFieldsForTest(testId, fields, branchId, userRole); // Pass role
     res.json({ message: "Test fields saved", data: result });
   } catch (err) {
     console.error("Set test fields error:", err);
@@ -286,20 +283,20 @@ exports.deleteTestField = async (req, res) => {
   }
 };
 
-// RESET USER TEST OVERRIDE (revert to default)
+// RESET BRANCH TEST OVERRIDE (revert to default)
 exports.resetTestOverride = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user?.id;
+    const branchId = req.body.branch_id || req.query.branch_id || null;
 
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
+    if (!branchId) {
+      return res.status(400).json({ error: "branch_id is required" });
     }
 
-    await Test.resetUserOverride(id, userId);
+    await Test.resetBranchOverride(id, branchId);
 
-    // Return the default test data after reset
-    const test = await Test.getTestById(id, userId);
+    // Return merged test data after reset
+    const test = await Test.getTestById(id, branchId);
 
     res.json({
       message: "Test reset to default successfully",

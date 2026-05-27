@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { testApi } from '../api';
+import { useBranchStore } from './branchStore';
 import type { Test, CreateTestData, SampleTest, UpdateTestResultData, TestField, CreateTestFieldData } from '../types';
 
 // ==========================================
@@ -103,7 +104,8 @@ export const useTestStore = create<TestState>((set, get) => ({
     set({ isLoading: true, error: null });
     
     try {
-      const response = await testApi.getById(id);
+      const branchId = useBranchStore.getState().currentBranchId || undefined;
+      const response = await testApi.getById(id, branchId);
       set({
         selectedTest: response.data,
         isLoading: false,
@@ -139,17 +141,17 @@ export const useTestStore = create<TestState>((set, get) => ({
   },
 
   /**
-   * Update test (admin updates global test, non-admins can create personal overrides)
+   * Update test (admin updates global test, non-admins create branch overrides)
    */
   updateTest: async (id: string, data: Partial<CreateTestData>): Promise<Test | null> => {
     set({ isLoading: true, error: null });
     
     try {
-      await testApi.update(id, data);
+      const branchId = useBranchStore.getState().currentBranchId || undefined;
+      await testApi.update(id, data, branchId);
       
       // Re-fetch the test with merged data from backend
-      // Backend will automatically apply merge logic based on user role
-      const mergedResponse = await testApi.getById(id);
+      const mergedResponse = await testApi.getById(id, branchId);
       const mergedTest = mergedResponse.data;
       
       // Update local cache with merged data from backend
@@ -198,22 +200,28 @@ export const useTestStore = create<TestState>((set, get) => ({
   },
 
   /**
-   * Reset test to default (remove user override)
+   * Reset test to default (remove branch override)
    */
   resetTestToDefault: async (testId: string): Promise<boolean> => {
     set({ isLoading: true, error: null });
     
     try {
-      const response = await testApi.resetToDefault(testId);
+      const branchId = useBranchStore.getState().currentBranchId;
+      if (!branchId) {
+        set({ error: 'No branch selected', isLoading: false });
+        return false;
+      }
+
+      const response = await testApi.resetToDefault(testId, branchId);
       const defaultTest = response.data;
       
-      // Update local cache — replace with default data, remove override flag
+      // Update local cache - replace with merged default data, remove override flag
       set((state) => ({
         tests: state.tests.map((t) => 
-          t.id === testId ? { ...defaultTest, has_user_override: false } : t
+          t.id === testId ? { ...defaultTest, has_branch_override: false } : t
         ),
         selectedTest: state.selectedTest?.id === testId 
-          ? { ...defaultTest, has_user_override: false }
+          ? { ...defaultTest, has_branch_override: false }
           : state.selectedTest,
         isLoading: false,
       }));
@@ -237,7 +245,8 @@ export const useTestStore = create<TestState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const response = await testApi.getFields(testId);
+      const branchId = useBranchStore.getState().currentBranchId || undefined;
+      const response = await testApi.getFields(testId, branchId);
       set({ testFields: response.data, isLoading: false });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch test fields';
@@ -252,7 +261,8 @@ export const useTestStore = create<TestState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const response = await testApi.getFieldsMulti(testIds);
+      const branchId = useBranchStore.getState().currentBranchId || undefined;
+      const response = await testApi.getFieldsMulti(testIds, branchId);
       set({ testFields: response.data, isLoading: false });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch test fields';
@@ -267,9 +277,10 @@ export const useTestStore = create<TestState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      await testApi.setFields(testId, fields);
-      // Refetch the merged fields from backend (includes admin changes + user overrides)
-      const response = await testApi.getFields(testId);
+      const branchId = useBranchStore.getState().currentBranchId || undefined;
+      await testApi.setFields(testId, fields, branchId);
+      // Refetch merged fields from backend (defaults + branch overrides)
+      const response = await testApi.getFields(testId, branchId);
       set({ testFields: response.data, isLoading: false });
       return true;
     } catch (error) {

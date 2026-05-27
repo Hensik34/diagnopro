@@ -157,16 +157,22 @@ export function Reports() {
         label: 'Rejected',
         icon: XCircle,
       },
-      pending: {
+      created: {
         bg: 'var(--muted)',
         text: 'var(--muted-foreground)',
-        label: 'Pending',
+        label: 'Created',
         icon: Clock,
       },
-      'in-progress': {
+      collected: {
         bg: 'var(--warning)',
         text: 'var(--warning-foreground)',
-        label: 'In Progress',
+        label: 'Collected',
+        icon: Clock,
+      },
+      processing: {
+        bg: 'var(--warning)',
+        text: 'var(--warning-foreground)',
+        label: 'Processing',
         icon: Clock,
       },
       completed: {
@@ -205,6 +211,11 @@ export function Reports() {
     return report.sample_type || 'Main Branch';
   };
 
+  const getPatientIdPreview = (report: Report) => {
+    const patientId = report.patient_id || '';
+    return patientId ? patientId.slice(0, 8) : '-';
+  };
+
   /**
    * Filter reports based on search and filters
    */
@@ -215,7 +226,7 @@ export function Reports() {
 
       const matchesSearch =
         patientName.includes(searchLower) ||
-        report.patient_id.toLowerCase().includes(searchLower) ||
+        (report.patient_id || '').toLowerCase().includes(searchLower) ||
         report.id.toLowerCase().includes(searchLower) ||
         (report.report_type || '').toLowerCase().includes(searchLower);
 
@@ -477,11 +488,12 @@ export function Reports() {
                             {report.sample_id_code}
                           </span>
                           {report.rejection_reason && (
-                            <AlertCircle
-                              className="w-3.5 h-3.5"
-                              style={{ color: 'var(--destructive)' }}
-                              title={report.rejection_reason}
-                            />
+                            <span title={report.rejection_reason}>
+                              <AlertCircle
+                                className="w-3.5 h-3.5"
+                                style={{ color: 'var(--destructive)' }}
+                              />
+                            </span>
                           )}
                         </div>
                       </td>
@@ -490,7 +502,7 @@ export function Reports() {
                           {getPatientName(report)}
                         </div>
                         <div className="text-[10px] text-muted-foreground font-mono">
-                          {report.patient_id.slice(0, 8)}
+                          {getPatientIdPreview(report)}
                         </div>
                       </td>
                       <td className="px-3 py-2.5">

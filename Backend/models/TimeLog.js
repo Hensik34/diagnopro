@@ -1,102 +1,95 @@
-const pool = require("../config/db");
+const { Op, fn, col, literal } = require("sequelize");
+const { TimeLog, User } = require("./index");
 
-// Clock in - create a new time log entry
+// Clock in
 exports.clockIn = async (userId) => {
-  const result = await pool.query(
-    `INSERT INTO time_logs (user_id, clock_in) 
-     VALUES ($1, CURRENT_TIMESTAMP) 
-     RETURNING *`,
-    [userId]
-  );
-  return result.rows[0];
+  return await TimeLog.create({ user_id: userId, clock_in: new Date() });
 };
 
-// Clock out - update existing open time log
+// Clock out
 exports.clockOut = async (userId, notes) => {
-  const result = await pool.query(
-    `UPDATE time_logs 
-     SET clock_out = CURRENT_TIMESTAMP,
-         total_hours = ROUND(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - clock_in)) / 3600.0, 2),
-         notes = COALESCE($2, notes),
-         updated_at = CURRENT_TIMESTAMP
-     WHERE user_id = $1 AND clock_out IS NULL
-     RETURNING *`,
-    [userId, notes]
+  const record = await TimeLog.findOne({
+    where: { user_id: userId, clock_out: null },
+    order: [["clock_in", "DESC"]],
+  });
+  if (!record) return null;
+
+  record.clock_out = new Date();
+  record.total_hours = parseFloat(
+    ((record.clock_out - record.clock_in) / 3600000).toFixed(2)
   );
-  return result.rows[0] || null;
+  if (notes) record.notes = notes;
+  await record.save();
+  return record.toJSON();
 };
 
 // Get active (open) session for a user
 exports.getActiveSession = async (userId) => {
-  const result = await pool.query(
-    `SELECT * FROM time_logs 
-     WHERE user_id = $1 AND clock_out IS NULL 
-     ORDER BY clock_in DESC LIMIT 1`,
-    [userId]
-  );
-  return result.rows[0] || null;
+  return await TimeLog.findOne({
+    where: { user_id: userId, clock_out: null },
+    order: [["clock_in", "DESC"]],
+    raw: true,
+  });
 };
 
 // Get time logs for a user with date range
 exports.getByUser = async (userId, startDate, endDate) => {
-  const result = await pool.query(
-    `SELECT * FROM time_logs 
-     WHERE user_id = $1 
-       AND clock_in >= $2 
-       AND clock_in < $3
-     ORDER BY clock_in DESC`,
-    [userId, startDate, endDate]
-  );
-  return result.rows;
+  return await TimeLog.findAll({
+    where: {
+      user_id: userId,
+      clock_in: { [Op.gte]: startDate, [Op.lt]: endDate },
+    },
+    order: [["clock_in", "DESC"]],
+    raw: true,
+  });
 };
 
-// Get all users' time logs (admin) filtered by admin's team
+// Get all users' time logs (admin)
 exports.getAll = async (startDate, endDate, adminId) => {
-  const result = await pool.query(
-    `SELECT tl.*, 
-            u.firstname, u.lastname, u.email, u.role
-     FROM time_logs tl
-     JOIN users u ON tl.user_id = u.id
-     WHERE tl.clock_in >= $1 
-       AND tl.clock_in < $2
-       AND (u.created_by = $3 OR u.id = $3)
-     ORDER BY tl.clock_in DESC`,
-    [startDate, endDate, adminId]
-  );
-  return result.rows;
+  return await TimeLog.findAll({
+    where: {
+      clock_in: { [Op.gte]: startDate, [Op.lt]: endDate },
+    },
+    include: [{
+      model: User,
+      as: "user",
+      attributes: ["firstname", "lastname", "email", "role"],
+      where: {
+        [Op.or]: [{ created_by: adminId }, { id: adminId }],
+      },
+    }],
+    order: [["clock_in", "DESC"]],
+    raw: true,
+    nest: true,
+  });
 };
 
-// Get summary of hours per user for a date range (admin's team only)
+// Get summary of hours per user
 exports.getUserSummary = async (startDate, endDate, adminId) => {
-  const result = await pool.query(
-    `SELECT 
-        u.id as user_id,
-        u.firstname,
-        u.lastname,
-        u.email,
-        u.role,
+  const { sequelize } = require("./index");
+  const [results] = await sequelize.query(
+    `SELECT
+        u.id as user_id, u.firstname, u.lastname, u.email, u.role,
         COUNT(tl.id) as total_sessions,
         COALESCE(SUM(tl.total_hours), 0) as total_hours,
         MIN(tl.clock_in) as first_clock_in,
         MAX(tl.clock_out) as last_clock_out
      FROM users u
-     LEFT JOIN time_logs tl ON u.id = tl.user_id 
-       AND tl.clock_in >= $1 
-       AND tl.clock_in < $2
+     LEFT JOIN time_logs tl ON u.id = tl.user_id
+       AND tl.clock_in >= :startDate AND tl.clock_in < :endDate
      WHERE u.is_active = true AND u.role != 'admin'
-       AND (u.created_by = $3 OR u.id = $3)
+       AND (u.created_by = :adminId OR u.id = :adminId)
      GROUP BY u.id, u.firstname, u.lastname, u.email, u.role
      ORDER BY total_hours DESC`,
-    [startDate, endDate, adminId]
+    { replacements: { startDate, endDate, adminId } }
   );
-  return result.rows;
+  return results;
 };
 
-// Delete a time log (admin only)
+// Delete a time log
 exports.deleteLog = async (id) => {
-  const result = await pool.query(
-    `DELETE FROM time_logs WHERE id = $1 RETURNING *`,
-    [id]
-  );
-  return result.rows[0] || null;
+  const record = await TimeLog.findByPk(id);
+  if (!record) return null;
+  await record.destroy();
+  return record.toJSON();
 };

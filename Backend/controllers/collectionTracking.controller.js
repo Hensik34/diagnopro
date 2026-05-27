@@ -107,7 +107,8 @@ exports.getSummary = async (req, res) => {
  */
 exports.getStaffList = async (req, res) => {
   try {
-    const users = await User.getAllUsers();
+    const adminId = req.user?.id;
+    const users = await User.getAllUsers(adminId);
     const staff = users.filter(
       (u) => u.is_active && (u.role === "staff" || u.role === "lab_technician")
     );

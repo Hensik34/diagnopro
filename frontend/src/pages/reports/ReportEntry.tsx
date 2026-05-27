@@ -33,7 +33,7 @@ import { BillingSection } from "../../app/components/reports/BillingSection";
 
 
 export function ReportEntry() {
-  const { reportId } = useParams<{ reportId: string }>();
+  const { reportId: rawReportId } = useParams<{ reportId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -58,11 +58,24 @@ export function ReportEntry() {
     error: reportError 
   } = useReportStore();
   const { fetchPatientById, updatePatient } = usePatientStore();
-  const { currentBranchId } = useBranchStore();
+  const { currentBranchId, fetchBranches } = useBranchStore();
   const { can } = useAuthStore();
   const { tests, testFields, fetchTests, fetchTestFields, fetchTestFieldsMulti } = useTestStore();
   const canAutoApprove = can('report:approve');
   const { loadFromReport, reset: resetBilling, saveBilling } = useBillingStore();
+  const reportId = rawReportId && rawReportId !== 'undefined' && rawReportId !== 'null' ? rawReportId : undefined;
+
+  useEffect(() => {
+    if (!currentBranchId) {
+      fetchBranches();
+    }
+  }, [currentBranchId, fetchBranches]);
+
+  useEffect(() => {
+    if (rawReportId === 'undefined' || rawReportId === 'null') {
+      navigate('/reports', { replace: true });
+    }
+  }, [rawReportId, navigate]);
 
   // Dynamic test parameters derived from testFields (memoized to prevent re-render loops)
   const dynamicParams = useMemo(() => 
@@ -243,7 +256,7 @@ export function ReportEntry() {
         fetchTestFields(matchedIds[0]);
       }
     }
-  }, [selectedReport, tests, fetchTestFields, fetchTestFieldsMulti]);
+  }, [selectedReport, tests, fetchTestFields, fetchTestFieldsMulti, currentBranchId]);
 
   // Track whether we've already populated values from the report (to avoid overwriting user input)
   const hasPopulatedValues = useRef(false);

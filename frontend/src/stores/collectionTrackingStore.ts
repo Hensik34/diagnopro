@@ -26,6 +26,7 @@ interface CollectionTrackingState {
   updateRecord: (id: string, data: Partial<CreateCollectionTrackingData>) => Promise<CollectionTracking>;
   deleteRecord: (id: string) => Promise<void>;
   clearError: () => void;
+  reset: () => void;
 }
 
 export const useCollectionTrackingStore = create<CollectionTrackingState>((set, get) => ({

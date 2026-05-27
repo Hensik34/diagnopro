@@ -31,13 +31,22 @@ export const ReportLayoutConfig = {
     spacious: 14,
   },
   
-  // Font sizes
+  // Font sizes (desktop)
   fontSize: {
     label: 9,
     value: 11,
     header: 10.5,
     sectionTitle: 12.5,
     patientName: 15,
+  },
+  
+  // Font sizes mobile
+  fontSizeMobile: {
+    label: 8,
+    value: 9,
+    header: 9,
+    sectionTitle: 11,
+    patientName: 14,
   },
   
   // Line heights
@@ -102,6 +111,7 @@ export function PatientInfoRow({
 
 /**
  * InvestigationTableHeader - Clean professional header with FLAG column
+ * Responsive for mobile
  */
 export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<string, string> }) {
   const thStyle = (width: string, align: string = 'center', extra: React.CSSProperties = {}): React.CSSProperties => ({
@@ -109,8 +119,8 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
     padding: `${ReportLayoutConfig.boxPadding.dense}px 2px`,
     fontWeight: 700,
     color: colorTokens.white,
-    fontSize: `${ReportLayoutConfig.fontSize.header}px`,
-    letterSpacing: '0.5px',
+    fontSize: `${ReportLayoutConfig.fontSize.header - 1}px`,
+    letterSpacing: '0.3px',
     textTransform: 'uppercase',
     whiteSpace: 'nowrap',
     width,
@@ -143,6 +153,7 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
  * - Abnormal values in bold with color
  * - Ref range and unit also bold when abnormal
  * - Indentation support for grouped sub-parameters
+ * - Responsive for mobile
  */
 export function InvestigationTableRow({
   investigation,
@@ -271,6 +282,7 @@ export function SectionGroupHeader({
 /**
  * ImprovedPatientBox - Better structured patient information display
  * Styled as a clean bordered info table matching professional lab reports
+ * Fully responsive for mobile and tablet
  */
 export function ImprovedPatientBox({
   patientName,
@@ -314,19 +326,21 @@ export function ImprovedPatientBox({
       <div
         style={{
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'stretch',
         }}
       >
         {/* Column 1: Patient Details */}
         <div style={{
           flex: '1.2',
-          borderRight: `1px solid ${colorTokens.borderLight}`,
-          padding: '12px 14px',
+          borderRight: 'none',
+          borderBottom: `1px solid ${colorTokens.borderLight}`,
+          padding: '10px 12px',
         }}>
-          <h2 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 6px 0', color: colorTokens.text }}>
+          <h2 style={{ fontSize: '15px', fontWeight: 800, margin: '0 0 4px 0', color: colorTokens.text }}>
             {patientName}
           </h2>
-          <div style={{ fontSize: '12px', color: '#444', lineHeight: 1.7 }}>
+          <div style={{ fontSize: '11px', color: '#444', lineHeight: 1.6 }}>
             <div>Age : {age} Years</div>
             <div>Sex : {gender}</div>
             <div>PID : {patientId}</div>
@@ -336,52 +350,55 @@ export function ImprovedPatientBox({
         {/* Column 2: Registration ID & Ref Doctor & QR */}
         <div style={{
           flex: '1.5',
-          borderRight: `1px solid ${colorTokens.borderLight}`,
-          padding: '12px 14px',
+          borderRight: 'none',
+          borderBottom: `1px solid ${colorTokens.borderLight}`,
+          padding: '10px 12px',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '10px',
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', width: '100%' }}>
-            {/* Left: Registration info */}
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: colorTokens.secondary, marginBottom: '2px' }}>
-                Registration ID:
-              </div>
-              <div style={{ fontSize: '14px', color: colorTokens.text, marginBottom: '6px', fontWeight: 800 }}>
-                {sampleId}
-              </div>
-              <div style={{ fontSize: '12px', color: colorTokens.text }}>
-                Ref. By: <span style={{ fontWeight: 700 }}>{referringDoctor}</span>
-              </div>
+          {/* Left: Registration info */}
+          <div style={{ flex: 1, minWidth: '150px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: colorTokens.secondary, marginBottom: '2px' }}>
+              Registration ID:
             </div>
-            {/* Right: QR Code */}
-            <div style={{ flexShrink: 0 }}>
-              {qrCode}
+            <div style={{ fontSize: '13px', color: colorTokens.text, marginBottom: '4px', fontWeight: 800 }}>
+              {sampleId}
             </div>
+            <div style={{ fontSize: '10.5px', color: colorTokens.text }}>
+              Ref. By: <span style={{ fontWeight: 700 }}>{referringDoctor}</span>
+            </div>
+          </div>
+          {/* Right: QR Code */}
+          <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+            {qrCode}
           </div>
         </div>
 
         {/* Column 3: Barcode & Dates */}
         <div style={{
           flex: '1.3',
-          padding: '12px 14px',
+          padding: '10px 12px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
+          gap: '6px',
         }}>
-          <div style={{ marginBottom: '6px' }}>
+          <div>
             {barcode}
           </div>
-          <div style={{ fontSize: '10.5px', color: colorTokens.text, width: '100%', lineHeight: 1.5 }}>
+          <div style={{ fontSize: '10px', color: colorTokens.text, width: '100%', lineHeight: 1.5, textAlign: 'center' }}>
             <div>
-              <span style={{ fontWeight: 700 }}>Registered on:</span> {reportDate}, {reportTime}
+              <span style={{ fontWeight: 700 }}>Registered:</span> {reportDate}, {reportTime}
             </div>
             <div>
-              <span style={{ fontWeight: 700 }}>Collected on:</span> {collectionDate}
+              <span style={{ fontWeight: 700 }}>Collected:</span> {collectionDate}
             </div>
             <div>
-              <span style={{ fontWeight: 700 }}>Reported on:</span> {reportedDate}
+              <span style={{ fontWeight: 700 }}>Reported:</span> {reportedDate}
             </div>
           </div>
         </div>
@@ -393,6 +410,7 @@ export function ImprovedPatientBox({
 /**
  * TestSectionBlock - Container for each test with proper spacing
  * Clean centered heading with underline
+ * Responsive for mobile
  */
 export function TestSectionBlock({
   testName,

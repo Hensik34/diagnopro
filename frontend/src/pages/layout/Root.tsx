@@ -4,9 +4,11 @@ import { Sidebar } from '../../app/components/layout/Sidebar';
 import { TopNav } from '../../app/components/layout/TopNav';
 import { ThemeProvider } from 'next-themes';
 import { useAuthStore, useBranchStore } from '../../stores';
+import { onLogout, offLogout } from '../../stores/resetStores';
 
 // Storage key for sidebar state
 const SIDEBAR_STATE_KEY = 'visionlab_sidebar_state';
+
 
 export function Root() {
   // Initialize from localStorage, default to true (collapsed) for mobile
@@ -51,6 +53,17 @@ export function Root() {
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  // Reset local state when any user logs out.
+  // Without this, `branchesFetched` stays true across user switches
+  // and the new user's branches never get fetched.
+  useEffect(() => {
+    const handleLogout = () => {
+      setBranchesFetched(false);
+    };
+    onLogout(handleLogout);
+    return () => offLogout(handleLogout);
+  }, []);
 
   // Redirect to login if not authenticated
   useEffect(() => {

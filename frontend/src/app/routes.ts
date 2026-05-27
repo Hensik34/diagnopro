@@ -37,7 +37,7 @@ import { DoctorDashboard, DoctorReports, DoctorProfile } from '../pages/doctor-p
 // Settings
 import { Settings } from '../pages/settings';
 // B2B
-import { B2BDashboard, B2BLabManagement, B2BLabDetail, B2BOrders, B2BOrderDetail, B2BCreateOrder, B2BSettlements } from '../pages/b2b';
+import { B2BLabManagement } from '../pages/b2b';
 
 // ==========================================
 // Route Protection Helper
@@ -68,6 +68,7 @@ function withPermission(Component: any, requiredPermission: string) {
   ProtectedComponent.displayName = `Protected(${Component.displayName || Component.name || 'Component'})`;
   return ProtectedComponent;
 }
+
 
 export const router = createBrowserRouter([
   // Public routes
@@ -116,14 +117,8 @@ export const router = createBrowserRouter([
       { path: 'doctor-dashboard', Component: DoctorDashboard },
       { path: 'doctor-reports', Component: DoctorReports },
       { path: 'profile', Component: DoctorProfile },
-      // B2B Reference Lab
-      { path: 'b2b', Component: withPermission(B2BDashboard, PERMISSIONS.B2B_DASHBOARD_VIEW) },
-      { path: 'b2b/labs', Component: withPermission(B2BLabManagement, PERMISSIONS.B2B_LAB_READ) },
-      { path: 'b2b/labs/:id', Component: withPermission(B2BLabDetail, PERMISSIONS.B2B_LAB_READ) },
-      { path: 'b2b/orders', Component: withPermission(B2BOrders, PERMISSIONS.B2B_ORDER_READ) },
-      { path: 'b2b/orders/new', Component: withPermission(B2BCreateOrder, PERMISSIONS.B2B_ORDER_CREATE) },
-      { path: 'b2b/orders/:id', Component: withPermission(B2BOrderDetail, PERMISSIONS.B2B_ORDER_READ) },
-      { path: 'b2b/settlements', Component: withPermission(B2BSettlements, PERMISSIONS.B2B_PAYMENT_READ) },
+      // B2B Partner Labs
+      { path: 'b2b', Component: withPermission(B2BLabManagement, PERMISSIONS.B2B_LAB_READ) },
       { path: '*', Component: NotFound },
     ],
   },

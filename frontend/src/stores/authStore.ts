@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { authApi, setAuthToken, getAuthToken } from '../api';
 import type { User, LoginCredentials, DoctorProfile, LoginBranch } from '../types';
+import { resetAllStores } from './resetStores';
 import {
   checkRolePermission,
   checkRolePermissionAny,
@@ -142,10 +143,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    * Logout - Clear token and user data
    */
   logout: () => {
-    setAuthToken(null);
-    localStorage.removeItem('onboarding_complete');
-    
-    // Clear auth state
+    // 1. Clear auth state first (stops any in-flight API calls from re-populating)
     set({
       user: null,
       isAuthenticated: false,
@@ -153,11 +151,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       doctorProfile: null,
       loginBranches: [],
     });
-    
-    // Reset all other stores to prevent data leaks between users
-    import('./resetStores').then(({ resetAllStores }) => {
-      resetAllStores();
-    });
+
+    // 2. Reset ALL stores + clear user-scoped localStorage SYNCHRONOUSLY
+    //    This prevents race conditions where a new user logs in before
+    //    the old user's data is fully wiped.
+    resetAllStores();
   },
 
   /**
@@ -179,15 +177,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false,
       });
     } catch (error) {
-      // Token might be invalid
-      setAuthToken(null);
+      // Token is invalid — treat as a forced logout.
+      // Reset everything to prevent data leaks.
       set({
         user: null,
         isAuthenticated: false,
         isLoading: false,
+        error: null,
         doctorProfile: null,
         loginBranches: [],
       });
+      resetAllStores();
     }
   },
 

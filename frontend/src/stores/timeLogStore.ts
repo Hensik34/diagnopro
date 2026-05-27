@@ -23,6 +23,7 @@ interface TimeLogState {
   fetchUserLogs: (userId: string, startDate?: string, endDate?: string) => Promise<TimeLog[]>;
   deleteLog: (id: string) => Promise<boolean>;
   clearError: () => void;
+  reset: () => void;
 }
 
 export const useTimeLogStore = create<TimeLogState>((set, get) => ({

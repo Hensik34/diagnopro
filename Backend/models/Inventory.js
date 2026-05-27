@@ -1,76 +1,51 @@
-const pool = require("../config/db");
+const { Inventory } = require("./index");
 
 // Get all inventory items for a branch
 exports.getAll = async (branchId) => {
-  const result = await pool.query(
-    "SELECT * FROM inventory WHERE branch_id = $1 ORDER BY category, name",
-    [branchId]
-  );
-  return result.rows;
+  return await Inventory.findAll({
+    where: { branch_id: branchId },
+    order: [["category", "ASC"], ["name", "ASC"]],
+    raw: true,
+  });
 };
 
 // Get item by ID
 exports.getById = async (id) => {
-  const result = await pool.query(
-    "SELECT * FROM inventory WHERE id = $1",
-    [id]
-  );
-  return result.rows[0] || null;
+  return await Inventory.findByPk(id, { raw: true });
 };
 
 // Create new inventory item
 exports.create = async (data) => {
-  const { name, category, quantity, alert_threshold, branch_id } = data;
+  const { name, category, quantity = 0, alert_threshold = 0, unit = "packs", branch_id } = data;
 
-  const result = await pool.query(
-    `INSERT INTO inventory (name, category, quantity, alert_threshold, branch_id, last_restocked)
-     VALUES ($1, $2, $3, $4, $5, CASE WHEN $3 > 0 THEN CURRENT_TIMESTAMP ELSE NULL END)
-     RETURNING *`,
-    [name, category, quantity || 0, alert_threshold || 0, branch_id]
-  );
-
-  return result.rows[0];
+  return await Inventory.create({
+    name, category, quantity, alert_threshold, unit, branch_id,
+    last_restocked: quantity > 0 ? new Date() : null,
+  });
 };
 
 // Update inventory item
 exports.update = async (id, data) => {
-  const { name, category, quantity, alert_threshold } = data;
-
-  const result = await pool.query(
-    `UPDATE inventory
-     SET name = COALESCE($1, name),
-         category = COALESCE($2, category),
-         quantity = COALESCE($3, quantity),
-         alert_threshold = COALESCE($4, alert_threshold),
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $5
-     RETURNING *`,
-    [name, category, quantity, alert_threshold, id]
-  );
-
-  return result.rows[0] || null;
+  const [count, [updated]] = await Inventory.update(data, {
+    where: { id },
+    returning: true,
+  });
+  return updated ? updated.toJSON() : null;
 };
 
 // Add stock (restock) — increments quantity
 exports.addStock = async (id, addQuantity) => {
-  const result = await pool.query(
-    `UPDATE inventory
-     SET quantity = quantity + $1,
-         last_restocked = CURRENT_TIMESTAMP,
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $2
-     RETURNING *`,
-    [addQuantity, id]
-  );
+  const item = await Inventory.findByPk(id);
+  if (!item) return null;
 
-  return result.rows[0] || null;
+  item.quantity = (item.quantity || 0) + addQuantity;
+  item.last_restocked = new Date();
+  await item.save();
+  return item.toJSON();
 };
 
 // Delete inventory item
 exports.delete = async (id) => {
-  const result = await pool.query(
-    "DELETE FROM inventory WHERE id = $1 RETURNING id",
-    [id]
-  );
-  return result.rows[0] || null;
+  const deleted = await Inventory.destroy({ where: { id } });
+  return deleted ? { id } : null;
 };

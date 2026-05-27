@@ -1,6 +1,5 @@
 const Branch = require("../models/Branch");
 const Doctor = require("../models/Doctor");
-const Test = require("../models/Test");
 
 // GET ALL BRANCHES (user's or doctor's branches)
 exports.getAllBranches = async (req, res) => {
@@ -97,18 +96,6 @@ exports.createBranch = async (req, res) => {
 
     // Auto-link the creating user to this branch
     await Branch.assignUserToBranch(userId, branch.id, userRole === 'admin' ? 'admin' : userRole);
-
-    // Clone tests from admin's first existing branch (if any) to the new branch
-    const existingBranches = await Branch.getAllBranches(userId);
-    const sourceBranch = existingBranches.find(b => b.id !== branch.id);
-    if (sourceBranch) {
-      try {
-        await Test.cloneTestsForBranch(sourceBranch.id, branch.id);
-      } catch (cloneErr) {
-        console.error("Clone tests warning:", cloneErr.message);
-        // Non-fatal: branch is still created even if test cloning fails
-      }
-    }
 
     res.status(201).json({
       message: "Branch created successfully",

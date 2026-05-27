@@ -12,9 +12,6 @@
 ```bash
 # Create database (run in PostgreSQL)
 createdb lab_management_db
-
-# Run schema file
-psql -U postgres -d lab_management_db -f db/schema.sql
 ```
 
 #### 2. **Install Dependencies**
@@ -42,10 +39,23 @@ PORT=5000
 
 #### 4. **Start Server**
 
+Run database scripts manually (not on server startup):
+
+```bash
+# Run final schema migration only
+npm run db:migrate
+
+# Run tests + test_fields seed migration only
+npm run db:seed
+
+# Run both schema + seed
+npm run db:setup
+```
+
+Then start API server:
+
 ```bash
 npm start
-# or
-node routes/server.js
 ```
 
 **Expected Output:**

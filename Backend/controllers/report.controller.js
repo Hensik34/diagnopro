@@ -160,9 +160,11 @@ exports.createReport = async (req, res) => {
       delivery_preferences: delivery_preferences || {}
     });
 
+    const reportJson = report && typeof report.toJSON === 'function' ? report.toJSON() : report;
+
     res.status(201).json({
       message: "Report created successfully as draft",
-      data: { ...report, sample_id_code: sampleIdCode || report.sample_id_code }
+      data: { ...reportJson, sample_id_code: sampleIdCode || reportJson.sample_id_code }
     });
   } catch (err) {
     console.error("Create report error:", err);
