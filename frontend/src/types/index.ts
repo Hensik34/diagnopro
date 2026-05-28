@@ -216,8 +216,7 @@ export interface Test {
   price?: number;
   turnaround_time?: number; // in hours
   description?: string;
-  branch_id: string;
-  has_user_override?: boolean;
+  has_branch_override?: boolean;
   created_at: string;
   updated_at: string;
 }

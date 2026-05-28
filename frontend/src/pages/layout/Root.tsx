@@ -9,6 +9,7 @@ import { onLogout, offLogout } from '../../stores/resetStores';
 // Storage key for sidebar state
 const SIDEBAR_STATE_KEY = 'visionlab_sidebar_state';
 
+
 export function Root() {
   // Initialize from localStorage, default to true (collapsed) for mobile
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {

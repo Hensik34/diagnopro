@@ -697,16 +697,6 @@ export function ReportPreview() {
               }}
             />
           )}
-          {/* ── Watermark ── */}
-          <div style={{
-            position: 'absolute', top: '50%', left: '50%',
-            transform: 'translate(-50%, -50%) rotate(-35deg)',
-            fontSize: '80px', fontWeight: 900, color: 'rgba(13,71,161,0.03)',
-            letterSpacing: '12px', textTransform: 'uppercase',
-            pointerEvents: 'none', whiteSpace: 'nowrap', zIndex: 0,
-          }}>
-            {reportData.lab.name}
-          </div>
 
           {/* No default header — only uploaded letterhead/header images are shown */}
 
@@ -784,7 +774,6 @@ export function ReportPreview() {
                       borderCollapse: 'collapse',
                       tableLayout: 'fixed',
                       fontSize: `${ReportLayoutConfig.fontSize.value}px`,
-                      border: `1px solid ${C.borderLight}`,
                     }}
                   >
                     <InvestigationTableHeader colorTokens={C} />

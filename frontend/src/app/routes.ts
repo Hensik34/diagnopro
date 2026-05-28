@@ -69,6 +69,7 @@ function withPermission(Component: any, requiredPermission: string) {
   return ProtectedComponent;
 }
 
+
 export const router = createBrowserRouter([
   // Public routes
   {

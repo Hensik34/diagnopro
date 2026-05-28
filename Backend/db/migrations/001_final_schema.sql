@@ -1,6 +1,8 @@
 -- Create Database (run manually first: CREATE DATABASE lab_management_db;)
 -- Then run this schema file
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- USERS TABLE - Core user data
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -111,10 +113,9 @@ CREATE TABLE IF NOT EXISTS tests (
     price DECIMAL(10, 2),
     turnaround_time INT, -- in hours
     description TEXT,
-    branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(test_code, branch_id)
+    UNIQUE(test_code)
 );
 
 -- SAMPLE_TESTS TABLE - Many-to-Many (A sample can have multiple tests)
@@ -201,191 +202,6 @@ CREATE INDEX IF NOT EXISTS idx_b2b_labs_owner ON b2b_labs(owner_branch_id) WHERE
 CREATE INDEX IF NOT EXISTS idx_b2b_labs_status ON b2b_labs(status) WHERE is_deleted = false;
 CREATE INDEX IF NOT EXISTS idx_b2b_labs_user ON b2b_labs(user_id);
 CREATE INDEX IF NOT EXISTS idx_b2b_labs_code ON b2b_labs(lab_code);
-
--- ============================================
--- B2B RATE LISTS TABLE
--- ============================================
-CREATE TABLE IF NOT EXISTS b2b_rate_lists (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    b2b_lab_id UUID NOT NULL REFERENCES b2b_labs(id) ON DELETE CASCADE,
-    test_id UUID NOT NULL REFERENCES tests(id) ON DELETE CASCADE,
-    collection_price DECIMAL(10,2) NOT NULL DEFAULT 0,
-    processing_price DECIMAL(10,2) NOT NULL DEFAULT 0,
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(b2b_lab_id, test_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_b2b_rates_lab ON b2b_rate_lists(b2b_lab_id);
-CREATE INDEX IF NOT EXISTS idx_b2b_rates_test ON b2b_rate_lists(test_id);
-
--- ============================================
--- B2B ORDERS TABLE
--- ============================================
-CREATE TABLE IF NOT EXISTS b2b_orders (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_code VARCHAR(50) UNIQUE NOT NULL,
-    source_lab_id UUID NOT NULL REFERENCES b2b_labs(id),
-    dest_branch_id UUID REFERENCES branches(id),
-    patient_id UUID REFERENCES patients(id),
-    patient_name VARCHAR(255),
-    patient_age INTEGER,
-    patient_gender VARCHAR(20),
-    patient_phone VARCHAR(20),
-    doctor_id UUID REFERENCES doctors(id),
-    doctor_commission DECIMAL(10,2) DEFAULT 0,
-    sample_id UUID REFERENCES samples(id),
-    barcode VARCHAR(100) UNIQUE,
-    sample_type VARCHAR(100),
-    container_type VARCHAR(100),
-    fasting_required BOOLEAN DEFAULT false,
-    collected_by UUID REFERENCES users(id),
-    collection_time TIMESTAMP,
-    received_time TIMESTAMP,
-    temperature_notes TEXT,
-    status VARCHAR(30) DEFAULT 'pending' CHECK (status IN ('pending', 'sample_sent', 'sample_received', 'processing', 'partial_complete', 'completed', 'report_released', 'rejected', 'cancelled')),
-    total_collection_amount DECIMAL(10,2) DEFAULT 0,
-    total_processing_amount DECIMAL(10,2) DEFAULT 0,
-    margin_amount DECIMAL(10,2) DEFAULT 0,
-    show_processing_lab BOOLEAN DEFAULT false,
-    notes TEXT,
-    rejection_reason TEXT,
-    is_deleted BOOLEAN DEFAULT false,
-    deleted_at TIMESTAMP,
-    version INTEGER DEFAULT 1,
-    created_by UUID REFERENCES users(id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_b2b_orders_source ON b2b_orders(source_lab_id) WHERE is_deleted = false;
-CREATE INDEX IF NOT EXISTS idx_b2b_orders_dest ON b2b_orders(dest_branch_id) WHERE is_deleted = false;
-CREATE INDEX IF NOT EXISTS idx_b2b_orders_status ON b2b_orders(status) WHERE is_deleted = false;
-CREATE INDEX IF NOT EXISTS idx_b2b_orders_patient ON b2b_orders(patient_id);
-CREATE INDEX IF NOT EXISTS idx_b2b_orders_barcode ON b2b_orders(barcode);
-CREATE INDEX IF NOT EXISTS idx_b2b_orders_created ON b2b_orders(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_b2b_orders_sample ON b2b_orders(sample_id);
-
--- ============================================
--- B2B ORDER TESTS TABLE
--- ============================================
-CREATE TABLE IF NOT EXISTS b2b_order_tests (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id UUID NOT NULL REFERENCES b2b_orders(id) ON DELETE CASCADE,
-    test_id UUID NOT NULL REFERENCES tests(id),
-    test_name VARCHAR(255) NOT NULL,
-    is_package BOOLEAN DEFAULT false,
-    parent_test_id UUID REFERENCES b2b_order_tests(id),
-    collection_price DECIMAL(10,2) DEFAULT 0,
-    processing_price DECIMAL(10,2) DEFAULT 0,
-    status VARCHAR(30) DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'approved', 'rejected', 'cancelled')),
-    expected_tat_hours INTEGER,
-    expected_completion_at TIMESTAMP,
-    actual_completion_at TIMESTAMP,
-    is_tat_breached BOOLEAN DEFAULT false,
-    report_id UUID REFERENCES reports(id),
-    report_version INTEGER DEFAULT 0,
-    rejection_reason TEXT,
-    UNIQUE(order_id, test_id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_b2b_ot_order ON b2b_order_tests(order_id);
-CREATE INDEX IF NOT EXISTS idx_b2b_ot_test ON b2b_order_tests(test_id);
-CREATE INDEX IF NOT EXISTS idx_b2b_ot_status ON b2b_order_tests(status);
-CREATE INDEX IF NOT EXISTS idx_b2b_ot_tat ON b2b_order_tests(expected_completion_at) WHERE is_tat_breached = false;
-
--- ============================================
--- B2B REPORT VERSIONS TABLE
--- ============================================
-CREATE TABLE IF NOT EXISTS b2b_report_versions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_test_id UUID NOT NULL REFERENCES b2b_order_tests(id) ON DELETE CASCADE,
-    report_id UUID REFERENCES reports(id),
-    version_number INTEGER NOT NULL DEFAULT 1,
-    file_url TEXT,
-    report_data JSONB,
-    status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'uploaded', 'approved', 'released', 'revised')),
-    uploaded_by UUID REFERENCES users(id),
-    uploaded_at TIMESTAMP,
-    approved_by UUID REFERENCES users(id),
-    approved_at TIMESTAMP,
-    released_by UUID REFERENCES users(id),
-    released_at TIMESTAMP,
-    revision_reason TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_b2b_rv_order_test ON b2b_report_versions(order_test_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_b2b_rv_unique ON b2b_report_versions(order_test_id, version_number);
-
--- ============================================
--- B2B PAYMENTS TABLE
--- ============================================
-CREATE TABLE IF NOT EXISTS b2b_payments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    b2b_lab_id UUID NOT NULL REFERENCES b2b_labs(id),
-    payment_type VARCHAR(20) NOT NULL CHECK (payment_type IN ('credit', 'debit', 'settlement', 'advance', 'adjustment')),
-    amount DECIMAL(10,2) NOT NULL,
-    running_balance DECIMAL(12,2),
-    payment_mode VARCHAR(30) CHECK (payment_mode IN ('cash', 'upi', 'bank_transfer', 'cheque', 'neft', 'rtgs', NULL)),
-    reference_number VARCHAR(100),
-    order_id UUID REFERENCES b2b_orders(id),
-    notes TEXT,
-    is_deleted BOOLEAN DEFAULT false,
-    deleted_at TIMESTAMP,
-    created_by UUID REFERENCES users(id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_b2b_pay_lab ON b2b_payments(b2b_lab_id) WHERE is_deleted = false;
-CREATE INDEX IF NOT EXISTS idx_b2b_pay_type ON b2b_payments(payment_type);
-CREATE INDEX IF NOT EXISTS idx_b2b_pay_created ON b2b_payments(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_b2b_pay_order ON b2b_payments(order_id);
-
--- ============================================
--- B2B AUDIT LOG TABLE
--- ============================================
-CREATE TABLE IF NOT EXISTS b2b_audit_log (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    entity_type VARCHAR(50) NOT NULL,
-    entity_id UUID NOT NULL,
-    action VARCHAR(50) NOT NULL,
-    old_value TEXT,
-    new_value TEXT,
-    details JSONB,
-    performed_by UUID REFERENCES users(id),
-    performed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    ip_address VARCHAR(50)
-);
-
-CREATE INDEX IF NOT EXISTS idx_b2b_audit_entity ON b2b_audit_log(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_b2b_audit_action ON b2b_audit_log(action);
-CREATE INDEX IF NOT EXISTS idx_b2b_audit_time ON b2b_audit_log(performed_at DESC);
-CREATE INDEX IF NOT EXISTS idx_b2b_audit_user ON b2b_audit_log(performed_by);
-
--- ============================================
--- B2B NOTIFICATIONS TABLE
--- ============================================
-CREATE TABLE IF NOT EXISTS b2b_notifications (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    b2b_lab_id UUID REFERENCES b2b_labs(id),
-    user_id UUID REFERENCES users(id),
-    type VARCHAR(50) NOT NULL CHECK (type IN ('sample_received', 'report_completed', 'report_approved', 'report_released', 'payment_due', 'sample_rejected', 'tat_breach', 'credit_limit_warning', 'report_revised', 'order_cancelled')),
-    title VARCHAR(255) NOT NULL,
-    message TEXT,
-    order_id UUID REFERENCES b2b_orders(id),
-    is_read BOOLEAN DEFAULT false,
-    channel VARCHAR(20) DEFAULT 'in_app' CHECK (channel IN ('in_app', 'whatsapp', 'sms', 'email')),
-    sent_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_b2b_notif_lab ON b2b_notifications(b2b_lab_id);
-CREATE INDEX IF NOT EXISTS idx_b2b_notif_user ON b2b_notifications(user_id);
-CREATE INDEX IF NOT EXISTS idx_b2b_notif_read ON b2b_notifications(is_read) WHERE is_read = false;
 
 -- ============================================
 -- TEST FIELDS TABLE
@@ -504,23 +320,249 @@ CREATE TABLE IF NOT EXISTS settings (
 CREATE INDEX IF NOT EXISTS idx_settings_branch_id ON settings(branch_id);
 
 -- ============================================
--- USER TESTS TABLE
+-- BRANCH TESTS TABLE
 -- ============================================
-CREATE TABLE IF NOT EXISTS user_tests (
+CREATE TABLE IF NOT EXISTS branch_tests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
     test_id UUID NOT NULL REFERENCES tests(id) ON DELETE CASCADE,
+    test_name VARCHAR(255),
+    category VARCHAR(100),
+    sample_type VARCHAR(100),
+    price DECIMAL(10,2),
+    turnaround_time INT,
+    description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, test_id)
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(branch_id, test_id)
 );
 
 -- ============================================
--- USER TEST FIELDS TABLE
+-- BRANCH TEST FIELDS TABLE
 -- ============================================
-CREATE TABLE IF NOT EXISTS user_test_fields (
+CREATE TABLE IF NOT EXISTS branch_test_fields (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    test_field_id UUID NOT NULL REFERENCES test_fields(id) ON DELETE CASCADE,
+    branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+    test_field_id UUID REFERENCES test_fields(id) ON DELETE CASCADE,
+    test_id UUID NOT NULL REFERENCES tests(id) ON DELETE CASCADE,
+    field_name VARCHAR(255),
+    unit VARCHAR(100),
+    min_value DECIMAL(10,2),
+    max_value DECIMAL(10,2),
+    input_type VARCHAR(50) DEFAULT 'number',
+    options TEXT,
+    order_index INT DEFAULT 0,
+    field_type VARCHAR(50) DEFAULT 'input',
+    formula TEXT,
+    depends_on TEXT,
+    section_group VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, test_field_id)
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(branch_id, test_id, field_name)
 );
+
+CREATE INDEX IF NOT EXISTS idx_branch_test_fields_test_id ON branch_test_fields(test_id);
+
+-- ============================================
+-- Post-schema normalization for model compatibility
+-- ============================================
+
+-- Ensure a default branch exists (required by test seed migration)
+INSERT INTO branches (id, name, location, city, state, phone, email, created_at, updated_at)
+SELECT gen_random_uuid(), 'Main Branch', 'Headquarters', 'Default City', 'Default State', '+1234567890', 'main@lab.com', NOW(), NOW()
+WHERE NOT EXISTS (SELECT 1 FROM branches);
+
+-- Patients: use model-compatible name + age
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS name VARCHAR(200);
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS age INTEGER;
+UPDATE patients
+SET name = TRIM(CONCAT(COALESCE(firstname, ''), ' ', COALESCE(lastname, '')))
+WHERE name IS NULL;
+ALTER TABLE patients DROP COLUMN IF EXISTS firstname;
+ALTER TABLE patients DROP COLUMN IF EXISTS lastname;
+ALTER TABLE patients DROP COLUMN IF EXISTS date_of_birth;
+
+-- Doctors: add model fields
+ALTER TABLE doctors ADD COLUMN IF NOT EXISTS title VARCHAR(20) DEFAULT 'Dr';
+ALTER TABLE doctors ADD COLUMN IF NOT EXISTS name VARCHAR(200);
+ALTER TABLE doctors ADD COLUMN IF NOT EXISTS commission_percentage DECIMAL(5,2) DEFAULT 0;
+ALTER TABLE doctors ADD COLUMN IF NOT EXISTS signature_url TEXT;
+ALTER TABLE doctors ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id);
+UPDATE doctors
+SET name = TRIM(CONCAT(COALESCE(firstname, ''), ' ', COALESCE(lastname, '')))
+WHERE name IS NULL;
+CREATE INDEX IF NOT EXISTS idx_doctors_user_id ON doctors(user_id);
+
+-- Reports: billing + workflow columns used by services/controllers
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS report_amount DECIMAL(12,2) DEFAULT 0;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS doctor_commission DECIMAL(12,2) DEFAULT 0;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS is_self_report BOOLEAN DEFAULT false;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS test_data JSONB DEFAULT '{}';
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS delivery_preferences JSONB DEFAULT '{}';
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS base_amount DECIMAL(12,2) DEFAULT 0;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS lab_discount_type VARCHAR(20) DEFAULT 'percent';
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS lab_discount_value DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS doctor_discount DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS final_amount DECIMAL(12,2) DEFAULT 0;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS payment_status VARCHAR(30) DEFAULT 'pending';
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS b2b_lab_id UUID REFERENCES b2b_labs(id);
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS b2b_charge DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS submitted_by UUID REFERENCES users(id);
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS rejected_by UUID REFERENCES users(id);
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id);
+ALTER TABLE reports ALTER COLUMN status SET DEFAULT 'draft';
+CREATE INDEX IF NOT EXISTS idx_reports_b2b_lab ON reports(b2b_lab_id) WHERE b2b_lab_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_reports_payment_status ON reports(payment_status);
+CREATE INDEX IF NOT EXISTS idx_reports_branch ON reports(branch_id) WHERE branch_id IS NOT NULL;
+
+-- Payments: report relation used for billing tracking
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS report_id UUID REFERENCES reports(id);
+
+-- Test fields: add dynamic field metadata columns
+ALTER TABLE test_fields ADD COLUMN IF NOT EXISTS options TEXT;
+ALTER TABLE test_fields ADD COLUMN IF NOT EXISTS depends_on TEXT;
+ALTER TABLE test_fields ADD COLUMN IF NOT EXISTS section_group VARCHAR(255);
+UPDATE test_fields SET section_group = section_name WHERE section_group IS NULL AND section_name IS NOT NULL;
+ALTER TABLE test_fields DROP COLUMN IF EXISTS section_name;
+
+-- Settings: flatten into explicit columns used by settings service
+ALTER TABLE settings DROP CONSTRAINT IF EXISTS settings_branch_id_key_key;
+ALTER TABLE settings DROP CONSTRAINT IF EXISTS settings_branch_id_key;
+ALTER TABLE settings DROP COLUMN IF EXISTS key;
+ALTER TABLE settings DROP COLUMN IF EXISTS value;
+ALTER TABLE settings DROP COLUMN IF EXISTS data_type;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS letterhead_url TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS owner_signature_url TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS header_url TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS footer_url TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS report_margin_top VARCHAR(20) DEFAULT '10mm';
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS report_margin_bottom VARCHAR(20) DEFAULT '10mm';
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS report_margin_left VARCHAR(20) DEFAULT '10mm';
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS report_margin_right VARCHAR(20) DEFAULT '10mm';
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS signature_1_url TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS signature_1_label VARCHAR(255);
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS signature_2_url TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS signature_2_label VARCHAR(255);
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS signature_3_url TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS signature_3_label VARCHAR(255);
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS signature_4_url TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS signature_4_label VARCHAR(255);
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS default_signature_index INTEGER DEFAULT 0;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'settings_branch_id_key'
+  ) THEN
+    ALTER TABLE settings ADD CONSTRAINT settings_branch_id_key UNIQUE (branch_id);
+  END IF;
+END $$;
+
+-- Branch test tables: include override columns expected by models
+ALTER TABLE branch_tests ADD COLUMN IF NOT EXISTS test_name VARCHAR(255);
+ALTER TABLE branch_tests ADD COLUMN IF NOT EXISTS category VARCHAR(100);
+ALTER TABLE branch_tests ADD COLUMN IF NOT EXISTS sample_type VARCHAR(100);
+ALTER TABLE branch_tests ADD COLUMN IF NOT EXISTS price DECIMAL(10,2);
+ALTER TABLE branch_tests ADD COLUMN IF NOT EXISTS turnaround_time INT;
+ALTER TABLE branch_tests ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE branch_tests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE branch_test_fields ADD COLUMN IF NOT EXISTS test_id UUID REFERENCES tests(id) ON DELETE CASCADE;
+ALTER TABLE branch_test_fields ADD COLUMN IF NOT EXISTS field_name VARCHAR(255);
+ALTER TABLE branch_test_fields ADD COLUMN IF NOT EXISTS unit VARCHAR(100);
+ALTER TABLE branch_test_fields ADD COLUMN IF NOT EXISTS min_value DECIMAL(10,2);
+ALTER TABLE branch_test_fields ADD COLUMN IF NOT EXISTS max_value DECIMAL(10,2);
+ALTER TABLE branch_test_fields ADD COLUMN IF NOT EXISTS input_type VARCHAR(50) DEFAULT 'number';
+ALTER TABLE branch_test_fields ADD COLUMN IF NOT EXISTS options TEXT;
+ALTER TABLE branch_test_fields ADD COLUMN IF NOT EXISTS order_index INT DEFAULT 0;
+ALTER TABLE branch_test_fields ADD COLUMN IF NOT EXISTS field_type VARCHAR(50) DEFAULT 'input';
+ALTER TABLE branch_test_fields ADD COLUMN IF NOT EXISTS formula TEXT;
+ALTER TABLE branch_test_fields ADD COLUMN IF NOT EXISTS depends_on TEXT;
+ALTER TABLE branch_test_fields ADD COLUMN IF NOT EXISTS section_group VARCHAR(255);
+ALTER TABLE branch_test_fields ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+CREATE INDEX IF NOT EXISTS idx_branch_test_fields_test_id ON branch_test_fields(test_id);
+
+-- Inventory: recreate with current model schema
+DROP TABLE IF EXISTS inventory CASCADE;
+CREATE TABLE IF NOT EXISTS inventory (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  category VARCHAR(100),
+  quantity INT DEFAULT 0,
+  alert_threshold INT DEFAULT 0,
+  unit VARCHAR(50) DEFAULT 'packs',
+  branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+  last_restocked TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(name, branch_id)
+);
+CREATE INDEX IF NOT EXISTS idx_inventory_branch_id ON inventory(branch_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_category ON inventory(category);
+
+-- Collection tracking: use model table and columns
+DROP TABLE IF EXISTS collection_tracking CASCADE;
+CREATE TABLE IF NOT EXISTS sample_collection_tracking (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  staff_id UUID NOT NULL REFERENCES users(id),
+  branch_id UUID REFERENCES branches(id),
+  date DATE DEFAULT CURRENT_DATE,
+  start_km DECIMAL(10,2),
+  end_km DECIMAL(10,2),
+  total_km DECIMAL(10,2),
+  start_meter_image TEXT,
+  end_meter_image TEXT,
+  bike_image TEXT,
+  visit_charge DECIMAL(10,2) DEFAULT 0,
+  per_km_rate DECIMAL(10,2) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_sample_collection_staff_id ON sample_collection_tracking(staff_id);
+CREATE INDEX IF NOT EXISTS idx_sample_collection_date ON sample_collection_tracking(date);
+
+-- Time logs: ensure model-compatible columns
+DROP TABLE IF EXISTS time_logs CASCADE;
+CREATE TABLE IF NOT EXISTS time_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id),
+  clock_in TIMESTAMP,
+  clock_out TIMESTAMP,
+  total_hours DECIMAL(10,2),
+  branch_id UUID REFERENCES branches(id),
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_time_logs_user_id ON time_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_time_logs_clock_in ON time_logs(clock_in);
+
+-- Monthly sample ID counter + generator function
+CREATE TABLE IF NOT EXISTS sample_id_counter (
+  id SERIAL PRIMARY KEY,
+  year_month VARCHAR(7) NOT NULL UNIQUE,
+  last_number INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE OR REPLACE FUNCTION generate_sample_id()
+RETURNS TEXT AS $$
+DECLARE
+  current_ym TEXT;
+  short_ym TEXT;
+  next_num INTEGER;
+BEGIN
+  current_ym := TO_CHAR(CURRENT_DATE, 'YYYY-MM');
+  short_ym := TO_CHAR(CURRENT_DATE, 'YYMM');
+
+  INSERT INTO sample_id_counter (year_month, last_number)
+  VALUES (current_ym, 1001)
+  ON CONFLICT (year_month)
+  DO UPDATE SET last_number = sample_id_counter.last_number + 1
+  RETURNING last_number INTO next_num;
+
+  RETURN 'SM-' || short_ym || '-' || next_num::TEXT;
+END;
+$$ LANGUAGE plpgsql;

@@ -27,7 +27,6 @@ const Settings         = require("./definitions/Settings");
 const UserTest         = require("./definitions/UserTest");
 const UserTestField    = require("./definitions/UserTestField");
 const B2BLab           = require("./definitions/B2BLab");
-const B2BRateList      = require("./definitions/B2BRateList");
 
 // ──── Associations ──────────────────────────────────────────────────────────
 
@@ -110,14 +109,14 @@ SampleCollectionTracking.belongsTo(Branch, { foreignKey: "branch_id", as: "branc
 TimeLog.belongsTo(User, { foreignKey: "user_id", as: "user" });
 User.hasMany(TimeLog, { foreignKey: "user_id" });
 
-// UserTest → User, Test
-UserTest.belongsTo(User, { foreignKey: "user_id" });
+// UserTest (branch override) → Branch, Test
+UserTest.belongsTo(Branch, { foreignKey: "branch_id" });
 UserTest.belongsTo(Test, { foreignKey: "test_id" });
-User.hasMany(UserTest, { foreignKey: "user_id" });
+Branch.hasMany(UserTest, { foreignKey: "branch_id" });
 Test.hasMany(UserTest, { foreignKey: "test_id" });
 
-// UserTestField → User, TestField, Test
-UserTestField.belongsTo(User, { foreignKey: "user_id" });
+// UserTestField (branch override) → Branch, TestField, Test
+UserTestField.belongsTo(Branch, { foreignKey: "branch_id" });
 UserTestField.belongsTo(TestField, { foreignKey: "test_field_id" });
 UserTestField.belongsTo(Test, { foreignKey: "test_id" });
 
@@ -125,11 +124,6 @@ UserTestField.belongsTo(Test, { foreignKey: "test_id" });
 B2BLab.belongsTo(Branch, { foreignKey: "owner_branch_id", as: "ownerBranch" });
 B2BLab.belongsTo(User, { foreignKey: "user_id", as: "linkedUser" });
 B2BLab.belongsTo(User, { foreignKey: "created_by", as: "creator" });
-
-// B2BRateList → B2BLab, Test
-B2BRateList.belongsTo(B2BLab, { foreignKey: "b2b_lab_id", as: "lab" });
-B2BRateList.belongsTo(Test, { foreignKey: "test_id", as: "test" });
-B2BLab.hasMany(B2BRateList, { foreignKey: "b2b_lab_id", as: "rateList" });
 
 // ──── Sync Helper ───────────────────────────────────────────────────────────
 
@@ -143,9 +137,13 @@ async function syncDatabase() {
     await sequelize.authenticate();
     console.log("✅  DB connected successfully");
 
-    console.log("📦  Syncing Sequelize models...");
-    await sequelize.sync();
-    console.log("✅  All models synced — tables are up to date\n");
+    if (process.env.SEQUELIZE_SYNC === "true") {
+      console.log("📦  Syncing Sequelize models...");
+      await sequelize.sync();
+      console.log("✅  All models synced — tables are up to date\n");
+    } else {
+      console.log("ℹ️  Sequelize sync skipped (set SEQUELIZE_SYNC=true to enable)\n");
+    }
   } catch (err) {
     console.error("❌  Database sync failed:", err.message);
     throw err;
@@ -177,5 +175,4 @@ module.exports = {
   UserTest,
   UserTestField,
   B2BLab,
-  B2BRateList,
 };

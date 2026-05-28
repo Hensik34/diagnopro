@@ -1,3 +1,4 @@
+require("dotenv").config();
 const pool = require('./config/db');
 
 async function check() {
@@ -5,7 +6,7 @@ async function check() {
     const res = await pool.query(`
       SELECT table_name, column_name, data_type 
       FROM information_schema.columns 
-      WHERE table_name IN ('time_logs', 'user_tests', 'settings', 'patients')
+      WHERE table_name IN ('time_logs', 'branch_tests', 'branch_test_fields', 'settings', 'patients')
       ORDER BY table_name, column_name;
     `);
     console.log(JSON.stringify(res.rows, null, 2));

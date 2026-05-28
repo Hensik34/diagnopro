@@ -293,7 +293,7 @@ export function TestManagement() {
                       <div className="flex flex-col">
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs text-foreground">{test.test_name}</span>
-                          {test.has_user_override && (
+                          {test.has_branch_override && (
                             <span className="inline-flex items-center px-1 py-0.5 rounded text-[9px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 leading-none">
                               Customized
                             </span>
@@ -343,7 +343,7 @@ export function TestManagement() {
                             <Eye className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {canEditTest && test.has_user_override && (
+                        {canEditTest && test.has_branch_override && (
                           <button 
                             onClick={() => handleReset(test.id)}
                             disabled={isResetting === test.id}

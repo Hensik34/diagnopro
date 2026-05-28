@@ -43,6 +43,11 @@ exports.updateUserProfile = async (id, firstname, lastname, phone) => {
 // Get all users created by a specific admin (+ the admin themselves)
 exports.getAllUsers = async (adminId) => {
   const { Op } = require("sequelize");
+
+  if (!adminId) {
+    return [];
+  }
+
   return await User.findAll({
     where: {
       [Op.or]: [{ created_by: adminId }, { id: adminId }],

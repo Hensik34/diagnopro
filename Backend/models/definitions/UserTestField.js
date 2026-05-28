@@ -7,9 +7,9 @@ const UserTestField = sequelize.define("UserTestField", {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
   },
-  user_id: { type: DataTypes.UUID, allowNull: false },
-  test_field_id: { type: DataTypes.UUID, allowNull: false },
-  test_id: { type: DataTypes.UUID },
+  branch_id: { type: DataTypes.UUID, allowNull: false },
+  test_field_id: { type: DataTypes.UUID, allowNull: true },
+  test_id: { type: DataTypes.UUID, allowNull: false },
   field_name: { type: DataTypes.STRING(255) },
   unit: { type: DataTypes.STRING(100) },
   min_value: { type: DataTypes.DECIMAL(10, 2) },
@@ -22,8 +22,8 @@ const UserTestField = sequelize.define("UserTestField", {
   depends_on: { type: DataTypes.TEXT },
   section_group: { type: DataTypes.STRING(255) },
 }, {
-  tableName: "user_test_fields",
-  indexes: [{ unique: true, fields: ["user_id", "test_field_id"] }],
+  tableName: "branch_test_fields",
+  indexes: [{ unique: true, fields: ["branch_id", "test_id", "field_name"] }],
 });
 
 module.exports = UserTestField;

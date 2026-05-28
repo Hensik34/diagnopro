@@ -246,7 +246,18 @@ export function CreateReport() {
       }
 
       // Navigate to report entry page
-      navigate(`/reports/${report.id}/entry`);
+      if (report.id) {
+        navigate(`/reports/${report.id}/entry`);
+      } else {
+        // Defensive fallback if API response is malformed
+        navigate('/reports/entry', {
+          state: {
+            patient: selectedPatient || undefined,
+            testName: selectedTests.map(t => t.test_name).join(', '),
+            reportAmount: totalPrice,
+          },
+        });
+      }
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "An error occurred");
       setIsSubmitting(false);

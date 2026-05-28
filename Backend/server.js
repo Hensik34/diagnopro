@@ -3,7 +3,6 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const { syncDatabase } = require("./models");
-const { runMigrations } = require("./db/init");
 
 const app = express();
 
@@ -23,11 +22,13 @@ app.use(express.urlencoded({ limit: "10mb", extended: true }));
 // Serve uploaded files statically
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Request logging middleware
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  next();
-});
+// Request logging middleware (opt-in)
+if (process.env.REQUEST_LOGS === "true") {
+  app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    next();
+  });
+}
 
 // ─── API Routes ────────────────────────────────────────────────────────────────
 const routes = require("./routes");
@@ -53,8 +54,7 @@ app.use((err, req, res, next) => {
 // ─── Start Server (syncs DB models first) ─────────────────────────────────────
 async function startServer() {
   try {
-    await runMigrations(); // Run SQL migrations first
-    await syncDatabase(); // Initialize Sequelize models
+    await syncDatabase(); // Validate DB connection (and optional sync)
 
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {

@@ -14,10 +14,9 @@ const Test = sequelize.define("Test", {
   price: { type: DataTypes.DECIMAL(10, 2) },
   turnaround_time: { type: DataTypes.INTEGER },
   description: { type: DataTypes.TEXT },
-  branch_id: { type: DataTypes.UUID, allowNull: false },
 }, {
   tableName: "tests",
-  indexes: [{ unique: true, fields: ["test_code", "branch_id"] }],
+  indexes: [{ unique: true, fields: ["test_code"] }],
 });
 
 module.exports = Test;

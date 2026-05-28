@@ -27,8 +27,11 @@ export const testApi = {
   /**
    * Get test by ID
    */
-  getById: async (id: string): Promise<ApiResponse<Test>> => {
-    const response = await api.get<ApiResponse<Test>>(`/tests/${id}`);
+  getById: async (id: string, branchId?: string): Promise<ApiResponse<Test>> => {
+    const params = new URLSearchParams();
+    if (branchId) params.append('branch_id', branchId);
+    const qs = params.toString();
+    const response = await api.get<ApiResponse<Test>>(qs ? `/tests/${id}?${qs}` : `/tests/${id}`);
     return response.data;
   },
 
@@ -43,8 +46,9 @@ export const testApi = {
   /**
    * Update test
    */
-  update: async (id: string, data: Partial<CreateTestData>): Promise<ApiResponse<Test>> => {
-    const response = await api.put<ApiResponse<Test>>(`/tests/${id}`, data);
+  update: async (id: string, data: Partial<CreateTestData>, branchId?: string): Promise<ApiResponse<Test>> => {
+    const payload = branchId ? { ...data, branch_id: branchId } : data;
+    const response = await api.put<ApiResponse<Test>>(`/tests/${id}`, payload);
     return response.data;
   },
 
@@ -96,26 +100,31 @@ export const testApi = {
   // Test Fields (Dynamic Parameters)
   // ==========================================
 
-  getFields: async (testId: string): Promise<ApiResponse<TestField[]>> => {
-    const response = await api.get<ApiResponse<TestField[]>>(`/tests/${testId}/fields`);
+  getFields: async (testId: string, branchId?: string): Promise<ApiResponse<TestField[]>> => {
+    const params = new URLSearchParams();
+    if (branchId) params.append('branch_id', branchId);
+    const qs = params.toString();
+    const response = await api.get<ApiResponse<TestField[]>>(qs ? `/tests/${testId}/fields?${qs}` : `/tests/${testId}/fields`);
     return response.data;
   },
 
-  getFieldsMulti: async (testIds: string[]): Promise<ApiResponse<TestField[]>> => {
-    const response = await api.post<ApiResponse<TestField[]>>('/tests/fields/multi', { testIds });
+  getFieldsMulti: async (testIds: string[], branchId?: string): Promise<ApiResponse<TestField[]>> => {
+    const response = await api.post<ApiResponse<TestField[]>>('/tests/fields/multi', { testIds, branch_id: branchId });
     return response.data;
   },
 
-  setFields: async (testId: string, fields: CreateTestFieldData[]): Promise<ApiResponse<TestField[]>> => {
-    const response = await api.put<ApiResponse<TestField[]>>(`/tests/${testId}/fields`, { fields });
+  setFields: async (testId: string, fields: CreateTestFieldData[], branchId?: string): Promise<ApiResponse<TestField[]>> => {
+    const response = await api.put<ApiResponse<TestField[]>>(`/tests/${testId}/fields`, { fields, branch_id: branchId });
     return response.data;
   },
 
   /**
-   * Reset user-specific test override (revert to global default)
+   * Reset branch-specific test override (revert to global default)
    */
-  resetToDefault: async (testId: string): Promise<ApiResponse<Test>> => {
-    const response = await api.delete<ApiResponse<Test>>(`/tests/${testId}/override`);
+  resetToDefault: async (testId: string, branchId: string): Promise<ApiResponse<Test>> => {
+    const response = await api.delete<ApiResponse<Test>>(`/tests/${testId}/override`, {
+      params: { branch_id: branchId },
+    });
     return response.data;
   },
 

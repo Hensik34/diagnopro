@@ -7,7 +7,7 @@ const UserTest = sequelize.define("UserTest", {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
   },
-  user_id: { type: DataTypes.UUID, allowNull: false },
+  branch_id: { type: DataTypes.UUID, allowNull: false },
   test_id: { type: DataTypes.UUID, allowNull: false },
   test_name: { type: DataTypes.STRING(255) },
   category: { type: DataTypes.STRING(100) },
@@ -16,8 +16,8 @@ const UserTest = sequelize.define("UserTest", {
   turnaround_time: { type: DataTypes.INTEGER },
   description: { type: DataTypes.TEXT },
 }, {
-  tableName: "user_tests",
-  indexes: [{ unique: true, fields: ["user_id", "test_id"] }],
+  tableName: "branch_tests",
+  indexes: [{ unique: true, fields: ["branch_id", "test_id"] }],
 });
 
 module.exports = UserTest;
