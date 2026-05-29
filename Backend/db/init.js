@@ -5,10 +5,6 @@ const path = require("path");
 
 const MIGRATIONS_DIR = path.join(__dirname, "migrations");
 const SCHEMA_MIGRATION = "001_final_schema.sql";
-const SCHEMA_PATCH_MIGRATION = "003_branch_override_tables_patch.sql";
-const SCHEMA_PATCH_MIGRATION_2 = "005_add_updated_at_branch_test_fields.sql";
-const SEED_MIGRATION = "002_seed_tests_and_fields.sql";
-const SEED_PATCH_MIGRATION = "004_seed_missing_test_parameters.sql";
 
 async function ensureMigrationsTable(client) {
   await client.query(`
@@ -66,12 +62,7 @@ async function runMigrations(mode = "all") {
     await ensureMigrationsTable(client);
     const applied = await getAppliedMigrations(client);
 
-    const queue =
-      mode === "schema"
-        ? [SCHEMA_MIGRATION, SCHEMA_PATCH_MIGRATION, SCHEMA_PATCH_MIGRATION_2]
-        : mode === "seed"
-          ? [SEED_MIGRATION, SEED_PATCH_MIGRATION]
-          : [SCHEMA_MIGRATION, SCHEMA_PATCH_MIGRATION, SCHEMA_PATCH_MIGRATION_2, SEED_MIGRATION, SEED_PATCH_MIGRATION];
+    const queue = [SCHEMA_MIGRATION];
 
     let newCount = 0;
     for (const fileName of queue) {

@@ -83,6 +83,7 @@ export function CreateReport() {
   const [patientEmail, setPatientEmail] = useState("");
 
   const patientSearchRef = useRef<HTMLDivElement>(null);
+  const patientNameInputRef = useRef<HTMLInputElement>(null);
   const testSearchRef = useRef<HTMLDivElement>(null);
 
   // Fetch initial data
@@ -104,6 +105,12 @@ export function CreateReport() {
       setSampleIdCode(`SM-${yy}${mm}-XXXX`);
     });
   }, [fetchPatients, fetchTests, fetchDoctors, fetchB2BLabs, currentBranchId]);
+
+  useEffect(() => {
+    if (!selectedPatient || isNewPatient) {
+      patientNameInputRef.current?.focus();
+    }
+  }, [isNewPatient, selectedPatient]);
 
 
 
@@ -460,6 +467,7 @@ export function CreateReport() {
                   Patient Name <span className="text-destructive">*</span>
                 </label>
                 <input
+                  ref={patientNameInputRef}
                   type="text"
                   className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   value={patientName}
