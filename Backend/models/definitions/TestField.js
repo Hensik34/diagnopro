@@ -21,6 +21,7 @@ const TestField = sequelize.define("TestField", {
   section_group: { type: DataTypes.STRING(255) },
 }, {
   tableName: "test_fields",
+  timestamps: true,
 });
 
 module.exports = TestField;

@@ -6,9 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "db:migrate": "node db/init.js schema",
-    "db:seed": "node db/init.js seed",
-    "db:setup": "node db/init.js all"
+    "db:sync": "SEQUELIZE_SYNC=true node -e \"require('./models').syncDatabase().then(() => console.log('✅ Sync complete')).catch(e => { console.error(e); process.exit(1); })\""
   },
   "keywords": [
     "lab",
