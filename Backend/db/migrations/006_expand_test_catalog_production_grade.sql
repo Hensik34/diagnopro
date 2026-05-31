@@ -514,6 +514,111 @@ CROSS JOIN (
 ) AS f(field_name, unit, min_value, max_value, input_type, order_index, section)
 WHERE t.test_code = 'TROP-01' AND NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
 
+-- CK-MB Test Fields
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('CK-MB', 'ng/mL', 0.0, 5.0, 'number', 1, 'Cardiac')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section)
+WHERE t.test_code = 'CKMB-01' AND NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- NT-ProBNP Test Fields
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('NT-ProBNP', 'pg/mL', 0.0, 125.0, 'number', 1, 'Cardiac')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section)
+WHERE t.test_code = 'NTPNB-01' AND NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- D-Dimer Test Fields
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('D-Dimer', 'µg/mL', 0.0, 0.5, 'number', 1, 'Coagulation')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section)
+WHERE t.test_code = 'DD-01' AND NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- Homocysteine Test Fields
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('Homocysteine', 'µmol/L', 5.0, 15.0, 'number', 1, 'Cardiac')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section)
+WHERE t.test_code = 'HCYS-01' AND NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- Apo A1 & Apo B Test Fields
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('Apo A1', 'mg/dL', 100.0, 200.0, 'number', 1, 'Apolipoprotein')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section)
+WHERE t.test_code = 'APOA1-01' AND NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('Apo B', 'mg/dL', 50.0, 110.0, 'number', 1, 'Apolipoprotein')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section)
+WHERE t.test_code = 'APOB-01' AND NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- Tumor Marker Test Fields
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('Free PSA', '%', 0.0, 100.0, 'number', 1, 'PSA')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section)
+WHERE t.test_code = 'FREE-PSA-01' AND NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('CA-125', 'U/mL', 0.0, 35.0, 'number', 1, 'Tumor Markers')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section)
+WHERE t.test_code = 'CA125-01' AND NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('CA 19-9', 'U/mL', 0.0, 37.0, 'number', 1, 'Tumor Markers')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section)
+WHERE t.test_code = 'CA199-01' AND NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('CEA', 'ng/mL', 0.0, 2.5, 'number', 1, 'Tumor Markers')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section)
+WHERE t.test_code = 'CEA-01' AND NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('AFP', 'ng/mL', 0.0, 8.0, 'number', 1, 'Tumor Markers')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section)
+WHERE t.test_code = 'AFP-01' AND NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
 -- TSH Single Test
 INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
 SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
@@ -524,8 +629,335 @@ CROSS JOIN (
 ) AS f(field_name, unit, min_value, max_value, input_type, order_index, section)
 WHERE t.test_code = 'TSH-01' AND NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
 
+-- Single-field simple tests
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('Serum Iron', 'µg/dL', 60.0, 170.0, 'number', 1, 'Iron', 'IRON-01'),
+    ('TIBC', 'µg/dL', 250.0, 425.0, 'number', 2, 'Iron', 'TIBC-01'),
+    ('Ferritin', 'ng/mL', 30.0, 400.0, 'number', 1, 'Iron Storage', 'FERR-01'),
+    ('ESR', 'mm/hr', 0.0, 20.0, 'number', 1, 'Inflammation', 'ESR-01'),
+    ('CRP', 'mg/L', 0.0, 3.0, 'number', 1, 'Inflammation', 'CRP-01'),
+    ('Serum Calcium', 'mg/dL', 8.5, 10.2, 'number', 1, 'Minerals', 'CALC-01'),
+    ('Serum Phosphorus', 'mg/dL', 2.5, 4.5, 'number', 1, 'Minerals', 'PHOS-01'),
+    ('Serum Magnesium', 'mg/dL', 1.7, 2.2, 'number', 1, 'Minerals', 'MAG-01'),
+    ('Serum Uric Acid', 'mg/dL', 3.5, 7.2, 'number', 1, 'Metabolic', 'URIC-01'),
+    ('Troponin I', 'ng/mL', 0.0, 0.04, 'number', 1, 'Cardiac', 'TROP-01'),
+    ('MyoGlobin', 'ng/mL', 0.0, 90.0, 'number', 1, 'Cardiac', 'MYO-01'),
+    ('BNP', 'pg/mL', 0.0, 100.0, 'number', 1, 'Cardiac', 'BNP-01'),
+    ('LDH', 'U/L', 140.0, 280.0, 'number', 1, 'Enzymes', 'LDH-01'),
+    ('Total Protein', 'g/dL', 6.0, 8.3, 'number', 1, 'Proteins', 'TP-01'),
+    ('Albumin', 'g/dL', 3.5, 5.5, 'number', 1, 'Proteins', 'ALB-01'),
+    ('Globulin', 'g/dL', 2.0, 3.5, 'number', 1, 'Proteins', 'GLOB-01'),
+    ('Ammonia', 'µmol/L', 11.0, 35.0, 'number', 1, 'Hepatic', 'AMMON-01'),
+    ('Blood Alcohol Level', 'mg/dL', 0.0, 0.0, 'number', 1, 'Toxicology', 'BAL-01'),
+    ('ACE', 'U/L', 8.0, 52.0, 'number', 1, 'Enzymes', 'ACE-01')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section, test_code)
+JOIN tests t ON t.test_code = f.test_code
+WHERE NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- Hormone Test Fields
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('FSH', 'mIU/mL', 0.0, 150.0, 'number', 1, 'Reproductive'),
+    ('LH', 'mIU/mL', 0.0, 80.0, 'number', 1, 'Reproductive'),
+    ('Prolactin', 'ng/mL', 2.0, 25.0, 'number', 1, 'Reproductive'),
+    ('Testosterone', 'ng/dL', 300.0, 1000.0, 'number', 1, 'Male Hormones'),
+    ('Estradiol', 'pg/mL', 0.0, 400.0, 'number', 1, 'Female Hormones'),
+    ('Progesterone', 'ng/mL', 0.2, 25.0, 'number', 1, 'Female Hormones'),
+    ('AMH', 'ng/mL', 0.0, 9.0, 'number', 1, 'Ovarian Reserve'),
+    ('Cortisol (8 AM)', 'µg/dL', 10.0, 25.0, 'number', 1, 'Adrenal'),
+    ('Cortisol (4 PM)', 'µg/dL', 3.0, 16.0, 'number', 1, 'Adrenal'),
+    ('ACTH', 'pg/mL', 7.0, 63.0, 'number', 1, 'Pituitary'),
+    ('PTH', 'pg/mL', 12.0, 72.0, 'number', 1, 'Parathyroid'),
+    ('Growth Hormone', 'ng/mL', 0.0, 5.0, 'number', 1, 'Pituitary')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section)
+WHERE t.test_code IN ('FSH-01', 'LH-01', 'PROL-01', 'TEST-01', 'ESTR-01', 'PROG-01', 'AMH-01', 
+                      'CORT-AM-01', 'CORT-PM-01', 'ACTH-01', 'PTH-01', 'GH-01')
+AND NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- Thyroid Antibodies Test Fields
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('Anti-TPO', 'IU/mL', 0.0, 35.0, 'number', 1, 'Thyroid Antibodies', 'ATPO-01'),
+    ('Anti-Thyroglobulin', 'IU/mL', 0.0, 35.0, 'number', 1, 'Thyroid Antibodies', 'ATG-01'),
+    ('Thyroglobulin', 'ng/mL', 0.0, 60.0, 'number', 1, 'Thyroid Hormone', 'TG-01')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section, test_code)
+JOIN tests t2 ON t2.test_code = f.test_code AND t.id = t2.id
+WHERE NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- Diabetes Test Fields (OGTT, GTT, Insulin, C-Peptide, Microalbumin)
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('Glucose', 'mg/dL', 70.0, 140.0, 'number', 1, 'Glucose', 'OGTT-01'),
+    ('Glucose', 'mg/dL', 70.0, 140.0, 'number', 1, 'Glucose', 'GTT-01'),
+    ('Fasting Insulin', 'µIU/mL', 2.0, 20.0, 'number', 1, 'Insulin', 'INS-F-01'),
+    ('C-Peptide', 'ng/mL', 1.0, 4.0, 'number', 1, 'Insulin', 'CPEP-01'),
+    ('Microalbumin', 'mg/L', 0.0, 30.0, 'number', 1, 'Urine', 'MALB-01')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section, test_code)
+JOIN tests t2 ON t2.test_code = f.test_code AND t.id = t2.id
+WHERE NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- Immunology Test Fields
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('RA Factor', 'IU/mL', 0.0, 14.0, 'number', 1, 'Autoimmune', 'RAF-01'),
+    ('Anti-CCP', 'U/mL', 0.0, 20.0, 'number', 1, 'Autoimmune', 'ANTICCP-01'),
+    ('ASO Titre', 'IU/mL', 0.0, 200.0, 'number', 1, 'Streptococcal', 'ASO-01'),
+    ('ANA Pattern', 'Text', 0, 0, 'text', 1, 'Autoimmune', 'ANA-01'),
+    ('Anti-dsDNA', 'IU/mL', 0.0, 10.0, 'number', 1, 'Lupus', 'ANTIDSDNA-01'),
+    ('Complement C3', 'mg/dL', 80.0, 160.0, 'number', 1, 'Complement', 'C3-01'),
+    ('Complement C4', 'mg/dL', 15.0, 45.0, 'number', 1, 'Complement', 'C4-01'),
+    ('IgA', 'mg/dL', 70.0, 400.0, 'number', 1, 'Immunoglobulins', 'IGA-01'),
+    ('IgG', 'mg/dL', 700.0, 1600.0, 'number', 1, 'Immunoglobulins', 'IGG-01'),
+    ('IgM', 'mg/dL', 40.0, 230.0, 'number', 1, 'Immunoglobulins', 'IGM-01')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section, test_code)
+JOIN tests t2 ON t2.test_code = f.test_code AND t.id = t2.id
+WHERE NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- Serology Test Fields (Hepatitis, HIV, Syphilis)
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('Widal Test', 'Text', 0, 0, 'text', 1, 'Typhoid', 'WIDAL-01'),
+    ('VDRL Result', 'Text', 0, 0, 'text', 1, 'Syphilis', 'VDRL-01'),
+    ('RPR Result', 'Text', 0, 0, 'text', 1, 'Syphilis', 'RPR-01'),
+    ('FTA-ABS Result', 'Text', 0, 0, 'text', 1, 'Syphilis', 'FTAABS-01'),
+    ('HIV Result', 'Text', 0, 0, 'text', 1, 'HIV', 'HIV-01'),
+    ('HIV Rapid', 'Text', 0, 0, 'text', 1, 'HIV', 'HIV-RAPID-01'),
+    ('HBsAg Result', 'Text', 0, 0, 'text', 1, 'Hepatitis B', 'HBSAG-01'),
+    ('Anti-HBc', 'Text', 0, 0, 'text', 1, 'Hepatitis B', 'AHBC-01'),
+    ('Anti-HBs', 'mIU/mL', 0.0, 1000.0, 'number', 1, 'Hepatitis B', 'AHBS-01'),
+    ('Anti-HCV', 'Text', 0, 0, 'text', 1, 'Hepatitis C', 'HCV-01'),
+    ('Anti-HAV IgM', 'Text', 0, 0, 'text', 1, 'Hepatitis A', 'AHAV-IGM-01'),
+    ('Anti-HAV IgG', 'Text', 0, 0, 'text', 1, 'Hepatitis A', 'AHAV-IGG-01')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section, test_code)
+JOIN tests t2 ON t2.test_code = f.test_code AND t.id = t2.id
+WHERE NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- Culture Test Fields
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('Culture Result', 'Text', 0, 0, 'text', 1, 'Microbiology', 'UCULT-01'),
+    ('Culture Result', 'Text', 0, 0, 'text', 1, 'Microbiology', 'BCULT-01'),
+    ('Culture Result', 'Text', 0, 0, 'text', 1, 'Microbiology', 'SCULT-01'),
+    ('Culture Result', 'Text', 0, 0, 'text', 1, 'Microbiology', 'SPCULT-01'),
+    ('Culture Result', 'Text', 0, 0, 'text', 1, 'Microbiology', 'PCULT-01'),
+    ('Culture Result', 'Text', 0, 0, 'text', 1, 'Microbiology', 'TCULT-01'),
+    ('Culture Result', 'Text', 0, 0, 'text', 1, 'Microbiology', 'FCULT-01'),
+    ('TB Result', 'Text', 0, 0, 'text', 1, 'Tuberculosis', 'TBCULT-01'),
+    ('TB XPERT', 'Text', 0, 0, 'text', 1, 'Tuberculosis', 'TB-XPERT-01'),
+    ('Malaria Result', 'Text', 0, 0, 'text', 1, 'Parasites', 'MALAR-01'),
+    ('KOH Result', 'Text', 0, 0, 'text', 1, 'Mycology', 'KOH-01')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section, test_code)
+JOIN tests t2 ON t2.test_code = f.test_code AND t.id = t2.id
+WHERE NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- Histopathology & Cytology Test Fields
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('FNAC Findings', 'Text', 0, 0, 'text', 1, 'Cytology', 'FNAC-01'),
+    ('PAP Smear Result', 'Text', 0, 0, 'text', 1, 'Cytology', 'PAP-01'),
+    ('Biopsy Findings', 'Text', 0, 0, 'text', 1, 'Histopathology', 'BIOPSY-01'),
+    ('BM Findings', 'Text', 0, 0, 'text', 1, 'Hematology', 'BM-01'),
+    ('CSF Result', 'Text', 0, 0, 'text', 1, 'Body Fluids', 'CSF-01'),
+    ('Pleural Result', 'Text', 0, 0, 'text', 1, 'Body Fluids', 'PLEURAL-01'),
+    ('Ascitic Result', 'Text', 0, 0, 'text', 1, 'Body Fluids', 'ASCITIC-01'),
+    ('Joint Fluid Result', 'Text', 0, 0, 'text', 1, 'Body Fluids', 'JOINT-01')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section, test_code)
+JOIN tests t2 ON t2.test_code = f.test_code AND t.id = t2.id
+WHERE NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- Semen Analysis Test Fields
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('Sperm Count', 'million/mL', 15.0, 100.0, 'number', 1, 'Semen', 'SEMEN-01'),
+    ('Motility', '%', 40.0, 100.0, 'number', 2, 'Semen', 'SEMEN-01'),
+    ('Morphology', '%', 4.0, 100.0, 'number', 3, 'Semen', 'SEMEN-01'),
+    ('Viability', '%', 50.0, 100.0, 'number', 4, 'Semen', 'SEMEN-01'),
+    ('Volume', 'mL', 1.5, 8.0, 'number', 5, 'Semen', 'SEMEN-01'),
+    ('pH', 'Value', 7.2, 8.0, 'number', 6, 'Semen', 'SEMEN-01')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section, test_code)
+JOIN tests t2 ON t2.test_code = f.test_code AND t.id = t2.id
+WHERE NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- Viral Serology Test Fields
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('Dengue NS1', 'Text', 0, 0, 'text', 1, 'Viral', 'DENGNS1-01'),
+    ('Dengue IgM/IgG', 'Text', 0, 0, 'text', 1, 'Viral', 'DENGIGG-01'),
+    ('Chikungunya IgM', 'Text', 0, 0, 'text', 1, 'Viral', 'CHIK-IGM-01'),
+    ('Zika IgM', 'Text', 0, 0, 'text', 1, 'Viral', 'ZIKA-IGM-01'),
+    ('CMV IgM', 'Text', 0, 0, 'text', 1, 'Viral', 'CMV-IGM-01'),
+    ('CMV IgG', 'Text', 0, 0, 'text', 1, 'Viral', 'CMV-IGG-01'),
+    ('EBV VCA IgM', 'Text', 0, 0, 'text', 1, 'Viral', 'EBV-VCA-IGM-01'),
+    ('EBV VCA IgG', 'Text', 0, 0, 'text', 1, 'Viral', 'EBV-VCA-IGG-01'),
+    ('Measles IgM', 'Text', 0, 0, 'text', 1, 'Viral', 'MEASLES-IGM-01'),
+    ('Mumps IgM', 'Text', 0, 0, 'text', 1, 'Viral', 'MUMPS-IGM-01')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section, test_code)
+JOIN tests t2 ON t2.test_code = f.test_code AND t.id = t2.id
+WHERE NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- Pregnancy & Hormonal Test Fields
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('Pregnancy (Urine)', 'Text', 0, 0, 'text', 1, 'Pregnancy', 'UPT-01'),
+    ('Beta-HCG (Qual)', 'Text', 0, 0, 'text', 1, 'Pregnancy', 'BHCG-QL-01'),
+    ('Beta-HCG (Quant)', 'mIU/mL', 0.0, 5000000.0, 'number', 1, 'Pregnancy', 'BHCG-Q-01'),
+    ('PAPP-A', 'mIU/L', 0.0, 10.0, 'number', 1, 'Screening', 'PAPPA-01'),
+    ('uE3', 'MoM', 0.0, 3.0, 'number', 1, 'Screening', 'UE3-01'),
+    ('Free Testosterone', 'pg/mL', 1.0, 40.0, 'number', 1, 'Hormones', 'FTEST-01'),
+    ('Beta-HCG (TM)', 'mIU/mL', 0.0, 1000000.0, 'number', 1, 'Tumor Marker', 'BHCG-TM-01'),
+    ('HER2/neu', 'U/mL', 0.0, 15.0, 'number', 1, 'Tumor Marker', 'HER2-01'),
+    ('S100 Protein', 'µg/L', 0.0, 0.1, 'number', 1, 'Tumor Marker', 'S100-01'),
+    ('Calcitonin', 'pg/mL', 0.0, 10.0, 'number', 1, 'Tumor Marker', 'CALC-TM-01')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section, test_code)
+JOIN tests t2 ON t2.test_code = f.test_code AND t.id = t2.id
+WHERE NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
+-- Vitamin Test Fields
+INSERT INTO test_fields (id, test_id, field_name, unit, min_value, max_value, input_type, order_index, section_group, created_at, updated_at)
+SELECT gen_random_uuid(), t.id, f.field_name, f.unit, f.min_value, f.max_value, f.input_type, f.order_index, f.section, NOW(), NOW()
+FROM tests t
+CROSS JOIN (
+  VALUES
+    ('Vitamin D', 'ng/mL', 30.0, 100.0, 'number', 1, 'Vitamins', 'VITD-01'),
+    ('Folic Acid', 'ng/mL', 5.4, 22.0, 'number', 1, 'Vitamins', 'FOLIC-01'),
+    ('Vitamin B1', 'µg/L', 25.0, 85.0, 'number', 1, 'Vitamins', 'VITB1-01'),
+    ('Vitamin B6', 'ng/mL', 30.0, 110.0, 'number', 1, 'Vitamins', 'VITB6-01'),
+    ('Vitamin C', 'mg/dL', 0.7, 2.0, 'number', 1, 'Vitamins', 'VITC-01')
+) AS f(field_name, unit, min_value, max_value, input_type, order_index, section, test_code)
+JOIN tests t2 ON t2.test_code = f.test_code AND t.id = t2.id
+WHERE NOT EXISTS (SELECT 1 FROM test_fields tf WHERE tf.test_id = t.id AND tf.field_name = f.field_name);
+
 -- ============================================
--- SECTION 7: INSERT TEST REFERENCE RANGES
+-- SECTION 7: MAP TESTS TO PACKAGES
+-- ============================================
+
+-- Fever Profile - Tests
+INSERT INTO package_test_mapping (package_id, test_id)
+SELECT p.id, t.id FROM test_packages p, tests t 
+WHERE p.package_code = 'PKG-FEVER-01' 
+AND t.test_code IN ('CBC-01', 'MALAR-01', 'BCULT-01', 'WIDAL-01', 'CRP-01')
+ON CONFLICT (package_id, test_id) DO NOTHING;
+
+-- Diabetic Profile - Tests
+INSERT INTO package_test_mapping (package_id, test_id)
+SELECT p.id, t.id FROM test_packages p, tests t 
+WHERE p.package_code = 'PKG-DIA-01' 
+AND t.test_code IN ('FBS-01', 'PPBS-01', 'HBA1C-01', 'LIPID-01', 'KFT-01')
+ON CONFLICT (package_id, test_id) DO NOTHING;
+
+-- Thyroid Profile Advanced - Tests
+INSERT INTO package_test_mapping (package_id, test_id)
+SELECT p.id, t.id FROM test_packages p, tests t 
+WHERE p.package_code = 'PKG-THY-ADV-01' 
+AND t.test_code IN ('TSH-01', 'FT3-01', 'FT4-01', 'ATPO-01')
+ON CONFLICT (package_id, test_id) DO NOTHING;
+
+-- Executive Health Checkup - Tests
+INSERT INTO package_test_mapping (package_id, test_id)
+SELECT p.id, t.id FROM test_packages p, tests t 
+WHERE p.package_code = 'PKG-EXEC-01' 
+AND t.test_code IN ('CBC-01', 'LFT-01', 'KFT-01', 'LIPID-01', 'FBS-01', 'TSH-01', 'PSA-01', 'URINE-01', 'ECG-01')
+ON CONFLICT (package_id, test_id) DO NOTHING;
+
+-- Women's Health Package - Tests
+INSERT INTO package_test_mapping (package_id, test_id)
+SELECT p.id, t.id FROM test_packages p, tests t 
+WHERE p.package_code = 'PKG-WOMEN-01' 
+AND t.test_code IN ('FSH-01', 'LH-01', 'Prolactin', 'ESTR-01', 'PROG-01', 'PAP-01', 'CBC-01', 'FERR-01', 'VITB12-01')
+ON CONFLICT (package_id, test_id) DO NOTHING;
+
+-- Men's Health Package - Tests
+INSERT INTO package_test_mapping (package_id, test_id)
+SELECT p.id, t.id FROM test_packages p, tests t 
+WHERE p.package_code = 'PKG-MEN-01' 
+AND t.test_code IN ('PSA-01', 'FREE-PSA-01', 'TEST-01', 'SEMEN-01', 'LFT-01', 'KFT-01', 'CBC-01')
+ON CONFLICT (package_id, test_id) DO NOTHING;
+
+-- Cardiac Risk Profile - Tests
+INSERT INTO package_test_mapping (package_id, test_id)
+SELECT p.id, t.id FROM test_packages p, tests t 
+WHERE p.package_code = 'PKG-CARD-01' 
+AND t.test_code IN ('TROP-01', 'CKMB-01', 'NTPNB-01', 'LIPID-01', 'HCYS-01', 'BNP-01', 'APOA1-01', 'APOB-01')
+ON CONFLICT (package_id, test_id) DO NOTHING;
+
+-- Arthritis Profile - Tests
+INSERT INTO package_test_mapping (package_id, test_id)
+SELECT p.id, t.id FROM test_packages p, tests t 
+WHERE p.package_code = 'PKG-ARTH-01' 
+AND t.test_code IN ('RAF-01', 'ANTICCP-01', 'ESR-01', 'CRP-01', 'ANA-01', 'ASO-01')
+ON CONFLICT (package_id, test_id) DO NOTHING;
+
+-- Anemia Profile - Tests
+INSERT INTO package_test_mapping (package_id, test_id)
+SELECT p.id, t.id FROM test_packages p, tests t 
+WHERE p.package_code = 'PKG-ANEM-01' 
+AND t.test_code IN ('CBC-01', 'IRON-01', 'TIBC-01', 'FERR-01', 'VITB12-01', 'FOLIC-01')
+ON CONFLICT (package_id, test_id) DO NOTHING;
+
+-- Antenatal Profile - Tests
+INSERT INTO package_test_mapping (package_id, test_id)
+SELECT p.id, t.id FROM test_packages p, tests t 
+WHERE p.package_code = 'PKG-ANTE-01' 
+AND t.test_code IN ('BG-01', 'VDRL-01', 'HIV-01', 'HBSAG-01', 'CBC-01', 'FBS-01', 'RBS-01')
+ON CONFLICT (package_id, test_id) DO NOTHING;
+
+-- Infertility Profile - Tests
+INSERT INTO package_test_mapping (package_id, test_id)
+SELECT p.id, t.id FROM test_packages p, tests t 
+WHERE p.package_code = 'PKG-INFER-01' 
+AND t.test_code IN ('FSH-01', 'LH-01', 'PROL-01', 'TEST-01', 'ESTR-01', 'SEMEN-01', 'AMH-01')
+ON CONFLICT (package_id, test_id) DO NOTHING;
+
+-- Liver Profile Advanced - Tests
+INSERT INTO package_test_mapping (package_id, test_id)
+SELECT p.id, t.id FROM test_packages p, tests t 
+WHERE p.package_code = 'PKG-LIVER-ADV-01' 
+AND t.test_code IN ('LFT-01', 'HBSAG-01', 'AHBC-01', 'HCV-01', 'TP-01', 'ALB-01', 'PTINR-01')
+ON CONFLICT (package_id, test_id) DO NOTHING;
+
+-- Kidney Profile Advanced - Tests
+INSERT INTO package_test_mapping (package_id, test_id)
+SELECT p.id, t.id FROM test_packages p, tests t 
+WHERE p.package_code = 'PKG-KIDNEY-ADV-01' 
+AND t.test_code IN ('KFT-01', 'URINE-01', 'UCULT-01', 'CBC-01', 'LIPID-01')
+ON CONFLICT (package_id, test_id) DO NOTHING;
+
+-- ============================================
+-- SECTION 8: INSERT TEST REFERENCE RANGES (Extended)
 -- ============================================
 
 -- CBC Hemoglobin Reference Ranges
@@ -612,7 +1044,7 @@ INSERT INTO test_reference_ranges (test_field_id, gender, age_min, age_max, min_
 SELECT tf.id, 'Any', 18, 120, 30.0, 100.0, 10.0, 150.0, 'Sufficient vitamin D'
 FROM test_fields tf
 JOIN tests t ON tf.test_id = t.id
-WHERE t.test_code = 'VITD-01' AND NOT EXISTS (
+WHERE t.test_code = 'VITD-01' AND tf.field_name = 'Vitamin D' AND NOT EXISTS (
   SELECT 1 FROM test_reference_ranges trr WHERE trr.test_field_id = tf.id
 );
 
@@ -625,8 +1057,101 @@ WHERE t.test_code = 'VITB12-01' AND NOT EXISTS (
   SELECT 1 FROM test_reference_ranges trr WHERE trr.test_field_id = tf.id
 );
 
+-- LFT Reference Ranges for multiple fields
+INSERT INTO test_reference_ranges (test_field_id, gender, age_min, age_max, min_value, max_value, critical_low, critical_high, remarks)
+SELECT tf.id, 'Any', 18, 120, CAST(f.min_val AS DECIMAL), CAST(f.max_val AS DECIMAL), CAST(f.crit_low AS DECIMAL), CAST(f.crit_high AS DECIMAL), f.remark
+FROM test_fields tf
+JOIN tests t ON tf.test_id = t.id
+CROSS JOIN (
+  VALUES
+    ('Total Bilirubin', 0.1, 1.2, 0.0, 5.0, 'Normal bilirubin'),
+    ('SGOT (AST)', 10.0, 40.0, 5.0, 200.0, 'Transaminase'),
+    ('SGPT (ALT)', 7.0, 56.0, 5.0, 200.0, 'Transaminase'),
+    ('ALP (Alkaline Phosphatase)', 44.0, 147.0, 10.0, 300.0, 'Alkaline phosphatase'),
+    ('Total Protein', 6.0, 8.3, 4.0, 10.0, 'Serum proteins')
+) f(field_name, min_val, max_val, crit_low, crit_high, remark)
+WHERE t.test_code = 'LFT-01' AND tf.field_name = f.field_name 
+AND NOT EXISTS (
+  SELECT 1 FROM test_reference_ranges trr WHERE trr.test_field_id = tf.id AND trr.gender = 'Any' AND trr.age_min = 18
+);
+
+-- Lipid Profile Reference Ranges
+INSERT INTO test_reference_ranges (test_field_id, gender, age_min, age_max, min_value, max_value, critical_low, critical_high, remarks)
+SELECT tf.id, 'Any', 18, 120, CAST(f.min_val AS DECIMAL), CAST(f.max_val AS DECIMAL), CAST(f.crit_low AS DECIMAL), CAST(f.crit_high AS DECIMAL), f.remark
+FROM test_fields tf
+JOIN tests t ON tf.test_id = t.id
+CROSS JOIN (
+  VALUES
+    ('Total Cholesterol', 0.0, 200.0, 0.0, 300.0, 'Desirable cholesterol'),
+    ('HDL', 40.0, 200.0, 20.0, 100.0, 'Good cholesterol'),
+    ('LDL', 0.0, 130.0, 0.0, 200.0, 'Bad cholesterol'),
+    ('Triglycerides', 0.0, 150.0, 0.0, 500.0, 'Fasting triglycerides')
+) f(field_name, min_val, max_val, crit_low, crit_high, remark)
+WHERE t.test_code = 'LIPID-01' AND tf.field_name = f.field_name
+AND NOT EXISTS (
+  SELECT 1 FROM test_reference_ranges trr WHERE trr.test_field_id = tf.id AND trr.gender = 'Any' AND trr.age_min = 18
+);
+
+-- KFT Additional Reference Ranges
+INSERT INTO test_reference_ranges (test_field_id, gender, age_min, age_max, min_value, max_value, critical_low, critical_high, remarks)
+SELECT tf.id, 'Any', 18, 120, CAST(f.min_val AS DECIMAL), CAST(f.max_val AS DECIMAL), CAST(f.crit_low AS DECIMAL), CAST(f.crit_high AS DECIMAL), f.remark
+FROM test_fields tf
+JOIN tests t ON tf.test_id = t.id
+CROSS JOIN (
+  VALUES
+    ('Urea', 15.0, 45.0, 5.0, 200.0, 'Blood urea'),
+    ('Uric Acid', 3.5, 7.2, 2.0, 15.0, 'Serum uric acid'),
+    ('Sodium', 136.0, 145.0, 120.0, 160.0, 'Sodium level'),
+    ('Potassium', 3.5, 5.0, 2.5, 6.5, 'Potassium level'),
+    ('Chloride', 98.0, 107.0, 85.0, 120.0, 'Chloride level'),
+    ('Calcium', 8.5, 10.2, 7.0, 13.0, 'Serum calcium')
+) f(field_name, min_val, max_val, crit_low, crit_high, remark)
+WHERE t.test_code = 'KFT-01' AND tf.field_name = f.field_name
+AND NOT EXISTS (
+  SELECT 1 FROM test_reference_ranges trr WHERE trr.test_field_id = tf.id AND trr.gender = 'Any' AND trr.age_min = 18
+);
+
+-- Thyroid Tests Reference Ranges
+INSERT INTO test_reference_ranges (test_field_id, gender, age_min, age_max, min_value, max_value, critical_low, critical_high, remarks)
+SELECT tf.id, 'Any', 18, 120, CAST(f.min_val AS DECIMAL), CAST(f.max_val AS DECIMAL), CAST(f.crit_low AS DECIMAL), CAST(f.crit_high AS DECIMAL), f.remark
+FROM test_fields tf
+JOIN tests t ON tf.test_id = t.id
+CROSS JOIN (
+  VALUES
+    ('Free T3', 2.3, 4.2, 1.0, 8.0, 'Free T3 level', 'FT3-01'),
+    ('Free T4', 0.8, 1.8, 0.4, 3.0, 'Free T4 level', 'FT4-01'),
+    ('Total T3', 80.0, 200.0, 50.0, 300.0, 'Total T3 level', 'T3-01'),
+    ('Total T4', 4.5, 12.0, 2.0, 20.0, 'Total T4 level', 'T4-01')
+) f(field_name, min_val, max_val, crit_low, crit_high, remark, test_code)
+WHERE t.test_code = f.test_code AND tf.field_name = f.field_name
+AND NOT EXISTS (
+  SELECT 1 FROM test_reference_ranges trr WHERE trr.test_field_id = tf.id AND trr.gender = 'Any' AND trr.age_min = 18
+);
+
+-- Additional Reference Ranges for Critical Tests
+INSERT INTO test_reference_ranges (test_field_id, gender, age_min, age_max, min_value, max_value, critical_low, critical_high, remarks)
+SELECT tf.id, f.gender, f.age_min, f.age_max, CAST(f.min_val AS DECIMAL), CAST(f.max_val AS DECIMAL), CAST(f.crit_low AS DECIMAL), CAST(f.crit_high AS DECIMAL), f.remark
+FROM test_fields tf
+JOIN tests t ON tf.test_id = t.id
+CROSS JOIN (
+  VALUES
+    (t.id, 'Any', 18, 120, 150.0, 400.0, 50.0, 1000.0, 'RBC Count', 'Cells/µL', 'Normal RBC', 'CBC-01'),
+    (t.id, 'Male', 18, 120, 4.0, 5.5, 2.5, 8.0, 'RBC Count', 'million/µL', 'Adult male RBC', 'CBC-01'),
+    (t.id, 'Female', 18, 120, 4.0, 5.2, 2.5, 8.0, 'RBC Count', 'million/µL', 'Adult female RBC', 'CBC-01'),
+    (t.id, 'Any', 18, 120, 80.0, 100.0, 60.0, 120.0, 'MCV', 'fL', 'Normal MCV', 'CBC-01'),
+    (t.id, 'Any', 18, 120, 27.0, 33.0, 20.0, 40.0, 'MCH', 'pg', 'Normal MCH', 'CBC-01'),
+    (t.id, 'Any', 18, 120, 32.0, 36.0, 28.0, 40.0, 'MCHC', 'g/dL', 'Normal MCHC', 'CBC-01'),
+    (t.id, 'Any', 18, 120, 0.0, 0.04, 0.0, 0.1, 'Troponin I', 'ng/mL', 'Cardiac marker', 'TROP-01'),
+    (t.id, 'Any', 18, 120, 0.0, 2.5, 0.0, 10.0, 'CEA', 'ng/mL', 'Tumor marker', 'CEA-01'),
+    (t.id, 'Male', 40, 120, 0.0, 4.0, 0.0, 10.0, 'PSA Total', 'ng/mL', 'PSA screening', 'PSA-01')
+) f(test_id, gender, age_min, age_max, min_val, max_val, crit_low, crit_high, field_name, unit, remark, test_code)
+WHERE t.test_code = f.test_code AND tf.field_name = f.field_name
+AND NOT EXISTS (
+  SELECT 1 FROM test_reference_ranges trr WHERE trr.test_field_id = tf.id AND trr.gender = f.gender AND trr.age_min = f.age_min
+);
+
 -- ============================================
--- SECTION 8: INSERT TEST PACKAGES
+-- SECTION 9: INSERT TEST PACKAGES (Extended)
 -- ============================================
 
 INSERT INTO test_packages (id, package_name, package_code, category, description, price, is_active)
@@ -647,7 +1172,7 @@ VALUES
 ON CONFLICT (package_code) DO NOTHING;
 
 -- ============================================
--- SECTION 9: FORMULA DEFINITIONS FOR CALCULATED FIELDS
+-- SECTION 10: FORMULA DEFINITIONS FOR CALCULATED FIELDS
 -- ============================================
 
 -- Update LFT Globulin and A/G Ratio with formulas
@@ -697,7 +1222,7 @@ UPDATE test_fields SET
 WHERE test_id IN (SELECT id FROM tests WHERE test_code = 'HBA1C-01') AND field_name = 'eAG (Estimated Average Glucose)';
 
 -- ============================================
--- SECTION 10: CREATE INDEXES FOR PERFORMANCE
+-- SECTION 11: CREATE INDEXES FOR PERFORMANCE
 -- ============================================
 
 CREATE INDEX IF NOT EXISTS idx_test_fields_test_id_field_name ON test_fields(test_id, field_name);
