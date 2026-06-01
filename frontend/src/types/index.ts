@@ -69,12 +69,15 @@ export interface Branch {
 // Patient Types
 // ==========================================
 
+export type AgeUnit = 'years' | 'months' | 'days';
+
 export interface Patient {
   id: string;
   name: string;
   email?: string;
   phone: string;
   age?: number;
+  age_unit?: AgeUnit;
   gender?: string;
   address?: string;
   city?: string;
@@ -94,6 +97,7 @@ export interface CreatePatientData {
   email?: string;
   phone: string;
   age?: number;
+  age_unit?: AgeUnit;
   gender?: string;
   address?: string;
   city?: string;
@@ -238,6 +242,26 @@ export interface CreateTestData {
 
 export type FieldType = 'input' | 'calculated' | 'flag';
 
+// Reference range rule (age/gender-specific)
+export interface ReferenceRule {
+  age_group?: string;   // 'adult' | 'pediatric' | 'neonatal' | 'all' | custom
+  age_min?: number;
+  age_max?: number;
+  sex?: string;         // 'male' | 'female' | 'any'
+  low?: number | null;
+  high?: number | null;
+  min?: number | null;  // alias for low (legacy format)
+  max?: number | null;  // alias for high (legacy format)
+  note?: string;
+}
+
+// Critical value thresholds
+export interface CriticalRules {
+  low?: number | null;
+  high?: number | null;
+  policy?: string;
+}
+
 export interface TestField {
   id: string;
   test_id: string;
@@ -252,6 +276,11 @@ export interface TestField {
   depends_on?: string;    // JSON array of field names this field depends on
   section_group?: string; // Sub-section heading within a test, e.g. "HEMOGLOBIN", "RBC COUNT"
   order_index: number;
+  reference_rules?: ReferenceRule[] | Record<string, any> | null;
+  critical_rules?: CriticalRules | null;
+  interpretation_logic?: Record<string, any> | null;
+  is_mandatory?: boolean;
+  display_format?: string;
   created_at: string;
   updated_at: string;
 }
@@ -267,6 +296,9 @@ export interface CreateTestFieldData {
   formula?: string;
   depends_on?: string;
   order_index?: number;
+  section_group?: string;
+  reference_rules?: ReferenceRule[] | null;
+  critical_rules?: CriticalRules | null;
 }
 
 // ==========================================
@@ -387,6 +419,7 @@ export interface Report {
   patient_phone?: string;
   patient_gender?: string;
   patient_age?: number;
+  patient_age_unit?: AgeUnit;
   doctor_title?: string;
   doctor_name?: string;
   doctor_firstname?: string;

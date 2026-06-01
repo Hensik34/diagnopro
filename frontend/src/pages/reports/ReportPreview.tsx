@@ -18,6 +18,7 @@ import { format } from 'date-fns';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { QRCodeSVG } from 'qrcode.react';
+import { formatAge } from '../../utils/age';
 
 /* ── Color tokens – Premium Medical / Pathology theme ──────────────────────── */
 const C = {
@@ -380,7 +381,7 @@ export function ReportPreview() {
     const report = rawReport;
 
     const branch = branches.find(b => b.id === (report as any).branch_id);
-    const age = report.patient_age || 0;
+    const age = formatAge(report.patient_age, report.patient_age_unit) || 'N/A';
 
     const doctorName =
       report.doctor_name
@@ -403,7 +404,7 @@ export function ReportPreview() {
       result: p.value?.toString() || '',
       unit: p.unit || '',
       refRange: p.referenceRange || '',
-      isAbnormal: p.status === 'low' || p.status === 'high',
+      isAbnormal: p.status === 'low' || p.status === 'high' || p.status === 'critical',
       status: p.status,
       fieldType: p.fieldType || undefined,
       group: p.group || (testId ? sectionGroupMap.get(`${testId}::${p.name}`) : undefined),
@@ -497,7 +498,7 @@ export function ReportPreview() {
   const footerActive = showLetterhead && !!settings?.footer_url && !hasLetterhead;
 
   const abnormalParams = useMemo(
-    () => (reportData?.parameters ?? []).filter(p => p.status === 'high' || p.status === 'low'),
+    () => (reportData?.parameters ?? []).filter(p => p.status === 'high' || p.status === 'low' || p.status === 'critical'),
     [reportData],
   );
 
@@ -511,7 +512,7 @@ export function ReportPreview() {
     return (
       abnormalParams
         .map(p => {
-          const dir = p.status === 'high' ? 'elevated' : 'below normal range';
+          const dir = p.status === 'critical' ? 'critical' : p.status === 'high' ? 'elevated' : 'below normal range';
           return `${p.name} is ${dir} (${p.result} ${p.unit}).`;
         })
         .join(' ') + ' Clinical correlation is advised.'
@@ -783,11 +784,12 @@ export function ReportPreview() {
                         let rowIndex = 0;
 
                         return section.parameters.map((param, idx) => {
+                          const isCritical = param.status === 'critical';
                           const isHigh = param.status === 'high';
                           const isLow = param.status === 'low';
-                          const isAbnormal = isHigh || isLow;
-                          const statusColor = isHigh ? C.high : isLow ? C.low : C.text;
-                          const statusLabel = isHigh ? 'High' : isLow ? 'Low' : '';
+                          const isAbnormal = isHigh || isLow || isCritical;
+                          const statusColor = isCritical ? C.high : isHigh ? C.high : isLow ? C.low : C.text;
+                          const statusLabel = isCritical ? 'Critical' : isHigh ? 'High' : isLow ? 'Low' : '';
 
                           // Sub-section group header row
                           const showGroupHeader = param.group && param.group !== lastGroup;

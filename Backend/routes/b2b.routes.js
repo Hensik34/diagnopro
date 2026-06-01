@@ -9,6 +9,7 @@ const { authorize } = require("../middlewere/authorize");
 router.post("/labs", authorize('b2b:lab_create'), b2bController.createLab);
 router.get("/labs", authorize('b2b:lab_read'), b2bController.getAllLabs);
 router.get("/labs/:id", authorize('b2b:lab_read'), b2bController.getLabById);
+router.get("/labs/:id/statement", authorize('b2b:lab_read'), b2bController.getStatement);
 router.put("/labs/:id", authorize('b2b:lab_update'), b2bController.updateLab);
 router.delete("/labs/:id", authorize('b2b:lab_delete'), b2bController.deleteLab);
 

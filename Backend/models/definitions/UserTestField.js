@@ -21,6 +21,9 @@ const UserTestField = sequelize.define("UserTestField", {
   formula: { type: DataTypes.TEXT },
   depends_on: { type: DataTypes.TEXT },
   section_group: { type: DataTypes.STRING(255) },
+  reference_rules: { type: DataTypes.JSONB },
+  critical_rules: { type: DataTypes.JSONB },
+  is_mandatory: { type: DataTypes.BOOLEAN, defaultValue: true },
 }, {
   tableName: "branch_test_fields",
   indexes: [{ unique: true, fields: ["branch_id", "test_id", "field_name"] }],

@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import type { Payment, PaymentMode, PaymentStatus } from '../../types';
+import { formatAge } from '../../utils/age';
 
 const C = {
   brand:      '#1E3A8A',
@@ -229,7 +230,7 @@ export function InvoicePage() {
                 <p style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px', fontWeight: 600 }}>Bill To</p>
                 <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{report.patient_name || 'Patient'}</p>
                 <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>
-                  {report.patient_age ? `${report.patient_age}Y` : ''} {report.patient_gender || ''}{report.patient_phone ? ` | ${report.patient_phone}` : ''}
+                  {formatAge(report.patient_age, report.patient_age_unit)} {report.patient_gender || ''}{report.patient_phone ? ` | ${report.patient_phone}` : ''}
                 </p>
                 <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>
                   Patient ID: {report.patient_id.slice(0, 8)}

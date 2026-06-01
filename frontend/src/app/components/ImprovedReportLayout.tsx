@@ -216,7 +216,7 @@ export function InvestigationTableRow({
           whiteSpace: 'nowrap',
         }}
       >
-        {result} {status === 'High' ? <span style={{ color: statusColor, fontWeight: 700, marginLeft: '4px' }}>High</span> : status === 'Low' ? <span style={{ color: statusColor, fontWeight: 700, marginLeft: '4px' }}>Low</span> : ''}
+        {result} {status === 'High' ? <span style={{ color: statusColor, fontWeight: 700, marginLeft: '4px' }}>High</span> : status === 'Low' ? <span style={{ color: statusColor, fontWeight: 700, marginLeft: '4px' }}>Low</span> : status === 'Critical' ? <span style={{ color: statusColor, fontWeight: 800, marginLeft: '4px', textTransform: 'uppercase' }}>*Critical*</span> : ''}
       </td>
       {/* Reference Value */}
       <td
@@ -326,22 +326,20 @@ export function ImprovedPatientBox({
       <div
         style={{
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'stretch',
         }}
       >
         {/* Column 1: Patient Details */}
         <div style={{
           flex: '1.2',
-          borderRight: 'none',
-          borderBottom: `1px solid ${colorTokens.borderLight}`,
           padding: '10px 12px',
+          borderRight: `1px solid ${colorTokens.borderLight}`,
         }}>
           <h2 style={{ fontSize: '15px', fontWeight: 800, margin: '0 0 4px 0', color: colorTokens.text }}>
             {patientName}
           </h2>
           <div style={{ fontSize: '11px', color: '#444', lineHeight: 1.6 }}>
-            <div>Age : {age} Years</div>
+            <div>Age : {age}</div>
             <div>Sex : {gender}</div>
             <div>PID : {patientId}</div>
           </div>
@@ -350,9 +348,8 @@ export function ImprovedPatientBox({
         {/* Column 2: Registration ID & Ref Doctor & QR */}
         <div style={{
           flex: '1.5',
-          borderRight: 'none',
-          borderBottom: `1px solid ${colorTokens.borderLight}`,
           padding: '10px 12px',
+          borderRight: `1px solid ${colorTokens.borderLight}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',

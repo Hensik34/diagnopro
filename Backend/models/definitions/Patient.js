@@ -11,6 +11,7 @@ const Patient = sequelize.define("Patient", {
   email: { type: DataTypes.STRING(255) },
   phone: { type: DataTypes.STRING(20), allowNull: false },
   age: { type: DataTypes.INTEGER },
+  age_unit: { type: DataTypes.STRING(10), defaultValue: "years" },
   gender: { type: DataTypes.STRING(20) },
   address: { type: DataTypes.TEXT },
   city: { type: DataTypes.STRING(100) },

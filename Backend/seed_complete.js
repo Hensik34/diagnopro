@@ -5,7 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 
 async function seedData() {
   try {
-    console.log('🌱 Starting database seeding...\n');
+    console.log('🌱 Starting comprehensive database seeding...\n');
     
     // 1. Verify branch exists
     console.log('📍 Checking for default branch...');
@@ -44,24 +44,72 @@ async function seedData() {
       console.log(`✅ Admin user already exists - Email: admin@lab.com\n`);
     }
     
-    // 3. Verify tests were seeded by migrations
-    const testResult = await pool.query('SELECT COUNT(*) as count FROM tests');
+    // 3. Comprehensive test catalog verification
+    console.log('📋 Comprehensive Test Catalog Verification:\n');
+    
+    const testResult = await pool.query(`
+      SELECT COUNT(*) as count, 
+             COUNT(DISTINCT category) as categories
+      FROM tests
+    `);
     const testCount = parseInt(testResult.rows[0].count);
+    const categoryCount = parseInt(testResult.rows[0].categories);
+
+    // Get test breakdown by category
+    const categoryBreakdown = await pool.query(`
+      SELECT category, COUNT(*) as count 
+      FROM tests 
+      GROUP BY category 
+      ORDER BY count DESC
+    `);
+
+    console.log(`Total Tests: ${testCount}`);
+    console.log(`Categories: ${categoryCount}\n`);
+    console.log('Breakdown by Category:');
+    categoryBreakdown.rows.forEach(row => {
+      console.log(`  • ${row.category}: ${row.count} tests`);
+    });
+
+    // Verify test fields
+    const fieldResult = await pool.query('SELECT COUNT(*) as count FROM test_fields');
+    const fieldCount = parseInt(fieldResult.rows[0].count);
+    console.log(`\nTest Fields: ${fieldCount}`);
+
+    // Verify test packages
+    const packageResult = await pool.query('SELECT COUNT(*) as count FROM test_packages');
+    const packageCount = parseInt(packageResult.rows[0].count);
+    console.log(`Test Packages: ${packageCount}`);
+
+    // Verify calculated fields
+    const calculatedResult = await pool.query(`
+      SELECT COUNT(*) as count FROM test_fields 
+      WHERE field_type = 'calculated'
+    `);
+    const calculatedCount = parseInt(calculatedResult.rows[0].count);
+    console.log(`Calculated Fields: ${calculatedCount}\n`);
+
+    // Final verification
+    console.log('✅ Database verification:\n');
+    console.log(`   ✓ Branch count: 1+`);
+    console.log(`   ✓ User count: 1+ (admin@lab.com)`);
+    console.log(`   ✓ Tests seeded: ${testCount}`);
+    console.log(`   ✓ Test categories: ${categoryCount}`);
+    console.log(`   ✓ Test fields defined: ${fieldCount}`);
+    console.log(`   ✓ Test packages: ${packageCount}`);
+    console.log(`   ✓ Calculated fields: ${calculatedCount}\n`);
     
-    console.log(`\n✅ Database verification:\n`);
-    console.log(`   - Branch count: 1+`);
-    console.log(`   - User count: 1+ (admin@lab.com)`);
-    console.log(`   - Tests seeded: ${testCount}\n`);
-    
-    if (testCount >= 40) {
-      console.log('🎉 All 40 tests successfully seeded!\n');
+    if (testCount >= 100) {
+      console.log('🎉 SUCCESS: All 100+ tests with complete parameters seeded!\n');
+    } else if (testCount >= 80) {
+      console.log(`⚠️  Found ${testCount} tests (expected 100+)\n`);
     } else {
-      console.log(`⚠️  Expected 40 tests, found ${testCount}. Please run migrations.\n`);
+      console.log(`❌ Only ${testCount} tests found. Migrations may need to be rerun.\n`);
     }
     
     console.log('💡 Login credentials:');
     console.log('   Email: admin@lab.com');
-    console.log('   Password: admin123');
+    console.log('   Password: admin123\n');
+    
     process.exit(0);
   } catch (error) {
     console.error('❌ Seeding failed:', error.message);

@@ -14,6 +14,7 @@ import {
   Star,
   Plus
 } from 'lucide-react';
+import { useTheme } from 'next-themes';
 import { useSettingsStore, useBranchStore, useAuthStore } from '../../stores';
 import { authApi } from '../../api/auth';
 
@@ -21,6 +22,7 @@ export function Settings() {
   const { settings, isLoading, error, fetchSettings, uploadLetterhead, uploadLabSignature, updateSignatureLabel, updateDefaultSignature, removeImage: removeSettingsImage } = useSettingsStore();
   const { currentBranchId } = useBranchStore();
   const { user, fetchProfile } = useAuthStore();
+  const { theme, setTheme } = useTheme();
 
   const [activeTab, setActiveTab] = useState('letterhead-sign');
   
@@ -45,6 +47,13 @@ export function Settings() {
   const [labSignaturePreviews, setLabSignaturePreviews] = useState<Record<number, string | null>>({ 1: null, 2: null, 3: null, 4: null });
   const labSignatureInputRefs = useRef<Record<number, HTMLInputElement | null>>({ 1: null, 2: null, 3: null, 4: null });
   const [defaultSignatureIndex, setDefaultSignatureIndex] = useState<number | null>(null);
+  const [brandingDraft, setBrandingDraft] = useState({
+    report_margin_top: 160,
+    report_margin_bottom: 120,
+    report_margin_left: 28,
+    report_margin_right: 28,
+  });
+  const [isSavingBranding, setIsSavingBranding] = useState(false);
 
   // Profile Form State
   const [formFirstname, setFormFirstname] = useState('');
@@ -96,6 +105,12 @@ export function Settings() {
 
       // Initialize default signature index
       setDefaultSignatureIndex(settings.default_signature_index || null);
+      setBrandingDraft({
+        report_margin_top: settings.report_margin_top ?? 160,
+        report_margin_bottom: settings.report_margin_bottom ?? 120,
+        report_margin_left: settings.report_margin_left ?? 28,
+        report_margin_right: settings.report_margin_right ?? 28,
+      });
     }
   }, [settings, pendingLetterheadFile, pendingOwnerSignatureFile]);
 
@@ -296,6 +311,27 @@ export function Settings() {
     setTimeout(() => setUploadSuccess(null), 3000);
   };
 
+  const handleSaveBranding = async () => {
+    if (!currentBranchId) return;
+
+    setIsSavingBranding(true);
+    try {
+      const result = await useSettingsStore.getState().updateSettings({
+        branch_id: currentBranchId,
+        report_margin_top: brandingDraft.report_margin_top,
+        report_margin_bottom: brandingDraft.report_margin_bottom,
+        report_margin_left: brandingDraft.report_margin_left,
+        report_margin_right: brandingDraft.report_margin_right,
+      });
+
+      if (result) {
+        showSuccess('Branding settings saved');
+      }
+    } finally {
+      setIsSavingBranding(false);
+    }
+  };
+
   const handleDeleteImage = async (field: 'letterhead_url' | 'header_url' | 'footer_url' | 'owner_signature_url') => {
     if (!window.confirm(`Are you sure you want to delete the ${field.replace('_url', '').replace('_', ' ')}?`)) return;
     
@@ -371,7 +407,7 @@ export function Settings() {
           <nav className="flex flex-row md:flex-col flex-1 overflow-x-auto md:overflow-y-auto p-2 md:p-3 space-x-1 md:space-x-0 md:space-y-1">
             <button
               onClick={() => setActiveTab('letterhead-sign')}
-              className={`flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
+              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'letterhead-sign' 
                   ? 'bg-primary/10 text-primary' 
                   : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
@@ -385,7 +421,7 @@ export function Settings() {
             
             <button
               onClick={() => setActiveTab('profile')}
-              className={`flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
+              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'profile' 
                   ? 'bg-primary/10 text-primary' 
                   : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
@@ -399,7 +435,7 @@ export function Settings() {
             
             <button
               onClick={() => setActiveTab('general')}
-              className={`flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
+              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'general' 
                   ? 'bg-primary/10 text-primary' 
                   : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
@@ -515,6 +551,135 @@ export function Settings() {
                         <span>{letterheadError}</span>
                       </div>
                     )}
+                  </div>
+
+                  <div className="mt-5 grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
+                    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                      <div className="flex items-center justify-between gap-3 mb-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">Report Preview</p>
+                          <p className="text-xs text-muted-foreground">Shows how the uploaded letterhead will frame the first page.</p>
+                        </div>
+                        <span className={`text-[10px] uppercase tracking-[0.2em] px-2 py-1 rounded-full border ${letterheadPreview ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                          {letterheadPreview ? 'Ready' : 'No asset'}
+                        </span>
+                      </div>
+
+                      <div className="relative overflow-hidden rounded-lg border border-border bg-[#fdfdfc] p-4 min-h-[220px]">
+                        {letterheadPreview ? (
+                          <img
+                            src={getImageUrl(letterheadPreview) || ''}
+                            alt="Letterhead preview layer"
+                            className="absolute inset-0 h-full w-full object-cover opacity-20"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(0,102,204,0.08),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.8),rgba(241,243,245,0.9))]" />
+                        )}
+                        <div className="relative space-y-3">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <div className="h-3 w-40 rounded-full bg-foreground/20" />
+                              <div className="mt-2 h-2.5 w-28 rounded-full bg-foreground/10" />
+                            </div>
+                            <div className="text-right">
+                              <div className="h-2.5 w-20 rounded-full bg-foreground/20 ml-auto" />
+                              <div className="mt-2 h-2.5 w-14 rounded-full bg-foreground/10 ml-auto" />
+                            </div>
+                          </div>
+                          <div className="space-y-2 pt-8">
+                            <div className="h-2.5 rounded-full bg-foreground/10" />
+                            <div className="h-2.5 rounded-full bg-foreground/10 w-11/12" />
+                            <div className="h-2.5 rounded-full bg-foreground/10 w-10/12" />
+                          </div>
+                          <div className="pt-8 grid grid-cols-2 gap-3">
+                            <div className="rounded-md border border-dashed border-border bg-background/70 p-3">
+                              <p className="text-[11px] font-medium text-muted-foreground">Top margin</p>
+                              <p className="text-sm font-semibold text-foreground">{brandingDraft.report_margin_top}px</p>
+                            </div>
+                            <div className="rounded-md border border-dashed border-border bg-background/70 p-3">
+                              <p className="text-[11px] font-medium text-muted-foreground">Bottom margin</p>
+                              <p className="text-sm font-semibold text-foreground">{brandingDraft.report_margin_bottom}px</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-border bg-secondary/20 p-4 shadow-sm">
+                      <p className="text-sm font-semibold text-foreground mb-2">Upload guidance</p>
+                      <ul className="space-y-2 text-xs text-muted-foreground leading-5">
+                        <li>Use a portrait A4 asset for the letterhead.</li>
+                        <li>Keep the top margin high enough for header artwork.</li>
+                        <li>Use transparent PNG signatures for crisp print output.</li>
+                        <li>The default signature is still controlled from the signature cards below.</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 rounded-xl border border-border bg-card p-5 shadow-sm">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                      <div>
+                        <h4 className="text-base font-semibold text-foreground">Report Margins</h4>
+                        <p className="text-xs text-muted-foreground mt-1">These values control how much space the PDF keeps around the letterhead and signature block.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSaveBranding}
+                        disabled={isSavingBranding || !settings || (
+                          brandingDraft.report_margin_top === (settings.report_margin_top ?? 160) &&
+                          brandingDraft.report_margin_bottom === (settings.report_margin_bottom ?? 120) &&
+                          brandingDraft.report_margin_left === (settings.report_margin_left ?? 28) &&
+                          brandingDraft.report_margin_right === (settings.report_margin_right ?? 28)
+                        )}
+                        className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isSavingBranding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        Save Layout
+                      </button>
+                    </div>
+
+                    <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                      <label className="space-y-2 text-sm">
+                        <span className="block font-medium text-foreground">Top Margin (px)</span>
+                        <input
+                          type="number"
+                          min={0}
+                          className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                          value={brandingDraft.report_margin_top}
+                          onChange={(e) => setBrandingDraft((prev) => ({ ...prev, report_margin_top: parseInt(e.target.value, 10) || 0 }))}
+                        />
+                      </label>
+                      <label className="space-y-2 text-sm">
+                        <span className="block font-medium text-foreground">Bottom Margin (px)</span>
+                        <input
+                          type="number"
+                          min={0}
+                          className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                          value={brandingDraft.report_margin_bottom}
+                          onChange={(e) => setBrandingDraft((prev) => ({ ...prev, report_margin_bottom: parseInt(e.target.value, 10) || 0 }))}
+                        />
+                      </label>
+                      <label className="space-y-2 text-sm">
+                        <span className="block font-medium text-foreground">Left Margin (px)</span>
+                        <input
+                          type="number"
+                          min={0}
+                          className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                          value={brandingDraft.report_margin_left}
+                          onChange={(e) => setBrandingDraft((prev) => ({ ...prev, report_margin_left: parseInt(e.target.value, 10) || 0 }))}
+                        />
+                      </label>
+                      <label className="space-y-2 text-sm">
+                        <span className="block font-medium text-foreground">Right Margin (px)</span>
+                        <input
+                          type="number"
+                          min={0}
+                          className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                          value={brandingDraft.report_margin_right}
+                          onChange={(e) => setBrandingDraft((prev) => ({ ...prev, report_margin_right: parseInt(e.target.value, 10) || 0 }))}
+                        />
+                      </label>
+                    </div>
                   </div>
                 </section>
 
@@ -841,49 +1006,46 @@ export function Settings() {
             <div className="p-8 max-w-3xl">
               <div className="mb-8">
                 <h2 className="text-2xl font-semibold text-foreground tracking-tight">General Settings</h2>
-                <p className="text-sm text-muted-foreground mt-1">Configure global lab preferences and PDF rendering margins.</p>
+                <p className="text-sm text-muted-foreground mt-1">Configure app appearance, branch-level behavior, and workspace preferences.</p>
               </div>
-              
-              <div className="bg-card border border-border rounded-xl p-6">
-                <h3 className="text-base font-semibold text-foreground mb-6">PDF Report Margins</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Top Margin (px)</label>
-                    <input 
-                      type="number" 
-                      className="w-full h-10 px-3 bg-transparent border border-border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                      value={settings?.report_margin_top ?? 160}
-                      onChange={(e) => useSettingsStore.getState().updateSettings({ report_margin_top: parseInt(e.target.value) || 0 })}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1.5">Space for the letterhead header</p>
+
+              <div className="grid gap-6 lg:grid-cols-2">
+                <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">Appearance Theme</h3>
+                      <p className="text-sm text-muted-foreground mt-1">Theme is stored locally through the app shell and applies instantly.</p>
+                    </div>
+                    <span className="rounded-full border border-border bg-secondary/60 px-3 py-1 text-xs font-medium text-foreground capitalize">
+                      {theme === 'dark' ? 'Dark mode' : 'Light mode'}
+                    </span>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Bottom Margin (px)</label>
-                    <input 
-                      type="number" 
-                      className="w-full h-10 px-3 bg-transparent border border-border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                      value={settings?.report_margin_bottom ?? 120}
-                      onChange={(e) => useSettingsStore.getState().updateSettings({ report_margin_bottom: parseInt(e.target.value) || 0 })}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1.5">Space for the footer and signatures</p>
+
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setTheme('light')}
+                      className={`cursor-pointer rounded-xl border px-4 py-4 text-left transition-all ${theme === 'light' ? 'border-primary bg-primary/5 text-primary' : 'border-border bg-secondary/20 text-foreground hover:bg-secondary/40'}`}
+                    >
+                      <div className="text-sm font-semibold">Light</div>
+                      <div className="mt-1 text-xs text-muted-foreground">Bright interface for daytime work.</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTheme('dark')}
+                      className={`cursor-pointer rounded-xl border px-4 py-4 text-left transition-all ${theme === 'dark' ? 'border-primary bg-primary/5 text-primary' : 'border-border bg-secondary/20 text-foreground hover:bg-secondary/40'}`}
+                    >
+                      <div className="text-sm font-semibold">Dark</div>
+                      <div className="mt-1 text-xs text-muted-foreground">Lower-glare interface for long shifts.</div>
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Left Margin (px)</label>
-                    <input 
-                      type="number" 
-                      className="w-full h-10 px-3 bg-transparent border border-border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                      value={settings?.report_margin_left ?? 28}
-                      onChange={(e) => useSettingsStore.getState().updateSettings({ report_margin_left: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Right Margin (px)</label>
-                    <input 
-                      type="number" 
-                      className="w-full h-10 px-3 bg-transparent border border-border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                      value={settings?.report_margin_right ?? 28}
-                      onChange={(e) => useSettingsStore.getState().updateSettings({ report_margin_right: parseInt(e.target.value) || 0 })}
-                    />
+                </div>
+
+                <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+                  <h3 className="text-base font-semibold text-foreground">Quick Notes</h3>
+                  <div className="mt-4 space-y-3 text-sm text-muted-foreground leading-6">
+                    <p>The branding and PDF spacing controls now live with letterhead and signatures.</p>
+                    <p>Profile updates remain separate so account changes do not interfere with branding saves.</p>
                   </div>
                 </div>
               </div>

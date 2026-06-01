@@ -42,7 +42,7 @@ exports.getPatientById = async (req, res) => {
 // CREATE PATIENT
 exports.createPatient = async (req, res) => {
   try {
-    const { name, email, phone, age, gender, address, city, state, postal_code, blood_type, branch_id } = req.body;
+    const { name, email, phone, age, age_unit, gender, address, city, state, postal_code, blood_type, branch_id } = req.body;
 
     // Validation
     if (!name || !phone || !branch_id) {
@@ -56,6 +56,7 @@ exports.createPatient = async (req, res) => {
       email,
       phone,
       age,
+      age_unit,
       gender,
       address,
       city,
@@ -80,13 +81,14 @@ exports.createPatient = async (req, res) => {
 exports.updatePatient = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, age, gender, address, city, state, postal_code, blood_type } = req.body;
+    const { name, email, phone, age, age_unit, gender, address, city, state, postal_code, blood_type } = req.body;
 
     const patient = await Patient.updatePatient(id, {
       name,
       email,
       phone,
       age,
+      age_unit,
       gender,
       address,
       city,

@@ -110,3 +110,91 @@ exports.deleteLab = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// Get B2B Lab Statement (monthly bill with reports)
+exports.getStatement = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { startDate, endDate } = req.query;
+    const { Op } = require("sequelize");
+    const { sequelize } = require("../config/database");
+
+    // Validate lab exists
+    const lab = await B2BLab.findOne({
+      where: {
+        id,
+        [Op.or]: [{ is_deleted: false }, { is_deleted: null }],
+      },
+    });
+
+    if (!lab) {
+      return res.status(404).json({ error: "Lab not found" });
+    }
+
+    // Fetch all reports for this B2B lab within date range
+    const Report = require("../models/Report");
+    const Patient = require("../models/Patient");
+
+    const reports = await Report.findAll({
+      where: {
+        b2b_lab_id: id,
+        status: {
+          [Op.in]: ["approved", "completed"],
+        },
+        ...(startDate && endDate && {
+          created_at: {
+            [Op.between]: [new Date(startDate), new Date(endDate)],
+          },
+        }),
+      },
+      include: [
+        {
+          model: Patient,
+          as: "patient",
+          attributes: ["name"],
+        },
+      ],
+      order: [["created_at", "DESC"]],
+      raw: true,
+    });
+
+    // Calculate summary
+    let totalReports = 0;
+    let totalAmount = 0;
+    let totalCharge = 0;
+
+    const formattedReports = reports.map((report) => {
+      const reportAmount = Number(report.report_amount) || 0;
+      const b2bCharge = Number(report.b2b_charge) || 0;
+
+      totalReports += 1;
+      totalAmount += reportAmount;
+      totalCharge += b2bCharge;
+
+      return {
+        id: report.id,
+        report_date: report.created_at,
+        patient_name: report["patient.name"] || "Unknown Patient",
+        report_type: report.report_type,
+        status: report.status,
+        report_amount: reportAmount,
+        b2b_charge: b2bCharge,
+      };
+    });
+
+    res.json({
+      message: "B2B lab statement retrieved",
+      data: {
+        summary: {
+          total_reports: totalReports,
+          total_amount: totalAmount,
+          total_charge: totalCharge,
+        },
+        reports: formattedReports,
+      },
+    });
+  } catch (err) {
+    console.error("Get B2B statement error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};

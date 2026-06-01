@@ -14,14 +14,16 @@ import {
   ChevronUp,
   ChevronDown,
   RotateCcw,
-  RefreshCw
+  RefreshCw,
+  ChevronRight,
+  AlertTriangle
 } from 'lucide-react';
 import { useTestStore } from '../../stores';
 import { useAuthStore } from '../../stores';
 import { useBranchStore } from '../../stores';
 import { testApi } from '../../api';
 import { PERMISSIONS } from '../../utils/permissions';
-import type { Test, CreateTestData, TestField, CreateTestFieldData, FieldType } from '../../types';
+import type { Test, CreateTestData, TestField, CreateTestFieldData, FieldType, ReferenceRule, CriticalRules } from '../../types';
 
 // Common lab measurement units organized by category
 const LAB_UNITS: Record<string, string[]> = {
@@ -47,6 +49,120 @@ const QUALITATIVE_DEFAULTS: Record<string, string[]> = {
   'Turbidity': ['Clear', 'Slightly Turbid', 'Turbid', 'Very Turbid'],
   'Presence': ['Absent', 'Present', 'Nil', 'Trace', '1+', '2+', '3+', '4+'],
 };
+
+// Age groups used for reference ranges
+const AGE_GROUPS = ['all', 'adult', 'pediatric', 'neonatal', 'infant', 'adolescent', 'elderly'];
+const SEX_OPTIONS = ['any', 'male', 'female'];
+
+// ============================================
+// Reference Rules Utility Functions
+// ============================================
+
+/**
+ * Normalizes various backend reference_rules formats into a uniform ReferenceRule[]
+ * Handles:
+ *  - Array format: [{ age_group, sex, low, high }]
+ *  - Simple min/max: { min: 80, max: 100 }
+ *  - Gender-keyed: { male: { min, max }, female: { min, max } }
+ */
+function normalizeReferenceRules(raw: any): ReferenceRule[] {
+  if (!raw) return [];
+
+  // Already an array
+  if (Array.isArray(raw)) {
+    return raw.map(r => ({
+      age_group: r.age_group || 'all',
+      sex: r.sex || 'any',
+      low: r.low ?? r.min ?? null,
+      high: r.high ?? r.max ?? null,
+      note: r.note,
+    }));
+  }
+
+  // Object format
+  if (typeof raw === 'object') {
+    // Check if it's a gender-keyed object like { male: { min, max }, female: { min, max } }
+    const keys = Object.keys(raw);
+    const genderKeys = keys.filter(k => ['male', 'female'].includes(k));
+
+    if (genderKeys.length > 0) {
+      const rules: ReferenceRule[] = [];
+      for (const gender of genderKeys) {
+        const vals = raw[gender];
+        if (vals && typeof vals === 'object') {
+          rules.push({
+            age_group: 'all',
+            sex: gender,
+            low: vals.min ?? vals.low ?? null,
+            high: vals.max ?? vals.high ?? null,
+          });
+        }
+      }
+      return rules;
+    }
+
+    // Simple { min, max } object
+    if ('min' in raw || 'max' in raw || 'low' in raw || 'high' in raw) {
+      return [{
+        age_group: 'all',
+        sex: 'any',
+        low: raw.low ?? raw.min ?? null,
+        high: raw.high ?? raw.max ?? null,
+      }];
+    }
+  }
+
+  return [];
+}
+
+/**
+ * Generates a compact summary string for reference rules
+ * e.g., "M: 13–17 | F: 12–15" or "80–100"
+ */
+function referenceRulesSummary(rules: ReferenceRule[]): string {
+  if (!rules || rules.length === 0) return '—';
+
+  // Single rule, generic
+  if (rules.length === 1 && rules[0].sex === 'any' && (rules[0].age_group === 'all' || !rules[0].age_group)) {
+    const r = rules[0];
+    if (r.note) return r.note;
+    const lo = r.low != null ? r.low : '—';
+    const hi = r.high != null ? r.high : '—';
+    return `${lo} – ${hi}`;
+  }
+
+  // Multiple rules: group by sex
+  const parts: string[] = [];
+  for (const r of rules) {
+    if (r.note && !r.low && !r.high) {
+      parts.push(r.note);
+      continue;
+    }
+    const lo = r.low != null ? r.low : '—';
+    const hi = r.high != null ? r.high : '—';
+    const sexLabel = r.sex === 'male' ? 'M' : r.sex === 'female' ? 'F' : '';
+    const ageLabel = r.age_group && r.age_group !== 'all' ? `${r.age_group}` : '';
+    const label = [sexLabel, ageLabel].filter(Boolean).join('/');
+    parts.push(label ? `${label}: ${lo}–${hi}` : `${lo}–${hi}`);
+  }
+
+  return parts.join(' | ');
+}
+
+/**
+ * Build a default "empty" reference rule
+ */
+function defaultRule(): ReferenceRule {
+  return { age_group: 'all', sex: 'any', low: null, high: null };
+}
+
+// ============================================
+// Extended field data type (with reference rules for the editor)
+// ============================================
+interface FieldEditorData extends CreateTestFieldData {
+  _referenceRules: ReferenceRule[];
+  _criticalRules: CriticalRules;
+}
 
 export function TestManagement() {
   const {
@@ -437,9 +553,10 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Field editor state
-  const [fields, setFields] = useState<CreateTestFieldData[]>([]);
+  const [fields, setFields] = useState<FieldEditorData[]>([]);
   const [loadingFields, setLoadingFields] = useState(false);
   const [customUnitMode, setCustomUnitMode] = useState<Set<number>>(new Set());
+  const [expandedRangeIndex, setExpandedRangeIndex] = useState<number | null>(null);
 
   // Load existing fields when editing
   useEffect(() => {
@@ -457,6 +574,9 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
             field_type: f.field_type || 'input',
             formula: f.formula || '',
             depends_on: f.depends_on || '',
+            section_group: f.section_group || '',
+            _referenceRules: normalizeReferenceRules(f.reference_rules),
+            _criticalRules: f.critical_rules || { low: null, high: null },
           })));
         })
         .catch(() => {})
@@ -485,10 +605,13 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
       field_type: 'input',
       formula: '',
       depends_on: '',
+      section_group: '',
+      _referenceRules: [],
+      _criticalRules: { low: null, high: null },
     }]);
   };
 
-  const updateField = (index: number, updates: Partial<CreateTestFieldData>) => {
+  const updateField = (index: number, updates: Partial<FieldEditorData>) => {
     setFields(prev => prev.map((f, i) => {
       if (i !== index) return f;
       const updated = { ...f, ...updates };
@@ -498,6 +621,8 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
         updated.field_type = 'input';
         updated.min_value = undefined;
         updated.max_value = undefined;
+        updated._referenceRules = [];
+        updated._criticalRules = { low: null, high: null };
         if (!f.formula || !QUALITATIVE_UNITS.includes(f.unit || '')) {
           updated.formula = (QUALITATIVE_DEFAULTS[updates.unit] || []).join(', ');
         }
@@ -508,6 +633,10 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
 
   const removeField = (index: number) => {
     setFields(prev => prev.filter((_, i) => i !== index).map((f, i) => ({ ...f, order_index: i })));
+    if (expandedRangeIndex === index) setExpandedRangeIndex(null);
+    else if (expandedRangeIndex !== null && expandedRangeIndex > index) {
+      setExpandedRangeIndex(expandedRangeIndex - 1);
+    }
   };
 
   const moveField = (index: number, direction: 'up' | 'down') => {
@@ -516,6 +645,41 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
     const newFields = [...fields];
     [newFields[index], newFields[newIndex]] = [newFields[newIndex], newFields[index]];
     setFields(newFields.map((f, i) => ({ ...f, order_index: i })));
+    // Track expanded row
+    if (expandedRangeIndex === index) setExpandedRangeIndex(newIndex);
+    else if (expandedRangeIndex === newIndex) setExpandedRangeIndex(index);
+  };
+
+  // Reference rule management
+  const addReferenceRule = (fieldIndex: number) => {
+    setFields(prev => prev.map((f, i) => {
+      if (i !== fieldIndex) return f;
+      return { ...f, _referenceRules: [...f._referenceRules, defaultRule()] };
+    }));
+  };
+
+  const updateReferenceRule = (fieldIndex: number, ruleIndex: number, updates: Partial<ReferenceRule>) => {
+    setFields(prev => prev.map((f, i) => {
+      if (i !== fieldIndex) return f;
+      const newRules = f._referenceRules.map((r, ri) =>
+        ri === ruleIndex ? { ...r, ...updates } : r
+      );
+      return { ...f, _referenceRules: newRules };
+    }));
+  };
+
+  const removeReferenceRule = (fieldIndex: number, ruleIndex: number) => {
+    setFields(prev => prev.map((f, i) => {
+      if (i !== fieldIndex) return f;
+      return { ...f, _referenceRules: f._referenceRules.filter((_, ri) => ri !== ruleIndex) };
+    }));
+  };
+
+  const updateCriticalRules = (fieldIndex: number, updates: Partial<CriticalRules>) => {
+    setFields(prev => prev.map((f, i) => {
+      if (i !== fieldIndex) return f;
+      return { ...f, _criticalRules: { ...f._criticalRules, ...updates } };
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -529,7 +693,28 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
       if (targetId) {
         const validFields = fields.filter(f => f.field_name.trim());
         if (validFields.length > 0) {
-          await testApi.setFields(targetId, validFields);
+          // Convert FieldEditorData to CreateTestFieldData with reference_rules
+          const fieldsToSave: CreateTestFieldData[] = validFields.map(f => {
+            const refRules = f._referenceRules.length > 0 ? f._referenceRules : null;
+            const critRules = (f._criticalRules.low != null || f._criticalRules.high != null)
+              ? f._criticalRules : null;
+
+            return {
+              field_name: f.field_name,
+              unit: f.unit,
+              min_value: f.min_value,
+              max_value: f.max_value,
+              input_type: f.input_type,
+              order_index: f.order_index,
+              field_type: f.field_type,
+              formula: f.formula,
+              depends_on: f.depends_on,
+              section_group: f.section_group,
+              reference_rules: refRules,
+              critical_rules: critRules,
+            };
+          });
+          await testApi.setFields(targetId, fieldsToSave);
         }
       }
     } finally {
@@ -544,7 +729,7 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-card border border-border rounded-lg w-full max-w-5xl max-h-[90vh] overflow-auto">
-        <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between">
+        <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between z-20">
           <h2 className="text-foreground text-sm font-medium">
             {readOnly ? 'View Test Details' : test ? 'Edit Test' : 'Add New Test'}
           </h2>
@@ -678,10 +863,9 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
                     <tr className="border-b border-border">
                       <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider w-8">#</th>
                       <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Name</th>
-                      <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider w-40">Unit</th>
+                      <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider w-36">Unit</th>
                       <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-20">Type</th>
-                      <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-28">Min</th>
-                      <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-28">Max</th>
+                      <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Reference Ranges</th>
                       <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-16">Actions</th>
                     </tr>
                   </thead>
@@ -768,32 +952,28 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
                           </select>
                         </td>
                         <td className="px-2 py-1.5">
-                            {QUALITATIVE_UNITS.includes(field.unit || '') ? (
-                              <span className="text-[10px] text-muted-foreground text-center block py-1">N/A</span>
-                            ) : (
-                              <input
-                                type="number"
-                                value={field.min_value ?? ''}
-                                onChange={e => updateField(index, { min_value: e.target.value ? Number(e.target.value) : undefined })}
-                                className="w-full h-7 px-2 bg-secondary border border-border rounded text-xs text-center focus:outline-none focus:ring-1 focus:ring-primary"
-                                placeholder="Min"
-                                step="any"
-                              />
-                            )}
-                        </td>
-                        <td className="px-2 py-1.5">
-                            {QUALITATIVE_UNITS.includes(field.unit || '') ? (
-                              <span className="text-[10px] text-muted-foreground text-center block py-1">N/A</span>
-                            ) : (
-                              <input
-                                type="number"
-                                value={field.max_value ?? ''}
-                                onChange={e => updateField(index, { max_value: e.target.value ? Number(e.target.value) : undefined })}
-                                className="w-full h-7 px-2 bg-secondary border border-border rounded text-xs text-center focus:outline-none focus:ring-1 focus:ring-primary"
-                                placeholder="Max"
-                                step="any"
-                              />
-                            )}
+                          {QUALITATIVE_UNITS.includes(field.unit || '') ? (
+                            <span className="text-[10px] text-muted-foreground block py-1">Qualitative</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setExpandedRangeIndex(expandedRangeIndex === index ? null : index)}
+                              className="flex items-center gap-1.5 w-full text-left group"
+                            >
+                              <ChevronRight className={`w-3 h-3 text-muted-foreground transition-transform flex-shrink-0 ${expandedRangeIndex === index ? 'rotate-90' : ''}`} />
+                              <span className="text-[11px] text-foreground truncate">
+                                {field._referenceRules.length > 0
+                                  ? referenceRulesSummary(field._referenceRules)
+                                  : (field.min_value != null || field.max_value != null)
+                                    ? `${field.min_value ?? '—'} – ${field.max_value ?? '—'}`
+                                    : <span className="text-muted-foreground">Click to add</span>
+                                }
+                              </span>
+                              {field._criticalRules.low != null || field._criticalRules.high != null ? (
+                                <AlertTriangle className="w-3 h-3 text-red-500 flex-shrink-0" title="Has critical thresholds" />
+                              ) : null}
+                            </button>
+                          )}
                         </td>
                         <td className="px-2 py-1.5 text-center">
                           <button
@@ -805,11 +985,30 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
                           </button>
                         </td>
                       </tr>
+
+                      {/* Expanded Reference Range Editor */}
+                      {expandedRangeIndex === index && !QUALITATIVE_UNITS.includes(field.unit || '') && (
+                        <tr className="bg-gradient-to-r from-emerald-50/50 to-blue-50/50 dark:from-emerald-950/20 dark:to-blue-950/20">
+                          <td className="px-2 py-2"></td>
+                          <td colSpan={5} className="px-2 py-2">
+                            <ReferenceRangeEditor
+                              rules={field._referenceRules}
+                              criticalRules={field._criticalRules}
+                              onAddRule={() => addReferenceRule(index)}
+                              onUpdateRule={(ri, updates) => updateReferenceRule(index, ri, updates)}
+                              onRemoveRule={(ri) => removeReferenceRule(index, ri)}
+                              onUpdateCritical={(updates) => updateCriticalRules(index, updates)}
+                              readOnly={readOnly}
+                            />
+                          </td>
+                        </tr>
+                      )}
+
                       {/* Formula row for calculated fields - READ ONLY */}
                       {field.field_type === 'calculated' && (
                         <tr className="bg-primary/5">
                           <td className="px-2 py-1.5"></td>
-                          <td colSpan={4} className="px-2 py-1.5">
+                          <td colSpan={3} className="px-2 py-1.5">
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] text-primary font-medium whitespace-nowrap">Formula:</span>
                               <div className="flex-1 h-7 px-2 bg-gray-100 dark:bg-gray-800 border border-primary/20 rounded text-xs flex items-center font-mono text-gray-600 dark:text-gray-400">
@@ -828,7 +1027,7 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
                       {QUALITATIVE_UNITS.includes(field.unit || '') && field.field_type !== 'calculated' && (
                         <tr className="bg-amber-50/50 dark:bg-amber-950/20">
                           <td className="px-2 py-1.5"></td>
-                          <td colSpan={4} className="px-2 py-1.5">
+                          <td colSpan={3} className="px-2 py-1.5">
                             <div>
                               <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium whitespace-nowrap">Options:</span>
                             </div>
@@ -883,6 +1082,179 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
             )}
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// Reference Range Editor Component
+// ============================================
+
+interface ReferenceRangeEditorProps {
+  rules: ReferenceRule[];
+  criticalRules: CriticalRules;
+  onAddRule: () => void;
+  onUpdateRule: (ruleIndex: number, updates: Partial<ReferenceRule>) => void;
+  onRemoveRule: (ruleIndex: number) => void;
+  onUpdateCritical: (updates: Partial<CriticalRules>) => void;
+  readOnly?: boolean;
+}
+
+function ReferenceRangeEditor({
+  rules,
+  criticalRules,
+  onAddRule,
+  onUpdateRule,
+  onRemoveRule,
+  onUpdateCritical,
+  readOnly = false,
+}: ReferenceRangeEditorProps) {
+  return (
+    <div className="space-y-3">
+      {/* Reference Rules Section */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase tracking-wider">
+            Reference Ranges
+          </span>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={onAddRule}
+              className="h-5 px-1.5 flex items-center gap-0.5 bg-emerald-600 text-white rounded text-[9px] hover:bg-emerald-700 transition-colors"
+            >
+              <Plus className="w-2.5 h-2.5" />
+              Add Range
+            </button>
+          )}
+        </div>
+
+        {rules.length === 0 ? (
+          <div className="text-[10px] text-muted-foreground py-1.5 px-2 bg-secondary/50 rounded border border-border">
+            No reference ranges defined. {!readOnly && 'Click "Add Range" to add one.'}
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {rules.map((rule, ri) => (
+              <div
+                key={ri}
+                className="flex items-center gap-2 bg-white dark:bg-gray-900 border border-emerald-200 dark:border-emerald-800/40 rounded px-2 py-1.5"
+              >
+                {/* Age Group */}
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-muted-foreground mb-0.5">Age Group</span>
+                  <select
+                    value={rule.age_group || 'all'}
+                    onChange={e => onUpdateRule(ri, { age_group: e.target.value })}
+                    disabled={readOnly}
+                    className="h-6 px-1 bg-secondary border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-500 min-w-[80px]"
+                  >
+                    {AGE_GROUPS.map(ag => (
+                      <option key={ag} value={ag}>{ag.charAt(0).toUpperCase() + ag.slice(1)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Sex */}
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-muted-foreground mb-0.5">Sex</span>
+                  <select
+                    value={rule.sex || 'any'}
+                    onChange={e => onUpdateRule(ri, { sex: e.target.value })}
+                    disabled={readOnly}
+                    className="h-6 px-1 bg-secondary border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-500 min-w-[70px]"
+                  >
+                    {SEX_OPTIONS.map(s => (
+                      <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Low */}
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-muted-foreground mb-0.5">Low</span>
+                  <input
+                    type="number"
+                    value={rule.low ?? ''}
+                    onChange={e => onUpdateRule(ri, { low: e.target.value ? Number(e.target.value) : null })}
+                    disabled={readOnly}
+                    className="h-6 w-20 px-1.5 bg-secondary border border-border rounded text-[10px] text-center focus:outline-none focus:ring-1 focus:ring-emerald-500 tabular-nums"
+                    placeholder="Min"
+                    step="any"
+                  />
+                </div>
+
+                {/* Range indicator */}
+                <span className="text-muted-foreground text-xs mt-3">–</span>
+
+                {/* High */}
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-muted-foreground mb-0.5">High</span>
+                  <input
+                    type="number"
+                    value={rule.high ?? ''}
+                    onChange={e => onUpdateRule(ri, { high: e.target.value ? Number(e.target.value) : null })}
+                    disabled={readOnly}
+                    className="h-6 w-20 px-1.5 bg-secondary border border-border rounded text-[10px] text-center focus:outline-none focus:ring-1 focus:ring-emerald-500 tabular-nums"
+                    placeholder="Max"
+                    step="any"
+                  />
+                </div>
+
+                {/* Delete rule */}
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveRule(ri)}
+                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-red-500 mt-3 ml-auto"
+                    title="Remove this range"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Critical Thresholds Section */}
+      <div>
+        <span className="text-[10px] text-red-600 dark:text-red-400 font-semibold uppercase tracking-wider flex items-center gap-1 mb-1.5">
+          <AlertTriangle className="w-3 h-3" />
+          Critical Thresholds
+        </span>
+        <div className="flex items-center gap-3 bg-white dark:bg-gray-900 border border-red-200 dark:border-red-800/40 rounded px-2 py-1.5">
+          <div className="flex flex-col">
+            <span className="text-[9px] text-muted-foreground mb-0.5">Critical Low</span>
+            <input
+              type="number"
+              value={criticalRules.low ?? ''}
+              onChange={e => onUpdateCritical({ low: e.target.value ? Number(e.target.value) : null })}
+              disabled={readOnly}
+              className="h-6 w-24 px-1.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 rounded text-[10px] text-center focus:outline-none focus:ring-1 focus:ring-red-500 tabular-nums"
+              placeholder="Critical min"
+              step="any"
+            />
+          </div>
+          <span className="text-muted-foreground text-xs mt-3">–</span>
+          <div className="flex flex-col">
+            <span className="text-[9px] text-muted-foreground mb-0.5">Critical High</span>
+            <input
+              type="number"
+              value={criticalRules.high ?? ''}
+              onChange={e => onUpdateCritical({ high: e.target.value ? Number(e.target.value) : null })}
+              disabled={readOnly}
+              className="h-6 w-24 px-1.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 rounded text-[10px] text-center focus:outline-none focus:ring-1 focus:ring-red-500 tabular-nums"
+              placeholder="Critical max"
+              step="any"
+            />
+          </div>
+          <div className="text-[9px] text-muted-foreground ml-2 mt-3 italic">
+            Values outside this range trigger immediate alerts
+          </div>
+        </div>
       </div>
     </div>
   );

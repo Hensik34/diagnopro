@@ -27,10 +27,198 @@ import { useDoctorStore, useReportStore, usePatientStore, useTestStore, useBranc
 import { useAuthStore } from "../../stores/authStore";
 import { reportApi } from "../../api/reports";
 import { useBillingStore } from "../../stores/billingStore";
-import type { Doctor, Patient, Report, Test, TestField } from "../../types";
+import type { AgeUnit, Doctor, Patient, Report, Test, TestField, ReferenceRule, CriticalRules } from "../../types";
 import { BillingSection } from "../../app/components/reports/BillingSection";
+import { formatAge, getAgeMax, normalizeAgeUnit } from "../../utils/age";
 
+// ============================================
+// Reference Rules Utility Functions for Reports
+// ============================================
 
+function normalizeReferenceRules(raw: any): ReferenceRule[] {
+  if (!raw) return [];
+
+  // Already an array
+  if (Array.isArray(raw)) {
+    return raw.map(r => ({
+      age_group: r.age_group || 'all',
+      sex: r.sex || 'any',
+      low: r.low ?? r.min ?? null,
+      high: r.high ?? r.max ?? null,
+      note: r.note,
+    }));
+  }
+
+  // Object format
+  if (typeof raw === 'object') {
+    // Check if it's a gender-keyed object like { male: { min, max }, female: { min, max } }
+    const keys = Object.keys(raw);
+    const genderKeys = keys.filter(k => ['male', 'female'].includes(k));
+
+    if (genderKeys.length > 0) {
+      const rules: ReferenceRule[] = [];
+      for (const gender of genderKeys) {
+        const vals = raw[gender];
+        if (vals && typeof vals === 'object') {
+          rules.push({
+            age_group: 'all',
+            sex: gender,
+            low: (vals as any).low ?? (vals as any).min ?? null,
+            high: (vals as any).high ?? (vals as any).max ?? null,
+          });
+        }
+      }
+      return rules;
+    }
+
+    // Simple { min, max } object
+    if ('min' in raw || 'max' in raw || 'low' in raw || 'high' in raw) {
+      return [{
+        age_group: 'all',
+        sex: 'any',
+        low: raw.low ?? raw.min ?? null,
+        high: raw.high ?? raw.max ?? null,
+      }];
+    }
+  }
+
+  return [];
+}
+
+interface MatchedRange {
+  low: number | null;
+  high: number | null;
+  note: string;
+  isRuleMatched: boolean;
+  criticalLow: number | null;
+  criticalHigh: number | null;
+}
+
+function getPatientReferenceRange(
+  field: { 
+    reference_rules?: any; 
+    min_value?: number | null; 
+    max_value?: number | null; 
+    critical_rules?: any 
+  },
+  patient: Patient | null
+): MatchedRange {
+  const rules = normalizeReferenceRules(field.reference_rules);
+  
+  let criticalLow: number | null = null;
+  let criticalHigh: number | null = null;
+  if (field.critical_rules) {
+    criticalLow = field.critical_rules.low ?? null;
+    criticalHigh = field.critical_rules.high ?? null;
+  }
+
+  const fallbackRange: MatchedRange = {
+    low: field.min_value != null ? Number(field.min_value) : null,
+    high: field.max_value != null ? Number(field.max_value) : null,
+    note: '',
+    isRuleMatched: false,
+    criticalLow,
+    criticalHigh,
+  };
+
+  if (!patient || rules.length === 0) {
+    return fallbackRange;
+  }
+
+  // Calculate patient age in years
+  let ageInYears = patient.age ?? 0;
+  const ageUnit = patient.age_unit ? patient.age_unit.toLowerCase() : 'years';
+  if (ageUnit === 'months') {
+    ageInYears = ageInYears / 12;
+  } else if (ageUnit === 'days') {
+    ageInYears = ageInYears / 365.25;
+  }
+
+  // Determine age group
+  let ageGroup = 'adult';
+  if (ageInYears <= 0.08) {
+    ageGroup = 'neonatal';
+  } else if (ageInYears <= 1) {
+    ageGroup = 'infant';
+  } else if (ageInYears <= 12) {
+    ageGroup = 'pediatric';
+  } else if (ageInYears < 18) {
+    ageGroup = 'adolescent';
+  } else if (ageInYears >= 65) {
+    ageGroup = 'elderly';
+  }
+
+  const patientSex = patient.gender ? patient.gender.toLowerCase() : 'any';
+
+  // Find compatible rules and score them
+  let bestRule: any = null;
+  let bestScore = -1;
+
+  for (const rule of rules) {
+    let isCompatible = true;
+    let score = 0;
+
+    // Check gender compatibility
+    const ruleSex = rule.sex ? rule.sex.toLowerCase() : 'any';
+    if (ruleSex !== 'any' && ruleSex !== 'all' && ruleSex !== patientSex) {
+      isCompatible = false;
+    } else if (ruleSex === patientSex) {
+      score += 10;
+    } else {
+      score += 1;
+    }
+
+    // Check age compatibility
+    if (isCompatible) {
+      if (rule.age_min != null || rule.age_max != null) {
+        if (rule.age_min != null && ageInYears < rule.age_min) {
+          isCompatible = false;
+        }
+        if (rule.age_max != null && ageInYears > rule.age_max) {
+          isCompatible = false;
+        }
+        if (isCompatible) {
+          score += 20;
+        }
+      } else {
+        const ruleAgeGroup = rule.age_group ? rule.age_group.toLowerCase() : 'all';
+        if (ruleAgeGroup !== 'all' && ruleAgeGroup !== 'any' && ruleAgeGroup !== ageGroup) {
+          isCompatible = false;
+        } else if (ruleAgeGroup === ageGroup) {
+          score += 10;
+        } else {
+          score += 1;
+        }
+      }
+    }
+
+    if (isCompatible && score > bestScore) {
+      bestScore = score;
+      bestRule = rule;
+    }
+  }
+
+  if (bestRule) {
+    return {
+      low: bestRule.low ?? null,
+      high: bestRule.high ?? null,
+      note: bestRule.note || '',
+      isRuleMatched: true,
+      criticalLow,
+      criticalHigh,
+    };
+  }
+
+  return fallbackRange;
+}
+
+function formatReferenceRange(range: MatchedRange): string {
+  if (range.note) return range.note;
+  if (range.low == null && range.high == null) return '-';
+  const lo = range.low != null ? range.low : '—';
+  const hi = range.high != null ? range.high : '—';
+  return `${lo} - ${hi}`;
+}
 
 export function ReportEntry() {
   const { reportId: rawReportId } = useParams<{ reportId: string }>();
@@ -94,13 +282,29 @@ export function ReportEntry() {
         formula: field.formula || '',
         depends_on: field.depends_on || '',
         section_group: field.section_group || '',
+        reference_rules: field.reference_rules,
+        critical_rules: field.critical_rules,
       })),
     [testFields]
   );
 
   // Group parameters by test for multi-test section rendering
+  // Parse test_data if it is a JSON string
+  const parsedTestData = useMemo(() => {
+    if (!selectedReport?.test_data) return null;
+    if (typeof selectedReport.test_data === 'string') {
+      try {
+        return JSON.parse(selectedReport.test_data);
+      } catch {
+        return null;
+      }
+    }
+    return selectedReport.test_data;
+  }, [selectedReport]);
+
+  // Group parameters by test for multi-test section rendering
   const testSections = useMemo(() => {
-    const testIds = selectedReport?.test_data?.testIds || [];
+    const testIds = parsedTestData?.testIds || [];
     const grouped = new Map<string, typeof dynamicParams>();
     
     for (const param of dynamicParams) {
@@ -125,7 +329,7 @@ export function ReportEntry() {
       });
     }
     return sections;
-  }, [dynamicParams, selectedReport, tests]);
+  }, [dynamicParams, parsedTestData, tests]);
 
   // Safe formula evaluator: builds a scope of field values by name, then evaluates the expression
   const evaluateFormula = useCallback((formula: string, currentValues: Record<string, string>): number | null => {
@@ -196,7 +400,7 @@ export function ReportEntry() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [values, setValues] = useState<Record<string, string>>({});
-  const [statuses, setStatuses] = useState<Record<string, "low" | "high" | "normal" | "empty">>({});
+  const [statuses, setStatuses] = useState<Record<string, "low" | "high" | "normal" | "critical" | "empty">>({});
   const [technicianNotes, setTechnicianNotes] = useState("");
   
   // AI Interpretation state
@@ -238,7 +442,7 @@ export function ReportEntry() {
   useEffect(() => {
     if (!selectedReport) return;
 
-    const testIds = selectedReport.test_data?.testIds;
+    const testIds = parsedTestData?.testIds;
     if (testIds && testIds.length > 1) {
       // Fetch fields for all selected tests
       fetchTestFieldsMulti(testIds);
@@ -256,7 +460,7 @@ export function ReportEntry() {
         fetchTestFields(matchedIds[0]);
       }
     }
-  }, [selectedReport, tests, fetchTestFields, fetchTestFieldsMulti, currentBranchId]);
+  }, [selectedReport, parsedTestData, tests, fetchTestFields, fetchTestFieldsMulti, currentBranchId]);
 
   // Track whether we've already populated values from the report (to avoid overwriting user input)
   const hasPopulatedValues = useRef(false);
@@ -287,6 +491,7 @@ export function ReportEntry() {
           phone: selectedReport.patient_phone || '',
           gender: selectedReport.patient_gender || '',
           age: selectedReport.patient_age,
+          age_unit: normalizeAgeUnit(selectedReport.patient_age_unit),
           address: '',
           branch_id: '',
           created_by: '',
@@ -435,7 +640,7 @@ export function ReportEntry() {
   };
 
   useEffect(() => {
-    const newStatuses: Record<string, "low" | "high" | "normal" | "empty"> = {};
+    const newStatuses: Record<string, "low" | "high" | "normal" | "critical" | "empty"> = {};
 
     dynamicParams.forEach((param) => {
       const valStr = values[param.id];
@@ -453,9 +658,20 @@ export function ReportEntry() {
       const val = parseFloat(valStr);
       if (isNaN(val)) {
         newStatuses[param.id] = "empty";
-      } else if (param.min && val < param.min) {
+        return;
+      }
+
+      // Resolve reference range for the patient
+      const range = getPatientReferenceRange(param, patient);
+
+      // Check critical thresholds first
+      if (range.criticalLow != null && val <= range.criticalLow) {
+        newStatuses[param.id] = "critical";
+      } else if (range.criticalHigh != null && val >= range.criticalHigh) {
+        newStatuses[param.id] = "critical";
+      } else if (range.low != null && val < range.low) {
         newStatuses[param.id] = "low";
-      } else if (param.max && val > param.max) {
+      } else if (range.high != null && val > range.high) {
         newStatuses[param.id] = "high";
       } else {
         newStatuses[param.id] = "normal";
@@ -463,10 +679,10 @@ export function ReportEntry() {
     });
 
     setStatuses(newStatuses);
-  }, [values, dynamicParams]);
+  }, [values, dynamicParams, patient]);
 
   const getStatusBadge = (
-    status: "low" | "high" | "normal" | "empty" | undefined,
+    status: "low" | "high" | "normal" | "critical" | "empty" | undefined,
   ) => {
     const styles = {
       low: {
@@ -476,6 +692,10 @@ export function ReportEntry() {
       high: {
         bg: "var(--destructive)",
         text: "var(--destructive-foreground)",
+      },
+      critical: {
+        bg: "#c62828",
+        text: "#ffffff",
       },
       normal: {
         bg: "var(--success)",
@@ -492,7 +712,7 @@ export function ReportEntry() {
     const style = styles[status];
     return (
       <span
-        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide"
+        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium ${status === 'critical' ? 'animate-pulse font-bold' : ''}`}
         style={{ backgroundColor: style.bg, color: style.text }}
       >
         {status}
@@ -501,7 +721,7 @@ export function ReportEntry() {
   };
 
   const getInputClass = (
-    status: "low" | "high" | "normal" | "empty" | undefined,
+    status: "low" | "high" | "normal" | "critical" | "empty" | undefined,
   ) => {
     const base =
       "w-full px-2 py-1.5 text-xs border rounded focus:outline-none focus:ring-1 transition-colors text-right tabular-nums";
@@ -510,6 +730,8 @@ export function ReportEntry() {
       return `${base} border-info bg-info/5 text-foreground focus:border-info focus:ring-info`;
     } else if (status === "high") {
       return `${base} border-destructive bg-destructive/5 text-foreground focus:border-destructive focus:ring-destructive`;
+    } else if (status === "critical") {
+      return `${base} border-red-600 bg-red-500/10 text-red-700 dark:text-red-400 font-bold focus:border-red-600 focus:ring-red-600`;
     } else if (status === "normal") {
       return `${base} border-success bg-success/5 text-foreground focus:border-success focus:ring-success`;
     } else {
@@ -518,7 +740,7 @@ export function ReportEntry() {
   };
 
   const abnormalCount = Object.values(statuses).filter(
-    (s) => s === "low" || s === "high",
+    (s) => s === "low" || s === "high" || s === "critical",
   ).length;
 
   const requiredParams = useMemo(() => {
@@ -568,11 +790,13 @@ export function ReportEntry() {
           ? (param.input_type === 'text' ? rawValue : parseFloat(rawValue))
           : null;
 
+        const resolvedRange = getPatientReferenceRange(param, patient);
+
         return {
           name: param.name,
           value,
           unit: param.unit,
-          referenceRange: param.min || param.max ? `${param.min} - ${param.max}` : '',
+          referenceRange: formatReferenceRange(resolvedRange),
           status: mappedStatus,
           fieldType: param.field_type,
           group: param.section_group || undefined,
@@ -607,6 +831,7 @@ export function ReportEntry() {
         phone: patient.phone,
         gender: patient.gender,
         age: patient.age,
+        age_unit: patient.age != null ? normalizeAgeUnit(patient.age_unit) : undefined,
       });
     }
 
@@ -770,14 +995,18 @@ export function ReportEntry() {
       }
     }
 
-    const parameters = dynamicParams.map(p => ({
-      name: p.name,
-      result: values[p.id] || '',
-      unit: p.unit,
-      refRange: p.min || p.max ? `${p.min} - ${p.max}` : '',
-      isAbnormal: statuses[p.id] === 'low' || statuses[p.id] === 'high',
-      status: statuses[p.id] || 'empty'
-    }));
+    const parameters = dynamicParams.map(p => {
+      const resolvedRange = getPatientReferenceRange(p, patient);
+      const isAbnormal = statuses[p.id] === 'low' || statuses[p.id] === 'high' || statuses[p.id] === 'critical';
+      return {
+        name: p.name,
+        result: values[p.id] || '',
+        unit: p.unit,
+        refRange: formatReferenceRange(resolvedRange),
+        isAbnormal,
+        status: statuses[p.id] || 'empty'
+      };
+    });
 
     // Calculate age from date of birth
     const calculateAge = (dob: string | undefined) => {
@@ -810,7 +1039,7 @@ export function ReportEntry() {
       patient: {
         name: patient.name,
         id: patient.id.slice(0, 8),
-        age: patient.age != null ? `${patient.age}` : 'N/A',
+        age: formatAge(patient.age, patient.age_unit) || 'N/A',
         gender: patient.gender || 'Unknown',
         referringDoctor: isSelfReport ? 'Self' : `${selectedDoctor?.title || 'Dr'}. ${selectedDoctor?.name}`,
         sampleId: `SMP-${Date.now()}`,
@@ -992,8 +1221,8 @@ export function ReportEntry() {
           </div>
 
           {patient ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-12 gap-2 text-xs">
-              <div className="col-span-2 md:col-span-2 xl:col-span-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-12 gap-2 text-xs">
+              <div className="col-span-2 md:col-span-2 lg:col-span-3">
                 <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-0.5">Patient Name</label>
                 <input
                   type="text"
@@ -1003,7 +1232,7 @@ export function ReportEntry() {
                   className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
                 />
               </div>
-              <div className="col-span-1 md:col-span-1 xl:col-span-2">
+              <div className="col-span-1 md:col-span-1 lg:col-span-2">
                 <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-0.5">Gender</label>
                 <select
                   value={patient.gender || ''}
@@ -1017,19 +1246,31 @@ export function ReportEntry() {
                   <option value="Other">Other</option>
                 </select>
               </div>
-              <div className="col-span-1 md:col-span-1 xl:col-span-1">
+              <div className="col-span-1 md:col-span-1 lg:col-span-2">
                 <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-0.5">Age</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={150}
-                  value={patient.age ?? ''}
-                  onChange={(e) => setPatient({ ...patient, age: e.target.value ? Number(e.target.value) : undefined as any })}
-                  disabled={!isEditable}
-                  className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary tabular-nums disabled:opacity-60"
-                />
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_88px] gap-1">
+                  <input
+                    type="number"
+                    min={0}
+                    max={getAgeMax(patient.age_unit)}
+                    value={patient.age ?? ''}
+                    onChange={(e) => setPatient({ ...patient, age: e.target.value ? Number(e.target.value) : undefined as any })}
+                    disabled={!isEditable}
+                    className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary tabular-nums disabled:opacity-60"
+                  />
+                  <select
+                    value={normalizeAgeUnit(patient.age_unit)}
+                    onChange={(e) => setPatient({ ...patient, age_unit: e.target.value as AgeUnit })}
+                    disabled={!isEditable}
+                    className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
+                  >
+                    <option value="years">Years</option>
+                    <option value="months">Months</option>
+                    <option value="days">Days</option>
+                  </select>
+                </div>
               </div>
-              <div className="col-span-2 md:col-span-2 xl:col-span-2">
+              <div className="col-span-2 md:col-span-2 lg:col-span-2">
                 <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-0.5">Contact</label>
                 <input
                   type="tel"
@@ -1039,7 +1280,7 @@ export function ReportEntry() {
                   className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary tabular-nums disabled:opacity-60"
                 />
               </div>
-              <div className="col-span-2 md:col-span-4 xl:col-span-4" ref={doctorSearchRef}>
+              <div className="col-span-2 md:col-span-4 lg:col-span-3" ref={doctorSearchRef}>
                 <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-0.5">Referring Doctor</label>
                 <div className="relative">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
@@ -1209,7 +1450,9 @@ export function ReportEntry() {
                                 {param.field_type === 'calculated' && (<span className="mt-0.5 inline-block text-[9px] text-primary bg-primary/10 px-0.5 py-0.25 rounded">calc</span>)}
                               </td>
                               <td className="px-1.5 py-1 text-left text-muted-foreground text-[10px] align-top break-words">{param.unit || '-'}</td>
-                              <td className="px-1.5 py-1 text-left text-muted-foreground tabular-nums text-[10px] align-top">{param.min || param.max ? `${param.min} - ${param.max}` : '-'}</td>
+                              <td className="px-1.5 py-1 text-left text-muted-foreground tabular-nums text-[10px] align-top">
+                                {formatReferenceRange(getPatientReferenceRange(param, patient))}
+                              </td>
                               <td className="px-1.5 py-1">
                                 <input type={param.input_type === 'text' ? 'text' : 'number'} step={param.step} className={`${getInputClass(statuses[param.id])} h-7 text-[10px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}`} placeholder={param.field_type === 'calculated' ? 'Auto' : '0.0'} value={values[param.id] || ""} onChange={(e) => handleValueChange(param.id, e.target.value)} tabIndex={param.field_type === 'calculated' ? -1 : sectionIdx * 100 + index + 1} disabled={!isEditable} readOnly={param.field_type === 'calculated'} />
                               </td>

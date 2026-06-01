@@ -15,7 +15,7 @@ const REPORT_STATUS = {
 exports.getAllReports = async (filters = {}) => {
   const where = {};
   const include = [
-    { model: Patient, as: "patient", attributes: ["name", "phone", "gender", "age", "email", "branch_id"] },
+    { model: Patient, as: "patient", attributes: ["name", "phone", "gender", "age", "age_unit", "email", "branch_id"] },
     { model: Doctor, as: "doctor", attributes: ["title", "name", "firstname", "lastname"] },
     { model: User, as: "technician", attributes: ["firstname", "lastname"] },
     { model: Sample, as: "sample", attributes: ["sample_id_code", "sample_type"] },
@@ -50,6 +50,7 @@ exports.getAllReports = async (filters = {}) => {
     patient_phone: r.patient?.phone,
     patient_gender: r.patient?.gender,
     patient_age: r.patient?.age,
+    patient_age_unit: r.patient?.age_unit,
     patient_email: r.patient?.email,
     doctor_title: r.doctor?.title,
     doctor_name: r.doctor?.name,
@@ -67,7 +68,7 @@ exports.getAllReports = async (filters = {}) => {
 exports.getReportById = async (id) => {
   const row = await Report.findByPk(id, {
     include: [
-      { model: Patient, as: "patient", attributes: ["name", "phone", "gender", "age", "branch_id"] },
+      { model: Patient, as: "patient", attributes: ["name", "phone", "gender", "age", "age_unit", "branch_id"] },
       { model: Doctor, as: "doctor", attributes: ["title", "name", "firstname", "lastname", "phone", "email", "signature_url"] },
       { model: User, as: "technician", attributes: ["firstname", "lastname"] },
       { model: Sample, as: "sample", attributes: ["sample_id_code", "sample_type"] },
@@ -97,6 +98,7 @@ exports.getReportById = async (id) => {
     patient_phone: row.patient?.phone,
     patient_gender: row.patient?.gender,
     patient_age: row.patient?.age,
+    patient_age_unit: row.patient?.age_unit,
     doctor_title: row.doctor?.title,
     doctor_name: row.doctor?.name,
     doctor_firstname: row.doctor?.firstname,
