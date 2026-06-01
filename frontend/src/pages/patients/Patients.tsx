@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { 
   Search, 
   Plus, 
@@ -14,8 +15,10 @@ import {
 } from 'lucide-react';
 import { usePatientStore, useBranchStore } from '../../stores';
 import type { Patient, CreatePatientData } from '../../types';
+import { formatAge } from '../../utils/age';
 
 export function Patients() {
+  const navigate = useNavigate();
   const { 
     patients, 
     isLoading, 
@@ -31,6 +34,7 @@ export function Patients() {
   const [genderFilter, setGenderFilter] = useState('All');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+  const [viewingPatient, setViewingPatient] = useState<Patient | null>(null);
 
   // Fetch patients on mount and when branch changes
   useEffect(() => {
@@ -176,7 +180,6 @@ export function Patients() {
             <table className="w-full">
               <thead className="bg-secondary/30 sticky top-0 z-10">
                 <tr className="border-b border-border">
-                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Patient ID</th>
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Name</th>
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Age/Gender</th>
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Phone</th>
@@ -192,14 +195,11 @@ export function Patients() {
                     key={patient.id} 
                     className="hover:bg-accent/30 transition-colors"
                   >
-                    <td className="px-3 py-2 text-xs text-muted-foreground tabular-nums">
-                      {patient.id.slice(0, 8)}...
-                    </td>
                     <td className="px-3 py-2 text-xs text-foreground font-medium">
                       {patient.name}
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground tabular-nums">
-                      {patient.age != null ? patient.age : '-'} / {patient.gender?.charAt(0) || '-'}
+                      {formatAge(patient.age, patient.age_unit) || '-'} / {patient.gender?.charAt(0) || '-'}
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground tabular-nums">
                       {patient.phone || '-'}
@@ -216,7 +216,8 @@ export function Patients() {
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-center gap-1">
                         <button 
-                          className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors"
+                          onClick={() => setViewingPatient(patient)}
+                          className="w-6 h-6 flex items-center justify-center rounded cursor-pointer hover:bg-accent transition-colors"
                           title="View"
                           style={{ color: 'var(--primary)' }}
                         >
@@ -230,7 +231,8 @@ export function Patients() {
                           <Edit className="w-3.5 h-3.5" />
                         </button>
                         <button 
-                          className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors"
+                          onClick={() => navigate('/reports/new', { state: { patient } })}
+                          className="w-6 h-6 flex items-center justify-center rounded cursor-pointer hover:bg-accent transition-colors"
                           title="Create Report"
                           style={{ color: 'var(--success)' }}
                         >
@@ -274,6 +276,17 @@ export function Patients() {
           }}
         />
       )}
+
+      {viewingPatient && (
+        <PatientDetailsModal
+          patient={viewingPatient}
+          onClose={() => setViewingPatient(null)}
+          onEdit={() => {
+            setViewingPatient(null);
+            setEditingPatient(viewingPatient);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -313,6 +326,80 @@ function PatientModal({ patient, branches, currentBranchId, onClose, onSave }: P
     }
   };
 
+
+interface PatientDetailsModalProps {
+  patient: Patient;
+  onClose: () => void;
+  onEdit: () => void;
+}
+
+function PatientDetailsModal({ patient, onClose, onEdit }: PatientDetailsModalProps) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="p-4 border-b border-border flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Patient Details</h2>
+            <p className="text-xs text-muted-foreground mt-1">Quick view of the patient record.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-8 px-3 text-sm rounded border border-border hover:bg-accent transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <DetailCard label="Name" value={patient.name || '-'} />
+            <DetailCard label="Patient ID" value={patient.id} />
+            <DetailCard label="Age / Gender" value={`${formatAge(patient.age, patient.age_unit) || '-'} / ${patient.gender || '-'}`} />
+            <DetailCard label="Phone" value={patient.phone || '-'} />
+            <DetailCard label="Email" value={patient.email || '-'} />
+            <DetailCard label="Branch" value={patient.branch_name || patient.branch_id || '-'} />
+            <DetailCard label="Blood Type" value={patient.blood_type || '-'} />
+            <DetailCard label="Registered" value={patient.created_at ? new Date(patient.created_at).toLocaleString('en-US') : '-'} />
+          </div>
+
+          <div>
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Address</div>
+            <div className="rounded border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground min-h-10">
+              {patient.address || '-'}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-9 px-4 border border-border rounded text-sm hover:bg-accent transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              onClick={onEdit}
+              className="h-9 px-4 bg-primary text-white rounded text-sm hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              Edit Patient
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded border border-border bg-secondary/20 px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm text-foreground break-words">{value}</div>
+    </div>
+  );
+}
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -499,6 +586,72 @@ function PatientModal({ patient, branches, currentBranchId, onClose, onSave }: P
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+interface PatientDetailsModalProps {
+  patient: Patient;
+  onClose: () => void;
+  onEdit: () => void;
+}
+
+function PatientDetailsModal({ patient, onClose, onEdit }: PatientDetailsModalProps) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="p-4 border-b border-border flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Patient Details</h2>
+            <p className="text-xs text-muted-foreground mt-1">Quick view of the patient record.</p>
+          </div>
+        </div>
+
+        <div className="p-4 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <DetailCard label="Name" value={patient.name || '-'} />
+            <DetailCard label="Age / Gender" value={`${formatAge(patient.age, patient.age_unit) || '-'} / ${patient.gender || '-'}`} />
+            <DetailCard label="Phone" value={patient.phone || '-'} />
+            <DetailCard label="Email" value={patient.email || '-'} />
+            <DetailCard label="Branch" value={patient.branch_name || patient.branch_id || '-'} />
+            <DetailCard label="Blood Type" value={patient.blood_type || '-'} />
+            <DetailCard label="Registered" value={patient.created_at ? new Date(patient.created_at).toLocaleString('en-US') : '-'} />
+          </div>
+
+          <div>
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Address</div>
+            <div className="rounded border border-border bg-secondary/30 px-3 py-2 text-sm text-foreground min-h-10">
+              {patient.address || '-'}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-9 px-4 border border-border rounded text-sm hover:bg-accent transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              onClick={onEdit}
+              className="h-9 px-4 bg-primary text-white rounded text-sm hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              Edit Patient
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded border border-border bg-secondary/20 px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm text-foreground break-words">{value}</div>
     </div>
   );
 }

@@ -32,4 +32,12 @@ export const b2bApi = {
     const res = await api.delete(`${BASE}/labs/${id}`);
     return res.data;
   },
+
+  // Get B2B lab statement with reports for a date range
+  getStatement: async (labId: string, startDate: string, endDate: string) => {
+    const res = await api.get(`${BASE}/labs/${labId}/statement`, {
+      params: { startDate, endDate },
+    });
+    return res.data.data;
+  },
 };

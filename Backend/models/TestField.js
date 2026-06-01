@@ -1,6 +1,10 @@
 const { Op } = require("sequelize");
 const { TestField, UserTestField, sequelize } = require("./index");
 
+function isMissingColumnError(err) {
+  return err && (err.original?.code === "42703" || err.parent?.code === "42703");
+}
+
 // Get all fields for a test with optional branch-specific overrides
 exports.getFieldsByTestId = async (testId, branchId = null) => {
   const defaultFields = await TestField.findAll({
@@ -11,11 +15,21 @@ exports.getFieldsByTestId = async (testId, branchId = null) => {
 
   if (!branchId) return defaultFields;
 
-  const branchFields = await UserTestField.findAll({
-    where: { test_id: testId, branch_id: branchId },
-    order: [["order_index", "ASC"], ["created_at", "ASC"]],
-    raw: true,
-  });
+  let branchFields = [];
+  try {
+    branchFields = await UserTestField.findAll({
+      where: { test_id: testId, branch_id: branchId },
+      order: [["order_index", "ASC"], ["created_at", "ASC"]],
+      raw: true,
+    });
+  } catch (err) {
+    // Backward compatibility: if branch_test_fields is missing newly-added columns,
+    // return base test_fields instead of failing the API.
+    if (isMissingColumnError(err)) {
+      return defaultFields;
+    }
+    throw err;
+  }
 
   if (branchFields.length === 0) return defaultFields;
 
@@ -66,11 +80,21 @@ exports.getFieldsByTestIds = async (testIds, branchId = null) => {
 
   if (!branchId) return defaultFields;
 
-  const branchFields = await UserTestField.findAll({
-    where: { test_id: { [Op.in]: testIds }, branch_id: branchId },
-    order: [["test_id", "ASC"], ["order_index", "ASC"], ["created_at", "ASC"]],
-    raw: true,
-  });
+  let branchFields = [];
+  try {
+    branchFields = await UserTestField.findAll({
+      where: { test_id: { [Op.in]: testIds }, branch_id: branchId },
+      order: [["test_id", "ASC"], ["order_index", "ASC"], ["created_at", "ASC"]],
+      raw: true,
+    });
+  } catch (err) {
+    // Backward compatibility: if branch_test_fields is missing newly-added columns,
+    // return base test_fields instead of failing the API.
+    if (isMissingColumnError(err)) {
+      return defaultFields;
+    }
+    throw err;
+  }
 
   if (branchFields.length === 0) return defaultFields;
 
@@ -142,6 +166,9 @@ exports.setFieldsForTest = async (testId, fields, branchId = null, userRole = nu
           formula: f.formula ?? null,
           depends_on: f.depends_on ?? null,
           section_group: f.section_group ?? null,
+          reference_rules: f.reference_rules ?? null,
+          critical_rules: f.critical_rules ?? null,
+          is_mandatory: f.is_mandatory != null ? f.is_mandatory : true,
         }, { transaction: t });
         inserted.push(record.toJSON());
       }
@@ -177,6 +204,9 @@ exports.setFieldsForTest = async (testId, fields, branchId = null, userRole = nu
         formula: f.formula ?? null,
         depends_on: f.depends_on ?? null,
         section_group: f.section_group ?? null,
+        reference_rules: f.reference_rules ?? null,
+        critical_rules: f.critical_rules ?? null,
+        is_mandatory: f.is_mandatory != null ? f.is_mandatory : true,
       }, { transaction: t });
       inserted.push(record.toJSON());
     }

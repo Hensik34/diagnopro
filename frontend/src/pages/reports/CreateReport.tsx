@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import {
   Search,
   User,
@@ -24,7 +24,8 @@ import { useReportStore } from "../../stores/reportStore";
 import { useAuthStore } from "../../stores/authStore";
 import { useB2BStore } from "../../stores/b2bStore";
 import { sampleApi } from "../../api/samples";
-import type { Patient, Test, Doctor } from "../../types";
+import type { AgeUnit, Patient, Test, Doctor } from "../../types";
+import { DEFAULT_AGE_UNIT, formatAge, getAgeMax, normalizeAgeUnit } from "../../utils/age";
 
 /**
  * CreateReport Page - Create new diagnostic reports
@@ -32,6 +33,7 @@ import type { Patient, Test, Doctor } from "../../types";
  */
 export function CreateReport() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Stores
   const { patients, fetchPatients, createPatient, isLoading: patientsLoading } = usePatientStore();
@@ -47,10 +49,12 @@ export function CreateReport() {
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isNewPatient, setIsNewPatient] = useState(false);
+  const [activePatientIndex, setActivePatientIndex] = useState(0);
 
   // Patient form fields (for new patients)
   const [patientName, setPatientName] = useState("");
   const [patientAge, setPatientAge] = useState<string>("");
+  const [patientAgeUnit, setPatientAgeUnit] = useState<AgeUnit>(DEFAULT_AGE_UNIT);
   const [patientGender, setPatientGender] = useState<"Male" | "Female">("Male");
   const [patientPhone, setPatientPhone] = useState("");
   const [patientAddress, setPatientAddress] = useState("");
@@ -62,6 +66,7 @@ export function CreateReport() {
   const [selectedTests, setSelectedTests] = useState<Test[]>([]);
   const [testSearch, setTestSearch] = useState("");
   const [showTestDropdown, setShowTestDropdown] = useState(false);
+  const [activeTestIndex, setActiveTestIndex] = useState(0);
 
   // Sample/Report information
   const [collectionDate, setCollectionDate] = useState(
@@ -83,8 +88,10 @@ export function CreateReport() {
   const [patientEmail, setPatientEmail] = useState("");
 
   const patientSearchRef = useRef<HTMLDivElement>(null);
+  const patientSearchInputRef = useRef<HTMLInputElement>(null);
   const patientNameInputRef = useRef<HTMLInputElement>(null);
   const testSearchRef = useRef<HTMLDivElement>(null);
+  const testSearchInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch initial data
   useEffect(() => {
@@ -128,6 +135,15 @@ export function CreateReport() {
     }).slice(0, 10);
   }, [patients, patientSearch]);
 
+  useEffect(() => {
+    if (!showPatientDropdown || filteredPatients.length === 0) {
+      setActivePatientIndex(0);
+      return;
+    }
+
+    setActivePatientIndex((currentIndex) => Math.min(currentIndex, filteredPatients.length - 1));
+  }, [filteredPatients, showPatientDropdown]);
+
   // Filter tests based on search
   const filteredTests = useMemo(() => {
     return tests.filter(
@@ -138,10 +154,21 @@ export function CreateReport() {
     ).slice(0, 15);
   }, [tests, selectedTests, testSearch]);
 
+  useEffect(() => {
+    if (!showTestDropdown || filteredTests.length === 0) {
+      setActiveTestIndex(0);
+      return;
+    }
+
+    setActiveTestIndex((currentIndex) => Math.min(currentIndex, filteredTests.length - 1));
+  }, [filteredTests, showTestDropdown]);
+
   // Calculate total price
   const totalPrice = useMemo(() => {
     return selectedTests.reduce((sum, test) => sum + (Number(test.price) || 0), 0);
   }, [selectedTests]);
+
+  const patientAgeMax = getAgeMax(patientAgeUnit);
 
   // Handle patient selection
   const handleSelectPatient = (patient: Patient) => {
@@ -149,12 +176,23 @@ export function CreateReport() {
     setPatientSearch(patient.name || '');
     setPatientName(patient.name || '');
     setPatientAge(patient.age != null ? String(patient.age) : '');
+    setPatientAgeUnit(normalizeAgeUnit(patient.age_unit));
     setPatientGender(patient.gender as "Male" | "Female" || 'Male');
     setPatientPhone(patient.phone || '');
     setPatientAddress(patient.address || '');
     setShowPatientDropdown(false);
+    setActivePatientIndex(0);
     setIsNewPatient(false);
+    window.requestAnimationFrame(() => {
+      patientSearchInputRef.current?.focus();
+    });
   };
+
+  useEffect(() => {
+    const routeState = location.state as { patient?: Patient } | null;
+    if (!routeState?.patient) return;
+    handleSelectPatient(routeState.patient);
+  }, [location.state]);
 
   // Handle create new patient mode
   const handleCreateNewPatient = () => {
@@ -162,10 +200,63 @@ export function CreateReport() {
     setSelectedPatient(null);
     setPatientName(patientSearch.trim());
     setPatientAge('');
+    setPatientAgeUnit(DEFAULT_AGE_UNIT);
     setPatientGender('Male');
     setPatientPhone('');
     setPatientAddress('');
     setShowPatientDropdown(false);
+    setActivePatientIndex(0);
+  };
+
+  const handlePatientSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (!showPatientDropdown) {
+        setShowPatientDropdown(true);
+        return;
+      }
+
+      if (filteredPatients.length > 0) {
+        setActivePatientIndex((currentIndex) => (currentIndex + 1) % filteredPatients.length);
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (!showPatientDropdown) {
+        setShowPatientDropdown(true);
+        return;
+      }
+
+      if (filteredPatients.length > 0) {
+        setActivePatientIndex((currentIndex) =>
+          currentIndex === 0 ? filteredPatients.length - 1 : currentIndex - 1
+        );
+      }
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      if (filteredPatients.length > 0) {
+        event.preventDefault();
+        const patientToSelect = filteredPatients[activePatientIndex] ?? filteredPatients[0];
+        if (patientToSelect) {
+          handleSelectPatient(patientToSelect);
+        }
+        return;
+      }
+
+      if (patientSearch.trim()) {
+        event.preventDefault();
+        handleCreateNewPatient();
+      }
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      setShowPatientDropdown(false);
+    }
   };
 
   // Handle test selection
@@ -173,6 +264,54 @@ export function CreateReport() {
     setSelectedTests([...selectedTests, test]);
     setTestSearch("");
     setShowTestDropdown(false);
+    setActiveTestIndex(0);
+    window.requestAnimationFrame(() => {
+      testSearchInputRef.current?.focus();
+    });
+  };
+
+  const handleTestSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (!showTestDropdown) {
+        setShowTestDropdown(true);
+        return;
+      }
+      if (filteredTests.length > 0) {
+        setActiveTestIndex((currentIndex) => (currentIndex + 1) % filteredTests.length);
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (!showTestDropdown) {
+        setShowTestDropdown(true);
+        return;
+      }
+      if (filteredTests.length > 0) {
+        setActiveTestIndex((currentIndex) =>
+          currentIndex === 0 ? filteredTests.length - 1 : currentIndex - 1
+        );
+      }
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      if (filteredTests.length === 0) {
+        return;
+      }
+      event.preventDefault();
+      const testToSelect = filteredTests[activeTestIndex] ?? filteredTests[0];
+      if (testToSelect) {
+        handleSelectTest(testToSelect);
+      }
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      setShowTestDropdown(false);
+    }
   };
 
   // Handle test removal
@@ -214,7 +353,8 @@ export function CreateReport() {
           email: patientEmail || undefined,
           phone: patientPhone,
           gender: patientGender,
-          age: patientAge ? parseInt(patientAge) : undefined,
+          age: patientAge ? parseInt(patientAge, 10) : undefined,
+          age_unit: patientAge ? patientAgeUnit : undefined,
           address: patientAddress || undefined,
           branch_id: currentBranchId,
         });
@@ -390,6 +530,7 @@ export function CreateReport() {
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
                 <input
+                  ref={patientSearchInputRef}
                   type="text"
                   placeholder="Search by name, mobile, or patient ID..."
                   className="w-full h-9 pl-8 pr-3 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -397,11 +538,13 @@ export function CreateReport() {
                   onChange={(e) => {
                     setPatientSearch(e.target.value);
                     setShowPatientDropdown(true);
+                    setActivePatientIndex(0);
                     if (e.target.value.length >= 2) {
                       fetchPatients({ search: e.target.value });
                     }
                   }}
                   onFocus={() => setShowPatientDropdown(true)}
+                  onKeyDown={handlePatientSearchKeyDown}
                 />
                 {patientsLoading && (
                   <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
@@ -413,11 +556,14 @@ export function CreateReport() {
                 <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg max-h-64 overflow-auto z-10">
                   {filteredPatients.length > 0 ? (
                     <>
-                      {filteredPatients.map((patient) => (
+                      {filteredPatients.map((patient, index) => (
                         <button
                           key={patient.id}
                           onClick={() => handleSelectPatient(patient)}
-                          className="w-full px-3 py-2.5 text-left hover:bg-accent transition-colors border-b border-border last:border-0"
+                          onMouseEnter={() => setActivePatientIndex(index)}
+                          className={`w-full px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 ${
+                            index === activePatientIndex ? 'bg-accent' : 'hover:bg-accent'
+                          }`}
                         >
                           <div className="flex items-start justify-between">
                             <div>
@@ -425,7 +571,7 @@ export function CreateReport() {
                                 {patient.name}
                               </div>
                               <div className="text-xs text-muted-foreground mt-0.5">
-                                {patient.id.slice(0, 8)} • {patient.age != null ? `${patient.age}Y` : ''} {patient.gender?.charAt(0) || ''} • {patient.phone}
+                                {patient.id.slice(0, 8)} • {formatAge(patient.age, patient.age_unit)} {patient.gender?.charAt(0) || ''} • {patient.phone}
                               </div>
                             </div>
                           </div>
@@ -482,16 +628,28 @@ export function CreateReport() {
                 <label className="text-xs text-muted-foreground block mb-0.5">
                   Age
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="150"
-                  className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={patientAge}
-                  onChange={(e) => setPatientAge(e.target.value)}
-                  placeholder="Age"
-                  disabled={!isNewPatient && !!selectedPatient}
-                />
+                <div className="grid grid-cols-[minmax(0,1fr)_110px] gap-1.5">
+                  <input
+                    type="number"
+                    min="0"
+                    max={patientAgeMax}
+                    className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    value={patientAge}
+                    onChange={(e) => setPatientAge(e.target.value)}
+                    placeholder="Age"
+                    disabled={!isNewPatient && !!selectedPatient}
+                  />
+                  <select
+                    className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    value={patientAgeUnit}
+                    onChange={(e) => setPatientAgeUnit(e.target.value as AgeUnit)}
+                    disabled={!isNewPatient && !!selectedPatient}
+                  >
+                    <option value="years">Years</option>
+                    <option value="months">Months</option>
+                    <option value="days">Days</option>
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground block mb-0.5">
@@ -610,6 +768,7 @@ export function CreateReport() {
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
                 <input
+                  ref={testSearchInputRef}
                   type="text"
                   placeholder="Search tests by name or category..."
                   className="w-full h-9 pl-8 pr-3 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -617,8 +776,10 @@ export function CreateReport() {
                   onChange={(e) => {
                     setTestSearch(e.target.value);
                     setShowTestDropdown(true);
+                    setActiveTestIndex(0);
                   }}
                   onFocus={() => setShowTestDropdown(true)}
+                  onKeyDown={handleTestSearchKeyDown}
                 />
                 {testsLoading && (
                   <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
@@ -629,11 +790,14 @@ export function CreateReport() {
               {showTestDropdown && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg max-h-64 overflow-auto z-10">
                   {filteredTests.length > 0 ? (
-                    filteredTests.map((test) => (
+                    filteredTests.map((test, index) => (
                       <button
                         key={test.id}
                         onClick={() => handleSelectTest(test)}
-                        className="w-full px-3 py-2.5 text-left hover:bg-accent transition-colors border-b border-border last:border-0"
+                        onMouseEnter={() => setActiveTestIndex(index)}
+                        className={`w-full px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 ${
+                          index === activeTestIndex ? 'bg-accent' : 'hover:bg-accent'
+                        }`}
                       >
                         <div className="flex items-start justify-between">
                           <div>
@@ -652,7 +816,7 @@ export function CreateReport() {
                     ))
                   ) : (
                     <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-                      {testSearch ? "No tests found" : "Type to search tests"}
+                      {testSearch ? "No tests found" : "Type to search tests. Use arrow keys and Enter to add."}
                     </div>
                   )}
                 </div>

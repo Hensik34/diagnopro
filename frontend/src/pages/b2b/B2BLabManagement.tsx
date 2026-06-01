@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import {
   Building2,
   Plus,
@@ -9,6 +10,7 @@ import {
   Pencil,
   Trash2,
   X,
+  Eye,
 } from 'lucide-react';
 import { useB2BStore } from '../../stores/b2bStore';
 import { useBranchStore } from '../../stores/branchStore';
@@ -18,6 +20,7 @@ import type { B2BLab, CreateB2BLabData } from '../../types/b2b';
  * B2B Partner Labs — Simple CRUD list
  */
 export function B2BLabManagement() {
+  const navigate = useNavigate();
   const { labs, isLoading, error, fetchLabs, createLab, updateLab, deleteLab, clearError } = useB2BStore();
   const { currentBranchId } = useBranchStore();
 
@@ -193,6 +196,13 @@ export function B2BLabManagement() {
                     </td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => navigate(`/b2b/${lab.id}`)}
+                          className="w-7 h-7 flex items-center justify-center rounded hover:bg-primary/10 transition-colors text-muted-foreground hover:text-primary"
+                          title="View Details"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           onClick={() => openEdit(lab)}
                           className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"

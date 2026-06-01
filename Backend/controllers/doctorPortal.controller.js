@@ -163,7 +163,7 @@ exports.getMyReports = async (req, res) => {
         {
           model: Patient,
           as: "patient",
-          attributes: ["name", "phone", "gender", "age"],
+          attributes: ["name", "phone", "gender", "age", "age_unit"],
         },
         {
           model: User,
@@ -190,6 +190,7 @@ exports.getMyReports = async (req, res) => {
         patient_phone: json.patient?.phone,
         patient_gender: json.patient?.gender,
         patient_age: json.patient?.age,
+        patient_age_unit: json.patient?.age_unit,
         technician_firstname: json.technician?.firstname,
         technician_lastname: json.technician?.lastname,
         sample_id_code: json.sample?.sample_id_code,

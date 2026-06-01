@@ -19,6 +19,11 @@ const TestField = sequelize.define("TestField", {
   formula: { type: DataTypes.TEXT },
   depends_on: { type: DataTypes.TEXT },
   section_group: { type: DataTypes.STRING(255) },
+  reference_rules: { type: DataTypes.JSONB },
+  critical_rules: { type: DataTypes.JSONB },
+  interpretation_logic: { type: DataTypes.JSONB },
+  is_mandatory: { type: DataTypes.BOOLEAN, defaultValue: true },
+  display_format: { type: DataTypes.STRING(50), defaultValue: "standard" },
 }, {
   tableName: "test_fields",
   timestamps: true,

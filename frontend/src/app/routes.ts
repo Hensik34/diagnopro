@@ -37,7 +37,7 @@ import { DoctorDashboard, DoctorReports, DoctorProfile } from '../pages/doctor-p
 // Settings
 import { Settings } from '../pages/settings';
 // B2B
-import { B2BLabManagement } from '../pages/b2b';
+import { B2BLabManagement, B2BLabDetail } from '../pages/b2b';
 
 // ==========================================
 // Route Protection Helper
@@ -119,6 +119,7 @@ export const router = createBrowserRouter([
       { path: 'profile', Component: DoctorProfile },
       // B2B Partner Labs
       { path: 'b2b', Component: withPermission(B2BLabManagement, PERMISSIONS.B2B_LAB_READ) },
+      { path: 'b2b/:id', Component: withPermission(B2BLabDetail, PERMISSIONS.B2B_LAB_READ) },
       { path: '*', Component: NotFound },
     ],
   },
