@@ -167,6 +167,7 @@ export function CreateReport() {
   const totalPrice = useMemo(() => {
     return selectedTests.reduce((sum, test) => sum + (Number(test.price) || 0), 0);
   }, [selectedTests]);
+  const shouldScrollSelectedTests = selectedTests.length > 4;
 
   const patientAgeMax = getAgeMax(patientAgeUnit);
 
@@ -328,8 +329,12 @@ export function CreateReport() {
       setFormError("Please enter patient name");
       return;
     }
-    if (!patientPhone.trim()) {
-      setFormError("Please enter patient phone number");
+    if (!patientAge.trim()) {
+      setFormError("Please enter patient age");
+      return;
+    }
+    if (!patientGender) {
+      setFormError("Please select patient gender");
       return;
     }
     if (selectedTests.length === 0) {
@@ -351,7 +356,7 @@ export function CreateReport() {
         const newPatient = await createPatient({
           name: patientName,
           email: patientEmail || undefined,
-          phone: patientPhone,
+          phone: patientPhone || "",
           gender: patientGender,
           age: patientAge ? parseInt(patientAge, 10) : undefined,
           age_unit: patientAge ? patientAgeUnit : undefined,
@@ -513,461 +518,466 @@ export function CreateReport() {
           </div>
         </div>
 
-        {/* Patient Information Section */}
-        <div className="bg-card border border-border rounded">
-          <div className="px-3 py-1.5 border-b border-border bg-secondary/30">
-            <h2 className="text-sm text-foreground flex items-center gap-2">
-              <User className="w-3.5 h-3.5" />
-              Patient Information
-            </h2>
-          </div>
-          <div className="p-2 space-y-1">
-            {/* Patient Search */}
-            <div className="relative" ref={patientSearchRef}>
-              <label className="text-xs text-muted-foreground block mb-0.5">
-                Search Patient <span className="text-destructive">*</span>
-              </label>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
-                <input
-                  ref={patientSearchInputRef}
-                  type="text"
-                  placeholder="Search by name, mobile, or patient ID..."
-                  className="w-full h-9 pl-8 pr-3 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={patientSearch}
-                  onChange={(e) => {
-                    setPatientSearch(e.target.value);
-                    setShowPatientDropdown(true);
-                    setActivePatientIndex(0);
-                    if (e.target.value.length >= 2) {
-                      fetchPatients({ search: e.target.value });
-                    }
-                  }}
-                  onFocus={() => setShowPatientDropdown(true)}
-                  onKeyDown={handlePatientSearchKeyDown}
-                />
-                {patientsLoading && (
-                  <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 items-stretch">
+          {/* Patient Information Section */}
+          <div className="bg-card border border-border rounded h-full flex flex-col">
+            <div className="px-3 py-1.5 border-b border-border bg-secondary/30">
+              <h2 className="text-sm text-foreground flex items-center gap-2">
+                <User className="w-3.5 h-3.5" />
+                Patient Information
+              </h2>
+            </div>
+            <div className="p-2 space-y-2 flex-1">
+              {/* Patient Search */}
+              <div className="relative" ref={patientSearchRef}>
+                <label className="text-xs text-muted-foreground block mb-0.5">
+                  Search Patient
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
+                  <input
+                    ref={patientSearchInputRef}
+                    type="text"
+                    placeholder="Search by name, mobile, or patient ID..."
+                    className="w-full h-9 pl-8 pr-3 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    value={patientSearch}
+                    onChange={(e) => {
+                      setPatientSearch(e.target.value);
+                      setShowPatientDropdown(true);
+                      setActivePatientIndex(0);
+                      if (e.target.value.length >= 2) {
+                        fetchPatients({ search: e.target.value });
+                      }
+                    }}
+                    onFocus={() => setShowPatientDropdown(true)}
+                    onKeyDown={handlePatientSearchKeyDown}
+                  />
+                  {patientsLoading && (
+                    <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                  )}
+                </div>
+
+                {/* Patient Dropdown */}
+                {showPatientDropdown && patientSearch && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg max-h-64 overflow-auto z-10">
+                    {filteredPatients.length > 0 ? (
+                      <>
+                        {filteredPatients.map((patient, index) => (
+                          <button
+                            key={patient.id}
+                            onClick={() => handleSelectPatient(patient)}
+                            onMouseEnter={() => setActivePatientIndex(index)}
+                            className={`w-full px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 ${
+                              index === activePatientIndex ? 'bg-accent' : 'hover:bg-accent'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <div className="text-sm text-foreground font-medium">
+                                  {patient.name}
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-0.5">
+                                  {patient.id.slice(0, 8)} • {formatAge(patient.age, patient.age_unit)} {patient.gender?.charAt(0) || ''} • {patient.phone || '-'}
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                        <button
+                          onClick={handleCreateNewPatient}
+                          className="w-full px-3 py-2.5 text-left hover:bg-accent transition-colors border-t-2 border-primary/20 flex items-center gap-2 text-primary"
+                        >
+                          <UserPlus className="w-4 h-4" />
+                          <span className="text-sm font-medium">
+                            Create New Patient: {patientSearch}
+                          </span>
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={handleCreateNewPatient}
+                        className="w-full px-3 py-4 text-center hover:bg-accent transition-colors flex flex-col items-center gap-2 text-primary"
+                      >
+                        <UserPlus className="w-5 h-5" />
+                        <div>
+                          <div className="text-sm font-medium">No patient found</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            Click to create new patient: {patientSearch}
+                          </div>
+                        </div>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
-              {/* Patient Dropdown */}
-              {showPatientDropdown && patientSearch && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg max-h-64 overflow-auto z-10">
-                  {filteredPatients.length > 0 ? (
-                    <>
-                      {filteredPatients.map((patient, index) => (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                <div className="border border-border rounded p-2 space-y-1.5">
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Required Details</div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-0.5">
+                      Patient Name <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      ref={patientNameInputRef}
+                      type="text"
+                      className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      value={patientName}
+                      onChange={(e) => setPatientName(e.target.value)}
+                      placeholder="Full name"
+                      disabled={!isNewPatient && !!selectedPatient}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-0.5">
+                      Age <span className="text-destructive">*</span>
+                    </label>
+                    <div className="grid grid-cols-[minmax(0,1fr)_110px] gap-1.5">
+                      <input
+                        type="number"
+                        min="0"
+                        max={patientAgeMax}
+                        className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={patientAge}
+                        onChange={(e) => setPatientAge(e.target.value)}
+                        placeholder="Age"
+                        disabled={!isNewPatient && !!selectedPatient}
+                      />
+                      <select
+                        className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={patientAgeUnit}
+                        onChange={(e) => setPatientAgeUnit(e.target.value as AgeUnit)}
+                        disabled={!isNewPatient && !!selectedPatient}
+                      >
+                        <option value="years">Years</option>
+                        <option value="months">Months</option>
+                        <option value="days">Days</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-0.5">
+                      Gender <span className="text-destructive">*</span>
+                    </label>
+                    <select
+                      className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      value={patientGender}
+                      onChange={(e) => setPatientGender(e.target.value as "Male" | "Female")}
+                      disabled={!isNewPatient && !!selectedPatient}
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="border border-border rounded p-2 space-y-1.5">
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Optional Details</div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-0.5">
+                      Mobile Number
+                    </label>
+                    <input
+                      type="tel"
+                      className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      value={patientPhone}
+                      onChange={(e) => setPatientPhone(e.target.value)}
+                      placeholder="+1 555-0000"
+                      disabled={!isNewPatient && !!selectedPatient}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-0.5">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      value={patientEmail}
+                      onChange={(e) => setPatientEmail(e.target.value)}
+                      placeholder="patient@email.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-0.5">
+                      Address
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      value={patientAddress}
+                      onChange={(e) => setPatientAddress(e.target.value)}
+                      placeholder="Street address, city"
+                      disabled={!isNewPatient && !!selectedPatient}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-0.5">
+                      Referring Doctor
+                    </label>
+                    <select
+                      className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      value={selectedDoctor?.id || ''}
+                      onChange={(e) => {
+                        const doctor = doctors.find(d => d.id === e.target.value);
+                        setSelectedDoctor(doctor || null);
+                      }}
+                    >
+                      <option value="">Self (No Doctor)</option>
+                      {doctors.map((doctor) => (
+                        <option key={doctor.id} value={doctor.id}>
+                          {doctor.title || 'Dr'}. {doctor.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Patient Status Indicator */}
+              {isNewPatient && (
+                <div className="flex items-center gap-2 text-xs px-2.5 py-1.5 bg-primary/10 border border-primary/20 rounded">
+                  <UserPlus className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-primary font-medium">
+                    New patient will be created with this report
+                  </span>
+                </div>
+              )}
+              {selectedPatient && !isNewPatient && (
+                <div className="flex items-center gap-2 text-xs px-2.5 py-1.5 bg-success/10 border border-success/20 rounded">
+                  <Check className="w-3.5 h-3.5 text-success" />
+                  <span className="text-success font-medium">
+                    Existing patient: {selectedPatient.id.slice(0, 8)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Test + B2B Combined Section */}
+          <div className="bg-card border border-border rounded h-full flex flex-col">
+            <div className="px-3 py-1.5 border-b border-border bg-secondary/30 flex items-center justify-between">
+              <h2 className="text-sm text-foreground flex items-center gap-2">
+                <Beaker className="w-3.5 h-3.5" />
+                Test & B2B Management
+              </h2>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="text-xs text-muted-foreground">
+                  B2B {isB2B ? 'On' : 'Off'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsB2B(!isB2B);
+                    if (isB2B) {
+                      setSelectedB2BLabId('');
+                      setB2bCharge('');
+                    }
+                  }}
+                  className={`relative w-9 h-5 rounded-full transition-colors ${
+                    isB2B ? 'bg-primary' : 'bg-border'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                      isB2B ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </label>
+            </div>
+
+            <div className="p-2 space-y-2 flex-1">
+              {/* Test Search */}
+              <div className="relative" ref={testSearchRef}>
+                <label className="text-xs text-muted-foreground block mb-0.5">
+                  Search and Add Tests <span className="text-destructive">*</span>
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
+                  <input
+                    ref={testSearchInputRef}
+                    type="text"
+                    placeholder="Search tests by name or category..."
+                    className="w-full h-9 pl-8 pr-3 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    value={testSearch}
+                    onChange={(e) => {
+                      setTestSearch(e.target.value);
+                      setShowTestDropdown(true);
+                      setActiveTestIndex(0);
+                    }}
+                    onFocus={() => setShowTestDropdown(true)}
+                    onKeyDown={handleTestSearchKeyDown}
+                  />
+                  {testsLoading && (
+                    <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                  )}
+                </div>
+
+                {/* Test Dropdown */}
+                {showTestDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg max-h-64 overflow-auto z-10">
+                    {filteredTests.length > 0 ? (
+                      filteredTests.map((test, index) => (
                         <button
-                          key={patient.id}
-                          onClick={() => handleSelectPatient(patient)}
-                          onMouseEnter={() => setActivePatientIndex(index)}
+                          key={test.id}
+                          onClick={() => handleSelectTest(test)}
+                          onMouseEnter={() => setActiveTestIndex(index)}
                           className={`w-full px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 ${
-                            index === activePatientIndex ? 'bg-accent' : 'hover:bg-accent'
+                            index === activeTestIndex ? 'bg-accent' : 'hover:bg-accent'
                           }`}
                         >
                           <div className="flex items-start justify-between">
                             <div>
                               <div className="text-sm text-foreground font-medium">
-                                {patient.name}
+                                {test.test_name}
                               </div>
                               <div className="text-xs text-muted-foreground mt-0.5">
-                                {patient.id.slice(0, 8)} • {formatAge(patient.age, patient.age_unit)} {patient.gender?.charAt(0) || ''} • {patient.phone}
+                                {test.category || 'General'} • {test.test_code}
                               </div>
+                            </div>
+                            <div className="text-xs text-foreground font-medium">
+                              ₹{Number(test.price) || 0}
                             </div>
                           </div>
                         </button>
-                      ))}
-                      <button
-                        onClick={handleCreateNewPatient}
-                        className="w-full px-3 py-2.5 text-left hover:bg-accent transition-colors border-t-2 border-primary/20 flex items-center gap-2 text-primary"
-                      >
-                        <UserPlus className="w-4 h-4" />
-                        <span className="text-sm font-medium">
-                          Create New Patient: {patientSearch}
-                        </span>
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={handleCreateNewPatient}
-                      className="w-full px-3 py-4 text-center hover:bg-accent transition-colors flex flex-col items-center gap-2 text-primary"
-                    >
-                      <UserPlus className="w-5 h-5" />
-                      <div>
-                        <div className="text-sm font-medium">No patient found</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          Click to create new patient: {patientSearch}
-                        </div>
+                      ))
+                    ) : (
+                      <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+                        {testSearch ? "No tests found" : "Type to search tests. Use arrow keys and Enter to add."}
                       </div>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Patient Details Form */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
-              {/* Row 1: Name */}
-              <div className="sm:col-span-2">
-                <label className="text-xs text-muted-foreground block mb-0.5">
-                  Patient Name <span className="text-destructive">*</span>
-                </label>
-                <input
-                  ref={patientNameInputRef}
-                  type="text"
-                  className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={patientName}
-                  onChange={(e) => setPatientName(e.target.value)}
-                  placeholder="Full name"
-                  disabled={!isNewPatient && !!selectedPatient}
-                />
-              </div>
-
-              {/* Row 2: Age + Gender */}
-              <div>
-                <label className="text-xs text-muted-foreground block mb-0.5">
-                  Age
-                </label>
-                <div className="grid grid-cols-[minmax(0,1fr)_110px] gap-1.5">
-                  <input
-                    type="number"
-                    min="0"
-                    max={patientAgeMax}
-                    className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    value={patientAge}
-                    onChange={(e) => setPatientAge(e.target.value)}
-                    placeholder="Age"
-                    disabled={!isNewPatient && !!selectedPatient}
-                  />
-                  <select
-                    className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    value={patientAgeUnit}
-                    onChange={(e) => setPatientAgeUnit(e.target.value as AgeUnit)}
-                    disabled={!isNewPatient && !!selectedPatient}
-                  >
-                    <option value="years">Years</option>
-                    <option value="months">Months</option>
-                    <option value="days">Days</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground block mb-0.5">
-                  Gender <span className="text-destructive">*</span>
-                </label>
-                <select
-                  className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={patientGender}
-                  onChange={(e) => setPatientGender(e.target.value as "Male" | "Female")}
-                  disabled={!isNewPatient && !!selectedPatient}
-                >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                </select>
-              </div>
-
-              {/* Row 3: Mobile + Email + Send Options */}
-              <div>
-                <label className="text-xs text-muted-foreground block mb-0.5">
-                  Mobile Number <span className="text-destructive">*</span>
-                </label>
-                <input
-                  type="tel"
-                  className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={patientPhone}
-                  onChange={(e) => setPatientPhone(e.target.value)}
-                  placeholder="+1 555-0000"
-                  disabled={!isNewPatient && !!selectedPatient}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground block mb-0.5">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={patientEmail}
-                  onChange={(e) => setPatientEmail(e.target.value)}
-                  placeholder="patient@email.com"
-                />
-              </div>
-
-              {/* Row 4: Address */}
-              <div className="sm:col-span-2">
-                <label className="text-xs text-muted-foreground block mb-0.5">
-                  Address
-                </label>
-                <input
-                  type="text"
-                  className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={patientAddress}
-                  onChange={(e) => setPatientAddress(e.target.value)}
-                  placeholder="Street address, city"
-                  disabled={!isNewPatient && !!selectedPatient}
-                />
-              </div>
-
-              {/* Row 5: Referring Doctor */}
-              <div className="sm:col-span-2">
-                <label className="text-xs text-muted-foreground block mb-0.5">
-                  Referring Doctor
-                </label>
-                <select
-                  className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={selectedDoctor?.id || ''}
-                  onChange={(e) => {
-                    const doctor = doctors.find(d => d.id === e.target.value);
-                    setSelectedDoctor(doctor || null);
-                  }}
-                >
-                  <option value="">Self (No Doctor)</option>
-                  {doctors.map((doctor) => (
-                    <option key={doctor.id} value={doctor.id}>
-                      {doctor.title || 'Dr'}. {doctor.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Patient Status Indicator */}
-            {isNewPatient && (
-              <div className="flex items-center gap-2 text-xs px-2.5 py-1.5 bg-primary/10 border border-primary/20 rounded">
-                <UserPlus className="w-3.5 h-3.5 text-primary" />
-                <span className="text-primary font-medium">
-                  New patient will be created with this report
-                </span>
-              </div>
-            )}
-            {selectedPatient && !isNewPatient && (
-              <div className="flex items-center gap-2 text-xs px-2.5 py-1.5 bg-success/10 border border-success/20 rounded">
-                <Check className="w-3.5 h-3.5 text-success" />
-                <span className="text-success font-medium">
-                  Existing patient: {selectedPatient.id.slice(0, 8)}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Test Selection Section */}
-        <div className="bg-card border border-border rounded">
-          <div className="px-3 py-1.5 border-b border-border bg-secondary/30">
-            <h2 className="text-sm text-foreground flex items-center gap-2">
-              <Beaker className="w-3.5 h-3.5" />
-              Test Selection
-            </h2>
-          </div>
-          <div className="p-2 space-y-1">
-            {/* Test Search */}
-            <div className="relative" ref={testSearchRef}>
-              <label className="text-xs text-muted-foreground block mb-0.5">
-                Search and Add Tests <span className="text-destructive">*</span>
-              </label>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
-                <input
-                  ref={testSearchInputRef}
-                  type="text"
-                  placeholder="Search tests by name or category..."
-                  className="w-full h-9 pl-8 pr-3 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={testSearch}
-                  onChange={(e) => {
-                    setTestSearch(e.target.value);
-                    setShowTestDropdown(true);
-                    setActiveTestIndex(0);
-                  }}
-                  onFocus={() => setShowTestDropdown(true)}
-                  onKeyDown={handleTestSearchKeyDown}
-                />
-                {testsLoading && (
-                  <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
                 )}
               </div>
 
-              {/* Test Dropdown */}
-              {showTestDropdown && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg max-h-64 overflow-auto z-10">
-                  {filteredTests.length > 0 ? (
-                    filteredTests.map((test, index) => (
-                      <button
-                        key={test.id}
-                        onClick={() => handleSelectTest(test)}
-                        onMouseEnter={() => setActiveTestIndex(index)}
-                        className={`w-full px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 ${
-                          index === activeTestIndex ? 'bg-accent' : 'hover:bg-accent'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="text-sm text-foreground font-medium">
-                              {test.test_name}
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-0.5">
-                              {test.category || 'General'} • {test.test_code}
-                            </div>
-                          </div>
-                          <div className="text-xs text-foreground font-medium">
-                            ₹{Number(test.price) || 0}
-                          </div>
-                        </div>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-                      {testSearch ? "No tests found" : "Type to search tests. Use arrow keys and Enter to add."}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Selected Tests */}
-            {selectedTests.length > 0 && (
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground block mb-0.5">
-                  Selected Tests ({selectedTests.length})
-                </label>
+              {/* Selected Tests */}
+              {selectedTests.length > 0 && (
                 <div className="space-y-1">
-                  {selectedTests.map((test) => (
-                    <div
-                      key={test.id}
-                      className="flex items-center justify-between px-3 py-2 bg-secondary/50 border border-border rounded"
-                    >
-                      <div className="flex-1">
-                        <div className="text-sm text-foreground font-medium">
-                          {test.test_name}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {test.category || 'General'}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm text-foreground font-medium">
-                          ₹{Number(test.price) || 0}
-                        </span>
-                        <button
-                          onClick={() => handleRemoveTest(test.id)}
-                          className="w-6 h-6 flex items-center justify-center rounded hover:bg-destructive/10 transition-colors text-destructive"
-                          title="Remove test"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between px-3 py-2 bg-primary/5 border border-primary/20 rounded">
-                  <span className="text-sm text-foreground font-medium">
-                    Total Amount
-                  </span>
-                  <span className="text-sm text-foreground font-bold">
-                    ₹{totalPrice.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* B2B Partner Lab Section */}
-        <div className="bg-card border border-border rounded">
-          <div className="px-3 py-1.5 border-b border-border bg-secondary/30 flex items-center justify-between">
-            <h2 className="text-sm text-foreground flex items-center gap-2">
-              <Building2 className="w-3.5 h-3.5" />
-              B2B Partner Lab
-            </h2>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <span className="text-xs text-muted-foreground">
-                {isB2B ? 'Active' : 'Off'}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsB2B(!isB2B);
-                  if (isB2B) {
-                    setSelectedB2BLabId('');
-                    setB2bCharge('');
-                  }
-                }}
-                className={`relative w-9 h-5 rounded-full transition-colors ${
-                  isB2B ? 'bg-primary' : 'bg-border'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                    isB2B ? 'translate-x-4' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </label>
-          </div>
-          {isB2B && (
-            <div className="p-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                <div>
                   <label className="text-xs text-muted-foreground block mb-0.5">
-                    Select Partner Lab <span className="text-destructive">*</span>
+                    Selected Tests ({selectedTests.length})
                   </label>
-                  <select
-                    className="w-full h-9 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    value={selectedB2BLabId}
-                    onChange={(e) => setSelectedB2BLabId(e.target.value)}
-                  >
-                    <option value="">Select a lab...</option>
-                    {b2bLabs.filter(l => l.status === 'active').map((lab) => (
-                      <option key={lab.id} value={lab.id}>
-                        {lab.lab_name} {lab.contact_person ? `(${lab.contact_person})` : ''}
-                      </option>
+                  <div className={shouldScrollSelectedTests ? "space-y-1 max-h-56 overflow-y-auto pr-1" : "space-y-1"}>
+                    {selectedTests.map((test) => (
+                      <div
+                        key={test.id}
+                        className="flex items-center justify-between px-3 py-2 bg-secondary/50 border border-border rounded"
+                      >
+                        <div className="flex-1">
+                          <div className="text-sm text-foreground font-medium">
+                            {test.test_name}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {test.category || 'General'}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm text-foreground font-medium">
+                            ₹{Number(test.price) || 0}
+                          </span>
+                          <button
+                            onClick={() => handleRemoveTest(test.id)}
+                            className="w-6 h-6 flex items-center justify-center rounded hover:bg-destructive/10 transition-colors text-destructive"
+                            title="Remove test"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
                     ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground block mb-0.5">
-                    B2B Charge (₹) <span className="text-destructive">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    className="w-full h-9 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    value={b2bCharge}
-                    onChange={(e) => setB2bCharge(e.target.value)}
-                    placeholder="Amount payable to partner lab"
-                  />
-                </div>
-              </div>
-              {selectedB2BLabId && b2bCharge && totalPrice > 0 && (
-                <div className="mt-1.5 px-3 py-2 bg-primary/5 border border-primary/20 rounded">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Report Total</span>
-                    <span className="text-foreground tabular-nums">₹{totalPrice.toFixed(2)}</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs mt-0.5">
-                    <span className="text-muted-foreground">B2B Charge</span>
-                    <span className="text-destructive tabular-nums">−₹{parseFloat(b2bCharge).toFixed(2)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs mt-0.5 pt-1 border-t border-border">
-                    <span className="text-foreground font-medium">Net Lab Income</span>
-                    <span className="text-foreground font-medium tabular-nums">
-                      ₹{Math.max(0, totalPrice - parseFloat(b2bCharge)).toFixed(2)}
-                    </span>
-                  </div>
-                  {selectedDoctor && (
-                    <div className="flex items-center justify-between text-xs mt-0.5">
-                      <span className="text-muted-foreground">
-                        Commission ({selectedDoctor.commission_percentage || 0}% on net)
-                      </span>
-                      <span className="text-warning tabular-nums">
-                        ₹{(Math.max(0, totalPrice - parseFloat(b2bCharge)) * (selectedDoctor.commission_percentage || 0) / 100).toFixed(2)}
-                      </span>
-                    </div>
+                  {shouldScrollSelectedTests && (
+                    <div className="text-[11px] text-muted-foreground">More than 4 tests selected. Scroll to view all.</div>
                   )}
                 </div>
               )}
+
+              <div className="flex items-center justify-between px-3 py-2 bg-primary/5 border border-primary/20 rounded">
+                <span className="text-sm text-foreground font-medium">
+                  Total Amount
+                </span>
+                <span className="text-sm text-foreground font-bold">
+                  ₹{totalPrice.toFixed(2)}
+                </span>
+              </div>
+
+              <div className="border-t border-border pt-2 space-y-1.5">
+                <h3 className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5" />
+                  B2B Partner Lab
+                </h3>
+                {isB2B ? (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      <div>
+                        <label className="text-xs text-muted-foreground block mb-0.5">
+                          Select Partner Lab <span className="text-destructive">*</span>
+                        </label>
+                        <select
+                          className="w-full h-9 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          value={selectedB2BLabId}
+                          onChange={(e) => setSelectedB2BLabId(e.target.value)}
+                        >
+                          <option value="">Select a lab...</option>
+                          {b2bLabs.filter(l => l.status === 'active').map((lab) => (
+                            <option key={lab.id} value={lab.id}>
+                              {lab.lab_name} {lab.contact_person ? `(${lab.contact_person})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground block mb-0.5">
+                          B2B Charge (₹) <span className="text-destructive">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="w-full h-9 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          value={b2bCharge}
+                          onChange={(e) => setB2bCharge(e.target.value)}
+                          placeholder="Amount payable to partner lab"
+                        />
+                      </div>
+                    </div>
+                    {selectedB2BLabId && b2bCharge && totalPrice > 0 && (
+                      <div className="mt-1.5 px-3 py-2 bg-primary/5 border border-primary/20 rounded">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Report Total</span>
+                          <span className="text-foreground tabular-nums">₹{totalPrice.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs mt-0.5">
+                          <span className="text-muted-foreground">B2B Charge</span>
+                          <span className="text-destructive tabular-nums">-₹{parseFloat(b2bCharge).toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs mt-0.5 pt-1 border-t border-border">
+                          <span className="text-foreground font-medium">Net Lab Income</span>
+                          <span className="text-foreground font-medium tabular-nums">
+                            ₹{Math.max(0, totalPrice - parseFloat(b2bCharge)).toFixed(2)}
+                          </span>
+                        </div>
+                        {selectedDoctor && (
+                          <div className="flex items-center justify-between text-xs mt-0.5">
+                            <span className="text-muted-foreground">
+                              Commission ({selectedDoctor.commission_percentage || 0}% on net)
+                            </span>
+                            <span className="text-warning tabular-nums">
+                              ₹{(Math.max(0, totalPrice - parseFloat(b2bCharge)) * (selectedDoctor.commission_percentage || 0) / 100).toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-xs text-muted-foreground px-2.5 py-2 bg-secondary/40 border border-border rounded">
+                    Enable B2B from the toggle above to assign partner lab and charge.
+                  </div>
+                )}
+              </div>
             </div>
-          )}
+          </div>
         </div>
 
         {/* Action Buttons */}

@@ -12,11 +12,13 @@ import {
   Trash2,
   Save,
   Star,
-  Plus
+  Plus,
+  MessageCircle
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useSettingsStore, useBranchStore, useAuthStore } from '../../stores';
 import { authApi } from '../../api/auth';
+import { WhatsAppIntegration } from './WhatsAppIntegration';
 
 export function Settings() {
   const { settings, isLoading, error, fetchSettings, uploadLetterhead, uploadLabSignature, updateSignatureLabel, updateDefaultSignature, removeImage: removeSettingsImage } = useSettingsStore();
@@ -444,6 +446,19 @@ export function Settings() {
               <SettingsIcon className="w-4 h-4" />
               <span>General Settings</span>
               {activeTab === 'general' && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('whatsapp')}
+              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
+                activeTab === 'whatsapp'
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+              }`}
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>WhatsApp</span>
+              {activeTab === 'whatsapp' && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
             </button>
           </nav>
         </div>
@@ -1051,6 +1066,8 @@ export function Settings() {
               </div>
             </div>
           )}
+
+          {activeTab === 'whatsapp' && <WhatsAppIntegration />}
         </div>
       </div>
     </div>

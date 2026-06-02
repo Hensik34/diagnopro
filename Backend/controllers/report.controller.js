@@ -5,6 +5,7 @@ const Sample = require("../models/Sample");
 const Branch = require("../models/Branch");
 const Doctor = require("../models/Doctor");
 const aiService = require("../services/ai.service");
+const workflowNotificationService = require("../services/workflowNotification.service");
 
 // Use the new status from service
 const { REPORT_STATUS, STATUS_TRANSITIONS, isEditable } = reportService;
@@ -406,6 +407,23 @@ exports.approveReport = async (req, res) => {
     const userRole = req.user.role;
 
     const report = await reportService.approveReport(id, userId, userRole);
+
+    const fullReport = await Report.getReportById(id);
+    const reportBranch = fullReport?.branch_id
+      ? await Branch.getBranchById(fullReport.branch_id)
+      : null;
+
+    if (fullReport?.patient_phone) {
+      const reportLink = `${process.env.CLIENT_URL || "http://localhost:5173"}/reports/preview/${id}`;
+      workflowNotificationService.onReportApproved({
+        report: fullReport,
+        patientName: fullReport.patient_name,
+        patientPhone: fullReport.patient_phone,
+        branchName: reportBranch?.name,
+        testName: fullReport.report_type,
+        reportLink,
+      });
+    }
 
     res.json({
       message: "Report approved successfully",

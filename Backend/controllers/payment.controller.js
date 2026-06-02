@@ -1,5 +1,7 @@
 const Payment = require("../models/Payment");
 const Report = require("../models/Report");
+const Branch = require("../models/Branch");
+const workflowNotificationService = require("../services/workflowNotification.service");
 
 // POST /reports/:id/payment - Add a payment entry
 exports.addPayment = async (req, res) => {
@@ -32,6 +34,24 @@ exports.addPayment = async (req, res) => {
 
     // Recalculate payment status
     const statusInfo = await Payment.recalcPaymentStatus(id);
+
+    const fullReport = await Report.getReportById(id);
+    const reportBranch = fullReport?.branch_id
+      ? await Branch.getBranchById(fullReport.branch_id)
+      : null;
+
+    if (fullReport?.patient_phone) {
+      workflowNotificationService.onPaymentConfirmed({
+        branchId: fullReport.branch_id,
+        patientName: fullReport.patient_name,
+        patientPhone: fullReport.patient_phone,
+        branchName: reportBranch?.name,
+        testName: fullReport.report_type,
+        paymentAmount: parsedAmount,
+        reportId: id,
+        patientId: fullReport.patient_id,
+      });
+    }
 
     res.status(201).json({
       message: "Payment added successfully",

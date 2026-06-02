@@ -12,6 +12,7 @@ export { collectionTrackingApi } from './collectionTracking';
 export { billingApi } from './billing';
 export { timeLogApi } from './timeLogs';
 export { settingsApi } from './settings';
+export { whatsappApi } from './whatsapp';
 export { doctorPortalApi } from './doctorPortal';
 export { b2bApi } from './b2b';
 export type { TimeLog, UserTimeSummary } from './timeLogs';

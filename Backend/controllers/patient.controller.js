@@ -1,4 +1,6 @@
 const Patient = require("../models/Patient");
+const { Branch } = require("../models");
+const workflowNotificationService = require("../services/workflowNotification.service");
 
 // GET ALL PATIENTS
 exports.getPatients = async (req, res) => {
@@ -45,16 +47,16 @@ exports.createPatient = async (req, res) => {
     const { name, email, phone, age, age_unit, gender, address, city, state, postal_code, blood_type, branch_id } = req.body;
 
     // Validation
-    if (!name || !phone || !branch_id) {
+    if (!name || age == null || !gender || !branch_id) {
       return res.status(400).json({ 
-        error: "name, phone, and branch_id are required" 
+        error: "name, age, gender, and branch_id are required" 
       });
     }
 
     const patient = await Patient.createPatient({
       name,
       email,
-      phone,
+      phone: phone || "",
       age,
       age_unit,
       gender,
@@ -65,6 +67,12 @@ exports.createPatient = async (req, res) => {
       blood_type,
       branch_id,
       created_by: req.user.id // From auth middleware
+    });
+
+    const branch = await Branch.findByPk(branch_id, { attributes: ["name"], raw: true });
+    workflowNotificationService.onPatientRegistered({
+      patient,
+      branchName: branch?.name,
     });
 
     res.status(201).json({
