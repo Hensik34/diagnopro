@@ -2,9 +2,13 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const http = require("http");
 const { syncDatabase } = require("./models");
+const { initRealtime } = require("./services/realtime.service");
+const whatsappService = require("./services/whatsapp.service");
 
 const app = express();
+const server = http.createServer(app);
 
 // ─── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors({
@@ -55,12 +59,18 @@ app.use((err, req, res, next) => {
 async function startServer() {
   try {
     await syncDatabase(); // Validate DB connection (and optional sync)
+    initRealtime(server);
 
     const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`🚀  Server running  → http://localhost:${PORT}`);
       console.log(`📚  API Base URL    → http://localhost:${PORT}/api`);
       console.log(`🏥  Lab Management System — Ready\n`);
+    });
+
+    // Restore WhatsApp sessions in background (non-blocking)
+    whatsappService.restoreAllSessions().catch((error) => {
+      console.error("⚠️  Failed to restore WhatsApp sessions:", error.message);
     });
   } catch (err) {
     console.error("\n❌  Server failed to start:", err.message);

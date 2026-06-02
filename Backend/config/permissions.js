@@ -206,6 +206,10 @@ const ROLE_PERMISSIONS = {
     PERMISSIONS.COLLECTION_CREATE,
     PERMISSIONS.COLLECTION_READ,
     PERMISSIONS.COLLECTION_UPDATE,
+
+    // Settings - can manage WhatsApp and notifications
+    PERMISSIONS.SETTINGS_READ,
+    PERMISSIONS.SETTINGS_UPDATE,
   ],
 
   // Staff: Front desk operations - patient registration, report generation, basic reads
@@ -238,6 +242,10 @@ const ROLE_PERMISSIONS = {
     PERMISSIONS.COLLECTION_CREATE,
     PERMISSIONS.COLLECTION_READ,
     PERMISSIONS.COLLECTION_UPDATE,
+
+    // Settings - can manage WhatsApp and notifications
+    PERMISSIONS.SETTINGS_READ,
+    PERMISSIONS.SETTINGS_UPDATE,
   ],
 
   // B2B Lab: Partner lab with restricted access to own data

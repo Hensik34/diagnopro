@@ -17,6 +17,7 @@ router.use("/time-logs", require("./timeLog.routes"));
 router.use("/settings", require("./settings.routes"));
 router.use("/doctor-portal", require("./doctorPortal.routes"));
 router.use("/b2b", require("./b2b.routes"));
+router.use("/whatsapp", require("./whatsapp.routes"));
 
 // Health check endpoint
 router.get("/health", (req, res) => {

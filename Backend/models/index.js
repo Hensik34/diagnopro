@@ -24,6 +24,10 @@ const Settings = require("./definitions/Settings");
 const UserTest = require("./definitions/UserTest");
 const UserTestField = require("./definitions/UserTestField");
 const B2BLab = require("./definitions/B2BLab");
+const WhatsappSession = require("./definitions/WhatsappSession");
+const WhatsappMessageLog = require("./definitions/WhatsappMessageLog");
+const WhatsappTemplate = require("./definitions/WhatsappTemplate");
+const WhatsappNotificationSetting = require("./definitions/WhatsappNotificationSetting");
 
 // Associations
 User.belongsToMany(Branch, { through: UserBranch, foreignKey: "user_id", otherKey: "branch_id", as: "branches" });
@@ -100,6 +104,21 @@ B2BLab.belongsTo(Branch, { foreignKey: "owner_branch_id", as: "ownerBranch" });
 B2BLab.belongsTo(User, { foreignKey: "user_id", as: "linkedUser" });
 B2BLab.belongsTo(User, { foreignKey: "created_by", as: "creator" });
 
+WhatsappSession.belongsTo(Branch, { foreignKey: "branch_id", as: "branch" });
+Branch.hasOne(WhatsappSession, { foreignKey: "branch_id", as: "whatsappSession" });
+
+WhatsappMessageLog.belongsTo(Branch, { foreignKey: "branch_id", as: "branch" });
+Branch.hasMany(WhatsappMessageLog, { foreignKey: "branch_id", as: "whatsappMessageLogs" });
+WhatsappMessageLog.belongsTo(WhatsappSession, { foreignKey: "whatsapp_session_id", as: "session" });
+WhatsappSession.hasMany(WhatsappMessageLog, { foreignKey: "whatsapp_session_id", as: "messageLogs" });
+WhatsappMessageLog.belongsTo(WhatsappTemplate, { foreignKey: "template_id", as: "template" });
+
+WhatsappTemplate.belongsTo(Branch, { foreignKey: "branch_id", as: "branch" });
+Branch.hasMany(WhatsappTemplate, { foreignKey: "branch_id", as: "whatsappTemplates" });
+
+WhatsappNotificationSetting.belongsTo(Branch, { foreignKey: "branch_id", as: "branch" });
+Branch.hasMany(WhatsappNotificationSetting, { foreignKey: "branch_id", as: "whatsappNotificationSettings" });
+
 async function syncDatabase() {
   try {
     const shouldSync = process.env.SEQUELIZE_SYNC === "true";
@@ -166,4 +185,8 @@ module.exports = {
   UserTest,
   UserTestField,
   B2BLab,
+  WhatsappSession,
+  WhatsappMessageLog,
+  WhatsappTemplate,
+  WhatsappNotificationSetting,
 };
