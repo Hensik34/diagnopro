@@ -54,8 +54,17 @@ export function Settings() {
     report_margin_bottom: 120,
     report_margin_left: 28,
     report_margin_right: 28,
+    header_safe_area: 24,
+    footer_safe_area: 24,
   });
   const [isSavingBranding, setIsSavingBranding] = useState(false);
+  const [sampleIdDraft, setSampleIdDraft] = useState({
+    sample_id_format: 'numeric' as 'numeric' | 'sm_prefix',
+    sample_id_reset_policy: 'yearly' as 'yearly' | 'monthly',
+    sample_id_fy_start_month: 3,
+    sample_id_start_number: 1001,
+  });
+  const [isSavingSampleId, setIsSavingSampleId] = useState(false);
 
   // Profile Form State
   const [formFirstname, setFormFirstname] = useState('');
@@ -63,6 +72,26 @@ export function Settings() {
   const [formPhone, setFormPhone] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+
+  // Fetch settings on mount
+  const normalizePx = (value: unknown, fallback: number) => {
+    if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.round(value));
+    if (typeof value === 'string') {
+      const s = value.trim().toLowerCase();
+      if (!s) return fallback;
+      if (s.endsWith('mm')) {
+        const n = Number.parseFloat(s.slice(0, -2));
+        if (Number.isFinite(n)) return Math.max(0, Math.round(n * 3.78));
+      }
+      if (s.endsWith('px')) {
+        const n = Number.parseFloat(s.slice(0, -2));
+        if (Number.isFinite(n)) return Math.max(0, Math.round(n));
+      }
+      const n = Number.parseFloat(s);
+      if (Number.isFinite(n)) return Math.max(0, Math.round(n));
+    }
+    return fallback;
+  };
 
   // Fetch settings on mount
   useEffect(() => {
@@ -108,10 +137,18 @@ export function Settings() {
       // Initialize default signature index
       setDefaultSignatureIndex(settings.default_signature_index || null);
       setBrandingDraft({
-        report_margin_top: settings.report_margin_top ?? 160,
-        report_margin_bottom: settings.report_margin_bottom ?? 120,
-        report_margin_left: settings.report_margin_left ?? 28,
-        report_margin_right: settings.report_margin_right ?? 28,
+        report_margin_top: normalizePx(settings.report_margin_top, 160),
+        report_margin_bottom: normalizePx(settings.report_margin_bottom, 120),
+        report_margin_left: normalizePx(settings.report_margin_left, 28),
+        report_margin_right: normalizePx(settings.report_margin_right, 28),
+        header_safe_area: normalizePx(settings.header_safe_area, 24),
+        footer_safe_area: normalizePx(settings.footer_safe_area, 24),
+      });
+      setSampleIdDraft({
+        sample_id_format: settings.sample_id_format ?? 'numeric',
+        sample_id_reset_policy: settings.sample_id_reset_policy ?? 'yearly',
+        sample_id_fy_start_month: settings.sample_id_fy_start_month ?? 3,
+        sample_id_start_number: settings.sample_id_start_number ?? 1001,
       });
     }
   }, [settings, pendingLetterheadFile, pendingOwnerSignatureFile]);
@@ -324,6 +361,8 @@ export function Settings() {
         report_margin_bottom: brandingDraft.report_margin_bottom,
         report_margin_left: brandingDraft.report_margin_left,
         report_margin_right: brandingDraft.report_margin_right,
+        header_safe_area: brandingDraft.header_safe_area,
+        footer_safe_area: brandingDraft.footer_safe_area,
       });
 
       if (result) {
@@ -350,6 +389,27 @@ export function Settings() {
       console.error(err);
     } finally {
       setUploadingField(null);
+    }
+  };
+
+  const handleSaveSampleIdSettings = async () => {
+    if (!currentBranchId) return;
+
+    setIsSavingSampleId(true);
+    try {
+      const result = await useSettingsStore.getState().updateSettings({
+        branch_id: currentBranchId,
+        sample_id_format: sampleIdDraft.sample_id_format,
+        sample_id_reset_policy: sampleIdDraft.sample_id_reset_policy,
+        sample_id_fy_start_month: sampleIdDraft.sample_id_fy_start_month,
+        sample_id_start_number: sampleIdDraft.sample_id_start_number,
+      });
+
+      if (result) {
+        showSuccess('Sample ID settings saved');
+      }
+    } finally {
+      setIsSavingSampleId(false);
     }
   };
 
@@ -615,6 +675,14 @@ export function Settings() {
                               <p className="text-[11px] font-medium text-muted-foreground">Bottom margin</p>
                               <p className="text-sm font-semibold text-foreground">{brandingDraft.report_margin_bottom}px</p>
                             </div>
+                            <div className="rounded-md border border-dashed border-border bg-background/70 p-3">
+                              <p className="text-[11px] font-medium text-muted-foreground">Header safe area</p>
+                              <p className="text-sm font-semibold text-foreground">{brandingDraft.header_safe_area}px</p>
+                            </div>
+                            <div className="rounded-md border border-dashed border-border bg-background/70 p-3">
+                              <p className="text-[11px] font-medium text-muted-foreground">Footer safe area</p>
+                              <p className="text-sm font-semibold text-foreground">{brandingDraft.footer_safe_area}px</p>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -641,10 +709,12 @@ export function Settings() {
                         type="button"
                         onClick={handleSaveBranding}
                         disabled={isSavingBranding || !settings || (
-                          brandingDraft.report_margin_top === (settings.report_margin_top ?? 160) &&
-                          brandingDraft.report_margin_bottom === (settings.report_margin_bottom ?? 120) &&
-                          brandingDraft.report_margin_left === (settings.report_margin_left ?? 28) &&
-                          brandingDraft.report_margin_right === (settings.report_margin_right ?? 28)
+                          brandingDraft.report_margin_top === normalizePx(settings.report_margin_top, 160) &&
+                          brandingDraft.report_margin_bottom === normalizePx(settings.report_margin_bottom, 120) &&
+                          brandingDraft.report_margin_left === normalizePx(settings.report_margin_left, 28) &&
+                          brandingDraft.report_margin_right === normalizePx(settings.report_margin_right, 28) &&
+                          brandingDraft.header_safe_area === normalizePx(settings.header_safe_area, 24) &&
+                          brandingDraft.footer_safe_area === normalizePx(settings.footer_safe_area, 24)
                         )}
                         className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -653,7 +723,7 @@ export function Settings() {
                       </button>
                     </div>
 
-                    <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                       <label className="space-y-2 text-sm">
                         <span className="block font-medium text-foreground">Top Margin (px)</span>
                         <input
@@ -692,6 +762,26 @@ export function Settings() {
                           className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                           value={brandingDraft.report_margin_right}
                           onChange={(e) => setBrandingDraft((prev) => ({ ...prev, report_margin_right: parseInt(e.target.value, 10) || 0 }))}
+                        />
+                      </label>
+                      <label className="space-y-2 text-sm">
+                        <span className="block font-medium text-foreground">Header Safe Area (px)</span>
+                        <input
+                          type="number"
+                          min={0}
+                          className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                          value={brandingDraft.header_safe_area}
+                          onChange={(e) => setBrandingDraft((prev) => ({ ...prev, header_safe_area: parseInt(e.target.value, 10) || 0 }))}
+                        />
+                      </label>
+                      <label className="space-y-2 text-sm">
+                        <span className="block font-medium text-foreground">Footer Safe Area (px)</span>
+                        <input
+                          type="number"
+                          min={0}
+                          className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                          value={brandingDraft.footer_safe_area}
+                          onChange={(e) => setBrandingDraft((prev) => ({ ...prev, footer_safe_area: parseInt(e.target.value, 10) || 0 }))}
                         />
                       </label>
                     </div>
@@ -1024,7 +1114,7 @@ export function Settings() {
                 <p className="text-sm text-muted-foreground mt-1">Configure app appearance, branch-level behavior, and workspace preferences.</p>
               </div>
 
-              <div className="grid gap-6 lg:grid-cols-2">
+              <div className="grid gap-6">
                 <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -1053,6 +1143,105 @@ export function Settings() {
                       <div className="text-sm font-semibold">Dark</div>
                       <div className="mt-1 text-xs text-muted-foreground">Lower-glare interface for long shifts.</div>
                     </button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">Sample ID Settings</h3>
+                      <p className="text-sm text-muted-foreground mt-1">Choose predefined ID format and reset behavior for new sample IDs.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSaveSampleIdSettings}
+                      disabled={isSavingSampleId || !settings || (
+                        sampleIdDraft.sample_id_format === (settings.sample_id_format ?? 'numeric') &&
+                        sampleIdDraft.sample_id_reset_policy === (settings.sample_id_reset_policy ?? 'yearly') &&
+                        sampleIdDraft.sample_id_fy_start_month === (settings.sample_id_fy_start_month ?? 3) &&
+                        sampleIdDraft.sample_id_start_number === (settings.sample_id_start_number ?? 1001)
+                      )}
+                      className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isSavingSampleId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      Save Sample IDs
+                    </button>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <label className="space-y-2 text-sm">
+                      <span className="block font-medium text-foreground">ID Format</span>
+                      <select
+                        className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        value={sampleIdDraft.sample_id_format}
+                        onChange={(e) => setSampleIdDraft((prev) => ({
+                          ...prev,
+                          sample_id_format: e.target.value as 'numeric' | 'sm_prefix',
+                        }))}
+                      >
+                        <option value="numeric">1001, 1002, 1003</option>
+                        <option value="sm_prefix">SM-1001, SM-1002, SM-1003</option>
+                      </select>
+                    </label>
+
+                    <label className="space-y-2 text-sm">
+                      <span className="block font-medium text-foreground">Reset Policy</span>
+                      <select
+                        className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        value={sampleIdDraft.sample_id_reset_policy}
+                        onChange={(e) => setSampleIdDraft((prev) => ({
+                          ...prev,
+                          sample_id_reset_policy: e.target.value as 'yearly' | 'monthly',
+                        }))}
+                      >
+                        <option value="yearly">Yearly</option>
+                        <option value="monthly">Monthly</option>
+                      </select>
+                    </label>
+
+                    <label className="space-y-2 text-sm">
+                      <span className="block font-medium text-foreground">Start Number</span>
+                      <input
+                        type="number"
+                        min={1}
+                        className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        value={sampleIdDraft.sample_id_start_number}
+                        onChange={(e) => setSampleIdDraft((prev) => ({
+                          ...prev,
+                          sample_id_start_number: Math.max(1, parseInt(e.target.value, 10) || 1),
+                        }))}
+                      />
+                    </label>
+
+                    <label className="space-y-2 text-sm">
+                      <span className="block font-medium text-foreground">Financial Year Start Month</span>
+                      <select
+                        className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        value={sampleIdDraft.sample_id_fy_start_month}
+                        onChange={(e) => setSampleIdDraft((prev) => ({
+                          ...prev,
+                          sample_id_fy_start_month: parseInt(e.target.value, 10),
+                        }))}
+                        disabled={sampleIdDraft.sample_id_reset_policy !== 'yearly'}
+                      >
+                        <option value={1}>January</option>
+                        <option value={2}>February</option>
+                        <option value={3}>March</option>
+                        <option value={4}>April</option>
+                        <option value={5}>May</option>
+                        <option value={6}>June</option>
+                        <option value={7}>July</option>
+                        <option value={8}>August</option>
+                        <option value={9}>September</option>
+                        <option value={10}>October</option>
+                        <option value={11}>November</option>
+                        <option value={12}>December</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="mt-4 rounded-md border border-border bg-secondary/20 px-3 py-2 text-xs text-muted-foreground">
+                    Only predefined formats are allowed. Default configuration is numeric IDs with yearly reset from March to March.
                   </div>
                 </div>
 

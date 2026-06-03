@@ -10,8 +10,26 @@
  */
 
 const Sample = require('../models/Sample');
+const { sequelize, Settings } = require('../models');
 const { PERMISSIONS } = require('../config/permissions');
 const { can } = require('../utils/can');
+
+const SAMPLE_ID_FORMATS = {
+  NUMERIC: 'numeric',
+  SM_PREFIX: 'sm_prefix',
+};
+
+const SAMPLE_ID_RESET_POLICIES = {
+  YEARLY: 'yearly',
+  MONTHLY: 'monthly',
+};
+
+const DEFAULT_SAMPLE_ID_CONFIG = {
+  sample_id_format: SAMPLE_ID_FORMATS.NUMERIC,
+  sample_id_reset_policy: SAMPLE_ID_RESET_POLICIES.YEARLY,
+  sample_id_fy_start_month: 3,
+  sample_id_start_number: 1001,
+};
 
 // ==========================================
 // SAMPLE STATUS WORKFLOW
@@ -57,16 +75,162 @@ const SAMPLE_TYPES = [
 // SERVICE METHODS
 // ==========================================
 
+function getClampedStartMonth(value) {
+  const month = Number(value);
+  if (!Number.isInteger(month) || month < 1 || month > 12) return DEFAULT_SAMPLE_ID_CONFIG.sample_id_fy_start_month;
+  return month;
+}
+
+function getStartNumber(value) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) return DEFAULT_SAMPLE_ID_CONFIG.sample_id_start_number;
+  return parsed;
+}
+
+async function getSampleIdConfig(branchId) {
+  if (!branchId) {
+    return { ...DEFAULT_SAMPLE_ID_CONFIG };
+  }
+
+  const settings = await Settings.findOne({
+    where: { branch_id: branchId },
+    raw: true,
+  });
+
+  if (!settings) {
+    return { ...DEFAULT_SAMPLE_ID_CONFIG };
+  }
+
+  const requestedFormat = settings.sample_id_format;
+  const requestedReset = settings.sample_id_reset_policy;
+
+  const sample_id_format = Object.values(SAMPLE_ID_FORMATS).includes(requestedFormat)
+    ? requestedFormat
+    : DEFAULT_SAMPLE_ID_CONFIG.sample_id_format;
+
+  const sample_id_reset_policy = Object.values(SAMPLE_ID_RESET_POLICIES).includes(requestedReset)
+    ? requestedReset
+    : DEFAULT_SAMPLE_ID_CONFIG.sample_id_reset_policy;
+
+  return {
+    sample_id_format,
+    sample_id_reset_policy,
+    sample_id_fy_start_month: getClampedStartMonth(settings.sample_id_fy_start_month),
+    sample_id_start_number: getStartNumber(settings.sample_id_start_number),
+  };
+}
+
+function getPeriodRange(now, config) {
+  if (config.sample_id_reset_policy === SAMPLE_ID_RESET_POLICIES.MONTHLY) {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const periodKey = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`;
+    return { start, end, periodKey };
+  }
+
+  const startMonthIndex = config.sample_id_fy_start_month - 1;
+  const fyStartYear = now.getMonth() >= startMonthIndex ? now.getFullYear() : now.getFullYear() - 1;
+  const start = new Date(fyStartYear, startMonthIndex, 1);
+  const end = new Date(fyStartYear + 1, startMonthIndex, 1);
+  return { start, end, periodKey: `FY-${fyStartYear}` };
+}
+
+function formatSampleId(number, format) {
+  if (format === SAMPLE_ID_FORMATS.SM_PREFIX) {
+    return `SM-${number}`;
+  }
+  return String(number);
+}
+
+function getSampleIdPattern(format) {
+  if (format === SAMPLE_ID_FORMATS.SM_PREFIX) {
+    return '^SM-[0-9]+$';
+  }
+  return '^[0-9]+$';
+}
+
+function getExtractionSql(format) {
+  if (format === SAMPLE_ID_FORMATS.SM_PREFIX) {
+    return "CAST(SUBSTRING(sample_id_code FROM 4) AS BIGINT)";
+  }
+  return 'CAST(sample_id_code AS BIGINT)';
+}
+
+async function getMaxNumberInPeriod({ start, end, format, transaction }) {
+  const pattern = getSampleIdPattern(format);
+  const extractionSql = getExtractionSql(format);
+
+  const [rows] = await sequelize.query(
+    `SELECT MAX(${extractionSql}) AS max_number
+     FROM samples
+     WHERE created_at >= :startAt
+       AND created_at < :endAt
+       AND sample_id_code ~ :pattern`,
+    {
+      replacements: {
+        startAt: start,
+        endAt: end,
+        pattern,
+      },
+      transaction,
+    }
+  );
+
+  const rawMax = rows?.[0]?.max_number;
+  return rawMax == null ? null : Number(rawMax);
+}
+
+async function sampleIdExists(sampleIdCode, transaction) {
+  const [rows] = await sequelize.query(
+    'SELECT 1 FROM samples WHERE sample_id_code = :sampleIdCode LIMIT 1',
+    {
+      replacements: { sampleIdCode },
+      transaction,
+    }
+  );
+  return rows.length > 0;
+}
+
 /**
- * Generate unique sample ID using monthly-reset counter
- * Format: SM-YYMM-1001, SM-YYMM-1002, ... (resets each month)
- * This INCREMENTS the counter - only call when actually saving
- * @returns {Promise<string>}
+ * Generate unique sample ID using branch settings.
+ * Predefined formats only:
+ * - numeric: 1001
+ * - sm_prefix: SM-1001
+ * Reset policy:
+ * - yearly (financial year based on configured start month, default March)
+ * - monthly
  */
-async function generateSampleId() {
-  const { sequelize } = require('../models');
-  const [result] = await sequelize.query('SELECT generate_sample_id() as sample_id');
-  return result[0].sample_id;
+async function generateSampleId(branchId) {
+  const config = await getSampleIdConfig(branchId);
+  const now = new Date();
+  const { start, end, periodKey } = getPeriodRange(now, config);
+
+  return sequelize.transaction(async (transaction) => {
+    const lockScope = branchId || 'global';
+    const lockKey = `sample_id:${lockScope}:${config.sample_id_format}:${periodKey}`;
+
+    await sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:lockKey))', {
+      replacements: { lockKey },
+      transaction,
+    });
+
+    const maxInPeriod = await getMaxNumberInPeriod({
+      start,
+      end,
+      format: config.sample_id_format,
+      transaction,
+    });
+
+    let nextNumber = Math.max(config.sample_id_start_number, (maxInPeriod || 0) + 1);
+    let candidate = formatSampleId(nextNumber, config.sample_id_format);
+
+    while (await sampleIdExists(candidate, transaction)) {
+      nextNumber += 1;
+      candidate = formatSampleId(nextNumber, config.sample_id_format);
+    }
+
+    return candidate;
+  });
 }
 
 /**
@@ -74,20 +238,25 @@ async function generateSampleId() {
  * Used for preview/display purposes only
  * @returns {Promise<string>}
  */
-async function peekNextSampleId() {
-  const { sequelize } = require('../models');
-  const currentYm = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
-  const yy = currentYm.slice(2, 4);
-  const mm = currentYm.slice(5, 7);
-  
-  const [rows] = await sequelize.query(
-    'SELECT last_number FROM sample_id_counter WHERE year_month = :currentYm',
-    { replacements: { currentYm } }
-  );
-  
-  // If no row exists for this month, next will be 1001
-  const nextNum = rows.length > 0 ? rows[0].last_number + 1 : 1001;
-  return `SM-${yy}${mm}-${nextNum}`;
+async function peekNextSampleId(branchId) {
+  const config = await getSampleIdConfig(branchId);
+  const { start, end } = getPeriodRange(new Date(), config);
+
+  const maxInPeriod = await getMaxNumberInPeriod({
+    start,
+    end,
+    format: config.sample_id_format,
+  });
+
+  let nextNumber = Math.max(config.sample_id_start_number, (maxInPeriod || 0) + 1);
+  let preview = formatSampleId(nextNumber, config.sample_id_format);
+
+  while (await sampleIdExists(preview)) {
+    nextNumber += 1;
+    preview = formatSampleId(nextNumber, config.sample_id_format);
+  }
+
+  return preview;
 }
 
 /**
@@ -277,6 +446,9 @@ module.exports = {
   // Constants
   SAMPLE_STATUS,
   SAMPLE_TYPES,
+  SAMPLE_ID_FORMATS,
+  SAMPLE_ID_RESET_POLICIES,
+  DEFAULT_SAMPLE_ID_CONFIG,
   STATUS_TRANSITIONS,
   
   // Utils

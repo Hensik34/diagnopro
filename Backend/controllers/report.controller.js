@@ -6,6 +6,7 @@ const Branch = require("../models/Branch");
 const Doctor = require("../models/Doctor");
 const aiService = require("../services/ai.service");
 const workflowNotificationService = require("../services/workflowNotification.service");
+const { Patient } = require("../models");
 
 // Use the new status from service
 const { REPORT_STATUS, STATUS_TRANSITIONS, isEditable } = reportService;
@@ -116,7 +117,9 @@ exports.createReport = async (req, res) => {
       findings,
       recommendations,
       branch_id,
-      delivery_preferences
+      delivery_preferences,
+      b2b_lab_id,
+      b2b_charge,
     } = req.body;
 
     // Validation
@@ -131,14 +134,15 @@ exports.createReport = async (req, res) => {
     let linkedSampleId = sample_id || null;
     let sampleIdCode = null;
     if (!linkedSampleId) {
-      const generatedSampleIdCode = await sampleService.generateSampleId();
+      const resolvedBranchId = branch_id || req.user.branch_id;
+      const generatedSampleIdCode = await sampleService.generateSampleId(resolvedBranchId);
       const sample = await Sample.createSample({
         patient_id,
         sample_type: 'blood',
         sample_id_code: generatedSampleIdCode,
         collection_date: new Date(),
         collected_by: req.user.id,
-        branch_id: branch_id || req.user.branch_id,
+        branch_id: resolvedBranchId,
         notes: ''
       });
       linkedSampleId = sample.id;
@@ -158,10 +162,29 @@ exports.createReport = async (req, res) => {
       test_data: test_data || {},
       findings: findings || '',
       recommendations: recommendations || '',
-      delivery_preferences: delivery_preferences || {}
+      delivery_preferences: delivery_preferences || {},
+      b2b_lab_id: b2b_lab_id || null,
+      b2b_charge: b2b_charge || 0,
     });
 
     const reportJson = report && typeof report.toJSON === 'function' ? report.toJSON() : report;
+
+    // Trigger registration confirmation notification here with tests!
+    try {
+      const patientObj = await Patient.findByPk(patient_id, { raw: true });
+      if (patientObj) {
+        const resolvedBranchId = branch_id || patientObj.branch_id || req.user.branch_id;
+        const branchObj = resolvedBranchId ? await Branch.getBranchById(resolvedBranchId) : null;
+
+        workflowNotificationService.onPatientRegistered({
+          patient: patientObj,
+          branchName: branchObj?.name,
+          tests: report_type,
+        });
+      }
+    } catch (notificationError) {
+      console.error("Failed to send patient registration notification from report creation:", notificationError.message);
+    }
 
     res.status(201).json({
       message: "Report created successfully as draft",
@@ -186,7 +209,9 @@ exports.updateReport = async (req, res) => {
       doctor_id,
       report_type,
       report_amount,
-      is_self_report
+      is_self_report,
+      b2b_lab_id,
+      b2b_charge,
     } = req.body;
 
     // Get current report to check status
@@ -212,7 +237,9 @@ exports.updateReport = async (req, res) => {
       doctor_id,
       report_type,
       report_amount,
-      is_self_report
+      is_self_report,
+      b2b_lab_id,
+      b2b_charge,
     });
 
     if (!report) {

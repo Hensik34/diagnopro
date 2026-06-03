@@ -257,6 +257,19 @@ exports.getDoctorStatement = async (req, res) => {
       Doctor.getDoctorStatementSummary(id, start_date, end_date + ' 23:59:59')
     ]);
 
+    const formattedReports = (reports || []).map((report) => ({
+      report_id: report.id,
+      report_date: report.created_at,
+      report_type: report.report_type,
+      report_amount: Number(report.report_amount) || 0,
+      doctor_commission: Number(report.doctor_commission) || 0,
+      b2b_charge: Number(report.b2b_charge) || 0,
+      status: report.status,
+      patient_id: report.patient?.id || '',
+      patient_name: report.patient?.name || '—',
+      patient_phone: report.patient?.phone || '',
+    }));
+
     res.json({
       message: "Doctor statement retrieved successfully",
       data: {
@@ -274,9 +287,10 @@ exports.getDoctorStatement = async (req, res) => {
         summary: {
           total_reports: parseInt(summary.total_reports) || 0,
           total_amount: parseFloat(summary.total_amount) || 0,
-          total_commission: parseFloat(summary.total_commission) || 0
+          total_commission: parseFloat(summary.total_commission) || 0,
+          total_b2b_charge: parseFloat(summary.total_b2b_charge) || 0,
         },
-        reports
+        reports: formattedReports
       }
     });
   } catch (err) {

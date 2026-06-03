@@ -1,7 +1,10 @@
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
 const User = require("../models/User");
 const Branch = require("../models/Branch");
 const Doctor = require("../models/Doctor");
+const { PasswordResetOtp } = require("../models");
+const { sendWelcomeEmail, sendOtpEmail } = require("../services/mail.service");
 
 // REGISTER - Self-registration (always creates admin/branch owner)
 exports.register = async (req, res) => {
@@ -37,6 +40,11 @@ exports.register = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
+
+    // Send welcome email (fire-and-forget — don't block the response)
+    sendWelcomeEmail({ firstname, email: user.email }).catch((err) => {
+      console.error("Failed to send welcome email:", err.message);
+    });
 
     res.status(201).json({
       message: "User registered successfully",
@@ -428,5 +436,179 @@ exports.toggleUserStatus = async (req, res) => {
   } catch (err) {
     console.error("Toggle user status error:", err);
     res.status(500).json({ error: err.message });
+  }
+};
+
+// ==========================================
+// FORGOT PASSWORD FLOW
+// ==========================================
+
+// STEP 1: Request OTP — generates a 6-digit OTP and emails it
+exports.forgotPassword = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: "Email is required" });
+  }
+
+  try {
+    // Check if user exists (in users table OR doctors table)
+    const user = await User.findUserByEmail(email);
+    const doctor = !user ? await Doctor.findDoctorByEmail(email) : null;
+
+    // Always return success — even if email not found (security best practice)
+    if (!user && !doctor) {
+      return res.json({
+        message: "If this email is registered, you will receive a verification code shortly."
+      });
+    }
+
+    // Invalidate any existing unused OTPs for this email
+    await PasswordResetOtp.update(
+      { is_used: true },
+      { where: { email, is_used: false } }
+    );
+
+    // Generate 6-digit OTP
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const OTP_EXPIRY_MINUTES = 10;
+
+    // Hash OTP before storing (like a password)
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    // Store in database
+    await PasswordResetOtp.create({
+      email,
+      otp_hash: otpHash,
+      expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
+    });
+
+    // Send OTP via email
+    await sendOtpEmail(email, otp, OTP_EXPIRY_MINUTES);
+
+    res.json({
+      message: "If this email is registered, you will receive a verification code shortly."
+    });
+  } catch (err) {
+    console.error("Forgot password error:", err);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
+};
+
+// STEP 2: Verify OTP — validates the OTP and returns a short-lived reset token
+exports.verifyOtp = async (req, res) => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    return res.status(400).json({ error: "Email and OTP are required" });
+  }
+
+  try {
+    // Find the latest unused OTP for this email
+    const otpRecord = await PasswordResetOtp.findOne({
+      where: {
+        email,
+        is_used: false,
+      },
+      order: [["created_at", "DESC"]],
+    });
+
+    if (!otpRecord) {
+      return res.status(400).json({ error: "Invalid or expired OTP. Please request a new one." });
+    }
+
+    // Check if OTP has expired
+    if (new Date() > new Date(otpRecord.expires_at)) {
+      // Mark as used so it can't be retried
+      await otpRecord.update({ is_used: true });
+      return res.status(400).json({ error: "OTP has expired. Please request a new one." });
+    }
+
+    // Verify OTP hash
+    const isOtpValid = await bcrypt.compare(otp, otpRecord.otp_hash);
+
+    if (!isOtpValid) {
+      return res.status(400).json({ error: "Invalid OTP. Please check and try again." });
+    }
+
+    // Mark OTP as used
+    await otpRecord.update({ is_used: true });
+
+    // Generate a short-lived reset token (15 minutes)
+    const resetToken = jwt.sign(
+      { email, purpose: "password_reset" },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    res.json({
+      message: "OTP verified successfully",
+      resetToken,
+    });
+  } catch (err) {
+    console.error("Verify OTP error:", err);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
+};
+
+// STEP 3: Reset Password — uses the reset token to set a new password
+exports.resetPassword = async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  if (!token || !newPassword) {
+    return res.status(400).json({ error: "Token and new password are required" });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters" });
+  }
+
+  try {
+    // Verify reset token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      if (err.name === "TokenExpiredError") {
+        return res.status(400).json({ error: "Reset link has expired. Please request a new OTP." });
+      }
+      return res.status(400).json({ error: "Invalid reset token." });
+    }
+
+    if (decoded.purpose !== "password_reset") {
+      return res.status(400).json({ error: "Invalid reset token." });
+    }
+
+    const { email } = decoded;
+
+    // Hash the new password
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    // Try updating in users table first
+    const { User: UserModel } = require("../models");
+    const [userCount] = await UserModel.update(
+      { password_hash: passwordHash },
+      { where: { email } }
+    );
+
+    if (userCount > 0) {
+      return res.json({ message: "Password reset successfully. You can now log in with your new password." });
+    }
+
+    // Try doctors table
+    const { Doctor: DoctorModel } = require("../models");
+    const [doctorCount] = await DoctorModel.update(
+      { password_hash: passwordHash },
+      { where: { email } }
+    );
+
+    if (doctorCount > 0) {
+      return res.json({ message: "Password reset successfully. You can now log in with your new password." });
+    }
+
+    return res.status(404).json({ error: "Account not found." });
+  } catch (err) {
+    console.error("Reset password error:", err);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 };

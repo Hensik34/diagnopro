@@ -86,9 +86,17 @@ export function Login() {
             
             {/* Password Input */}
             <div>
-              <label htmlFor="password" className="block text-sm text-muted-foreground mb-1.5">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="password" className="block text-sm text-muted-foreground">
+                  Password
+                </label>
+                <a
+                  href="/forgot-password"
+                  className="text-xs text-primary hover:underline font-medium"
+                >
+                  Forgot Password?
+                </a>
+              </div>
               <input
                 id="password"
                 type="password"

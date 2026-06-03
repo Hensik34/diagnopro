@@ -102,14 +102,11 @@ export function CreateReport() {
     fetchDoctors();
     fetchB2BLabs();
     // Peek at next sample ID (does NOT increment counter)
-    sampleApi.getNextId().then((res) => {
+    sampleApi.getNextId(currentBranchId || undefined).then((res) => {
       setSampleIdCode(res.data.sample_id_code);
     }).catch(() => {
       // Show format preview if peek fails
-      const now = new Date();
-      const yy = String(now.getFullYear()).slice(2);
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      setSampleIdCode(`SM-${yy}${mm}-XXXX`);
+      setSampleIdCode('1001');
     });
   }, [fetchPatients, fetchTests, fetchDoctors, fetchB2BLabs, currentBranchId]);
 
@@ -167,7 +164,7 @@ export function CreateReport() {
   const totalPrice = useMemo(() => {
     return selectedTests.reduce((sum, test) => sum + (Number(test.price) || 0), 0);
   }, [selectedTests]);
-  const shouldScrollSelectedTests = selectedTests.length > 4;
+  const shouldScrollSelectedTests = selectedTests.length > 3;
 
   const patientAgeMax = getAgeMax(patientAgeUnit);
 
@@ -756,35 +753,11 @@ export function CreateReport() {
 
           {/* Test + B2B Combined Section */}
           <div className="bg-card border border-border rounded h-full flex flex-col">
-            <div className="px-3 py-1.5 border-b border-border bg-secondary/30 flex items-center justify-between">
+            <div className="px-3 py-1.5 border-b border-border bg-secondary/30">
               <h2 className="text-sm text-foreground flex items-center gap-2">
                 <Beaker className="w-3.5 h-3.5" />
                 Test & B2B Management
               </h2>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="text-xs text-muted-foreground">
-                  B2B {isB2B ? 'On' : 'Off'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsB2B(!isB2B);
-                    if (isB2B) {
-                      setSelectedB2BLabId('');
-                      setB2bCharge('');
-                    }
-                  }}
-                  className={`relative w-9 h-5 rounded-full transition-colors ${
-                    isB2B ? 'bg-primary' : 'bg-border'
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                      isB2B ? 'translate-x-4' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </label>
             </div>
 
             <div className="p-2 space-y-2 flex-1">
@@ -887,7 +860,7 @@ export function CreateReport() {
                     ))}
                   </div>
                   {shouldScrollSelectedTests && (
-                    <div className="text-[11px] text-muted-foreground">More than 4 tests selected. Scroll to view all.</div>
+                    <div className="text-[11px] text-muted-foreground">4 or more tests selected. Scroll to view all.</div>
                   )}
                 </div>
               )}
@@ -902,10 +875,36 @@ export function CreateReport() {
               </div>
 
               <div className="border-t border-border pt-2 space-y-1.5">
-                <h3 className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5" />
-                  B2B Partner Lab
-                </h3>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5" />
+                    B2B Partner Lab
+                  </h3>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <span className="text-xs text-muted-foreground">
+                      B2B {isB2B ? 'On' : 'Off'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsB2B(!isB2B);
+                        if (isB2B) {
+                          setSelectedB2BLabId('');
+                          setB2bCharge('');
+                        }
+                      }}
+                      className={`relative w-9 h-5 rounded-full transition-colors ${
+                        isB2B ? 'bg-primary' : 'bg-border'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                          isB2B ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </label>
+                </div>
                 {isB2B ? (
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">

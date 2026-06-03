@@ -54,7 +54,7 @@ exports.createSample = async (req, res) => {
 
     // Auto-generate sample_id_code using monthly-reset counter
     const sampleService = require("../services/sample.service");
-    const sample_id_code = await sampleService.generateSampleId();
+    const sample_id_code = await sampleService.generateSampleId(branch_id || req.user?.branch_id);
 
     const sample = await Sample.createSample({
       patient_id,
@@ -109,7 +109,8 @@ exports.updateSample = async (req, res) => {
 exports.getNextSampleId = async (req, res) => {
   try {
     const sampleService = require("../services/sample.service");
-    const sampleId = await sampleService.peekNextSampleId();
+    const branchId = req.query?.branch_id || req.user?.branch_id;
+    const sampleId = await sampleService.peekNextSampleId(branchId);
 
     res.json({
       message: "Next sample ID preview",

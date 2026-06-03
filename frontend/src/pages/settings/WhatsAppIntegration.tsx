@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, QrCode, Unplug, Send, RefreshCw, CheckCircle2, AlertTriangle, Save } from 'lucide-react';
-import { whatsappApi, getWhatsAppSocket, closeWhatsAppSocket, type WhatsAppSession, type WhatsAppTemplate, type WhatsAppMessageLog } from '../../api/whatsapp';
+import { Loader2, QrCode, Unplug, Send, RefreshCw, AlertTriangle, Save } from 'lucide-react';
+import { whatsappApi, getWhatsAppSocket, closeWhatsAppSocket, type WhatsAppSession, type WhatsAppTemplate } from '../../api/whatsapp';
 import { useBranchStore } from '../../stores';
 
 const EVENT_OPTIONS = [
-  { key: 'report_ready', label: 'Report Ready' },
-  { key: 'report_approved', label: 'Report Approved' },
-  { key: 'appointment_confirmation', label: 'Appointment Confirmation' },
-  { key: 'appointment_reminder', label: 'Appointment Reminder' },
-  { key: 'payment_confirmation', label: 'Payment Confirmation' },
-  { key: 'registration_confirmation', label: 'Registration Confirmation' },
+  { key: 'report_ready', label: 'Report Ready', defaultTemplate: 'Hello {{patient_name}}, your report for {{test_name}} is ready at {{branch_name}}. View report: {{report_link}}' },
+  { key: 'report_approved', label: 'Report Approved', defaultTemplate: 'Hello {{patient_name}}, your report for {{test_name}} has been approved by our pathologist at {{branch_name}}. View report: {{report_link}}' },
+  { key: 'appointment_confirmation', label: 'Appointment Confirmation', defaultTemplate: 'Hello {{patient_name}}, your appointment is confirmed at {{branch_name}} on {{appointment_date}} at {{appointment_time}}.' },
+  { key: 'appointment_reminder', label: 'Appointment Reminder', defaultTemplate: 'Reminder: {{patient_name}}, you have an appointment at {{branch_name}} on {{appointment_date}} at {{appointment_time}}.' },
+  { key: 'payment_confirmation', label: 'Payment Confirmation', defaultTemplate: 'Hello {{patient_name}}, we received your payment of {{payment_amount}} for {{test_name}} at {{branch_name}}. Thank you.' },
+  { key: 'registration_confirmation', label: 'Registration Confirmation', defaultTemplate: 'Welcome {{patient_name}}. Your registration at {{branch_name}} is complete for tests: {{patient_tests}}. Thank you for choosing us!' },
 ];
 
 type TemplateDraft = {
@@ -35,8 +35,8 @@ export function WhatsAppIntegration() {
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
   const [templateDrafts, setTemplateDrafts] = useState<Record<string, TemplateDraft>>({});
   const [settingsMap, setSettingsMap] = useState<Record<string, boolean>>({});
-  const [logs, setLogs] = useState<WhatsAppMessageLog[]>([]);
   const [socketHealthy, setSocketHealthy] = useState(true);
+  const [savingTemplates, setSavingTemplates] = useState<Record<string, boolean>>({});
 
   const selectedBranch = useMemo(
     () => branches.find((branch) => branch.id === activeBranchId) || null,
@@ -57,7 +57,7 @@ export function WhatsAppIntegration() {
       nextDrafts[event.key] = {
         event_key: event.key,
         template_name: matched?.template_name || event.label,
-        template_body: matched?.template_body || '',
+        template_body: matched?.template_body || event.defaultTemplate || '',
         is_enabled: matched?.is_enabled ?? true,
       };
     }
@@ -69,11 +69,10 @@ export function WhatsAppIntegration() {
     setIsLoading(true);
     setError(null);
     try {
-      const [statusRes, templatesRes, settingsRes, logsRes] = await Promise.all([
+      const [statusRes, templatesRes, settingsRes] = await Promise.all([
         whatsappApi.getStatus(branchId),
         whatsappApi.listTemplates(branchId),
         whatsappApi.getNotificationSettings(branchId),
-        whatsappApi.getLogs(branchId, 25),
       ]);
 
       const loadedTemplates = templatesRes.data || [];
@@ -82,7 +81,6 @@ export function WhatsAppIntegration() {
       setTemplates(loadedTemplates);
       hydrateTemplateDrafts(loadedTemplates);
       setSettingsMap(settingsRes.data || {});
-      setLogs(logsRes.data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load WhatsApp data');
     } finally {
@@ -269,17 +267,20 @@ export function WhatsAppIntegration() {
     const draft = templateDrafts[eventKey];
     if (!draft) return;
 
+    setSavingTemplates((prev) => ({ ...prev, [eventKey]: true }));
     try {
       await whatsappApi.saveTemplate({
         branch_id: activeBranchId,
         event_key: eventKey,
         template_name: draft.template_name,
         template_body: draft.template_body,
-        is_enabled: draft.is_enabled,
+        is_enabled: true,
       });
       await loadAll(activeBranchId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save template');
+    } finally {
+      setSavingTemplates((prev) => ({ ...prev, [eventKey]: false }));
     }
   };
 
@@ -425,7 +426,7 @@ export function WhatsAppIntegration() {
           {EVENT_OPTIONS.map((event) => {
             const enabled = settingsMap[event.key] ?? true;
             return (
-              <label key={event.key} className="flex items-center justify-between border border-border rounded-md p-3 text-sm">
+              <label key={event.key} className="flex items-center justify-between border border-border rounded-md p-3 text-sm hover:cursor-pointer">
                 <span>{event.label}</span>
                 <input
                   type="checkbox"
@@ -445,37 +446,35 @@ export function WhatsAppIntegration() {
             const draft = templateDrafts[event.key] || {
               event_key: event.key,
               template_name: event.label,
-              template_body: '',
+              template_body: event.defaultTemplate || '',
               is_enabled: true,
             };
 
             return (
               <div key={event.key} className="border border-border rounded-md p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                  <input
-                    value={draft.template_name}
-                    onChange={(e) => updateTemplateDraft(event.key, { template_name: e.target.value })}
-                    className="h-9 px-3 border border-border rounded-md bg-transparent text-sm flex-1"
-                  />
-                  <label className="text-sm flex items-center gap-2">
-                    Enabled
-                    <input type="checkbox" checked={draft.is_enabled} onChange={(e) => updateTemplateDraft(event.key, { is_enabled: e.target.checked })} />
-                  </label>
+                  <h4 className="text-sm font-semibold text-foreground">{draft.template_name || event.label}</h4>
                 </div>
                 <textarea
                   value={draft.template_body}
                   onChange={(e) => updateTemplateDraft(event.key, { template_body: e.target.value })}
                   rows={4}
                   className="w-full p-3 border border-border rounded-md bg-transparent text-sm"
+                  placeholder="Enter template message..."
                 />
                 <div className="flex justify-end">
                   <button
                     type="button"
                     onClick={() => saveTemplate(event.key)}
-                    className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium flex items-center gap-2"
+                    disabled={savingTemplates[event.key] || isLoading}
+                    className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
-                    <Save className="w-3.5 h-3.5" />
-                    Save Template
+                    {savingTemplates[event.key] ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Save className="w-3.5 h-3.5" />
+                    )}
+                    {savingTemplates[event.key] ? 'Saving...' : 'Save Template'}
                   </button>
                 </div>
               </div>
@@ -484,25 +483,7 @@ export function WhatsAppIntegration() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="text-base font-semibold text-foreground mb-4">Delivery Logs</h3>
-        <div className="space-y-2">
-          {logs.map((log) => (
-            <div key={log.id} className="border border-border rounded-md p-3 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium text-foreground">{log.recipient_phone}</span>
-                <span className="text-xs px-2 py-1 rounded-full border flex items-center gap-1">
-                  {log.delivery_status === 'Delivered' || log.delivery_status === 'Read' ? <CheckCircle2 className="w-3 h-3" /> : null}
-                  {log.delivery_status}
-                </span>
-              </div>
-              <p className="text-muted-foreground mt-1 line-clamp-2">{log.message_content}</p>
-              <div className="text-xs text-muted-foreground mt-2">{new Date(log.created_at).toLocaleString()}</div>
-            </div>
-          ))}
-          {logs.length === 0 && <p className="text-sm text-muted-foreground">No delivery logs yet.</p>}
-        </div>
-      </div>
+
     </div>
   );
 }

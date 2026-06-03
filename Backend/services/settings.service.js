@@ -38,6 +38,8 @@ const SettingsService = {
         report_margin_bottom: data.report_margin_bottom,
         report_margin_left: data.report_margin_left,
         report_margin_right: data.report_margin_right,
+        header_safe_area: data.header_safe_area,
+        footer_safe_area: data.footer_safe_area,
         signature_1_url: data.signature_1_url,
         signature_1_label: data.signature_1_label,
         signature_2_url: data.signature_2_url,
@@ -47,6 +49,10 @@ const SettingsService = {
         signature_4_url: data.signature_4_url,
         signature_4_label: data.signature_4_label,
         default_signature_index: data.default_signature_index,
+        sample_id_format: data.sample_id_format,
+        sample_id_reset_policy: data.sample_id_reset_policy,
+        sample_id_fy_start_month: data.sample_id_fy_start_month,
+        sample_id_start_number: data.sample_id_start_number,
       };
       
       const settings = await Settings.upsert(settingsData);

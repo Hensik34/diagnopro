@@ -5,7 +5,7 @@ import { PERMISSIONS } from '../utils/permissions';
 // Layout
 import { Root } from '../pages/layout';
 // Auth
-import { Login, Register } from '../pages/auth';
+import { Login, Register, ForgotPassword } from '../pages/auth';
 // Dashboard
 import { Dashboard, Analytics, DashboardDayDetail } from '../pages/dashboard';
 // Reports
@@ -79,6 +79,10 @@ export const router = createBrowserRouter([
   {
     path: '/register',
     Component: Register,
+  },
+  {
+    path: '/forgot-password',
+    Component: ForgotPassword,
   },
   {
     path: '/onboarding',

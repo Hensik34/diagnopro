@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
   Search,
@@ -25,6 +25,7 @@ import { useBranchStore } from '../../stores/branchStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useTestStore } from '../../stores/testStore';
 import type { Report, ReportStatus } from '../../types';
+import { InvoiceModal } from '../../app/components/reports/InvoiceModal';
 
 /**
  * Reports Page - Lists all reports with filtering, search, and workflow actions
@@ -35,6 +36,9 @@ export function Reports() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [branchFilter, setBranchFilter] = useState<string>('all');
+
+  // Payment modal state
+  const [invoiceReportId, setInvoiceReportId] = useState<string | null>(null);
 
 
   // Store state
@@ -237,6 +241,12 @@ export function Reports() {
     });
   }, [reports, searchQuery, statusFilter]);
 
+  const refreshReportsData = useCallback(async () => {
+    const filters = branchFilter !== 'all' ? { branch_id: branchFilter } : {};
+    await fetchReports(filters);
+    await fetchSummary(branchFilter !== 'all' ? branchFilter : undefined);
+  }, [branchFilter, fetchReports, fetchSummary]);
+
   /**
    * Handle submit for review action
    */
@@ -328,8 +338,7 @@ export function Reports() {
         <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
           <button
             onClick={() => {
-              fetchReports();
-              fetchSummary();
+              refreshReportsData();
             }}
             className="h-8 px-2 md:px-3 flex items-center gap-1.5 rounded text-xs bg-secondary border border-border hover:bg-accent transition-colors flex-1 sm:flex-none justify-center sm:justify-start"
             disabled={isLoading}
@@ -582,18 +591,18 @@ export function Reports() {
 
                             {/* Submit for Review - for draft reports with test data */}
                             {report.status === 'draft' && report.test_data && canEdit && (
-                                <button
-                                  onClick={() => handleSubmitForReview(report)}
-                                  className="h-7 w-7 flex items-center justify-center bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity"
-                                  title={isReportReadyForSubmit(report) ? 'Submit for Review' : 'Fill all required values first'}
-                                  disabled={(isActionLoading && actionId === report.id) || !isReportReadyForSubmit(report)}
-                                >
-                                  {isActionLoading && actionId === report.id ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  ) : (
-                                    <Send className="w-3.5 h-3.5" />
-                                  )}
-                                </button>
+                              <button
+                                onClick={() => handleSubmitForReview(report)}
+                                className="h-7 w-7 flex items-center justify-center bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity"
+                                title={isReportReadyForSubmit(report) ? 'Submit for Review' : 'Fill all required values first'}
+                                disabled={(isActionLoading && actionId === report.id) || !isReportReadyForSubmit(report)}
+                              >
+                                {isActionLoading && actionId === report.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Send className="w-3.5 h-3.5" />
+                                )}
+                              </button>
                             )}
 
                             {/* View - for under_review or approved reports */}
@@ -618,29 +627,29 @@ export function Reports() {
                               </Link>
                             )}
 
-                            {/* Invoice/Bill */}
-                            <Link
-                              to={`/reports/${report.id}/invoice`}
+                            {/* Payment Details (popup with print & send) */}
+                            <button
+                              onClick={() => setInvoiceReportId(report.id)}
                               className="h-7 w-7 flex items-center justify-center bg-amber-50 border border-amber-200 text-amber-700 rounded hover:bg-amber-100 transition-colors dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400"
-                              title="View Invoice"
+                              title="Payment Details"
                             >
                               <IndianRupee className="w-3.5 h-3.5" />
-                            </Link>
+                            </button>
 
                             {/* Delete - admin only */}
                             {canDelete && (
-                                <button
-                                  onClick={() => handleDeleteReport(report)}
-                                  className="h-7 w-7 flex items-center justify-center bg-red-50 border border-red-200 text-red-700 rounded hover:bg-red-100 transition-colors dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
-                                  title="Delete Report"
-                                  disabled={isActionLoading && actionId === report.id}
-                                >
-                                  {isActionLoading && actionId === report.id ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  )}
-                                </button>
+                              <button
+                                onClick={() => handleDeleteReport(report)}
+                                className="h-7 w-7 flex items-center justify-center bg-red-50 border border-red-200 text-red-700 rounded hover:bg-red-100 transition-colors dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
+                                title="Delete Report"
+                                disabled={isActionLoading && actionId === report.id}
+                              >
+                                {isActionLoading && actionId === report.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                )}
+                              </button>
                             )}
                           </div>
                         </td>
@@ -662,7 +671,15 @@ export function Reports() {
         </div>
       </div>
 
-
+      {/* Payment Details Modal */}
+      {invoiceReportId && (
+        <InvoiceModal
+          isOpen={!!invoiceReportId}
+          onClose={() => setInvoiceReportId(null)}
+          reportId={invoiceReportId}
+          onBillingUpdated={refreshReportsData}
+        />
+      )}
     </div>
   );
 }

@@ -12,6 +12,11 @@ router.post("/register", authController.register);
 router.post("/login", authController.login);
 router.get("/check-email", authController.checkEmail);
 
+// Forgot password flow (public)
+router.post("/forgot-password", authController.forgotPassword);
+router.post("/verify-otp", authController.verifyOtp);
+router.post("/reset-password", authController.resetPassword);
+
 // Protected routes (authentication only, no specific permission needed)
 router.get("/profile", authenticate, authController.getUserProfile);
 router.put("/profile", authenticate, authController.updateUserProfile);

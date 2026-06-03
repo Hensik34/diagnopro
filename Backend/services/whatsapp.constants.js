@@ -32,7 +32,7 @@ const PLACEHOLDER_KEYS = [
   "appointment_date",
   "appointment_time",
   "payment_amount",
-  "patient_id",
+  "patient_tests",
   "doctor_name",
   "sample_id",
 ];

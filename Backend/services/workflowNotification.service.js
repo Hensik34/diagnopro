@@ -19,7 +19,7 @@ function formatCurrency(value) {
   return Number.isFinite(amount) ? amount.toFixed(2) : "0.00";
 }
 
-async function onPatientRegistered({ patient, branchName }) {
+async function onPatientRegistered({ patient, branchName, tests }) {
   if (!patient?.phone || !patient?.branch_id) return;
 
   return safeSend({
@@ -29,7 +29,7 @@ async function onPatientRegistered({ patient, branchName }) {
     recipientName: patient.name,
     variables: {
       patient_name: patient.name,
-      patient_id: patient.id,
+      patient_tests: tests || "N/A",
       branch_name: branchName || "Your Laboratory",
     },
     metadata: {

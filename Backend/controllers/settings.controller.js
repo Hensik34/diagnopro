@@ -1,6 +1,9 @@
 const SettingsService = require("../services/settings.service");
 const path = require("path");
 
+const ALLOWED_SAMPLE_ID_FORMATS = ["numeric", "sm_prefix"];
+const ALLOWED_SAMPLE_ID_RESET_POLICIES = ["yearly", "monthly"];
+
 /**
  * Settings Controller - Handle branch settings including letterhead and signatures
  */
@@ -93,6 +96,38 @@ exports.upsertSettings = async (req, res) => {
       );
     }
 
+    const sampleIdFormat = req.body.sample_id_format;
+    if (sampleIdFormat !== undefined && !ALLOWED_SAMPLE_ID_FORMATS.includes(sampleIdFormat)) {
+      return res.status(400).json({
+        error: `Invalid sample_id_format. Allowed values: ${ALLOWED_SAMPLE_ID_FORMATS.join(", ")}`,
+      });
+    }
+
+    const sampleIdResetPolicy = req.body.sample_id_reset_policy;
+    if (sampleIdResetPolicy !== undefined && !ALLOWED_SAMPLE_ID_RESET_POLICIES.includes(sampleIdResetPolicy)) {
+      return res.status(400).json({
+        error: `Invalid sample_id_reset_policy. Allowed values: ${ALLOWED_SAMPLE_ID_RESET_POLICIES.join(", ")}`,
+      });
+    }
+
+    const sampleIdFyStartMonthRaw = req.body.sample_id_fy_start_month;
+    let sampleIdFyStartMonth;
+    if (sampleIdFyStartMonthRaw !== undefined) {
+      sampleIdFyStartMonth = Number(sampleIdFyStartMonthRaw);
+      if (!Number.isInteger(sampleIdFyStartMonth) || sampleIdFyStartMonth < 1 || sampleIdFyStartMonth > 12) {
+        return res.status(400).json({ error: "sample_id_fy_start_month must be an integer between 1 and 12" });
+      }
+    }
+
+    const sampleIdStartNumberRaw = req.body.sample_id_start_number;
+    let sampleIdStartNumber;
+    if (sampleIdStartNumberRaw !== undefined) {
+      sampleIdStartNumber = Number(sampleIdStartNumberRaw);
+      if (!Number.isInteger(sampleIdStartNumber) || sampleIdStartNumber < 1) {
+        return res.status(400).json({ error: "sample_id_start_number must be a positive integer" });
+      }
+    }
+
     const settings = await SettingsService.upsertSettings(branchId, {
       letterhead_url: finalLetterheadUrl,
       owner_signature_url: finalOwnerSignatureUrl,
@@ -102,7 +137,13 @@ exports.upsertSettings = async (req, res) => {
       report_margin_bottom: req.body.report_margin_bottom,
       report_margin_left: req.body.report_margin_left,
       report_margin_right: req.body.report_margin_right,
+      header_safe_area: req.body.header_safe_area,
+      footer_safe_area: req.body.footer_safe_area,
       default_signature_index: req.body.default_signature_index,
+      sample_id_format: sampleIdFormat,
+      sample_id_reset_policy: sampleIdResetPolicy,
+      sample_id_fy_start_month: sampleIdFyStartMonth,
+      sample_id_start_number: sampleIdStartNumber,
     });
 
     res.json({
