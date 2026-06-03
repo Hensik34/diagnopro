@@ -40,17 +40,7 @@ export interface WhatsAppTemplate {
   is_system: boolean;
 }
 
-export interface WhatsAppMessageLog {
-  id: string;
-  branch_id: string;
-  recipient_phone: string;
-  recipient_name?: string | null;
-  message_content: string;
-  wa_message_id?: string | null;
-  delivery_status: 'Pending' | 'Sent' | 'Delivered' | 'Failed' | 'Read';
-  created_at: string;
-  error_message?: string | null;
-}
+
 
 export interface ConnectResponse {
   session: WhatsAppSession | null;
@@ -124,8 +114,8 @@ export const whatsappApi = {
     return response.data;
   },
 
-  sendMessage: async (branchId: string, to: string, message: string): Promise<ApiResponse<WhatsAppMessageLog>> => {
-    const response = await api.post<ApiResponse<WhatsAppMessageLog>>('/whatsapp/send', {
+  sendMessage: async (branchId: string, to: string, message: string): Promise<ApiResponse<any>> => {
+    const response = await api.post<ApiResponse<any>>('/whatsapp/send', {
       branch_id: branchId,
       to,
       message,
@@ -183,10 +173,5 @@ export const whatsappApi = {
     return response.data;
   },
 
-  getLogs: async (branchId: string, limit = 30): Promise<ApiResponse<WhatsAppMessageLog[]>> => {
-    const response = await api.get<ApiResponse<WhatsAppMessageLog[]>>('/whatsapp/logs', {
-      params: { branch_id: branchId, limit },
-    });
-    return response.data;
-  },
+
 };

@@ -112,4 +112,32 @@ export const authApi = {
     const response = await api.patch<ApiResponse<User>>(`/auth/users/${id}/status`);
     return response.data;
   },
+
+  // ==========================================
+  // Forgot Password Flow
+  // ==========================================
+
+  /**
+   * Request password reset OTP
+   */
+  forgotPassword: async (email: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  /**
+   * Verify OTP and get reset token
+   */
+  verifyOtp: async (email: string, otp: string): Promise<{ message: string; resetToken: string }> => {
+    const response = await api.post<{ message: string; resetToken: string }>('/auth/verify-otp', { email, otp });
+    return response.data;
+  },
+
+  /**
+   * Reset password using reset token
+   */
+  resetPassword: async (token: string, newPassword: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('/auth/reset-password', { token, newPassword });
+    return response.data;
+  },
 };

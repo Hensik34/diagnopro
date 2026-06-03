@@ -26,7 +26,7 @@ export const ReportLayoutConfig = {
   
   // Padding for boxes
   boxPadding: {
-    dense: 7,
+    dense: 4,
     normal: 10,
     spacious: 14,
   },
@@ -34,9 +34,9 @@ export const ReportLayoutConfig = {
   // Font sizes (desktop)
   fontSize: {
     label: 9,
-    value: 11,
-    header: 10.5,
-    sectionTitle: 12.5,
+    value: 10,
+    header: 10,
+    sectionTitle: 11.5,
     patientName: 15,
   },
   
@@ -178,10 +178,7 @@ export function InvestigationTableRow({
   indented?: boolean;
   colorTokens: Record<string, string>;
 }) {
-  const cellBorder = 'none';
   const vPad = `${ReportLayoutConfig.boxPadding.dense}px`;
-  const leftPad = '4px';
-  const rightPad = '2px';
   const fontSize = `${ReportLayoutConfig.fontSize.value}px`;
 
   return (
@@ -190,12 +187,12 @@ export function InvestigationTableRow({
       <td
         style={{
           padding: `${vPad} 1px`,
-          paddingLeft: indented ? '24px' : '2px',
+          paddingLeft: indented ? '16px' : '2px',
           fontWeight: isAbnormal ? 700 : 400,
           color: isAbnormal ? statusColor : colorTokens.text,
           fontSize,
           textAlign: 'left',
-          lineHeight: 1.4,
+          lineHeight: 1.25,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -266,9 +263,9 @@ export function SectionGroupHeader({
       <td
         colSpan={4}
         style={{
-          padding: `${ReportLayoutConfig.boxPadding.dense + 1}px 8px ${ReportLayoutConfig.boxPadding.dense - 1}px`,
+          padding: `${ReportLayoutConfig.boxPadding.dense + 1}px 6px ${ReportLayoutConfig.boxPadding.dense - 1}px`,
           fontWeight: 700,
-          fontSize: `${ReportLayoutConfig.fontSize.value}px`,
+          fontSize: `${ReportLayoutConfig.fontSize.value - 0.2}px`,
           color: colorTokens.text,
           letterSpacing: '0.2px',
         }}
@@ -423,15 +420,15 @@ export function TestSectionBlock({
   return (
     <div
       style={{
-        marginBottom: `${ReportLayoutConfig.sectionMargin.between - 4}px`,
-        marginTop: isFirstSection ? 0 : `${ReportLayoutConfig.sectionMargin.top - 4}px`,
+        marginBottom: `${ReportLayoutConfig.sectionMargin.between - 8}px`,
+        marginTop: isFirstSection ? 0 : `${ReportLayoutConfig.sectionMargin.top - 6}px`,
       }}
     >
       {/* Test section heading */}
       <div
         style={{
           textAlign: 'center',
-          marginBottom: `${ReportLayoutConfig.spacing.sm}px`,
+          marginBottom: `${ReportLayoutConfig.spacing.xs}px`,
         }}
       >
         <h2
@@ -443,7 +440,7 @@ export function TestSectionBlock({
             textTransform: 'uppercase',
             letterSpacing: '1px',
             display: 'inline-block',
-            paddingBottom: '2px',
+            paddingBottom: '1px',
             borderBottom: `1px solid ${colorTokens.text}`,
           }}
         >

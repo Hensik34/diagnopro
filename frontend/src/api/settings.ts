@@ -12,10 +12,12 @@ export interface Settings {
   owner_signature_url?: string | null;
   header_url?: string | null;
   footer_url?: string | null;
-  report_margin_top?: number;
-  report_margin_bottom?: number;
-  report_margin_left?: number;
-  report_margin_right?: number;
+  report_margin_top?: number | string;
+  report_margin_bottom?: number | string;
+  report_margin_left?: number | string;
+  report_margin_right?: number | string;
+  header_safe_area?: number;
+  footer_safe_area?: number;
   // Lab signatures (up to 4)
   signature_1_url?: string | null;
   signature_1_label?: string | null;
@@ -26,6 +28,10 @@ export interface Settings {
   signature_4_url?: string | null;
   signature_4_label?: string | null;
   default_signature_index?: number;
+  sample_id_format?: 'numeric' | 'sm_prefix';
+  sample_id_reset_policy?: 'yearly' | 'monthly';
+  sample_id_fy_start_month?: number;
+  sample_id_start_number?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -40,11 +46,17 @@ export interface SettingsUpdateData {
   footer_url?: string | null;
   header_base64?: string;
   footer_base64?: string;
-  report_margin_top?: number;
-  report_margin_bottom?: number;
-  report_margin_left?: number;
-  report_margin_right?: number;
+  report_margin_top?: number | string;
+  report_margin_bottom?: number | string;
+  report_margin_left?: number | string;
+  report_margin_right?: number | string;
+  header_safe_area?: number;
+  footer_safe_area?: number;
   default_signature_index?: number;
+  sample_id_format?: 'numeric' | 'sm_prefix';
+  sample_id_reset_policy?: 'yearly' | 'monthly';
+  sample_id_fy_start_month?: number;
+  sample_id_start_number?: number;
 }
 
 // ==========================================

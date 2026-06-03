@@ -181,6 +181,38 @@ exports.updateReport = async (id, reportData) => {
     }
   }
 
+  // Keep doctor commission consistent when billing/B2B/doctor fields change.
+  const affectsCommission = ["doctor_id", "is_self_report", "report_amount", "b2b_charge", "doctor_discount"]
+    .some((k) => Object.prototype.hasOwnProperty.call(updateObj, k));
+
+  if (affectsCommission) {
+    const current = await Report.findByPk(id, {
+      attributes: ["doctor_id", "is_self_report", "report_amount", "b2b_charge", "doctor_discount"],
+      raw: true,
+    });
+
+    if (current) {
+      const doctorId = updateObj.doctor_id !== undefined ? updateObj.doctor_id : current.doctor_id;
+      const isSelf = updateObj.is_self_report !== undefined ? updateObj.is_self_report : current.is_self_report;
+      const reportAmount = parseFloat(updateObj.report_amount ?? current.report_amount ?? 0) || 0;
+      const b2bCharge = parseFloat(updateObj.b2b_charge ?? current.b2b_charge ?? 0) || 0;
+      const doctorDiscount = parseFloat(updateObj.doctor_discount ?? current.doctor_discount ?? 0) || 0;
+
+      let doctorCommission = 0;
+      if (doctorId && !isSelf && reportAmount > 0) {
+        const doctor = await Doctor.findByPk(doctorId, { attributes: ["commission_percentage"], raw: true });
+        if (doctor) {
+          const commissionPercent = parseFloat(doctor.commission_percentage) || 0;
+          const commissionBase = Math.max(0, reportAmount - b2bCharge);
+          const originalCommission = (commissionBase * commissionPercent) / 100;
+          doctorCommission = Math.max(0, originalCommission - doctorDiscount);
+        }
+      }
+
+      updateObj.doctor_commission = doctorCommission;
+    }
+  }
+
   if (Object.keys(updateObj).length === 0) return exports.getReportById(id);
 
   const [count, [updated]] = await Report.update(updateObj, {

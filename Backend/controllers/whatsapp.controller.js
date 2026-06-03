@@ -231,20 +231,4 @@ exports.upsertNotificationSetting = async (req, res) => {
   }
 };
 
-exports.getMessageLogs = async (req, res) => {
-  try {
-    const branchId = getBranchId(req);
-    const limit = Number(req.query.limit || 50);
 
-    await assertBranchAccess(req.user, branchId);
-    const logs = await whatsappService.getMessageLogs(branchId, { limit });
-
-    res.json({
-      message: "Message logs fetched",
-      count: logs.length,
-      data: logs,
-    });
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message });
-  }
-};

@@ -27,9 +27,11 @@ module.exports = {
     const fields = [
       "letterhead_url", "owner_signature_url", "header_url", "footer_url",
       "report_margin_top", "report_margin_bottom", "report_margin_left", "report_margin_right",
+      "header_safe_area", "footer_safe_area",
       "signature_1_url", "signature_1_label", "signature_2_url", "signature_2_label",
       "signature_3_url", "signature_3_label", "signature_4_url", "signature_4_label",
       "default_signature_index",
+      "sample_id_format", "sample_id_reset_policy", "sample_id_fy_start_month", "sample_id_start_number",
     ];
 
     for (const field of fields) {
@@ -76,11 +78,13 @@ module.exports = {
     const fieldMap = [
       "letterhead_url", "owner_signature_url", "header_url", "footer_url",
       "report_margin_top", "report_margin_bottom", "report_margin_left", "report_margin_right",
+      "header_safe_area", "footer_safe_area",
       "signature_1_url", "signature_1_label",
       "signature_2_url", "signature_2_label",
       "signature_3_url", "signature_3_label",
       "signature_4_url", "signature_4_label",
       "default_signature_index",
+      "sample_id_format", "sample_id_reset_policy", "sample_id_fy_start_month", "sample_id_start_number",
     ];
 
     const updateObj = {};

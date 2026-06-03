@@ -23,6 +23,7 @@ import {
   ChevronDown as ChevronDownIcon,
 } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { useDoctorStore, useReportStore, usePatientStore, useTestStore, useBranchStore } from "../../stores";
 import { useAuthStore } from "../../stores/authStore";
 import { reportApi } from "../../api/reports";
@@ -95,16 +96,16 @@ interface MatchedRange {
 }
 
 function getPatientReferenceRange(
-  field: { 
-    reference_rules?: any; 
-    min_value?: number | null; 
-    max_value?: number | null; 
-    critical_rules?: any 
+  field: {
+    reference_rules?: any;
+    min_value?: number | null;
+    max_value?: number | null;
+    critical_rules?: any
   },
   patient: Patient | null
 ): MatchedRange {
   const rules = normalizeReferenceRules(field.reference_rules);
-  
+
   let criticalLow: number | null = null;
   let criticalHigh: number | null = null;
   if (field.critical_rules) {
@@ -226,7 +227,7 @@ export function ReportEntry() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const isEditMode = searchParams.get('edit') === 'true';
-  
+
   // Get initial data from navigation state (from CreateReport page)
   const initialData = location.state as {
     patient?: Patient;
@@ -236,14 +237,14 @@ export function ReportEntry() {
 
   // Stores
   const { doctors, fetchDoctors, isLoading: doctorsLoading } = useDoctorStore();
-  const { 
-    selectedReport, 
-    fetchReportById, 
-    updateReport, 
+  const {
+    selectedReport,
+    fetchReportById,
+    updateReport,
     submitReport,
     setSelectedReport,
     isLoading: reportLoading,
-    error: reportError 
+    error: reportError
   } = useReportStore();
   const { fetchPatientById, updatePatient } = usePatientStore();
   const { currentBranchId, fetchBranches } = useBranchStore();
@@ -266,7 +267,7 @@ export function ReportEntry() {
   }, [rawReportId, navigate]);
 
   // Dynamic test parameters derived from testFields (memoized to prevent re-render loops)
-  const dynamicParams = useMemo(() => 
+  const dynamicParams = useMemo(() =>
     [...testFields]
       .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
       .map((field) => ({
@@ -306,7 +307,7 @@ export function ReportEntry() {
   const testSections = useMemo(() => {
     const testIds = parsedTestData?.testIds || [];
     const grouped = new Map<string, typeof dynamicParams>();
-    
+
     for (const param of dynamicParams) {
       const list = grouped.get(param.test_id) || [];
       list.push(param);
@@ -316,7 +317,7 @@ export function ReportEntry() {
     // Build ordered sections: preserve the order from testIds
     const sections: { testId: string; testName: string; testCode: string; params: typeof dynamicParams }[] = [];
     const orderedIds = testIds.length > 0 ? testIds : [...grouped.keys()];
-    
+
     for (const tid of orderedIds) {
       const params = grouped.get(tid);
       if (!params || params.length === 0) continue;
@@ -402,7 +403,7 @@ export function ReportEntry() {
   const [values, setValues] = useState<Record<string, string>>({});
   const [statuses, setStatuses] = useState<Record<string, "low" | "high" | "normal" | "critical" | "empty">>({});
   const [technicianNotes, setTechnicianNotes] = useState("");
-  
+
   // AI Interpretation state
   const [aiInterpretation, setAiInterpretation] = useState<{
     summary: string;
@@ -413,7 +414,7 @@ export function ReportEntry() {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [showAiResult, setShowAiResult] = useState(true);
-  
+
   // UI state
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -586,8 +587,8 @@ export function ReportEntry() {
   const filteredDoctors = doctors.filter((d) => {
     const fullName = `${d.title || 'Dr'} ${d.name}`.toLowerCase();
     return fullName.includes(doctorSearch.toLowerCase()) ||
-           d.phone?.toLowerCase().includes(doctorSearch.toLowerCase()) ||
-           d.specialization?.toLowerCase().includes(doctorSearch.toLowerCase());
+      d.phone?.toLowerCase().includes(doctorSearch.toLowerCase()) ||
+      d.specialization?.toLowerCase().includes(doctorSearch.toLowerCase());
   });
 
   // Handle doctor selection
@@ -819,7 +820,7 @@ export function ReportEntry() {
 
   const saveCurrentReportData = async () => {
     if (!reportId) {
-      alert("No report ID available. Please create a report first.");
+      toast.error("No report ID available. Please create a report first.");
       return false;
     }
 
@@ -843,7 +844,7 @@ export function ReportEntry() {
     });
 
     if (!result) {
-      alert(reportError || "Failed to save report data. Please try again.");
+      toast.error(reportError || "Failed to save report data. Please try again.");
       return false;
     }
 
@@ -855,12 +856,12 @@ export function ReportEntry() {
   // Save draft functionality - saves to backend
   const handleSaveDraft = async () => {
     if (!reportId) {
-      alert("No report ID available. Please create a report first.");
+      toast.error("No report ID available. Please create a report first.");
       return;
     }
 
     if (!isEditable) {
-      alert("This report is no longer editable.");
+      toast.error("This report is no longer editable.");
       return;
     }
 
@@ -872,7 +873,7 @@ export function ReportEntry() {
       }
     } catch (error) {
       console.error("Failed to save draft:", error);
-      alert("Failed to save draft. Please try again.");
+      toast.error("Failed to save draft. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -881,12 +882,12 @@ export function ReportEntry() {
   // Submit for review - changes status to under_review
   const handleSubmitForReview = async () => {
     if (!reportId) {
-      alert("No report ID available.");
+      toast.error("No report ID available.");
       return;
     }
 
     if (!allRequiredFilled) {
-      alert("Please fill all required test values before submitting for review.");
+      toast.error("Please fill all required test values before submitting for review.");
       return;
     }
 
@@ -900,19 +901,19 @@ export function ReportEntry() {
 
       // Then submit for review
       const submitResult = await submitReport(reportId);
-      
+
       if (submitResult) {
         const newStatus = submitResult.status || (canAutoApprove ? 'approved' : 'under_review');
         setReportStatus(newStatus);
         setIsEditable(false);
-        alert(canAutoApprove ? "Report approved successfully!" : "Report submitted for review successfully!");
+        toast.success(canAutoApprove ? "Report approved successfully!" : "Report submitted for review successfully!");
         navigate('/reports');
       } else {
-        alert(reportError || "Failed to submit report for review.");
+        toast.error(reportError || "Failed to submit report for review.");
       }
     } catch (error) {
       console.error("Failed to submit for review:", error);
-      alert("Failed to submit report. Please try again.");
+      toast.error("Failed to submit report. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -975,12 +976,12 @@ export function ReportEntry() {
   // Preview report (navigate to preview page)
   const handlePreview = async () => {
     if (!patient) {
-      alert("No patient data available.");
+      toast.error("No patient data available.");
       return;
     }
 
     if (!allRequiredFilled) {
-      alert("Please fill all required test values before preview.");
+      toast.error("Please fill all required test values before preview.");
       return;
     }
 
@@ -990,7 +991,7 @@ export function ReportEntry() {
         if (!saved) return;
       } catch (error) {
         console.error("Failed to save before preview:", error);
-        alert("Failed to save before preview. Please try again.");
+        toast.error("Failed to save before preview. Please try again.");
         return;
       }
     }
@@ -1106,7 +1107,7 @@ export function ReportEntry() {
       {/* Header / Actions */}
       <div className="sticky top-12 z-20 bg-background/95 backdrop-blur py-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
-          <button 
+          <button
             onClick={() => navigate(-1)}
             className="w-8 h-8 flex items-center justify-center rounded hover:bg-accent transition-colors"
           >
@@ -1123,11 +1124,11 @@ export function ReportEntry() {
               <span className="w-1 h-1 bg-border rounded-full"></span>
               <span
                 className="flex items-center gap-1"
-                style={{ 
-                  color: reportStatus === "draft" ? "var(--warning)" : 
-                         reportStatus === "under_review" ? "var(--info)" :
-                         reportStatus === "approved" ? "var(--success)" :
-                         reportStatus === "rejected" ? "var(--destructive)" : "var(--muted-foreground)"
+                style={{
+                  color: reportStatus === "draft" ? "var(--warning)" :
+                    reportStatus === "under_review" ? "var(--info)" :
+                      reportStatus === "approved" ? "var(--success)" :
+                        reportStatus === "rejected" ? "var(--destructive)" : "var(--muted-foreground)"
                 }}
               >
                 {reportStatus === "draft" && <><Clock className="w-3 h-3" /> Draft</>}
@@ -1163,7 +1164,7 @@ export function ReportEntry() {
                   Cancel
                 </button>
               )}
-              <button 
+              <button
                 onClick={handleSaveDraft}
                 disabled={isSaving || !reportId}
                 className="h-8 px-2.5 flex items-center gap-1.5 bg-card border border-border rounded hover:bg-accent transition-colors text-xs disabled:opacity-50"
@@ -1178,7 +1179,7 @@ export function ReportEntry() {
                   Ctrl+S
                 </span>
               </button>
-              
+
               {reportStatus === 'draft' && (
                 <button
                   onClick={handleSubmitForReview}
@@ -1195,7 +1196,7 @@ export function ReportEntry() {
               )}
             </>
           )}
-          
+
           {allRequiredFilled && (
             <button
               onClick={handlePreview}
@@ -1314,9 +1315,8 @@ export function ReportEntry() {
                     <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded shadow-lg max-h-56 overflow-y-auto">
                       <button
                         onClick={() => handleSelectDoctor(null)}
-                        className={`w-full px-2.5 py-2 text-left hover:bg-accent transition-colors flex items-center gap-2 ${
-                          isSelfReport ? 'bg-primary/10' : ''
-                        }`}
+                        className={`w-full px-2.5 py-2 text-left hover:bg-accent transition-colors flex items-center gap-2 ${isSelfReport ? 'bg-primary/10' : ''
+                          }`}
                       >
                         <div className="w-6 h-6 rounded-full bg-success/20 flex items-center justify-center">
                           <User className="w-3 h-3 text-success" />
@@ -1334,9 +1334,8 @@ export function ReportEntry() {
                           <button
                             key={doctor.id}
                             onClick={() => handleSelectDoctor(doctor)}
-                            className={`w-full px-2.5 py-2 text-left hover:bg-accent transition-colors flex items-center gap-2 ${
-                              selectedDoctor?.id === doctor.id ? 'bg-primary/10' : ''
-                            }`}
+                            className={`w-full px-2.5 py-2 text-left hover:bg-accent transition-colors flex items-center gap-2 ${selectedDoctor?.id === doctor.id ? 'bg-primary/10' : ''
+                              }`}
                           >
                             <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
                               <Stethoscope className="w-3 h-3 text-primary" />
@@ -1373,41 +1372,40 @@ export function ReportEntry() {
               </span>
             </div>
 
-              {testSections.length === 0 ? (
-                <div className="bg-card border border-border rounded p-8 text-center text-muted-foreground text-xs">
-                  No test parameters configured. Please configure fields for your tests in Test Management.
-                </div>
-              ) : (
-                <>
-                  {testSections.length > 1 && (
-                    <div className="bg-card border border-border rounded p-1.5">
-                      <div className="overflow-x-auto">
-                        <div className="flex gap-1 min-w-max">
-                          {testSections.map((section) => {
-                            const isActive = section.testId === activeTestId;
-                            return (
-                              <button
-                                key={section.testId}
-                                onClick={() => setActiveTestId(section.testId)}
-                                className={`h-7 px-2.5 rounded text-[11px] whitespace-nowrap transition-colors border ${
-                                  isActive
-                                    ? 'bg-primary text-white border-primary'
-                                    : 'bg-background text-muted-foreground border-border hover:bg-accent hover:text-foreground'
+            {testSections.length === 0 ? (
+              <div className="bg-card border border-border rounded p-8 text-center text-muted-foreground text-xs">
+                No test parameters configured. Please configure fields for your tests in Test Management.
+              </div>
+            ) : (
+              <>
+                {testSections.length > 1 && (
+                  <div className="bg-card border border-border rounded p-1.5">
+                    <div className="overflow-x-auto">
+                      <div className="flex gap-1 min-w-max">
+                        {testSections.map((section) => {
+                          const isActive = section.testId === activeTestId;
+                          return (
+                            <button
+                              key={section.testId}
+                              onClick={() => setActiveTestId(section.testId)}
+                              className={`h-7 px-2.5 rounded text-[11px] whitespace-nowrap transition-colors border ${isActive
+                                  ? 'bg-primary text-white border-primary'
+                                  : 'bg-background text-muted-foreground border-border hover:bg-accent hover:text-foreground'
                                 }`}
-                              >
-                                {section.testName}
-                                <span className={`ml-1 ${isActive ? 'text-white/90' : 'text-muted-foreground'}`}>
-                                  ({section.params.length})
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                            >
+                              {section.testName}
+                              <span className={`ml-1 ${isActive ? 'text-white/90' : 'text-muted-foreground'}`}>
+                                ({section.params.length})
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {visibleTestSections.map((section, sectionIdx) => (
+                {visibleTestSections.map((section, sectionIdx) => (
                   <div key={section.testId} className="bg-card border border-border rounded overflow-hidden">
                     {/* Test section header */}
                     <div className="px-3 py-1.5 border-b border-border bg-primary/5 flex items-center gap-2">
@@ -1463,153 +1461,140 @@ export function ReportEntry() {
                       </table>
                     </div>
                   </div>
-                  ))}
-                </>
+                ))}
+              </>
+            )}
+
+            {/* Status legend */}
+            <div className="flex items-center gap-3 text-[10px] text-muted-foreground justify-end">
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full border border-info" style={{ backgroundColor: "var(--info)" }}></span>{" "}Low
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full border border-success" style={{ backgroundColor: "var(--success)" }}></span>{" "}Normal
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full border border-destructive" style={{ backgroundColor: "var(--destructive)" }}></span>{" "}High
+              </div>
+            </div>
+
+            {/* Technician Notes - Compact */}
+            <div className="bg-card border border-border rounded">
+              <div className="px-3 py-1.5 border-b border-border bg-secondary/30">
+                <h4 className="text-xs text-foreground font-semibold">Technician Notes</h4>
+              </div>
+              <textarea
+                className="w-full border-0 rounded-b p-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary min-h-[60px] bg-background disabled:opacity-50 disabled:cursor-not-allowed resize-none"
+                placeholder="Add notes..."
+                value={technicianNotes}
+                onChange={(e) => setTechnicianNotes(e.target.value)}
+                disabled={!isEditable}
+              ></textarea>
+            </div>
+
+            {/* AI Clinical Significance Section */}
+            <div className="bg-card border border-border rounded p-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs text-foreground flex items-center gap-1.5">
+                  <BrainCircuit className="w-3.5 h-3.5 text-primary" />
+                  AI Clinical Significance
+                </h4>
+                <button
+                  onClick={handleGenerateInterpretation}
+                  disabled={isGeneratingAI || !reportId || Object.values(values).filter(v => v).length === 0}
+                  className="h-7 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-[11px] disabled:opacity-50"
+                >
+                  {isGeneratingAI ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3 h-3" />
+                  )}
+                  {isGeneratingAI ? 'Generating...' : aiInterpretation ? 'Regenerate' : 'Generate'}
+                </button>
+              </div>
+
+              {aiError && (
+                <div className="mb-2 p-2 bg-destructive/10 border border-destructive/20 rounded flex items-center gap-1.5">
+                  <AlertCircle className="w-3 h-3 text-destructive flex-shrink-0" />
+                  <span className="text-[11px] text-destructive">{aiError}</span>
+                </div>
               )}
 
-              {/* Status legend */}
-              <div className="flex items-center gap-3 text-[10px] text-muted-foreground justify-end">
-                <div className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full border border-info" style={{ backgroundColor: "var(--info)" }}></span>{" "}Low
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full border border-success" style={{ backgroundColor: "var(--success)" }}></span>{" "}Normal
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full border border-destructive" style={{ backgroundColor: "var(--destructive)" }}></span>{" "}High
-                </div>
-              </div>
-
-              {/* Technician Notes - Compact */}
-              <div className="bg-card border border-border rounded">
-                <div className="px-3 py-1.5 border-b border-border bg-secondary/30">
-                  <h4 className="text-xs text-foreground font-semibold">Technician Notes</h4>
-                </div>
-                <textarea
-                  className="w-full border-0 rounded-b p-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary min-h-[60px] bg-background disabled:opacity-50 disabled:cursor-not-allowed resize-none"
-                  placeholder="Add notes..."
-                  value={technicianNotes}
-                  onChange={(e) => setTechnicianNotes(e.target.value)}
-                  disabled={!isEditable}
-                ></textarea>
-              </div>
-
-              {/* AI Clinical Significance Section */}
-              <div className="bg-card border border-border rounded p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs text-foreground flex items-center gap-1.5">
-                    <BrainCircuit className="w-3.5 h-3.5 text-primary" />
-                    AI Clinical Significance
-                  </h4>
+              {aiInterpretation && showAiResult ? (
+                <div className="space-y-2">
                   <button
-                    onClick={handleGenerateInterpretation}
-                    disabled={isGeneratingAI || !reportId || Object.values(values).filter(v => v).length === 0}
-                    className="h-7 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-[11px] disabled:opacity-50"
+                    onClick={() => setShowAiResult(!showAiResult)}
+                    className="w-full flex items-center justify-between text-[10px] text-muted-foreground hover:text-foreground"
                   >
-                    {isGeneratingAI ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-3 h-3" />
-                    )}
-                    {isGeneratingAI ? 'Generating...' : aiInterpretation ? 'Regenerate' : 'Generate'}
+                    <span>Collapse</span>
+                    <ChevronDownIcon className="w-3 h-3 rotate-180" />
+                  </button>
+
+                  {aiInterpretation.summary && (
+                    <div className="p-2 bg-primary/5 border border-primary/10 rounded">
+                      <p className="text-[10px] text-primary font-semibold uppercase tracking-wider mb-0.5">Summary</p>
+                      <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.summary}</p>
+                    </div>
+                  )}
+
+                  {aiInterpretation.keyFindings && (
+                    <div className="p-2 bg-warning/5 border border-warning/10 rounded">
+                      <p className="text-[10px] text-warning font-semibold uppercase tracking-wider mb-0.5">Key Findings</p>
+                      <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.keyFindings}</p>
+                    </div>
+                  )}
+
+                  {aiInterpretation.clinicalIndications && (
+                    <div className="p-2 bg-info/5 border border-info/10 rounded">
+                      <p className="text-[10px] text-info font-semibold uppercase tracking-wider mb-0.5">Possible Clinical Indications</p>
+                      <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.clinicalIndications}</p>
+                    </div>
+                  )}
+
+                  {aiInterpretation.recommendation && (
+                    <div className="p-2 bg-success/5 border border-success/10 rounded">
+                      <p className="text-[10px] text-success font-semibold uppercase tracking-wider mb-0.5">Recommendation</p>
+                      <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.recommendation}</p>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      const text = [
+                        aiInterpretation.summary && `Summary: ${aiInterpretation.summary}`,
+                        aiInterpretation.keyFindings && `Key Findings: ${aiInterpretation.keyFindings}`,
+                        aiInterpretation.clinicalIndications && `Clinical Indications: ${aiInterpretation.clinicalIndications}`,
+                        aiInterpretation.recommendation && `Recommendation: ${aiInterpretation.recommendation}`,
+                      ].filter(Boolean).join('\n');
+                      setTechnicianNotes(prev => prev ? `${prev}\n\n--- AI Interpretation ---\n${text}` : text);
+                    }}
+                    className="w-full h-7 flex items-center justify-center gap-1.5 bg-secondary border border-border rounded hover:bg-accent transition-colors text-[11px] text-muted-foreground"
+                  >
+                    <FileText className="w-3 h-3" />
+                    Copy to Notes
                   </button>
                 </div>
-
-                {aiError && (
-                  <div className="mb-2 p-2 bg-destructive/10 border border-destructive/20 rounded flex items-center gap-1.5">
-                    <AlertCircle className="w-3 h-3 text-destructive flex-shrink-0" />
-                    <span className="text-[11px] text-destructive">{aiError}</span>
-                  </div>
-                )}
-
-                {aiInterpretation && showAiResult ? (
-                  <div className="space-y-2">
-                    <button
-                      onClick={() => setShowAiResult(!showAiResult)}
-                      className="w-full flex items-center justify-between text-[10px] text-muted-foreground hover:text-foreground"
-                    >
-                      <span>Collapse</span>
-                      <ChevronDownIcon className="w-3 h-3 rotate-180" />
-                    </button>
-
-                    {aiInterpretation.summary && (
-                      <div className="p-2 bg-primary/5 border border-primary/10 rounded">
-                        <p className="text-[10px] text-primary font-semibold uppercase tracking-wider mb-0.5">Summary</p>
-                        <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.summary}</p>
-                      </div>
-                    )}
-
-                    {aiInterpretation.keyFindings && (
-                      <div className="p-2 bg-warning/5 border border-warning/10 rounded">
-                        <p className="text-[10px] text-warning font-semibold uppercase tracking-wider mb-0.5">Key Findings</p>
-                        <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.keyFindings}</p>
-                      </div>
-                    )}
-
-                    {aiInterpretation.clinicalIndications && (
-                      <div className="p-2 bg-info/5 border border-info/10 rounded">
-                        <p className="text-[10px] text-info font-semibold uppercase tracking-wider mb-0.5">Possible Clinical Indications</p>
-                        <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.clinicalIndications}</p>
-                      </div>
-                    )}
-
-                    {aiInterpretation.recommendation && (
-                      <div className="p-2 bg-success/5 border border-success/10 rounded">
-                        <p className="text-[10px] text-success font-semibold uppercase tracking-wider mb-0.5">Recommendation</p>
-                        <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.recommendation}</p>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={() => {
-                        const text = [
-                          aiInterpretation.summary && `Summary: ${aiInterpretation.summary}`,
-                          aiInterpretation.keyFindings && `Key Findings: ${aiInterpretation.keyFindings}`,
-                          aiInterpretation.clinicalIndications && `Clinical Indications: ${aiInterpretation.clinicalIndications}`,
-                          aiInterpretation.recommendation && `Recommendation: ${aiInterpretation.recommendation}`,
-                        ].filter(Boolean).join('\n');
-                        setTechnicianNotes(prev => prev ? `${prev}\n\n--- AI Interpretation ---\n${text}` : text);
-                      }}
-                      className="w-full h-7 flex items-center justify-center gap-1.5 bg-secondary border border-border rounded hover:bg-accent transition-colors text-[11px] text-muted-foreground"
-                    >
-                      <FileText className="w-3 h-3" />
-                      Copy to Notes
-                    </button>
-                  </div>
-                ) : aiInterpretation && !showAiResult ? (
-                  <button
-                    onClick={() => setShowAiResult(true)}
-                    className="w-full flex items-center justify-between p-2 bg-primary/5 border border-primary/10 rounded text-[11px] text-primary"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <Sparkles className="w-3 h-3" />
-                      AI interpretation available
-                    </span>
-                    <ChevronDownIcon className="w-3 h-3" />
-                  </button>
-                ) : !isGeneratingAI ? (
-                  <p className="text-[11px] text-muted-foreground text-center py-3">
-                    Enter test values and click "Generate" to get AI-powered clinical interpretation.
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          {/* ─── PAYMENT DETAILS: Now at bottom (full-width) ─── */}
-          <div className="bg-card border border-border rounded">
-            <div className="px-3 py-1.5 border-b border-border bg-secondary/30">
-              <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5" />
-                Payment Details
-              </h3>
-            </div>
-            <div className="p-2">
-              <BillingSection reportId={reportId} isEditable={isEditable} />
+              ) : aiInterpretation && !showAiResult ? (
+                <button
+                  onClick={() => setShowAiResult(true)}
+                  className="w-full flex items-center justify-between p-2 bg-primary/5 border border-primary/10 rounded text-[11px] text-primary"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3 h-3" />
+                    AI interpretation available
+                  </span>
+                  <ChevronDownIcon className="w-3 h-3" />
+                </button>
+              ) : !isGeneratingAI ? (
+                <p className="text-[11px] text-muted-foreground text-center py-3">
+                  Enter test values and click "Generate" to get AI-powered clinical interpretation.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
       </div>
-    
+    </div>
+
   );
 }

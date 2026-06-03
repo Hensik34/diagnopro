@@ -1,6 +1,4 @@
 const Patient = require("../models/Patient");
-const { Branch } = require("../models");
-const workflowNotificationService = require("../services/workflowNotification.service");
 
 // GET ALL PATIENTS
 exports.getPatients = async (req, res) => {
@@ -69,11 +67,7 @@ exports.createPatient = async (req, res) => {
       created_by: req.user.id // From auth middleware
     });
 
-    const branch = await Branch.findByPk(branch_id, { attributes: ["name"], raw: true });
-    workflowNotificationService.onPatientRegistered({
-      patient,
-      branchName: branch?.name,
-    });
+
 
     res.status(201).json({
       message: "Patient created successfully",

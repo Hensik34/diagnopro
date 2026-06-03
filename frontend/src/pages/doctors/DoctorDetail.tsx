@@ -82,13 +82,13 @@ export function DoctorDetail() {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const doctorName = `${doctor.title || 'Dr'}. ${doctor.name}`;
+    const printableDoctorName = `${doctorTitle}. ${doctorName}`;
     const periodStr = `${new Date(startDate).toLocaleDateString()} — ${new Date(endDate).toLocaleDateString()}`;
 
     printWindow.document.write(`
       <html>
         <head>
-          <title>Doctor Statement - ${doctorName}</title>
+          <title>Doctor Statement - ${printableDoctorName}</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; font-size: 12px; color: #111; }
@@ -109,16 +109,17 @@ export function DoctorDetail() {
         </head>
         <body>
           <h1>Doctor Statement</h1>
-          <p class="subtitle">${doctorName} • ${doctor.specialization || ''} • Period: ${periodStr}</p>
+          <p class="subtitle">${printableDoctorName} • ${doctorSpecialization || ''} • Period: ${periodStr}</p>
           <div class="summary">
             <div class="summary-item"><div class="summary-label">Total Reports</div><div class="summary-value">${summary.total_reports}</div></div>
             <div class="summary-item"><div class="summary-label">Total Amount</div><div class="summary-value">₹${summary.total_amount.toFixed(2)}</div></div>
-            <div class="summary-item"><div class="summary-label">Amount(${doctor.commission_percentage || 0}%)</div><div class="summary-value">₹${summary.total_commission.toFixed(2)}</div></div>
+            <div class="summary-item"><div class="summary-label">Paid to B2B Labs</div><div class="summary-value">₹${summary.total_b2b_charge.toFixed(2)}</div></div>
+            <div class="summary-item"><div class="summary-label">Amount(${doctorCommissionPercent || 0}%)</div><div class="summary-value">₹${summary.total_commission.toFixed(2)}</div></div>
           </div>
           <table>
             <thead>
               <tr>
-                <th>#</th>x
+                <th>#</th>
                 <th>Date</th>
                 <th>Patient</th>
                 <th>Test Type</th>
@@ -166,6 +167,19 @@ export function DoctorDetail() {
     total_b2b_charge: Number(rawSummary.total_b2b_charge) || 0,
   };
   const reports = statement?.reports || [];
+  const doctorName =
+    doctor?.name ||
+    [doctor?.firstname, doctor?.lastname].filter(Boolean).join(' ').trim() ||
+    statement?.doctor?.name?.replace(/^Dr\.?\s*/i, '').trim() ||
+    'Unknown Doctor';
+  const doctorTitle = doctor?.title || 'Dr';
+  const doctorPhone = doctor?.phone || statement?.doctor?.phone || '—';
+  const doctorEmail = doctor?.email || statement?.doctor?.email || '—';
+  const doctorCommissionPercent = Number(
+    doctor?.commission_percentage ?? statement?.doctor?.commission_percentage ?? 0
+  );
+  const doctorSpecialization = doctor?.specialization || 'Doctor';
+  const doctorRef = doctor?.license_number || doctor?.id?.slice(0, 8) || '—';
 
   const getStatusBadge = (status: string) => {
     const map: Record<string, string> = {
@@ -212,9 +226,9 @@ export function DoctorDetail() {
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <h1 className="text-foreground text-lg mb-0.5">{doctor.title || 'Dr'}. {doctor.name}</h1>
+            <h1 className="text-foreground text-lg mb-0.5">{doctorTitle}. {doctorName}</h1>
             <p className="text-muted-foreground text-xs">
-              {doctor.specialization || 'Doctor'} • {doctor.license_number || doctor.id.slice(0, 8)}
+              {doctorSpecialization} • {doctorRef}
             </p>
           </div>
         </div>
@@ -229,13 +243,13 @@ export function DoctorDetail() {
       </div>
 
       {/* Doctor Info Cards */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
         <div className="bg-card border border-border rounded p-3">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Sharing %</span>
             <Percent className="w-3.5 h-3.5 text-muted-foreground" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">{doctor.commission_percentage || 0}%</div>
+          <div className="text-foreground text-xl tabular-nums">{doctorCommissionPercent}%</div>
           <div className="text-[10px] text-muted-foreground mt-0.5">Per report</div>
         </div>
 
@@ -255,6 +269,15 @@ export function DoctorDetail() {
           </div>
           <div className="text-foreground text-xl tabular-nums">₹{summary.total_commission.toFixed(0)}</div>
           <div className="text-[10px] text-warning mt-0.5">Payable</div>
+        </div>
+
+        <div className="bg-card border border-border rounded p-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Paid to B2B Labs</span>
+            <Building2 className="w-3.5 h-3.5 text-destructive" />
+          </div>
+          <div className="text-foreground text-xl tabular-nums">₹{summary.total_b2b_charge.toFixed(0)}</div>
+          <div className="text-[10px] text-destructive mt-0.5">Deducted from revenue</div>
         </div>
 
         <div className="bg-card border border-border rounded p-3">
@@ -286,21 +309,21 @@ export function DoctorDetail() {
               <Phone className="w-4 h-4 text-muted-foreground" />
               <div>
                 <div className="text-[10px] text-muted-foreground uppercase">Phone</div>
-                <div className="text-xs text-foreground">{doctor.phone}</div>
+                <div className="text-xs text-foreground">{doctorPhone}</div>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Mail className="w-4 h-4 text-muted-foreground" />
               <div>
                 <div className="text-[10px] text-muted-foreground uppercase">Email</div>
-                <div className="text-xs text-foreground">{doctor.email || '—'}</div>
+                <div className="text-xs text-foreground">{doctorEmail}</div>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Stethoscope className="w-4 h-4 text-muted-foreground" />
               <div>
                 <div className="text-[10px] text-muted-foreground uppercase">Specialization</div>
-                <div className="text-xs text-foreground">{doctor.specialization || '—'}</div>
+                <div className="text-xs text-foreground">{doctorSpecialization || '—'}</div>
               </div>
             </div>
           </div>

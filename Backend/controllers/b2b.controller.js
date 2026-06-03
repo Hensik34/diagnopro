@@ -1,4 +1,4 @@
-const { B2BLab } = require("../models");
+const { B2BLab, Report, Patient } = require("../models");
 
 // ==========================================
 // B2B LAB MANAGEMENT (Simplified)
@@ -117,7 +117,6 @@ exports.getStatement = async (req, res) => {
     const { id } = req.params;
     const { startDate, endDate } = req.query;
     const { Op } = require("sequelize");
-    const { sequelize } = require("../config/database");
 
     // Validate lab exists
     const lab = await B2BLab.findOne({
@@ -132,8 +131,9 @@ exports.getStatement = async (req, res) => {
     }
 
     // Fetch all reports for this B2B lab within date range
-    const Report = require("../models/Report");
-    const Patient = require("../models/Patient");
+
+    const startAt = startDate ? new Date(`${startDate}T00:00:00`) : null;
+    const endAt = endDate ? new Date(`${endDate}T23:59:59.999`) : null;
 
     const reports = await Report.findAll({
       where: {
@@ -141,9 +141,9 @@ exports.getStatement = async (req, res) => {
         status: {
           [Op.in]: ["approved", "completed"],
         },
-        ...(startDate && endDate && {
+        ...(startAt && endAt && {
           created_at: {
-            [Op.between]: [new Date(startDate), new Date(endDate)],
+            [Op.between]: [startAt, endAt],
           },
         }),
       },

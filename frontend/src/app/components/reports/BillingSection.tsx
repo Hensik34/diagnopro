@@ -18,6 +18,7 @@ import type { PaymentMode, PaymentStatus } from "../../../types";
 interface BillingSectionProps {
   reportId: string | undefined;
   isEditable: boolean;
+  onBillingUpdated?: () => void | Promise<void>;
 }
 
 const PAYMENT_MODES: { value: PaymentMode; label: string; icon: typeof Banknote }[] = [
@@ -32,7 +33,7 @@ const STATUS_CONFIG: Record<PaymentStatus, { bg: string; text: string; label: st
   pending: { bg: 'var(--muted)', text: 'var(--muted-foreground)', label: 'Pending', icon: AlertCircle },
 };
 
-export function BillingSection({ reportId, isEditable }: BillingSectionProps) {
+export function BillingSection({ reportId, isEditable, onBillingUpdated }: BillingSectionProps) {
   const {
     baseAmount,
     labDiscountType,
@@ -68,7 +69,10 @@ export function BillingSection({ reportId, isEditable }: BillingSectionProps) {
   const handleSaveBilling = async () => {
     if (!reportId) return;
     setIsSavingBilling(true);
-    await saveBilling(reportId);
+    const success = await saveBilling(reportId);
+    if (success) {
+      await onBillingUpdated?.();
+    }
     setIsSavingBilling(false);
   };
 
@@ -81,13 +85,17 @@ export function BillingSection({ reportId, isEditable }: BillingSectionProps) {
     const success = await addPayment(reportId, newPaymentMode, amount);
     if (success) {
       setNewPaymentAmount('');
+      await onBillingUpdated?.();
     }
     setIsAddingPayment(false);
   };
 
   const handleDeletePayment = async (paymentId: string) => {
     if (!reportId) return;
-    await deletePayment(reportId, paymentId);
+    const success = await deletePayment(reportId, paymentId);
+    if (success) {
+      await onBillingUpdated?.();
+    }
   };
 
   // Always derive payment status from local values to avoid stale server status

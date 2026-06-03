@@ -1,198 +1,101 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Loader2, AlertCircle, ArrowLeft, Printer, Send, Download, FileImage } from 'lucide-react';
-import { useParams, Link, useSearchParams } from 'react-router';
-import { useReportStore } from '../../stores/reportStore';
-import { useBranchStore } from '../../stores/branchStore';
-import { useTestStore } from '../../stores/testStore';
-import { useSettingsStore, useDoctorStore, useAuthStore } from '../../stores';
-import { ShareReportModal } from '../../app/components/WhatsAppModal';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  ImprovedPatientBox,
-  TestSectionBlock,
-  InvestigationTableHeader,
-  SectionGroupHeader,
-  InvestigationTableRow,
-  ReportLayoutConfig,
-} from '../../app/components/ImprovedReportLayout';
+  AlertCircle,
+  ArrowDown,
+  ArrowLeft,
+  ArrowDownToLine,
+  ArrowUp,
+  ArrowUpToLine,
+  Download,
+  FileImage,
+  GripVertical,
+  Loader2,
+  Printer,
+  RotateCcw,
+  Send,
+  SlidersHorizontal,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
+import { Link, useParams, useSearchParams } from 'react-router';
 import { format } from 'date-fns';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { QRCodeSVG } from 'qrcode.react';
+import { ShareReportModal } from '../../app/components/WhatsAppModal';
+import {
+  ImprovedPatientBox,
+  InvestigationTableHeader,
+  InvestigationTableRow,
+  ReportLayoutConfig,
+  SectionGroupHeader,
+  TestSectionBlock,
+} from '../../app/components/ImprovedReportLayout';
+import { useAuthStore, useDoctorStore, useSettingsStore } from '../../stores';
+import { useBranchStore } from '../../stores/branchStore';
+import { useReportStore } from '../../stores/reportStore';
+import { useTestStore } from '../../stores/testStore';
 import { formatAge } from '../../utils/age';
 
-/* ── Color tokens – Premium Medical / Pathology theme ──────────────────────── */
+const A4_WIDTH_PX = 794;
+const A4_HEIGHT_PX = 1123;
+const PAGE_GAP_PX = 24;
+
 const C = {
-  brand: '#0D47A1',  // Deep medical blue
-  brandDark: '#0A3680',
+  brand: '#0D47A1',
   brandLight: '#E8F0FE',
-  brandAccent: '#1565C0',
-  accent: '#00897B',  // Teal accent for medical feel
   text: '#212121',
   secondary: '#546E7A',
   muted: '#90A4AE',
-  border: '#B0BEC5',
   borderLight: '#E0E0E0',
-  tableBg: '#F8F9FB',
-  tableStripe: '#F1F4F8',
-  headerBg: '#0D47A1',
   remarkBg: '#FFF8E1',
   remarkBorder: '#FFB300',
   high: '#C62828',
   low: '#1565C0',
-  normal: '#2E7D32',
   white: '#FFFFFF',
-  cardBg: '#FAFBFC',
   sectionTitle: '#37474F',
 } as const;
 
-/* ── A4 dimensions ─────────────────────────────────────────────────────────── */
-const A4_MIN_HEIGHT = '1123px'; // ~A4 at 96dpi
-
-/* ── Print & Responsive styles ─────────────────────────────────────────────── */
 const printStyles = `
 @media print {
   @page { size: A4; margin: 0; }
-  html, body { margin: 0; padding: 0; width: 100%; }
-  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff !important; }
   .no-print { display: none !important; }
+  .report-viewer-shell { padding: 0 !important; background: #fff !important; }
   .report-page {
+    margin: 0 auto 0 auto !important;
     box-shadow: none !important;
-    margin: 0 !important;
-    border-radius: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
+    border: none !important;
+    break-after: page;
   }
-  .report-inner { padding-left: 8mm !important; padding-right: 8mm !important; }
-  .report-bg-wrapper { background: white !important; }
-}
-
-@media screen {
-  .report-page { min-height: ${A4_MIN_HEIGHT}; }
-  
-  /* Mobile optimizations */
-  @media (max-width: 768px) {
-    .report-page {
-      max-width: 100% !important;
-      margin: 0 !important;
-      border-radius: 0 !important;
-      box-shadow: none !important;
-    }
-    
-    .report-toolbar {
-      position: sticky;
-      top: 0;
-      z-index: 30;
-      padding: 8px 12px;
-    }
-    
-    .toolbar-content {
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    
-    .toolbar-btn {
-      font-size: 10px !important;
-      padding: 6px 8px !important;
-    }
-    
-    .toolbar-left {
-      flex-basis: 100%;
-      order: -1;
-    }
-    
-    .report-inner {
-      padding: 12px !important;
-      font-size: 10px !important;
-    }
-    
-    .patient-info-box {
-      flex-direction: column !important;
-    }
-    
-    .patient-info-box > div {
-      flex: 1 !important;
-      border-right: none !important;
-      border-bottom: 1px solid #e0e0e0 !important;
-      padding: 10px 8px !important;
-    }
-    
-    .patient-info-box > div:last-child {
-      border-bottom: none !important;
-    }
-    
-    table {
-      font-size: 9px !important;
-    }
-    
-    table th {
-      padding: 6px 4px !important;
-      font-size: 8px !important;
-    }
-    
-    table td {
-      padding: 5px 4px !important;
-      font-size: 9px !important;
-    }
-    
-    .signature-section {
-      grid-template-columns: 1fr !important;
-      gap: 20px !important;
-    }
-    
-    .signature-block {
-      text-align: left !important;
-    }
-    
-    .signature-block-right {
-      text-align: left !important;
-    }
-  }
-  
-  /* Tablet optimizations */
-  @media (max-width: 1024px) and (min-width: 769px) {
-    .report-page {
-      max-width: 95% !important;
-    }
-    
-    .patient-info-box > div {
-      flex: 1 !important;
-      padding: 10px !important;
-    }
-    
-    table {
-      font-size: 10px;
-    }
-  }
+  .report-page:last-child { break-after: auto; }
 }
 `;
 
-/* ── Types ─────────────────────────────────────────────────────────────────── */
-interface Parameter {
+type Parameter = {
   name: string;
   result: string;
   unit: string;
   refRange: string;
   isAbnormal: boolean;
   status?: string;
-  fieldType?: string; // 'input' | 'calculated' | 'flag'
-  group?: string; // sub-section heading, e.g. "HEMOGLOBIN", "RBC COUNT"
-}
+  fieldType?: string;
+  group?: string;
+};
 
-interface TestSection {
+type TestSection = {
+  id: string;
   testName: string;
   parameters: Parameter[];
-}
+};
 
-interface ReportData {
+type ReportData = {
   lab: {
     name: string;
     address: string;
     city: string;
-    phone: string;
-    email: string;
-    license: string;
   };
   report: {
     id: string;
@@ -202,34 +105,235 @@ interface ReportData {
   patient: {
     name: string;
     id: string;
-    age: number;
+    age: string;
     gender: string;
     referringDoctor: string;
     sampleId: string;
     collectionDate: string;
-    collectionTime: string;
     reportedDate: string;
-    reportedTime: string;
-  };
-  test: {
-    name: string;
-    category: string;
   };
   testSections: TestSection[];
   parameters: Parameter[];
   technician: {
     name: string;
-    signature: string;
   };
-  pathologist: {
-    name: string;
-    title: string;
-    license: string;
-    signature: string;
-  };
+};
+
+type SafeZones = {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+};
+
+type TestChunk = {
+  sectionId: string;
+  title: string;
+  continuation: boolean;
+  parameters: Parameter[];
+};
+
+type PageItem =
+  | { type: 'patient' }
+  | { type: 'test'; chunk: TestChunk }
+  | { type: 'interpretation'; text: string }
+  | { type: 'endMarker' }
+  | { type: 'signature' };
+
+function clamp(num: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, num));
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════ */
+function parsePx(value: unknown, fallback: number) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const raw = value.trim().toLowerCase();
+    if (!raw) return fallback;
+    if (raw.endsWith('mm')) {
+      const n = Number.parseFloat(raw.slice(0, -2));
+      if (Number.isFinite(n)) return n * 3.78;
+    }
+    if (raw.endsWith('px')) {
+      const n = Number.parseFloat(raw.slice(0, -2));
+      if (Number.isFinite(n)) return n;
+    }
+    const n = Number.parseFloat(raw);
+    if (Number.isFinite(n)) return n;
+  }
+  return fallback;
+}
+
+function rowHasInk(data: Uint8ClampedArray, row: number, width: number) {
+  let darkOrAlphaPixels = 0;
+  const rowOffset = row * width * 4;
+  for (let x = 0; x < width; x++) {
+    const idx = rowOffset + x * 4;
+    const r = data[idx];
+    const g = data[idx + 1];
+    const b = data[idx + 2];
+    const a = data[idx + 3];
+    const nonWhite = r < 245 || g < 245 || b < 245;
+    if (a > 20 || nonWhite) darkOrAlphaPixels++;
+  }
+  return darkOrAlphaPixels / width > 0.01;
+}
+
+async function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = url;
+  });
+}
+
+async function analyzeLetterheadBands(url: string): Promise<{ topPx: number; bottomPx: number }> {
+  try {
+    const img = await loadImage(url);
+    const scaledWidth = 600;
+    const scaledHeight = Math.max(200, Math.round((img.naturalHeight / img.naturalWidth) * scaledWidth));
+    const canvas = document.createElement('canvas');
+    canvas.width = scaledWidth;
+    canvas.height = scaledHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return { topPx: 0, bottomPx: 0 };
+
+    ctx.drawImage(img, 0, 0, scaledWidth, scaledHeight);
+    const imageData = ctx.getImageData(0, 0, scaledWidth, scaledHeight).data;
+
+    let topEndRow = -1;
+    let consecutiveBlank = 0;
+    const topScanLimit = Math.floor(scaledHeight * 0.45);
+    let foundTopInk = false;
+
+    for (let row = 0; row < topScanLimit; row++) {
+      const ink = rowHasInk(imageData, row, scaledWidth);
+      if (ink) {
+        foundTopInk = true;
+        topEndRow = row;
+        consecutiveBlank = 0;
+      } else if (foundTopInk) {
+        consecutiveBlank++;
+        if (consecutiveBlank > 22) break;
+      }
+    }
+
+    let bottomStartRow = -1;
+    consecutiveBlank = 0;
+    const bottomScanStart = Math.floor(scaledHeight * 0.55);
+    let foundBottomInk = false;
+
+    for (let row = scaledHeight - 1; row >= bottomScanStart; row--) {
+      const ink = rowHasInk(imageData, row, scaledWidth);
+      if (ink) {
+        foundBottomInk = true;
+        bottomStartRow = row;
+        consecutiveBlank = 0;
+      } else if (foundBottomInk) {
+        consecutiveBlank++;
+        if (consecutiveBlank > 22) break;
+      }
+    }
+
+    const renderHeight = Math.round((img.naturalHeight / img.naturalWidth) * A4_WIDTH_PX);
+    const scaleToRender = renderHeight / scaledHeight;
+    const topPx = topEndRow > 0 ? Math.round((topEndRow + 10) * scaleToRender) : 0;
+    const bottomPx = bottomStartRow > 0 ? Math.round((scaledHeight - bottomStartRow + 10) * scaleToRender) : 0;
+
+    return {
+      topPx: clamp(topPx, 0, Math.round(A4_HEIGHT_PX * 0.35)),
+      bottomPx: clamp(bottomPx, 0, Math.round(A4_HEIGHT_PX * 0.35)),
+    };
+  } catch {
+    return { topPx: 0, bottomPx: 0 };
+  }
+}
+
+async function renderedImageHeightOnA4(url: string): Promise<number> {
+  try {
+    const img = await loadImage(url);
+    return clamp(Math.round((img.naturalHeight / img.naturalWidth) * A4_WIDTH_PX), 0, Math.round(A4_HEIGHT_PX * 0.4));
+  } catch {
+    return 0;
+  }
+}
+
+function estimateInterpretationHeight(text: string, dense: boolean) {
+  const charsPerLine = dense ? 120 : 100;
+  const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
+  return (dense ? 68 : 76) + lines * (dense ? 14 : 16);
+}
+
+function estimateSectionHeight(section: TestSection, params: Parameter[], dense: boolean) {
+  const rowHeight = dense ? 15 : 17;
+  const groupHeaderHeight = dense ? 14 : 16;
+  const uniqueGroupRows = params.reduce((count, p, idx) => {
+    if (!p.group) return count;
+    const prev = idx > 0 ? params[idx - 1].group : undefined;
+    return prev !== p.group ? count + 1 : count;
+  }, 0);
+
+  const heading = 30;
+  const tableHeader = 24;
+  const rows = params.length * rowHeight;
+  const groups = uniqueGroupRows * groupHeaderHeight;
+  const spacing = 8;
+  return heading + tableHeader + rows + groups + spacing;
+}
+
+function splitSection(section: TestSection, maxChunkHeight: number, dense: boolean): TestChunk[] {
+  const fullHeight = estimateSectionHeight(section, section.parameters, dense);
+  if (fullHeight <= maxChunkHeight) {
+    return [
+      {
+        sectionId: section.id,
+        title: section.testName,
+        continuation: false,
+        parameters: section.parameters,
+      },
+    ];
+  }
+
+  const chunks: TestChunk[] = [];
+  let current: Parameter[] = [];
+
+  for (let i = 0; i < section.parameters.length; i++) {
+    const candidate = [...current, section.parameters[i]];
+    const candidateHeight = estimateSectionHeight(section, candidate, dense);
+
+    if (candidateHeight > maxChunkHeight && current.length > 0) {
+      chunks.push({
+        sectionId: section.id,
+        title: section.testName,
+        continuation: chunks.length > 0,
+        parameters: current,
+      });
+      current = [section.parameters[i]];
+      continue;
+    }
+
+    current = candidate;
+  }
+
+  if (current.length > 0) {
+    chunks.push({
+      sectionId: section.id,
+      title: section.testName,
+      continuation: chunks.length > 0,
+      parameters: current,
+    });
+  }
+
+  return chunks;
+}
+
+function moveItem<T>(arr: T[], from: number, to: number) {
+  const clone = [...arr];
+  const [removed] = clone.splice(from, 1);
+  clone.splice(to, 0, removed);
+  return clone;
+}
 
 export function ReportPreview() {
   const { id } = useParams<{ id: string }>();
@@ -245,159 +349,75 @@ export function ReportPreview() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showLetterhead, setShowLetterhead] = useState(true);
-  const reportPageRef = useRef<HTMLDivElement>(null);
+  const [safeZones, setSafeZones] = useState<SafeZones>({ top: 52, bottom: 56, left: 24, right: 24 });
+  const [zoom, setZoom] = useState(1);
+  const [baseScale, setBaseScale] = useState(1);
+  const [sectionOrder, setSectionOrder] = useState<string[]>([]);
+  const [originalSectionOrder, setOriginalSectionOrder] = useState<string[]>([]);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [isOrderDrawerOpen, setIsOrderDrawerOpen] = useState(false);
+
+  const viewerRef = useRef<HTMLDivElement>(null);
+  const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const shareAutoOpened = useRef(false);
 
-  // Auto-open share modal when navigated with ?share=1 (from Reports list)
-  useEffect(() => {
-    if (searchParams.get('share') === '1' && reportData && !shareAutoOpened.current) {
-      setShowShareModal(true);
-      shareAutoOpened.current = true;
-    }
-  }, [searchParams, reportData]);
-
-  // Prefer selectedReport (has full joins including age/gender) over reports array
-  const rawReport = useMemo(() => selectedReport?.id === id ? selectedReport : reports.find(r => r.id === id), [selectedReport, reports, id]);
-
-  
-  // Generate PDF from the report page element
-  const generatePDF = useCallback(async (): Promise<File | null> => {
-    const el = reportPageRef.current;
-    if (!el) return null;
-
-    setIsGeneratingPdf(true);
-    try {
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-      });
-
-      const imgWidth = 210; // A4 width in mm
-      const pageHeight = 297; // A4 height in mm
-      const pdf = new jsPDF('p', 'mm', 'a4');
-
-      // Calculate the pixel height that corresponds to one A4 page
-      const pxPerMm = canvas.width / imgWidth;
-      const pageHeightPx = Math.floor(pageHeight * pxPerMm);
-      const totalPages = Math.ceil(canvas.height / pageHeightPx);
-
-      for (let page = 0; page < totalPages; page++) {
-        if (page > 0) pdf.addPage();
-
-        // Slice the canvas for this page
-        const srcY = page * pageHeightPx;
-        const srcH = Math.min(pageHeightPx, canvas.height - srcY);
-
-        const pageCanvas = document.createElement('canvas');
-        pageCanvas.width = canvas.width;
-        pageCanvas.height = pageHeightPx; // Always full A4 height canvas
-        const ctx = pageCanvas.getContext('2d');
-        if (ctx) {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-          ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
-        }
-
-        pdf.addImage(
-          pageCanvas.toDataURL('image/jpeg', 0.95),
-          'JPEG', 0, 0, imgWidth, pageHeight
-        );
-      }
-
-      const fileName = `Report-${reportData?.patient?.name?.replace(/\s+/g, '_') || 'Patient'}-${reportData?.report?.id || 'report'}.pdf`;
-      const blob = pdf.output('blob');
-      return new File([blob], fileName, { type: 'application/pdf' });
-    } catch (err) {
-      console.error('PDF generation failed:', err);
-      return null;
-    } finally {
-      setIsGeneratingPdf(false);
-    }
-  }, [reportData]);
-
-  // Download PDF helper
-  const handleDownloadPdf = useCallback(async () => {
-    const file = await generatePDF();
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = file.name;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [generatePDF]);
-
-  useEffect(() => {
-    if (id) { fetchReportById(id); fetchBranches(); }
-  }, [id, fetchReportById, fetchBranches]);
-
-  // Use report's branch_id for settings (so technicians also see letterhead)
-  const reportBranchId = (rawReport as any)?.branch_id || currentBranchId;
-
-  useEffect(() => {
-    if (reportBranchId) {
-      fetchSettings(reportBranchId);
-      fetchDoctors({ branch_id: reportBranchId });
-    }
-  }, [reportBranchId, fetchSettings, fetchDoctors]);
+  const rawReport = useMemo(
+    () => (selectedReport?.id === id ? selectedReport : reports.find(r => r.id === id)),
+    [selectedReport, reports, id],
+  );
 
   const getImageUrl = useCallback((path: string | null | undefined) => {
     if (!path) return null;
     if (path.startsWith('http')) return path;
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const baseUrl = API_URL.replace(/\/api$/, '');
-    return path.startsWith('/') ? `${baseUrl}${path}` : `${baseUrl}/${path}`;
+    const api = (window as any).__VITE_API_URL__ || 'http://localhost:5000/api';
+    const base = api.replace(/\/api$/, '');
+    return path.startsWith('/') ? `${base}${path}` : `${base}/${path}`;
   }, []);
 
-  // Fetch test fields for section_group data when report loads
+  useEffect(() => {
+    if (id) {
+      fetchReportById(id);
+      fetchBranches();
+    }
+  }, [id, fetchReportById, fetchBranches]);
+
+  const reportBranchId = (rawReport as any)?.branch_id || currentBranchId;
+
+  useEffect(() => {
+    if (!reportBranchId) return;
+    fetchSettings(reportBranchId);
+    fetchDoctors({ branch_id: reportBranchId });
+  }, [reportBranchId, fetchSettings, fetchDoctors]);
+
   useEffect(() => {
     if (!rawReport) return;
     const testData =
-      typeof rawReport.test_data === 'string'
-        ? JSON.parse(rawReport.test_data)
-        : rawReport.test_data;
+      typeof rawReport.test_data === 'string' ? JSON.parse(rawReport.test_data) : rawReport.test_data;
     const testIds = testData?.testIds || testData?.tests?.map((t: any) => t.testId) || [];
-    if (testIds.length > 0) {
-      fetchTestFieldsMulti(testIds);
-    }
+    if (testIds.length > 0) fetchTestFieldsMulti(testIds);
   }, [rawReport, fetchTestFieldsMulti]);
 
-  // Build a lookup: "testId::fieldName" → section_group
   const sectionGroupMap = useMemo(() => {
     const map = new Map<string, string>();
     for (const f of testFields) {
-      if (f.section_group) {
-        map.set(`${f.test_id}::${f.field_name}`, f.section_group);
-      }
+      if (f.section_group) map.set(`${f.test_id}::${f.field_name}`, f.section_group);
     }
     return map;
   }, [testFields]);
 
-  /* ── Transform raw → ReportData ─────────────────────────────────────────── */
   useEffect(() => {
     if (!rawReport) return;
-    const report = rawReport;
 
-    const branch = branches.find(b => b.id === (report as any).branch_id);
-    const age = formatAge(report.patient_age, report.patient_age_unit) || 'N/A';
-
-    const doctorName =
-      report.doctor_name
-        ? `${report.doctor_title || 'Dr'}. ${report.doctor_name}`
-        : report.doctor_firstname && report.doctor_lastname
-          ? `Dr. ${report.doctor_firstname} ${report.doctor_lastname}`
-          : 'Self';
+    const branch = branches.find(b => b.id === (rawReport as any).branch_id);
+    const age = formatAge(rawReport.patient_age, rawReport.patient_age_unit) || 'N/A';
+    const doctorName = rawReport.doctor_name
+      ? `${rawReport.doctor_title || 'Dr'}. ${rawReport.doctor_name}`
+      : rawReport.doctor_firstname && rawReport.doctor_lastname
+        ? `Dr. ${rawReport.doctor_firstname} ${rawReport.doctor_lastname}`
+        : 'Self';
 
     const testData =
-      typeof report.test_data === 'string'
-        ? JSON.parse(report.test_data)
-        : report.test_data;
-
-    // Build grouped test sections + flat parameters for backward compat
-    const testSections: TestSection[] = [];
-    const parameters: Parameter[] = [];
+      typeof rawReport.test_data === 'string' ? JSON.parse(rawReport.test_data) : rawReport.test_data;
 
     const mapParam = (p: any, testId?: string): Parameter => ({
       name: p.name,
@@ -410,92 +430,170 @@ export function ReportPreview() {
       group: p.group || (testId ? sectionGroupMap.get(`${testId}::${p.name}`) : undefined),
     });
 
+    const testSections: TestSection[] = [];
+    const params: Parameter[] = [];
+
     if (testData?.tests?.length) {
-      // New grouped structure
-      for (const group of testData.tests) {
-        const params = (group.parameters || []).map((p: any) => mapParam(p, group.testId));
-        testSections.push({ testName: group.testName, parameters: params });
-        parameters.push(...params);
+      for (let i = 0; i < testData.tests.length; i++) {
+        const group = testData.tests[i];
+        const sectionParams = (group.parameters || []).map((p: any) => mapParam(p, group.testId));
+        testSections.push({
+          id: `${group.testId || group.testName || 'test'}-${i}`,
+          testName: group.testName,
+          parameters: sectionParams,
+        });
+        params.push(...sectionParams);
       }
     } else if (testData?.parameters?.length) {
-      // Legacy flat structure — treat as a single test section
-      const params = testData.parameters.map((p: any) => mapParam(p));
+      const sectionParams = testData.parameters.map((p: any) => mapParam(p));
       testSections.push({
-        testName: testData.testName || report.report_type || 'General Test',
-        parameters: params,
+        id: 'legacy-0',
+        testName: testData.testName || rawReport.report_type || 'General Test',
+        parameters: sectionParams,
       });
-      parameters.push(...params);
+      params.push(...sectionParams);
     }
 
-    const collectionDate = (report as any).collection_date || report.created_at;
-    const reportedAt = report.approved_at || report.created_at;
+    const collectionDate = (rawReport as any).collection_date || rawReport.created_at;
+    const reportedAt = rawReport.approved_at || rawReport.created_at;
 
-    setReportData({
+    const nextData: ReportData = {
       lab: {
         name: branch?.name || 'DiagnoPro Diagnostics',
         address: branch?.location || 'Medical District',
         city: branch?.city || '',
-        phone: branch?.phone || '',
-        email: branch?.email || '',
-        license: 'LAB-2024-001234',
       },
       report: {
-        id: `REP-${report.id.slice(0, 8).toUpperCase()}`,
-        date: format(new Date(report.created_at), 'dd MMM yyyy'),
-        time: format(new Date(report.created_at), 'hh:mm aa'),
+        id: `REP-${rawReport.id.slice(0, 8).toUpperCase()}`,
+        date: format(new Date(rawReport.created_at), 'dd MMM yyyy'),
+        time: format(new Date(rawReport.created_at), 'hh:mm aa'),
       },
       patient: {
-        name: report.patient_name || 'Unknown Patient',
-        id: `PT-${report.patient_id.slice(0, 8)}`,
+        name: rawReport.patient_name || 'Unknown Patient',
+        id: `PT-${rawReport.patient_id.slice(0, 8)}`,
         age,
-        gender: report.patient_gender || 'Unknown',
+        gender: rawReport.patient_gender || 'Unknown',
         referringDoctor: doctorName,
-        sampleId: report.sample_id_code || 'N/A',
+        sampleId: rawReport.sample_id_code || 'N/A',
         collectionDate: format(new Date(collectionDate), 'dd MMM yyyy, hh:mm aa'),
-        collectionTime: format(new Date(collectionDate), 'hh:mm aa'),
         reportedDate: format(new Date(reportedAt), 'dd MMM yyyy, hh:mm aa'),
-        reportedTime: format(new Date(reportedAt), 'hh:mm aa'),
-      },
-      test: {
-        name: testData?.testName || report.report_type || 'General Test',
-        category: testData?.testType || 'Laboratory',
       },
       testSections,
-      parameters,
+      parameters: params,
       technician: {
         name:
-          report.technician_firstname && report.technician_lastname
-            ? `${report.technician_firstname} ${report.technician_lastname}, MLT`
+          rawReport.technician_firstname && rawReport.technician_lastname
+            ? `${rawReport.technician_firstname} ${rawReport.technician_lastname}, MLT`
             : 'Lab Technician',
-        signature: report.technician_firstname
-          ? `${report.technician_firstname.charAt(0)}. ${report.technician_lastname}`
-          : 'Technician',
       },
-      pathologist: {
-        name:
-          report.approved_by_firstname && report.approved_by_lastname
-            ? `Dr. ${report.approved_by_firstname} ${report.approved_by_lastname}, MD`
-            : 'Pathologist',
-        title: 'Consultant Pathologist',
-        license: 'MD-LIC-00000',
-        signature: report.approved_by_firstname || 'Pathologist',
-      },
-    });
+    };
+
+    setReportData(nextData);
+    const ids = nextData.testSections.map(s => s.id);
+    setSectionOrder(ids);
+    setOriginalSectionOrder(ids);
   }, [rawReport, branches, sectionGroupMap]);
 
-  /* ── Derived ──────────────────────────────────────────────────────────────── */
-  const isSelfReport = reportData?.patient.referringDoctor === 'Self' || rawReport?.is_self_report;
-  const refDoctor = doctors.find(d => d.id === rawReport?.doctor_id);
-  const doctorSignatureUrl = refDoctor?.signature_url;
+  useEffect(() => {
+    if (searchParams.get('share') === '1' && reportData && !shareAutoOpened.current) {
+      setShowShareModal(true);
+      shareAutoOpened.current = true;
+    }
+  }, [searchParams, reportData]);
 
-  // Check if any letterhead/header/footer is uploaded
-  const hasLetterhead = !!(settings?.letterhead_url);
-  const hasHeaderFooter = !!(settings?.header_url || settings?.footer_url);
-  const hasAnyCustomHeader = hasLetterhead || hasHeaderFooter;
-  // Active letterhead state: only show if uploaded AND user toggle is ON
-  const letterheadActive = showLetterhead && hasLetterhead;
-  const headerActive = showLetterhead && hasHeaderFooter && !hasLetterhead;
-  const footerActive = showLetterhead && !!settings?.footer_url && !hasLetterhead;
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      const defaultTopBottom = Math.round(A4_HEIGHT_PX * 0.07);
+      const defaultLeftRight = Math.round(A4_WIDTH_PX * 0.03);
+      const headerSafe = parsePx(settings?.header_safe_area, 24);
+      const footerSafe = parsePx(settings?.footer_safe_area, 24);
+      const brandingCushion = 18;
+
+      const left = parsePx(settings?.report_margin_left, defaultLeftRight);
+      const right = parsePx(settings?.report_margin_right, defaultLeftRight);
+
+      if (!showLetterhead) {
+        if (!cancelled) {
+          setSafeZones({
+            top: parsePx(settings?.report_margin_top, defaultTopBottom),
+            bottom: parsePx(settings?.report_margin_bottom, defaultTopBottom),
+            left,
+            right,
+          });
+        }
+        return;
+      }
+
+      const letterheadUrl = getImageUrl(settings?.letterhead_url);
+      const headerUrl = getImageUrl(settings?.header_url);
+      const footerUrl = getImageUrl(settings?.footer_url);
+
+      let top = parsePx(settings?.report_margin_top, defaultTopBottom) + headerSafe;
+      let bottom = parsePx(settings?.report_margin_bottom, defaultTopBottom) + footerSafe;
+
+      if (letterheadUrl) {
+        const bands = await analyzeLetterheadBands(letterheadUrl);
+        top = Math.max(top, (bands.topPx || 0) + headerSafe + brandingCushion);
+        bottom = Math.max(bottom, (bands.bottomPx || 0) + footerSafe + brandingCushion);
+      } else {
+        if (headerUrl) {
+          const headerHeight = await renderedImageHeightOnA4(headerUrl);
+          top = Math.max(top, headerHeight + headerSafe + brandingCushion);
+        }
+        if (footerUrl) {
+          const footerHeight = await renderedImageHeightOnA4(footerUrl);
+          bottom = Math.max(bottom, footerHeight + footerSafe + brandingCushion);
+        }
+      }
+
+      const hasBranding = Boolean(letterheadUrl || headerUrl || footerUrl);
+      if (hasBranding) {
+        top = Math.max(top, defaultTopBottom + 24);
+        bottom = Math.max(bottom, defaultTopBottom + 20);
+      }
+
+      if (!cancelled) {
+        setSafeZones({
+          top: clamp(top, 30, Math.round(A4_HEIGHT_PX * 0.55)),
+          bottom: clamp(bottom, 30, Math.round(A4_HEIGHT_PX * 0.55)),
+          left: clamp(left, 10, 64),
+          right: clamp(right, 10, 64),
+        });
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [settings, showLetterhead, getImageUrl]);
+
+  useLayoutEffect(() => {
+    const node = viewerRef.current;
+    if (!node) return;
+
+    const updateScale = () => {
+      const width = node.clientWidth;
+      const fit = clamp((width - 24) / A4_WIDTH_PX, 0.45, 1);
+      setBaseScale(fit);
+    };
+
+    updateScale();
+    const obs = new ResizeObserver(updateScale);
+    obs.observe(node);
+    return () => obs.disconnect();
+  }, []);
+
+  const orderedSections = useMemo(() => {
+    if (!reportData) return [];
+    const map = new Map(reportData.testSections.map(s => [s.id, s]));
+    const ordered = sectionOrder.map(id => map.get(id)).filter(Boolean) as TestSection[];
+    if (ordered.length === reportData.testSections.length) return ordered;
+    return reportData.testSections;
+  }, [reportData, sectionOrder]);
 
   const abnormalParams = useMemo(
     () => (reportData?.parameters ?? []).filter(p => p.status === 'high' || p.status === 'low' || p.status === 'critical'),
@@ -503,23 +601,170 @@ export function ReportPreview() {
   );
 
   const remarkText = useMemo(() => {
-    // Prefer clinical_notes from report (may include AI-generated interpretation)
-    if (rawReport?.clinical_notes?.trim()) {
-      return rawReport.clinical_notes.trim();
-    }
-    // Fallback: auto-generate from abnormal parameters
+    if (rawReport?.clinical_notes?.trim()) return rawReport.clinical_notes.trim();
     if (abnormalParams.length === 0) return null;
-    return (
-      abnormalParams
-        .map(p => {
-          const dir = p.status === 'critical' ? 'critical' : p.status === 'high' ? 'elevated' : 'below normal range';
-          return `${p.name} is ${dir} (${p.result} ${p.unit}).`;
-        })
-        .join(' ') + ' Clinical correlation is advised.'
-    );
-  }, [abnormalParams, rawReport]);
+    return abnormalParams
+      .map(p => {
+        const dir = p.status === 'critical' ? 'critical' : p.status === 'high' ? 'elevated' : 'below normal range';
+        return `${p.name} is ${dir} (${p.result} ${p.unit}).`;
+      })
+      .join(' ') + ' Clinical correlation is advised.';
+  }, [rawReport, abnormalParams]);
 
-  /* ── Loading ──────────────────────────────────────────────────────────────── */
+  const density = useMemo(() => {
+    const count = orderedSections.reduce((s, sec) => s + sec.parameters.length, 0);
+    if (count > 140) return 'compact';
+    if (count > 75) return 'balanced';
+    return 'comfortable';
+  }, [orderedSections]);
+
+  const pages = useMemo(() => {
+    if (!reportData) return [] as PageItem[][];
+
+    const paginationSafetyBuffer = 22;
+    const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom - paginationSafetyBuffer;
+    const dense = density !== 'comfortable';
+
+    const patientHeight = dense ? 138 : 154;
+    const signatureHeight = 124;
+    const endMarkerHeight = 22;
+
+    const maxChunkHeight = Math.max(170, contentHeight - 28);
+    const chunks = orderedSections.flatMap(section => splitSection(section, maxChunkHeight, dense));
+
+    const out: PageItem[][] = [[]];
+    let currentHeight = 0;
+
+    const place = (item: PageItem, itemHeight: number) => {
+      if (currentHeight + itemHeight > contentHeight && out[out.length - 1].length > 0) {
+        out.push([]);
+        currentHeight = 0;
+      }
+      out[out.length - 1].push(item);
+      currentHeight += itemHeight;
+    };
+
+    place({ type: 'patient' }, patientHeight);
+
+    for (const chunk of chunks) {
+      const section = orderedSections.find(s => s.id === chunk.sectionId);
+      if (!section) continue;
+      const h = estimateSectionHeight(section, chunk.parameters, dense);
+      place({ type: 'test', chunk }, h);
+    }
+
+    if (remarkText) {
+      place({ type: 'interpretation', text: remarkText }, estimateInterpretationHeight(remarkText, dense));
+    }
+
+    const tailHeight = signatureHeight + endMarkerHeight;
+    if (currentHeight + tailHeight > contentHeight && out[out.length - 1].length > 1) {
+      out.push([]);
+      currentHeight = 0;
+    }
+
+    place({ type: 'endMarker' }, endMarkerHeight);
+    place({ type: 'signature' }, signatureHeight);
+
+    return out;
+  }, [reportData, orderedSections, safeZones, remarkText, density]);
+
+  const isSelfReport = reportData?.patient.referringDoctor === 'Self' || rawReport?.is_self_report;
+  const refDoctor = doctors.find(d => d.id === rawReport?.doctor_id);
+  const doctorSignatureUrl = refDoctor?.signature_url;
+
+  const generatePDF = useCallback(async (): Promise<File | null> => {
+    if (!reportData || pages.length === 0) return null;
+
+    setIsGeneratingPdf(true);
+    try {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+
+      for (let i = 0; i < pages.length; i++) {
+        const node = pageRefs.current[i];
+        if (!node) continue;
+
+        if (i > 0) pdf.addPage();
+        const canvas = await html2canvas(node, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        });
+
+        const img = canvas.toDataURL('image/jpeg', 0.95);
+        pdf.addImage(img, 'JPEG', 0, 0, 210, 297);
+      }
+
+      const fileName = `Report-${reportData.patient.name.replace(/\s+/g, '_')}-${reportData.report.id}.pdf`;
+      const blob = pdf.output('blob');
+      return new File([blob], fileName, { type: 'application/pdf' });
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+      return null;
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  }, [reportData, pages]);
+
+  const handleDownloadPdf = useCallback(async () => {
+    const file = await generatePDF();
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [generatePDF]);
+
+  const moveUp = useCallback((id: string) => {
+    setSectionOrder(prev => {
+      const idx = prev.indexOf(id);
+      if (idx <= 0) return prev;
+      return moveItem(prev, idx, idx - 1);
+    });
+  }, []);
+
+  const moveDown = useCallback((id: string) => {
+    setSectionOrder(prev => {
+      const idx = prev.indexOf(id);
+      if (idx === -1 || idx >= prev.length - 1) return prev;
+      return moveItem(prev, idx, idx + 1);
+    });
+  }, []);
+
+  const resetOrder = useCallback(() => {
+    setSectionOrder(originalSectionOrder);
+  }, [originalSectionOrder]);
+
+  const moveTop = useCallback((id: string) => {
+    setSectionOrder(prev => {
+      const idx = prev.indexOf(id);
+      if (idx <= 0) return prev;
+      return moveItem(prev, idx, 0);
+    });
+  }, []);
+
+  const moveBottom = useCallback((id: string) => {
+    setSectionOrder(prev => {
+      const idx = prev.indexOf(id);
+      if (idx === -1 || idx === prev.length - 1) return prev;
+      return moveItem(prev, idx, prev.length - 1);
+    });
+  }, []);
+
+  const onDropReorder = useCallback((targetId: string) => {
+    if (!draggingId || draggingId === targetId) return;
+    setSectionOrder(prev => {
+      const from = prev.indexOf(draggingId);
+      const to = prev.indexOf(targetId);
+      if (from === -1 || to === -1) return prev;
+      return moveItem(prev, from, to);
+    });
+    setDraggingId(null);
+  }, [draggingId]);
+
   if (isLoading && !reportData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -528,7 +773,6 @@ export function ReportPreview() {
     );
   }
 
-  /* ── Error ─────────────────────────────────────────────────────────────────── */
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
@@ -543,7 +787,6 @@ export function ReportPreview() {
     );
   }
 
-  /* ── Not Found ─────────────────────────────────────────────────────────────── */
   if (!reportData) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
@@ -557,398 +800,399 @@ export function ReportPreview() {
     );
   }
 
-  /* ══════════════════════════════════════════════════════════════════════════════
-   *  MAIN REPORT – Premium Medical Pathology Lab Format (SRL / Metropolis style)
-   * ══════════════════════════════════════════════════════════════════════════ */
+  const letterheadActive = showLetterhead && !!settings?.letterhead_url;
+  const headerActive = showLetterhead && !!settings?.header_url && !settings?.letterhead_url;
+  const footerActive = showLetterhead && !!settings?.footer_url && !settings?.letterhead_url;
+  const hasBranding = !!(settings?.letterhead_url || settings?.header_url || settings?.footer_url);
+
+  const effectiveScale = clamp(baseScale * zoom, 0.45, 2);
+  const stackHeight = pages.length * A4_HEIGHT_PX + Math.max(0, pages.length - 1) * PAGE_GAP_PX;
 
   return (
     <>
       <style>{printStyles}</style>
 
-      {/* ── Screen-only toolbar ── */}
-      <div className="no-print report-toolbar sticky top-12 z-20 bg-white/95 backdrop-blur border-b border-gray-200">
-        <div className="report-toolbar-inner max-w-[850px] mx-auto px-4 sm:px-6 h-auto sm:h-12 py-2 sm:py-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
-          <div className="toolbar-left flex items-center gap-1.5 w-full sm:w-auto">
-            <Link to="/reports" className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-gray-500 hover:text-gray-800 transition-colors whitespace-nowrap">
-              <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4" /> Reports
-            </Link>
-          </div>
-          <div className="toolbar-content flex flex-wrap items-center gap-1 sm:gap-2 w-full sm:w-auto">
-            {/* Letterhead toggle – only show when letterhead/header is uploaded */}
-            {hasAnyCustomHeader && (
+      <div className="no-print sticky top-12 z-30 bg-white/95 backdrop-blur border-b border-gray-200">
+        <div className="max-w-[1300px] mx-auto px-3 sm:px-4 py-2 flex flex-wrap items-center gap-2">
+          <Link to="/reports" className="inline-flex items-center gap-1 text-xs sm:text-sm text-gray-600 hover:text-gray-900">
+            <ArrowLeft className="w-4 h-4" /> Reports
+          </Link>
+
+          <div className="flex items-center gap-2 ml-auto">
+            {hasBranding && (
               <button
-                onClick={() => setShowLetterhead(prev => !prev)}
-                className="toolbar-btn inline-flex items-center gap-1 text-xs px-2 sm:px-3 py-1 sm:py-1.5 rounded border transition-colors"
+                onClick={() => setShowLetterhead(v => !v)}
+                className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border"
                 style={{
                   borderColor: showLetterhead ? C.brand : '#D1D5DB',
-                  backgroundColor: showLetterhead ? C.brandLight : '#F9FAFB',
                   color: showLetterhead ? C.brand : '#6B7280',
+                  backgroundColor: showLetterhead ? C.brandLight : '#F9FAFB',
                 }}
-                title={showLetterhead ? 'Hide Letterhead' : 'Show Letterhead'}
               >
-                <FileImage className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                <span className="hidden sm:inline">{showLetterhead ? 'Letterhead On' : 'Letterhead Off'}</span>
-                <span className="sm:hidden">{showLetterhead ? 'On' : 'Off'}</span>
+                <FileImage className="w-3.5 h-3.5" /> {showLetterhead ? 'Branding On' : 'Branding Off'}
               </button>
             )}
+
+            <button
+              onClick={() => setZoom(z => clamp(z - 0.1, 0.6, 2))}
+              className="inline-flex items-center justify-center w-8 h-8 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+              title="Zoom out"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <span className="text-xs text-gray-600 min-w-14 text-center">{Math.round(effectiveScale * 100)}%</span>
+            <button
+              onClick={() => setZoom(z => clamp(z + 0.1, 0.6, 2))}
+              className="inline-flex items-center justify-center w-8 h-8 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+              title="Zoom in"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => setIsOrderDrawerOpen(true)}
+              className="lg:hidden inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" /> Arrange Tests
+            </button>
+
             <button
               onClick={() => setShowShareModal(true)}
-              className="toolbar-btn inline-flex items-center gap-1 text-xs px-2 sm:px-3 py-1 sm:py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
             >
-              <Send className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-              <span className="hidden sm:inline">Share</span>
+              <Send className="w-3.5 h-3.5" /> Share
             </button>
             <button
               onClick={handleDownloadPdf}
               disabled={isGeneratingPdf}
-              className="toolbar-btn inline-flex items-center gap-1 text-xs px-2 sm:px-3 py-1 sm:py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
-              {isGeneratingPdf ? <Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin" /> : <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
-              <span className="hidden sm:inline">PDF</span>
+              {isGeneratingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} PDF
             </button>
             <button
               onClick={() => window.print()}
-              className="toolbar-btn inline-flex items-center gap-1 text-xs px-2 sm:px-3 py-1 sm:py-1.5 rounded text-white transition-colors"
+              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded text-white"
               style={{ backgroundColor: C.brand }}
             >
-              <Printer className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-              <span className="hidden sm:inline">Print</span>
+              <Printer className="w-3.5 h-3.5" /> Print
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── A4 Report Page ── */}
-      <div className="report-bg-wrapper min-h-screen print:bg-white" style={{ backgroundColor: '#E8EAF0' }}>
-        <div
-          ref={reportPageRef}
-          className="report-page max-w-[850px] mx-auto my-3 sm:my-6 print:my-0 bg-white print:shadow-none"
-          style={{
-            boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-            display: 'flex',
-            flexDirection: 'column',
-            fontFamily: "'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
-            position: 'relative',
-            overflow: 'hidden',
-            width: '100%',
-            margin: '0 auto',
-            paddingTop: letterheadActive
-              ? (settings?.report_margin_top !== undefined ? `${settings.report_margin_top}px` : '160px')
-              : headerActive
-                ? (settings?.report_margin_top !== undefined ? `${settings.report_margin_top}px` : '160px')
-                : '16px',
-            paddingBottom: letterheadActive
-              ? (settings?.report_margin_bottom !== undefined ? `${settings.report_margin_bottom}px` : '120px')
-              : footerActive
-                ? (settings?.report_margin_bottom !== undefined ? `${settings.report_margin_bottom}px` : '120px')
-                : '16px',
-            paddingLeft: settings?.report_margin_left !== undefined ? `${settings.report_margin_left}px` : '0px',
-            paddingRight: settings?.report_margin_right !== undefined ? `${settings.report_margin_right}px` : '0px',
-          }}
-        >
-          {/* Full Letterhead Background — covers entire page like pre-printed paper */}
-          {letterheadActive && settings?.letterhead_url && (
-            <img
-              src={getImageUrl(settings.letterhead_url) || ''}
-              alt="Letterhead"
+      <div className="report-viewer-shell min-h-screen bg-[#EEF1F6] px-0 sm:px-3 py-3">
+        <div className="max-w-[1500px] mx-auto flex items-start gap-4">
+          <aside className="hidden lg:block w-[308px] shrink-0 sticky top-28 max-h-[calc(100vh-120px)] overflow-y-auto">
+            <OrderManagementPanel
+              sections={orderedSections}
+              moveUp={moveUp}
+              moveDown={moveDown}
+              moveTop={moveTop}
+              moveBottom={moveBottom}
+              resetOrder={resetOrder}
+              setDraggingId={setDraggingId}
+              onDropReorder={onDropReorder}
+            />
+          </aside>
+
+          <div ref={viewerRef} className="w-full overflow-x-hidden overflow-y-auto">
+          <div style={{ height: stackHeight * effectiveScale, position: 'relative' }}>
+            <div
               style={{
+                width: A4_WIDTH_PX,
                 position: 'absolute',
                 top: 0,
                 left: 0,
-                width: '100%',
-                height: 'auto',
-                objectFit: 'contain',
-                objectPosition: 'top center',
-                zIndex: 0,
-                pointerEvents: 'none',
-              }}
-            />
-          )}
-
-          {/* Header Image (only when no full letterhead) */}
-          {headerActive && settings?.header_url && (
-            <img
-              src={getImageUrl(settings.header_url) || ''}
-              alt="Report Header"
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                objectFit: 'contain',
-                zIndex: 0,
-                pointerEvents: 'none',
-              }}
-            />
-          )}
-
-          {/* Footer Image (only when no full letterhead) */}
-          {footerActive && settings?.footer_url && (
-            <img
-              src={getImageUrl(settings.footer_url) || ''}
-              alt="Report Footer"
-              style={{
-                position: 'absolute',
-                bottom: 0,
-                left: 0,
-                width: '100%',
-                objectFit: 'contain',
-                zIndex: 0,
-                pointerEvents: 'none',
-              }}
-            />
-          )}
-
-          {/* No default header — only uploaded letterhead/header images are shown */}
-
-          {/* ═══════════════════════════════════════════════════════════════
-           *  PATIENT & SAMPLE INFO – Improved Layout
-           * ═════════════════════════════════════════════════════════════ */}
-          <div
-            className="patient-info-box"
-            style={{
-              padding: `${ReportLayoutConfig.boxPadding.normal}px 12px ${ReportLayoutConfig.spacing.lg}px`,
-              position: 'relative',
-              zIndex: 1,
-            }}
-          >
-            <ImprovedPatientBox
-              patientName={reportData.patient.name}
-              age={reportData.patient.age}
-              gender={reportData.patient.gender}
-              patientId={reportData.patient.id}
-              sampleId={reportData.patient.sampleId}
-              referringDoctor={reportData.patient.referringDoctor}
-              reportDate={reportData.report.date}
-              reportTime={reportData.report.time}
-              collectionDate={reportData.patient.collectionDate}
-              reportedDate={reportData.patient.reportedDate}
-              collectionAddress={`${reportData.lab.address}${reportData.lab.city ? `, ${reportData.lab.city}` : ''}`}
-              qrCode={
-                <QRCodeSVG
-                  value={`${window.location.origin}/reports/${id}`}
-                  size={64}
-                  level="M"
-                  bgColor="#ffffff"
-                  fgColor={C.brand}
-                />
-              }
-              barcode={<Barcode value={reportData.patient.sampleId} />}
-              colorTokens={C}
-            />
-          </div>
-
-          {/* ═══════════════════════════════════════════════════════════════
-           *  BODY – flex-grow to fill A4
-           * ═════════════════════════════════════════════════════════════ */}
-          <div
-            className="report-inner"
-            style={{
-              flex: 1,
-              padding: `${ReportLayoutConfig.spacing.md}px 14px 0`,
-              color: C.text,
-              fontSize: '10.5px',
-              lineHeight: 1.55,
-              display: 'flex',
-              flexDirection: 'column',
-              position: 'relative',
-              zIndex: 1,
-              overflowX: 'auto',
-            }}
-          >
-
-            {/* ═══════════════════════════════════════════════════════════════
-             *  TEST SECTIONS – each test rendered with improved layout
-             * ═════════════════════════════════════════════════════════════ */}
-            <section style={{ flex: 1 }}>
-              {reportData.testSections.map((section, sIdx) => (
-                <TestSectionBlock
-                  key={sIdx}
-                  testName={section.testName}
-                  isFirstSection={sIdx === 0}
-                  colorTokens={C}
-                >
-                  {/* Parameter table for this test */}
-                  <table
-                    style={{
-                      width: '100%',
-                      borderCollapse: 'collapse',
-                      tableLayout: 'fixed',
-                      fontSize: `${ReportLayoutConfig.fontSize.value}px`,
-                    }}
-                  >
-                    <InvestigationTableHeader colorTokens={C} />
-                    <tbody>
-                      {(() => {
-                        let lastGroup: string | undefined;
-                        let rowIndex = 0;
-
-                        return section.parameters.map((param, idx) => {
-                          const isCritical = param.status === 'critical';
-                          const isHigh = param.status === 'high';
-                          const isLow = param.status === 'low';
-                          const isAbnormal = isHigh || isLow || isCritical;
-                          const statusColor = isCritical ? C.high : isHigh ? C.high : isLow ? C.low : C.text;
-                          const statusLabel = isCritical ? 'Critical' : isHigh ? 'High' : isLow ? 'Low' : '';
-
-                          // Sub-section group header row
-                          const showGroupHeader = param.group && param.group !== lastGroup;
-                          if (param.group) lastGroup = param.group;
-
-                          rowIndex++;
-
-                          return (
-                            <React.Fragment key={idx}>
-                              {showGroupHeader && (
-                                <SectionGroupHeader title={param.group || ''} colorTokens={C} />
-                              )}
-                              <InvestigationTableRow
-                                investigation={param.name}
-                                result={param.result}
-                                status={statusLabel}
-                                refRange={param.refRange}
-                                unit={param.unit}
-                                isAbnormal={isAbnormal}
-                                statusColor={statusColor}
-                                rowIndex={rowIndex}
-                                indented={!!param.group}
-                                colorTokens={C}
-                              />
-                            </React.Fragment>
-                          );
-                        });
-                      })()}
-                    </tbody>
-                  </table>
-                </TestSectionBlock>
-              ))}
-            </section>
-
-            {/* ═══════════════════════════════════════════════════════════════
-             *  INTERPRETATION – bordered shaded box
-             * ═════════════════════════════════════════════════════════════ */}
-            {remarkText && (
-              <section
-                style={{
-                  marginTop: `${ReportLayoutConfig.sectionMargin.between}px`,
-                  padding: `${ReportLayoutConfig.boxPadding.normal}px ${ReportLayoutConfig.boxPadding.normal + 2}px`,
-                  background: C.remarkBg,
-                  border: `1px solid ${C.remarkBorder}`,
-                  borderLeft: `4px solid ${C.remarkBorder}`,
-                  borderRadius: '4px',
-                }}
-              >
-                <p
-                  style={{
-                    margin: 0,
-                    marginBottom: `${ReportLayoutConfig.spacing.sm}px`,
-                    fontSize: `${ReportLayoutConfig.fontSize.header}px`,
-                    fontWeight: 700,
-                    color: C.sectionTitle,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                  }}
-                >
-                  Interpretation
-                </p>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: `${ReportLayoutConfig.fontSize.value}px`,
-                    color: C.secondary,
-                    lineHeight: ReportLayoutConfig.lineHeight.spacious,
-                  }}
-                >
-                  {remarkText}
-                </p>
-              </section>
-            )}
-
-            {/* ═══════════════════════════════════════════════════════════════
-             *  END OF REPORT MARKER
-             * ═════════════════════════════════════════════════════════════ */}
-            <div style={{
-              marginTop: '18px', textAlign: 'center',
-              fontSize: '9px', color: C.muted, letterSpacing: '1px',
-            }}>
-              - - - End of Report - - -
-            </div>
-
-            {/* ═══════════════════════════════════════════════════════════════
-             *  SIGNATURE SECTION – pushed to bottom via flex
-             * ═════════════════════════════════════════════════════════════ */}
-            <section
-              className="signature-section"
-              style={{
-                marginTop: 'auto',
-                paddingTop: `${ReportLayoutConfig.sectionMargin.between}px`,
-                paddingBottom: `${ReportLayoutConfig.spacing.md}px`,
+                transform: `scale(${effectiveScale})`,
+                transformOrigin: 'top left',
               }}
             >
-              <div
-                className="signature-section"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '100px',
-                }}
-              >
-                {/* Lab Owner / Technician */}
-                <div className="signature-block">
-                  <div style={{ height: '40px', display: 'flex', alignItems: 'flex-end', paddingBottom: '4px' }}>
-                    {settings?.owner_signature_url && (
+              {pages.map((page, pageIndex) => {
+                pageRefs.current.length = pages.length;
+
+                return (
+                  <div
+                    key={pageIndex}
+                    ref={el => {
+                      pageRefs.current[pageIndex] = el;
+                    }}
+                    className="report-page bg-white border border-gray-200"
+                    style={{
+                      width: A4_WIDTH_PX,
+                      height: A4_HEIGHT_PX,
+                      marginBottom: pageIndex === pages.length - 1 ? 0 : PAGE_GAP_PX,
+                      boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
+                    }}
+                  >
+                    {letterheadActive && settings?.letterhead_url && (
                       <img
-                        src={getImageUrl(settings.owner_signature_url) || ''}
-                        alt="Owner Signature"
-                        style={{ maxHeight: '40px', objectFit: 'contain' }}
+                        src={getImageUrl(settings.letterhead_url) || ''}
+                        alt="Letterhead"
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          zIndex: 0,
+                          pointerEvents: 'none',
+                        }}
                       />
                     )}
-                  </div>
-                  <div style={{ borderTop: `1.5px solid ${C.text}`, paddingTop: '6px' }}>
-                    <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: C.text }}>
-                      {user ? `${user.firstname} ${user.lastname}` : reportData.technician.name}
-                    </p>
-                    <p style={{ margin: '1px 0 0', fontSize: '9px', color: C.secondary }}>
-                      Lab Owner / Incharge
-                    </p>
-                  </div>
-                </div>
 
-                {/* Reference Doctor Signature */}
-                {!isSelfReport && (
-                  <div className="signature-block-right" style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                    <div style={{ height: '40px', display: 'flex', alignItems: 'flex-end', paddingBottom: '4px' }}>
-                      {doctorSignatureUrl && (
-                        <img
-                          src={getImageUrl(doctorSignatureUrl) || ''}
-                          alt="Doctor Signature"
-                          style={{ maxHeight: '40px', objectFit: 'contain' }}
-                        />
-                      )}
+                    {headerActive && settings?.header_url && (
+                      <img
+                        src={getImageUrl(settings.header_url) || ''}
+                        alt="Header"
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          objectFit: 'contain',
+                          zIndex: 0,
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    )}
+
+                    {footerActive && settings?.footer_url && (
+                      <img
+                        src={getImageUrl(settings.footer_url) || ''}
+                        alt="Footer"
+                        style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          left: 0,
+                          width: '100%',
+                          objectFit: 'contain',
+                          zIndex: 0,
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    )}
+
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: safeZones.top,
+                        bottom: safeZones.bottom,
+                        left: safeZones.left,
+                        right: safeZones.right,
+                        zIndex: 1,
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                        fontSize: density === 'compact' ? 10 : 10.5,
+                        lineHeight: density === 'compact' ? 1.45 : 1.55,
+                      }}
+                    >
+                      {page.map((item, idx) => {
+                        if (item.type === 'patient') {
+                          return (
+                            <div key={`p-${idx}`} className="patient-info-box">
+                              <ImprovedPatientBox
+                                patientName={reportData.patient.name}
+                                age={reportData.patient.age as any}
+                                gender={reportData.patient.gender}
+                                patientId={reportData.patient.id}
+                                sampleId={reportData.patient.sampleId}
+                                referringDoctor={reportData.patient.referringDoctor}
+                                reportDate={reportData.report.date}
+                                reportTime={reportData.report.time}
+                                collectionDate={reportData.patient.collectionDate}
+                                reportedDate={reportData.patient.reportedDate}
+                                collectionAddress={`${reportData.lab.address}${reportData.lab.city ? `, ${reportData.lab.city}` : ''}`}
+                                qrCode={
+                                  <QRCodeSVG
+                                    value={`${window.location.origin}/reports/${id}`}
+                                    size={58}
+                                    level="M"
+                                    bgColor="#ffffff"
+                                    fgColor={C.brand}
+                                  />
+                                }
+                                barcode={<Barcode value={reportData.patient.sampleId} />}
+                                colorTokens={C}
+                              />
+                            </div>
+                          );
+                        }
+
+                        if (item.type === 'test') {
+                          let lastGroup: string | undefined;
+                          return (
+                            <TestSectionBlock
+                              key={`t-${idx}`}
+                              testName={item.chunk.continuation ? `${item.chunk.title} (cont.)` : item.chunk.title}
+                              isFirstSection={false}
+                              colorTokens={C}
+                            >
+                              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                                <InvestigationTableHeader colorTokens={C} />
+                                <tbody>
+                                  {item.chunk.parameters.map((param, rowIdx) => {
+                                    const status = (param.status || '').toLowerCase();
+                                    const isCritical = status === 'critical';
+                                    const isHigh = status === 'high';
+                                    const isLow = status === 'low';
+                                    const isAbnormal = isCritical || isHigh || isLow;
+                                    const statusColor = isCritical ? C.high : isHigh ? C.high : isLow ? C.low : C.text;
+                                    const showGroupHeader = !!param.group && param.group !== lastGroup;
+                                    if (param.group) lastGroup = param.group;
+
+                                    return (
+                                      <React.Fragment key={`${param.name}-${rowIdx}`}>
+                                        {showGroupHeader && <SectionGroupHeader title={param.group || ''} colorTokens={C} />}
+                                        <InvestigationTableRow
+                                          investigation={param.name}
+                                          result={param.result}
+                                          status={isCritical ? 'Critical' : isHigh ? 'High' : isLow ? 'Low' : ''}
+                                          refRange={param.refRange}
+                                          unit={param.unit}
+                                          isAbnormal={isAbnormal}
+                                          statusColor={statusColor}
+                                          rowIndex={rowIdx}
+                                          indented={!!param.group}
+                                          colorTokens={C}
+                                        />
+                                      </React.Fragment>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </TestSectionBlock>
+                          );
+                        }
+
+                        if (item.type === 'interpretation') {
+                          return (
+                            <section
+                              key={`i-${idx}`}
+                              style={{
+                                padding: `${ReportLayoutConfig.boxPadding.normal}px ${ReportLayoutConfig.boxPadding.normal + 2}px`,
+                                background: C.remarkBg,
+                                border: `1px solid ${C.remarkBorder}`,
+                                borderLeft: `4px solid ${C.remarkBorder}`,
+                                borderRadius: 4,
+                              }}
+                            >
+                              <p
+                                style={{
+                                  margin: 0,
+                                  marginBottom: 4,
+                                  fontSize: `${ReportLayoutConfig.fontSize.header}px`,
+                                  fontWeight: 700,
+                                  color: C.sectionTitle,
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.5px',
+                                }}
+                              >
+                                Interpretation
+                              </p>
+                              <p style={{ margin: 0, fontSize: `${ReportLayoutConfig.fontSize.value}px`, color: C.secondary }}>
+                                {item.text}
+                              </p>
+                            </section>
+                          );
+                        }
+
+                        if (item.type === 'endMarker') {
+                          return (
+                            <div key={`e-${idx}`} style={{ textAlign: 'center', fontSize: '9px', color: C.muted, letterSpacing: '1px' }}>
+                              - - - End of Report - - -
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <section key={`s-${idx}`} style={{ marginTop: 4 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isSelfReport ? '1fr' : '1fr 1fr', gap: 80 }}>
+                              <div>
+                                <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
+                                  {settings?.owner_signature_url && (
+                                    <img
+                                      src={getImageUrl(settings.owner_signature_url) || ''}
+                                      alt="Owner Signature"
+                                      style={{ maxHeight: 40, objectFit: 'contain' }}
+                                    />
+                                  )}
+                                </div>
+                                <div style={{ borderTop: `1.5px solid ${C.text}`, paddingTop: 6 }}>
+                                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.text }}>
+                                    {user ? `${user.firstname} ${user.lastname}` : reportData.technician.name}
+                                  </p>
+                                  <p style={{ margin: '1px 0 0', fontSize: 9, color: C.secondary }}>Lab Owner / Incharge</p>
+                                </div>
+                              </div>
+
+                              {!isSelfReport && (
+                                <div style={{ textAlign: 'right' }}>
+                                  <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
+                                    {doctorSignatureUrl && (
+                                      <img
+                                        src={getImageUrl(doctorSignatureUrl) || ''}
+                                        alt="Doctor Signature"
+                                        style={{ maxHeight: 40, objectFit: 'contain' }}
+                                      />
+                                    )}
+                                  </div>
+                                  <div style={{ borderTop: `1.5px solid ${C.text}`, paddingTop: 6 }}>
+                                    <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.text }}>
+                                      {refDoctor ? `${refDoctor.title} ${refDoctor.name}` : reportData.patient.referringDoctor}
+                                    </p>
+                                    <p style={{ margin: '1px 0 0', fontSize: 9, color: C.secondary }}>
+                                      {refDoctor?.specialization || 'Referring Physician'}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </section>
+                        );
+                      })}
                     </div>
-                    <div style={{ borderTop: `1.5px solid ${C.text}`, paddingTop: '6px', width: '100%' }}>
-                      <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: C.text }}>
-                        {refDoctor ? `${refDoctor.title} ${refDoctor.name}` : reportData.patient.referringDoctor}
-                      </p>
-                      <p style={{ margin: '1px 0 0', fontSize: '9px', color: C.secondary }}>
-                        {refDoctor?.specialization || 'Referring Physician'}
-                      </p>
-                    </div>
                   </div>
-                )}
-              </div>
-            </section>
-
-          </div>{/* /report-inner */}
-
-          {/* ═══════════════════════════════════════════════════════════════
-           *  FOOTER
-           * ═════════════════════════════════════════════════════════════ */}
-          {/* No default footer — only uploaded footer images are shown */}
-        </div>{/* /report-page */}
+                );
+              })}
+            </div>
+          </div>
+          </div>
+        </div>
       </div>
 
-      {/* Share Modal */}
+      {isOrderDrawerOpen && (
+        <div className="no-print fixed inset-0 z-40 lg:hidden">
+          <div className="absolute inset-0 bg-black/35" onClick={() => setIsOrderDrawerOpen(false)} />
+          <div className="absolute top-0 right-0 h-full w-[88vw] max-w-[360px] bg-white shadow-2xl border-l border-gray-200 p-3 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold text-gray-800">Arrange Tests</p>
+              <button
+                onClick={() => setIsOrderDrawerOpen(false)}
+                className="w-8 h-8 inline-flex items-center justify-center rounded border border-gray-300 text-gray-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <OrderManagementPanel
+              sections={orderedSections}
+              moveUp={moveUp}
+              moveDown={moveDown}
+              moveTop={moveTop}
+              moveBottom={moveBottom}
+              resetOrder={resetOrder}
+              setDraggingId={setDraggingId}
+              onDropReorder={onDropReorder}
+              compact
+            />
+          </div>
+        </div>
+      )}
+
       {id && (
         <ShareReportModal
           isOpen={showShareModal}
@@ -958,7 +1202,7 @@ export function ReportPreview() {
           sampleIdCode={rawReport?.sample_id_code}
           patientName={rawReport?.patient_name}
           patientPhone={rawReport?.patient_phone}
-          doctorName={rawReport?.doctor_name ? `${rawReport.doctor_title || 'Dr'}. ${rawReport.doctor_name}` : rawReport?.doctor_firstname ? `Dr. ${rawReport.doctor_firstname} ${rawReport.doctor_lastname}` : undefined}
+          doctorName={rawReport?.doctor_name ? `${rawReport.doctor_title || 'Dr'}. ${rawReport.doctor_name}` : undefined}
           doctorPhone={rawReport?.doctor_phone}
           doctorEmail={rawReport?.doctor_email}
           hasDoctorRef={!!rawReport?.doctor_id}
@@ -968,23 +1212,89 @@ export function ReportPreview() {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════
- *  SUB-COMPONENTS & HELPERS
- * ══════════════════════════════════════════════════════════════════════════ */
-
-/** Compact label → value row for patient/sample cards */
-function InfoRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+function OrderManagementPanel({
+  sections,
+  moveUp,
+  moveDown,
+  moveTop,
+  moveBottom,
+  resetOrder,
+  setDraggingId,
+  onDropReorder,
+  compact = false,
+}: {
+  sections: TestSection[];
+  moveUp: (id: string) => void;
+  moveDown: (id: string) => void;
+  moveTop: (id: string) => void;
+  moveBottom: (id: string) => void;
+  resetOrder: () => void;
+  setDraggingId: (id: string | null) => void;
+  onDropReorder: (id: string) => void;
+  compact?: boolean;
+}) {
   return (
-    <div style={{ display: 'flex', gap: '4px', lineHeight: 1.7 }}>
-      <span style={{ color: C.secondary, whiteSpace: 'nowrap' }}>{label}:</span>
-      <span style={{ color: C.text, fontWeight: bold ? 700 : 500 }}>{value}</span>
+    <div className="rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/70 p-3 sm:p-3.5 shadow-sm">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs sm:text-sm font-semibold text-slate-800">Test Order Management</p>
+        <button
+          onClick={resetOrder}
+          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-slate-300 text-slate-700 hover:bg-white"
+        >
+          <RotateCcw className="w-3.5 h-3.5" /> Reset
+        </button>
+      </div>
+      <p className="text-[11px] text-slate-500 mb-2.5">Drag and drop or use controls to reorder. Pagination updates instantly.</p>
+      <div className={`grid ${compact ? 'grid-cols-1' : 'grid-cols-1'} gap-2`}>
+        {sections.map((section, idx) => (
+          <div
+            key={section.id}
+            draggable
+            onDragStart={() => setDraggingId(section.id)}
+            onDragEnd={() => setDraggingId(null)}
+            onDragOver={e => e.preventDefault()}
+            onDrop={() => onDropReorder(section.id)}
+            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 hover:border-slate-300 hover:shadow-sm transition"
+          >
+            <GripVertical className="w-4 h-4 text-slate-400" />
+            <span className="text-xs font-semibold text-slate-700 min-w-6">{idx + 1}.</span>
+            <span className="text-xs sm:text-sm text-slate-800 flex-1 truncate" title={section.testName}>{section.testName}</span>
+            <button
+              onClick={() => moveTop(section.id)}
+              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 hover:bg-slate-50"
+              title="Move to top"
+            >
+              <ArrowUpToLine className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => moveUp(section.id)}
+              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 hover:bg-slate-50"
+              title="Move up"
+            >
+              <ArrowUp className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => moveDown(section.id)}
+              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 hover:bg-slate-50"
+              title="Move down"
+            >
+              <ArrowDown className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => moveBottom(section.id)}
+              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 hover:bg-slate-50"
+              title="Move to bottom"
+            >
+              <ArrowDownToLine className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-/** Simple SVG barcode – decorative Code128-style bars */
 function Barcode({ value }: { value: string }) {
-  // Generate pseudo-random bar pattern from value string
   const bars: number[] = [];
   let seed = 0;
   for (let i = 0; i < value.length; i++) seed += value.charCodeAt(i);
@@ -999,16 +1309,12 @@ function Barcode({ value }: { value: string }) {
       <svg width="110" height="28" viewBox={`0 0 ${bars.reduce((s, b, i) => s + b + (i % 2 === 0 ? 0 : 1), 0)} 28`}>
         {bars.map((w, i) => {
           const isBar = i % 2 === 0;
-          const rect = isBar ? (
-            <rect key={i} x={x} y={0} width={w} height={24} fill={C.text} />
-          ) : null;
+          const rect = isBar ? <rect key={i} x={x} y={0} width={w} height={24} fill={C.text} /> : null;
           x += w + (isBar ? 0 : 1);
           return rect;
         })}
       </svg>
-      <p style={{ margin: '1px 0 0', fontSize: '7.5px', color: C.muted, letterSpacing: '1px', fontFamily: 'monospace' }}>
-        {value}
-      </p>
+      <p style={{ margin: '1px 0 0', fontSize: '7.5px', color: C.muted, letterSpacing: '1px', fontFamily: 'monospace' }}>{value}</p>
     </div>
   );
 }

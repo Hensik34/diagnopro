@@ -11,7 +11,6 @@ const {
 
 const {
   WhatsappSession,
-  WhatsappMessageLog,
   WhatsappTemplate,
   WhatsappNotificationSetting,
   Branch,
@@ -355,23 +354,7 @@ async function connectBranch(branchId, options = {}) {
     }
   });
 
-  socket.ev.on("messages.update", async (updates) => {
-    for (const entry of updates) {
-      const messageId = entry.key?.id;
-      if (!messageId) continue;
 
-      const updatePayload = {};
-      if (entry.update?.status === 1) updatePayload.delivery_status = DELIVERY_STATUS.SENT;
-      if (entry.update?.status === 2) updatePayload.delivery_status = DELIVERY_STATUS.DELIVERED;
-      if (entry.update?.status === 3) updatePayload.delivery_status = DELIVERY_STATUS.READ;
-
-      if (Object.keys(updatePayload).length > 0) {
-        await WhatsappMessageLog.update(updatePayload, {
-          where: { wa_message_id: messageId },
-        });
-      }
-    }
-  });
 
   await emitStatus(branchId);
   return sanitizeSession(await WhatsappSession.findOne({ where: { branch_id: branchId } }));
@@ -481,33 +464,10 @@ async function sendMessage({ branchId, to, message, metadata = {}, templateId = 
     throw err;
   }
 
-  const pendingLog = await WhatsappMessageLog.create({
-    branch_id: branchId,
-    whatsapp_session_id: session.id,
-    template_id: templateId,
-    event_key: eventKey,
-    recipient_phone: sanitizePhoneNumber(to),
-    recipient_name: recipientName,
-    message_content: message,
-    delivery_status: DELIVERY_STATUS.PENDING,
-    metadata,
-  });
-
   try {
     const response = await instance.socket.sendMessage(jid, { text: message });
-
-    await pendingLog.update({
-      wa_message_id: response?.key?.id || null,
-      delivery_status: DELIVERY_STATUS.SENT,
-      error_message: null,
-    });
-
-    return pendingLog;
+    return { success: true, wa_message_id: response?.key?.id || null };
   } catch (error) {
-    await pendingLog.update({
-      delivery_status: DELIVERY_STATUS.FAILED,
-      error_message: error.message,
-    });
     throw error;
   }
 }
@@ -692,13 +652,7 @@ async function restoreAllSessions() {
   }
 }
 
-async function getMessageLogs(branchId, { limit = 100 } = {}) {
-  return WhatsappMessageLog.findAll({
-    where: { branch_id: branchId },
-    order: [["created_at", "DESC"]],
-    limit,
-  });
-}
+
 
 module.exports = {
   connectBranch,
@@ -715,7 +669,6 @@ module.exports = {
   listNotificationSettings,
   upsertNotificationSetting,
   restoreAllSessions,
-  getMessageLogs,
   WHATSAPP_EVENTS,
   DELIVERY_STATUS,
   CONNECTION_STATUS,

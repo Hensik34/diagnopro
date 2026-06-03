@@ -18,6 +18,6 @@ router.post("/templates/preview", authorize(PERMISSIONS.SETTINGS_READ), whatsapp
 router.get("/notification-settings", authorize(PERMISSIONS.SETTINGS_READ), whatsappController.getNotificationSettings);
 router.post("/notification-settings", authorize(PERMISSIONS.SETTINGS_UPDATE), whatsappController.upsertNotificationSetting);
 
-router.get("/logs", authorize(PERMISSIONS.SETTINGS_READ), whatsappController.getMessageLogs);
+
 
 module.exports = router;
