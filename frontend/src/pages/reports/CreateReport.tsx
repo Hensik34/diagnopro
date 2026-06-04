@@ -434,8 +434,32 @@ export function CreateReport() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleFormNavigation = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+      const target = e.target as HTMLElement;
+      if (target === patientSearchInputRef.current || target === testSearchInputRef.current) return;
+      if (target.tagName === 'SELECT' && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) return;
+      
+      const focusable = Array.from(document.querySelectorAll(
+        'input:not([disabled]):not([readonly]), select:not([disabled]):not([readonly]), button:not([disabled]):not([readonly])'
+      )) as HTMLElement[];
+      
+      const index = focusable.indexOf(target);
+      if (index > -1) {
+        let nextIndex = index;
+        if (e.key === 'ArrowDown' || e.key === 'Enter') nextIndex++;
+        if (e.key === 'ArrowUp') nextIndex--;
+
+        if (nextIndex >= 0 && nextIndex < focusable.length) {
+          e.preventDefault();
+          focusable[nextIndex].focus();
+        }
+      }
+    }
+  };
+
   return (
-    <div className="space-y-2 md:space-y-3">
+    <div className="space-y-2 md:space-y-3" onKeyDown={handleFormNavigation}>
       {/* Error Banner */}
       {formError && (
         <div className="bg-destructive/10 border border-destructive/20 rounded p-3 flex items-center justify-between">
@@ -620,7 +644,18 @@ export function CreateReport() {
                       type="text"
                       className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       value={patientName}
-                      onChange={(e) => setPatientName(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPatientName(val);
+                        const lower = val.toLowerCase().trim();
+                        const femaleRegex = /\b\w*(ben|kumari|baa|devi|kaur|wati|bai)\b/i;
+                        const maleRegex = /\b\w*(bhai|kumar|singh|ram|ji|lal|prasad|rao)\b/i;
+                        if (femaleRegex.test(lower)) {
+                          setPatientGender('Female');
+                        } else if (maleRegex.test(lower)) {
+                          setPatientGender('Male');
+                        }
+                      }}
                       placeholder="Full name"
                       disabled={!isNewPatient && !!selectedPatient}
                     />
@@ -637,6 +672,19 @@ export function CreateReport() {
                         className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                         value={patientAge}
                         onChange={(e) => setPatientAge(e.target.value)}
+                        onKeyDown={(e) => {
+                          const key = e.key.toLowerCase();
+                          if (key === 'y') {
+                            e.preventDefault();
+                            setPatientAgeUnit('years');
+                          } else if (key === 'm') {
+                            e.preventDefault();
+                            setPatientAgeUnit('months');
+                          } else if (key === 'd') {
+                            e.preventDefault();
+                            setPatientAgeUnit('days');
+                          }
+                        }}
                         placeholder="Age"
                         disabled={!isNewPatient && !!selectedPatient}
                       />
@@ -664,6 +712,26 @@ export function CreateReport() {
                     >
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-0.5">
+                      Referring Doctor
+                    </label>
+                    <select
+                      className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      value={selectedDoctor?.id || ''}
+                      onChange={(e) => {
+                        const doctor = doctors.find(d => d.id === e.target.value);
+                        setSelectedDoctor(doctor || null);
+                      }}
+                    >
+                      <option value="">Self (No Doctor)</option>
+                      {doctors.map((doctor) => (
+                        <option key={doctor.id} value={doctor.id}>
+                          {doctor.title || 'Dr'}. {doctor.name} {doctor.phone ? ` - ${doctor.phone}` : ''} {doctor.address ? ` - ${doctor.address}` : ''}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -707,26 +775,6 @@ export function CreateReport() {
                       placeholder="Street address, city"
                       disabled={!isNewPatient && !!selectedPatient}
                     />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground block mb-0.5">
-                      Referring Doctor
-                    </label>
-                    <select
-                      className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      value={selectedDoctor?.id || ''}
-                      onChange={(e) => {
-                        const doctor = doctors.find(d => d.id === e.target.value);
-                        setSelectedDoctor(doctor || null);
-                      }}
-                    >
-                      <option value="">Self (No Doctor)</option>
-                      {doctors.map((doctor) => (
-                        <option key={doctor.id} value={doctor.id}>
-                          {doctor.title || 'Dr'}. {doctor.name}
-                        </option>
-                      ))}
-                    </select>
                   </div>
                 </div>
               </div>
