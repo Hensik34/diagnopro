@@ -63,14 +63,31 @@ const printStyles = `
   html, body { margin: 0; padding: 0; }
   body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff !important; }
   .no-print { display: none !important; }
-  .report-viewer-shell { padding: 0 !important; background: #fff !important; }
+  .report-viewer-shell { padding: 0 !important; background: #fff !important; display: block !important; }
+  .report-print-wrapper {
+    height: auto !important;
+    position: static !important;
+    transform: none !important;
+    display: block !important;
+  }
+  .report-print-container {
+    position: static !important;
+    transform: none !important;
+    display: block !important;
+    width: auto !important;
+  }
   .report-page {
-    margin: 0 auto 0 auto !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    margin: 0 !important;
     box-shadow: none !important;
     border: none !important;
     break-after: page;
+    page-break-after: always;
+    page-break-inside: avoid !important;
+    position: relative !important;
   }
-  .report-page:last-child { break-after: auto; }
+  .report-page:last-child { break-after: auto; page-break-after: auto; }
 }
 `;
 
@@ -163,119 +180,23 @@ function parsePx(value: unknown, fallback: number) {
   return fallback;
 }
 
-function rowHasInk(data: Uint8ClampedArray, row: number, width: number) {
-  let darkOrAlphaPixels = 0;
-  const rowOffset = row * width * 4;
-  for (let x = 0; x < width; x++) {
-    const idx = rowOffset + x * 4;
-    const r = data[idx];
-    const g = data[idx + 1];
-    const b = data[idx + 2];
-    const a = data[idx + 3];
-    const nonWhite = r < 245 || g < 245 || b < 245;
-    if (a > 20 || nonWhite) darkOrAlphaPixels++;
-  }
-  return darkOrAlphaPixels / width > 0.01;
-}
-
-async function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Failed to load image'));
-    img.src = url;
-  });
-}
-
-async function analyzeLetterheadBands(url: string): Promise<{ topPx: number; bottomPx: number }> {
-  try {
-    const img = await loadImage(url);
-    const scaledWidth = 600;
-    const scaledHeight = Math.max(200, Math.round((img.naturalHeight / img.naturalWidth) * scaledWidth));
-    const canvas = document.createElement('canvas');
-    canvas.width = scaledWidth;
-    canvas.height = scaledHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return { topPx: 0, bottomPx: 0 };
-
-    ctx.drawImage(img, 0, 0, scaledWidth, scaledHeight);
-    const imageData = ctx.getImageData(0, 0, scaledWidth, scaledHeight).data;
-
-    let topEndRow = -1;
-    let consecutiveBlank = 0;
-    const topScanLimit = Math.floor(scaledHeight * 0.45);
-    let foundTopInk = false;
-
-    for (let row = 0; row < topScanLimit; row++) {
-      const ink = rowHasInk(imageData, row, scaledWidth);
-      if (ink) {
-        foundTopInk = true;
-        topEndRow = row;
-        consecutiveBlank = 0;
-      } else if (foundTopInk) {
-        consecutiveBlank++;
-        if (consecutiveBlank > 22) break;
-      }
-    }
-
-    let bottomStartRow = -1;
-    consecutiveBlank = 0;
-    const bottomScanStart = Math.floor(scaledHeight * 0.55);
-    let foundBottomInk = false;
-
-    for (let row = scaledHeight - 1; row >= bottomScanStart; row--) {
-      const ink = rowHasInk(imageData, row, scaledWidth);
-      if (ink) {
-        foundBottomInk = true;
-        bottomStartRow = row;
-        consecutiveBlank = 0;
-      } else if (foundBottomInk) {
-        consecutiveBlank++;
-        if (consecutiveBlank > 22) break;
-      }
-    }
-
-    const renderHeight = Math.round((img.naturalHeight / img.naturalWidth) * A4_WIDTH_PX);
-    const scaleToRender = renderHeight / scaledHeight;
-    const topPx = topEndRow > 0 ? Math.round((topEndRow + 10) * scaleToRender) : 0;
-    const bottomPx = bottomStartRow > 0 ? Math.round((scaledHeight - bottomStartRow + 10) * scaleToRender) : 0;
-
-    return {
-      topPx: clamp(topPx, 0, Math.round(A4_HEIGHT_PX * 0.35)),
-      bottomPx: clamp(bottomPx, 0, Math.round(A4_HEIGHT_PX * 0.35)),
-    };
-  } catch {
-    return { topPx: 0, bottomPx: 0 };
-  }
-}
-
-async function renderedImageHeightOnA4(url: string): Promise<number> {
-  try {
-    const img = await loadImage(url);
-    return clamp(Math.round((img.naturalHeight / img.naturalWidth) * A4_WIDTH_PX), 0, Math.round(A4_HEIGHT_PX * 0.4));
-  } catch {
-    return 0;
-  }
-}
-
 function estimateInterpretationHeight(text: string, dense: boolean) {
-  const charsPerLine = dense ? 120 : 100;
+  const charsPerLine = 110;
   const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
-  return (dense ? 68 : 76) + lines * (dense ? 14 : 16);
+  return 16 + lines * 14;
 }
 
 function estimateSectionHeight(section: TestSection, params: Parameter[], dense: boolean) {
-  const rowHeight = dense ? 15 : 17;
-  const groupHeaderHeight = dense ? 14 : 16;
+  const rowHeight = 15;
+  const groupHeaderHeight = 16;
   const uniqueGroupRows = params.reduce((count, p, idx) => {
     if (!p.group) return count;
     const prev = idx > 0 ? params[idx - 1].group : undefined;
     return prev !== p.group ? count + 1 : count;
   }, 0);
 
-  const heading = 30;
-  const tableHeader = 24;
+  const heading = 18;
+  const tableHeader = 15;
   const rows = params.length * rowHeight;
   const groups = uniqueGroupRows * groupHeaderHeight;
   const spacing = 8;
@@ -301,8 +222,16 @@ function splitSection(section: TestSection, maxChunkHeight: number, dense: boole
   for (let i = 0; i < section.parameters.length; i++) {
     const candidate = [...current, section.parameters[i]];
     const candidateHeight = estimateSectionHeight(section, candidate, dense);
+    const nextParam = i + 1 < section.parameters.length ? section.parameters[i + 1] : null;
+    const isGroupChanging = nextParam && candidate[candidate.length - 1].group !== nextParam.group;
 
     if (candidateHeight > maxChunkHeight && current.length > 0) {
+      // If we're about to change groups and only have 1 item in current group, keep at least one from next group
+      const currentGroupItems = current.filter(p => p.group === current[current.length - 1]?.group).length;
+      if (isGroupChanging && currentGroupItems <= 1 && current.length < 3) {
+        current = candidate;
+        continue;
+      }
       chunks.push({
         sectionId: section.id,
         title: section.testName,
@@ -501,75 +430,24 @@ export function ReportPreview() {
     }
   }, [searchParams, reportData]);
 
+  // Simple, deterministic safe zone calculation.
+  // Settings values are the single source of truth.
+  // Keep margins and safe areas all the time so they are reserved for pre-printed letterhead.
   useEffect(() => {
-    let cancelled = false;
+    const marginTop = parsePx(settings?.report_margin_top, 80);
+    const marginBottom = parsePx(settings?.report_margin_bottom, 80);
+    const marginLeft = parsePx(settings?.report_margin_left, 24);
+    const marginRight = parsePx(settings?.report_margin_right, 24);
+    const headerSafe = parsePx(settings?.header_safe_area, 0);
+    const footerSafe = parsePx(settings?.footer_safe_area, 0);
 
-    const run = async () => {
-      const defaultTopBottom = Math.round(A4_HEIGHT_PX * 0.07);
-      const defaultLeftRight = Math.round(A4_WIDTH_PX * 0.03);
-      const headerSafe = parsePx(settings?.header_safe_area, 24);
-      const footerSafe = parsePx(settings?.footer_safe_area, 24);
-      const brandingCushion = 18;
-
-      const left = parsePx(settings?.report_margin_left, defaultLeftRight);
-      const right = parsePx(settings?.report_margin_right, defaultLeftRight);
-
-      if (!showLetterhead) {
-        if (!cancelled) {
-          setSafeZones({
-            top: parsePx(settings?.report_margin_top, defaultTopBottom),
-            bottom: parsePx(settings?.report_margin_bottom, defaultTopBottom),
-            left,
-            right,
-          });
-        }
-        return;
-      }
-
-      const letterheadUrl = getImageUrl(settings?.letterhead_url);
-      const headerUrl = getImageUrl(settings?.header_url);
-      const footerUrl = getImageUrl(settings?.footer_url);
-
-      let top = parsePx(settings?.report_margin_top, defaultTopBottom) + headerSafe;
-      let bottom = parsePx(settings?.report_margin_bottom, defaultTopBottom) + footerSafe;
-
-      if (letterheadUrl) {
-        const bands = await analyzeLetterheadBands(letterheadUrl);
-        top = Math.max(top, (bands.topPx || 0) + headerSafe + brandingCushion);
-        bottom = Math.max(bottom, (bands.bottomPx || 0) + footerSafe + brandingCushion);
-      } else {
-        if (headerUrl) {
-          const headerHeight = await renderedImageHeightOnA4(headerUrl);
-          top = Math.max(top, headerHeight + headerSafe + brandingCushion);
-        }
-        if (footerUrl) {
-          const footerHeight = await renderedImageHeightOnA4(footerUrl);
-          bottom = Math.max(bottom, footerHeight + footerSafe + brandingCushion);
-        }
-      }
-
-      const hasBranding = Boolean(letterheadUrl || headerUrl || footerUrl);
-      if (hasBranding) {
-        top = Math.max(top, defaultTopBottom + 24);
-        bottom = Math.max(bottom, defaultTopBottom + 20);
-      }
-
-      if (!cancelled) {
-        setSafeZones({
-          top: clamp(top, 30, Math.round(A4_HEIGHT_PX * 0.55)),
-          bottom: clamp(bottom, 30, Math.round(A4_HEIGHT_PX * 0.55)),
-          left: clamp(left, 10, 64),
-          right: clamp(right, 10, 64),
-        });
-      }
-    };
-
-    run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [settings, showLetterhead, getImageUrl]);
+    setSafeZones({
+      top: clamp(marginTop + headerSafe, 0, Math.round(A4_HEIGHT_PX * 0.45)),
+      bottom: clamp(marginBottom + footerSafe, 0, Math.round(A4_HEIGHT_PX * 0.45)),
+      left: clamp(marginLeft, 0, 80),
+      right: clamp(marginRight, 0, 80),
+    });
+  }, [settings]);
 
   useLayoutEffect(() => {
     const node = viewerRef.current;
@@ -621,15 +499,14 @@ export function ReportPreview() {
   const pages = useMemo(() => {
     if (!reportData) return [] as PageItem[][];
 
-    const paginationSafetyBuffer = 22;
-    const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom - paginationSafetyBuffer;
+    const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom;
     const dense = density !== 'comfortable';
 
-    const patientHeight = dense ? 138 : 154;
-    const signatureHeight = 124;
-    const endMarkerHeight = 22;
+    const patientHeight = 92;
+    const signatureHeight = 70;
+    const endMarkerHeight = 14;
 
-    const maxChunkHeight = Math.max(170, contentHeight - 28);
+    const maxChunkHeight = Math.max(140, contentHeight - 45);
     const chunks = orderedSections.flatMap(section => splitSection(section, maxChunkHeight, dense));
 
     const out: PageItem[][] = [[]];
@@ -657,14 +534,14 @@ export function ReportPreview() {
       place({ type: 'interpretation', text: remarkText }, estimateInterpretationHeight(remarkText, dense));
     }
 
+    // Place end marker + signature together; only push new page if we really can't fit
     const tailHeight = signatureHeight + endMarkerHeight;
-    if (currentHeight + tailHeight > contentHeight && out[out.length - 1].length > 1) {
+    if (currentHeight + tailHeight > contentHeight && out[out.length - 1].length > 0) {
       out.push([]);
       currentHeight = 0;
     }
-
-    place({ type: 'endMarker' }, endMarkerHeight);
-    place({ type: 'signature' }, signatureHeight);
+    out[out.length - 1].push({ type: 'endMarker' });
+    out[out.length - 1].push({ type: 'signature' });
 
     return out;
   }, [reportData, orderedSections, safeZones, remarkText, density]);
@@ -677,23 +554,150 @@ export function ReportPreview() {
     if (!reportData || pages.length === 0) return null;
 
     setIsGeneratingPdf(true);
+
+    // Create a temporary hidden iframe to isolate html2canvas rendering.
+    // This keeps the main application's UI perfectly styled and responsive,
+    // and allows us to filter out Tailwind's oklch styles entirely from the iframe document context.
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.width = `${A4_WIDTH_PX}px`;
+    iframe.style.height = `${A4_HEIGHT_PX}px`;
+    iframe.style.top = '-9999px';
+    iframe.style.left = '-9999px';
+    iframe.style.visibility = 'hidden';
+
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!iframeDoc) {
+      document.body.removeChild(iframe);
+      setIsGeneratingPdf(false);
+      return null;
+    }
+
+    // Set up standard HTML and standard typography inside the iframe
+    iframeDoc.open();
+    iframeDoc.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+            background-color: #ffffff;
+            font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+          }
+          * {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+          }
+        </style>
+      </head>
+      <body>
+        <div id="iframe-content-root"></div>
+      </body>
+      </html>
+    `);
+    iframeDoc.close();
+
+    // Copy all stylesheets to the iframe, rewriting any "oklch(...)" colors to a safe fallback
+    // color to prevent html2canvas crashes while retaining all layout/reset/table styles.
+    document.querySelectorAll('style, link[rel="stylesheet"]').forEach((el) => {
+      const styleEl = el as HTMLStyleElement | HTMLLinkElement;
+      try {
+        let cssText = '';
+        if (styleEl.tagName === 'STYLE') {
+          cssText = styleEl.textContent || '';
+        } else if (styleEl instanceof HTMLLinkElement) {
+          if (styleEl.sheet) {
+            const rules = styleEl.sheet.cssRules || styleEl.sheet.rules;
+            for (let k = 0; k < rules.length; k++) {
+              cssText += rules[k].cssText + '\n';
+            }
+          }
+        }
+
+        if (cssText) {
+          // Clean the CSS of oklch definitions so html2canvas doesn't crash on parse
+          const cleanedCss = cssText.replace(/oklch\([^)]+\)/gi, '#212121');
+          const newStyle = iframeDoc.createElement('style');
+          newStyle.textContent = cleanedCss;
+          iframeDoc.head.appendChild(newStyle);
+        } else if (styleEl instanceof HTMLLinkElement) {
+          // If no cssText computed but it's a link (e.g. cross-origin/Google Fonts), copy it directly
+          const cloned = styleEl.cloneNode(true);
+          iframeDoc.head.appendChild(cloned);
+        }
+      } catch (e) {
+        // Fallback: Copy link stylesheet elements directly (they throw CORS error, but don't contain oklch)
+        const cloned = styleEl.cloneNode(true);
+        iframeDoc.head.appendChild(cloned);
+      }
+    });
+
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
+      pdf.setProperties({ compress: true });
+      const root = iframeDoc.getElementById('iframe-content-root');
+      if (!root) throw new Error("Iframe root not found");
+
+      // Wait for fonts to be fully loaded inside the iframe doc context
+      if (iframeDoc.fonts && iframeDoc.fonts.ready) {
+        await iframeDoc.fonts.ready;
+      }
 
       for (let i = 0; i < pages.length; i++) {
         const node = pageRefs.current[i];
         if (!node) continue;
 
         if (i > 0) pdf.addPage();
-        const canvas = await html2canvas(node, {
-          scale: 2,
+
+        // Clone node into the iframe DOM context
+        const clonedNode = node.cloneNode(true) as HTMLElement;
+        clonedNode.style.transform = 'none';
+        clonedNode.style.position = 'relative';
+        clonedNode.style.margin = '0';
+        clonedNode.style.boxShadow = 'none';
+        clonedNode.style.border = 'none';
+        (clonedNode.style as any).WebkitFontSmoothing = 'antialiased';
+
+        root.appendChild(clonedNode);
+
+        // Wait for all images and fonts to load
+        const images = clonedNode.querySelectorAll('img');
+        const imageLoads = Array.from(images).map(
+          img =>
+            new Promise(resolve => {
+              if ((img as HTMLImageElement).complete) resolve(true);
+              else (img as HTMLImageElement).onload = () => resolve(true);
+            }),
+        );
+        await Promise.all(imageLoads);
+        await new Promise(r => setTimeout(r, 300));
+
+        const canvas = await html2canvas(clonedNode, {
+          scale: 4, // Ultra-high resolution rendering for crisp, sharp output
           useCORS: true,
           backgroundColor: '#ffffff',
           logging: false,
+          width: A4_WIDTH_PX,
+          height: A4_HEIGHT_PX,
+          allowTaint: true,
+          windowWidth: A4_WIDTH_PX * 4,
+          windowHeight: A4_HEIGHT_PX * 4,
         });
 
-        const img = canvas.toDataURL('image/jpeg', 0.95);
-        pdf.addImage(img, 'JPEG', 0, 0, 210, 297);
+        // Clean up page element from iframe
+        root.removeChild(clonedNode);
+
+        const imgData = canvas.toDataURL('image/png'); // PNG for lossless quality
+        pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
       }
 
       const fileName = `Report-${reportData.patient.name.replace(/\s+/g, '_')}-${reportData.report.id}.pdf`;
@@ -703,6 +707,7 @@ export function ReportPreview() {
       console.error('PDF generation failed:', err);
       return null;
     } finally {
+      document.body.removeChild(iframe);
       setIsGeneratingPdf(false);
     }
   }, [reportData, pages]);
@@ -896,8 +901,9 @@ export function ReportPreview() {
           </aside>
 
           <div ref={viewerRef} className="w-full overflow-x-hidden overflow-y-auto">
-          <div style={{ height: stackHeight * effectiveScale, position: 'relative' }}>
+          <div className="report-print-wrapper" style={{ height: stackHeight * effectiveScale, position: 'relative' }}>
             <div
+              className="report-print-container"
               style={{
                 width: A4_WIDTH_PX,
                 position: 'absolute',
@@ -986,9 +992,9 @@ export function ReportPreview() {
                         overflow: 'hidden',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 4,
-                        fontSize: density === 'compact' ? 10 : 10.5,
-                        lineHeight: density === 'compact' ? 1.45 : 1.55,
+                        gap: 2,
+                        fontSize: density === 'compact' ? 9.5 : 10,
+                        lineHeight: density === 'compact' ? 1.3 : 1.4,
                       }}
                     >
                       {page.map((item, idx) => {
@@ -1010,7 +1016,7 @@ export function ReportPreview() {
                                 qrCode={
                                   <QRCodeSVG
                                     value={`${window.location.origin}/reports/${id}`}
-                                    size={58}
+                                    size={46}
                                     level="M"
                                     bgColor="#ffffff"
                                     fgColor={C.brand}
@@ -1032,7 +1038,7 @@ export function ReportPreview() {
                               isFirstSection={false}
                               colorTokens={C}
                             >
-                              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', borderSpacing: '0 0', tableLayout: 'fixed', marginTop: '4px' }}>
                                 <InvestigationTableHeader colorTokens={C} />
                                 <tbody>
                                   {item.chunk.parameters.map((param, rowIdx) => {
@@ -1306,15 +1312,15 @@ function Barcode({ value }: { value: string }) {
   let x = 0;
   return (
     <div style={{ textAlign: 'center' }}>
-      <svg width="110" height="28" viewBox={`0 0 ${bars.reduce((s, b, i) => s + b + (i % 2 === 0 ? 0 : 1), 0)} 28`}>
+      <svg width="90" height="20" viewBox={`0 0 ${bars.reduce((s, b, i) => s + b + (i % 2 === 0 ? 0 : 1), 0)} 20`}>
         {bars.map((w, i) => {
           const isBar = i % 2 === 0;
-          const rect = isBar ? <rect key={i} x={x} y={0} width={w} height={24} fill={C.text} /> : null;
+          const rect = isBar ? <rect key={i} x={x} y={0} width={w} height={16} fill={C.text} /> : null;
           x += w + (isBar ? 0 : 1);
           return rect;
         })}
       </svg>
-      <p style={{ margin: '1px 0 0', fontSize: '7.5px', color: C.muted, letterSpacing: '1px', fontFamily: 'monospace' }}>{value}</p>
+      <p style={{ margin: '0px 0 0', fontSize: '7px', color: C.muted, letterSpacing: '0.5px', fontFamily: 'monospace', lineHeight: 1 }}>{value}</p>
     </div>
   );
 }

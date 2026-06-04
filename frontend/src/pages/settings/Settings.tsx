@@ -50,8 +50,8 @@ export function Settings() {
   const labSignatureInputRefs = useRef<Record<number, HTMLInputElement | null>>({ 1: null, 2: null, 3: null, 4: null });
   const [defaultSignatureIndex, setDefaultSignatureIndex] = useState<number | null>(null);
   const [brandingDraft, setBrandingDraft] = useState({
-    report_margin_top: 160,
-    report_margin_bottom: 120,
+    report_margin_top: 80,
+    report_margin_bottom: 80,
     report_margin_left: 28,
     report_margin_right: 28,
     header_safe_area: 24,
@@ -137,8 +137,8 @@ export function Settings() {
       // Initialize default signature index
       setDefaultSignatureIndex(settings.default_signature_index || null);
       setBrandingDraft({
-        report_margin_top: normalizePx(settings.report_margin_top, 160),
-        report_margin_bottom: normalizePx(settings.report_margin_bottom, 120),
+        report_margin_top: normalizePx(settings.report_margin_top, 80),
+        report_margin_bottom: normalizePx(settings.report_margin_bottom, 80),
         report_margin_left: normalizePx(settings.report_margin_left, 28),
         report_margin_right: normalizePx(settings.report_margin_right, 28),
         header_safe_area: normalizePx(settings.header_safe_area, 24),
@@ -709,8 +709,8 @@ export function Settings() {
                         type="button"
                         onClick={handleSaveBranding}
                         disabled={isSavingBranding || !settings || (
-                          brandingDraft.report_margin_top === normalizePx(settings.report_margin_top, 160) &&
-                          brandingDraft.report_margin_bottom === normalizePx(settings.report_margin_bottom, 120) &&
+                          brandingDraft.report_margin_top === normalizePx(settings.report_margin_top, 80) &&
+                          brandingDraft.report_margin_bottom === normalizePx(settings.report_margin_bottom, 80) &&
                           brandingDraft.report_margin_left === normalizePx(settings.report_margin_left, 28) &&
                           brandingDraft.report_margin_right === normalizePx(settings.report_margin_right, 28) &&
                           brandingDraft.header_safe_area === normalizePx(settings.header_safe_area, 24) &&
@@ -784,6 +784,13 @@ export function Settings() {
                           onChange={(e) => setBrandingDraft((prev) => ({ ...prev, footer_safe_area: parseInt(e.target.value, 10) || 0 }))}
                         />
                       </label>
+                    </div>
+
+                    <div className="mt-4 p-3 bg-secondary/30 border border-border rounded-lg text-xs text-muted-foreground leading-5 space-y-1">
+                      <p className="font-medium text-foreground text-sm">How margins & safe areas work</p>
+                      <p><strong>Top / Bottom Margin</strong> — Distance from page edge to where report content starts. Set this to clear your letterhead header/footer artwork.</p>
+                      <p><strong>Header / Footer Safe Area</strong> — Extra padding added on top of margins <em>only when branding (letterhead) is turned on</em> in the preview. When branding is off, only margins are used.</p>
+                      <p><strong>Effective content start</strong> = Top Margin + Header Safe Area (with branding). Adjust these values and check the Report Preview to fine-tune.</p>
                     </div>
                   </div>
                 </section>

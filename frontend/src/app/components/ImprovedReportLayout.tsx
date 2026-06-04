@@ -9,54 +9,54 @@ import React from 'react';
 export const ReportLayoutConfig = {
   // Spacing system
   spacing: {
-    xs: 2,
-    sm: 4,
-    md: 8,
-    lg: 12,
-    xl: 16,
-    xxl: 20,
+    xs: 1,
+    sm: 2,
+    md: 3,
+    lg: 4,
+    xl: 6,
+    xxl: 8,
   },
-  
+
   // Margins for sections
   sectionMargin: {
-    top: 10,
-    bottom: 12,
-    between: 14,
+    top: 2,
+    bottom: 2,
+    between: 4,
   },
-  
+
   // Padding for boxes
   boxPadding: {
-    dense: 4,
-    normal: 10,
-    spacious: 14,
+    dense: 2,
+    normal: 3,
+    spacious: 5,
   },
-  
+
   // Font sizes (desktop)
   fontSize: {
-    label: 9,
-    value: 10,
-    header: 10,
-    sectionTitle: 11.5,
-    patientName: 15,
+    label: 8.5,
+    value: 9.5,
+    header: 9,
+    sectionTitle: 10.5,
+    patientName: 13,
   },
-  
+
   // Font sizes mobile
   fontSizeMobile: {
     label: 8,
     value: 9,
     header: 9,
-    sectionTitle: 11,
-    patientName: 14,
+    sectionTitle: 10,
+    patientName: 12,
   },
-  
+
   // Line heights
   lineHeight: {
-    tight: 1.3,
-    normal: 1.5,
-    relaxed: 1.65,
-    spacious: 1.8,
+    tight: 1.2,
+    normal: 1.35,
+    relaxed: 1.45,
+    spacious: 1.55,
   },
-  
+
   // Table column widths (percentages)
   tableColumns: {
     investigation: '36%',
@@ -263,11 +263,13 @@ export function SectionGroupHeader({
       <td
         colSpan={4}
         style={{
-          padding: `${ReportLayoutConfig.boxPadding.dense + 1}px 6px ${ReportLayoutConfig.boxPadding.dense - 1}px`,
+          padding: `5px 4px 3px`,
           fontWeight: 700,
           fontSize: `${ReportLayoutConfig.fontSize.value - 0.2}px`,
           color: colorTokens.text,
           letterSpacing: '0.2px',
+          backgroundColor: '#FAFAFA',
+          borderTop: '1px solid #E0E0E0',
         }}
       >
         {title}
@@ -329,13 +331,13 @@ export function ImprovedPatientBox({
         {/* Column 1: Patient Details */}
         <div style={{
           flex: '1.2',
-          padding: '10px 12px',
+          padding: '4px 8px',
           borderRight: `1px solid ${colorTokens.borderLight}`,
         }}>
-          <h2 style={{ fontSize: '15px', fontWeight: 800, margin: '0 0 4px 0', color: colorTokens.text }}>
+          <h2 style={{ fontSize: '13px', fontWeight: 800, margin: '0 0 1px 0', color: colorTokens.text }}>
             {patientName}
           </h2>
-          <div style={{ fontSize: '11px', color: '#444', lineHeight: 1.6 }}>
+          <div style={{ fontSize: '9.5px', color: '#444', lineHeight: 1.35 }}>
             <div>Age : {age}</div>
             <div>Sex : {gender}</div>
             <div>PID : {patientId}</div>
@@ -345,23 +347,23 @@ export function ImprovedPatientBox({
         {/* Column 2: Registration ID & Ref Doctor & QR */}
         <div style={{
           flex: '1.5',
-          padding: '10px 12px',
+          padding: '4px 8px',
           borderRight: `1px solid ${colorTokens.borderLight}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
-          gap: '10px',
+          gap: '4px',
         }}>
           {/* Left: Registration info */}
-          <div style={{ flex: 1, minWidth: '150px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: colorTokens.secondary, marginBottom: '2px' }}>
+          <div style={{ flex: 1, minWidth: '130px' }}>
+            <div style={{ fontSize: '9.5px', fontWeight: 600, color: colorTokens.secondary, marginBottom: '1px' }}>
               Registration ID:
             </div>
-            <div style={{ fontSize: '13px', color: colorTokens.text, marginBottom: '4px', fontWeight: 800 }}>
+            <div style={{ fontSize: '12px', color: colorTokens.text, marginBottom: '1px', fontWeight: 800 }}>
               {sampleId}
             </div>
-            <div style={{ fontSize: '10.5px', color: colorTokens.text }}>
+            <div style={{ fontSize: '9.5px', color: colorTokens.text }}>
               Ref. By: <span style={{ fontWeight: 700 }}>{referringDoctor}</span>
             </div>
           </div>
@@ -374,17 +376,17 @@ export function ImprovedPatientBox({
         {/* Column 3: Barcode & Dates */}
         <div style={{
           flex: '1.3',
-          padding: '10px 12px',
+          padding: '4px 8px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '6px',
+          gap: '2px',
         }}>
           <div>
             {barcode}
           </div>
-          <div style={{ fontSize: '10px', color: colorTokens.text, width: '100%', lineHeight: 1.5, textAlign: 'center' }}>
+          <div style={{ fontSize: '8.5px', color: colorTokens.text, width: '100%', lineHeight: 1.3, textAlign: 'center' }}>
             <div>
               <span style={{ fontWeight: 700 }}>Registered:</span> {reportDate}, {reportTime}
             </div>
@@ -420,15 +422,19 @@ export function TestSectionBlock({
   return (
     <div
       style={{
-        marginBottom: `${ReportLayoutConfig.sectionMargin.between - 8}px`,
-        marginTop: isFirstSection ? 0 : `${ReportLayoutConfig.sectionMargin.top - 6}px`,
+        marginBottom: `${ReportLayoutConfig.sectionMargin.between}px`,
+        marginTop: isFirstSection ? 0 : `${ReportLayoutConfig.sectionMargin.top}px`,
       }}
     >
       {/* Test section heading */}
       <div
         style={{
-          textAlign: 'center',
-          marginBottom: `${ReportLayoutConfig.spacing.xs}px`,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginBottom: '6px',
+          width: '100%',
+          pageBreakAfter: 'avoid',
         }}
       >
         <h2
@@ -439,9 +445,9 @@ export function TestSectionBlock({
             color: colorTokens.text,
             textTransform: 'uppercase',
             letterSpacing: '1px',
-            display: 'inline-block',
-            paddingBottom: '1px',
-            borderBottom: `1px solid ${colorTokens.text}`,
+            paddingBottom: '2px',
+            borderBottom: `2px solid ${colorTokens.text}`,
+            pageBreakAfter: 'avoid',
           }}
         >
           {testName}

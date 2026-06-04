@@ -422,7 +422,11 @@ export function ReportEntry() {
   const [reportStatus, setReportStatus] = useState<string>("draft");
   const [isEditable, setIsEditable] = useState(true);
   const [loadingReport, setLoadingReport] = useState(false);
-  const [activeTestId, setActiveTestId] = useState<string | null>(null);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [showNotesSection, setShowNotesSection] = useState(false);
+  const [showAiSection, setShowAiSection] = useState(false);
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // Fetch report data when reportId is provided
   useEffect(() => {
@@ -757,23 +761,156 @@ export function ReportEntry() {
     });
   }, [requiredParams, values]);
 
-  // For multi-test reports, keep one section visible at a time to reduce page length.
+  const sectionCompletion = useMemo(() => {
+    const progress: Record<string, { filled: number; total: number; done: boolean }> = {};
+
+    for (const section of testSections) {
+      const completableParams = section.params.filter((param) => param.field_type !== 'calculated');
+      const sourceParams = completableParams.length > 0 ? completableParams : section.params;
+      const filled = sourceParams.filter((param) => {
+        const value = values[param.id];
+        return value !== undefined && value !== null && String(value).trim() !== '';
+      }).length;
+
+      progress[section.testId] = {
+        filled,
+        total: sourceParams.length,
+        done: sourceParams.length > 0 && filled === sourceParams.length,
+      };
+    }
+
+    return progress;
+  }, [testSections, values]);
+
+  const totalParameterCount = useMemo(
+    () => Object.values(sectionCompletion).reduce((sum, section) => sum + section.total, 0),
+    [sectionCompletion]
+  );
+
+  const hasQuickNavigation = testSections.length > 1;
+  const tableHeaderStickyTopClass = hasQuickNavigation ? 'top-[6.6rem]' : 'top-[3.8rem]';
+
+  const sectionLayoutKey = useMemo(
+    () => `${totalParameterCount <= 40 ? 'expand-all' : 'guided'}:${testSections.map((section) => section.testId).join('|')}`,
+    [totalParameterCount, testSections]
+  );
+
   useEffect(() => {
     if (testSections.length === 0) {
-      setActiveTestId(null);
+      setExpandedSections({});
       return;
     }
 
-    if (!activeTestId || !testSections.some((section) => section.testId === activeTestId)) {
-      setActiveTestId(testSections[0].testId);
-    }
-  }, [testSections, activeTestId]);
+    const expandAll = totalParameterCount <= 40;
+    setExpandedSections(() => {
+      const next: Record<string, boolean> = {};
+      testSections.forEach((section, index) => {
+        next[section.testId] = expandAll || index === 0;
+      });
+      return next;
+    });
+  }, [sectionLayoutKey, testSections, totalParameterCount]);
 
-  const visibleTestSections = useMemo(() => {
-    if (testSections.length <= 1) return testSections;
-    const activeSection = testSections.find((section) => section.testId === activeTestId);
-    return activeSection ? [activeSection] : [testSections[0]];
-  }, [testSections, activeTestId]);
+  const editableFieldOrder = useMemo(
+    () => testSections.flatMap((section) =>
+      section.params
+        .filter((param) => param.field_type !== 'calculated')
+        .map((param) => param.id)
+    ),
+    [testSections]
+  );
+
+  const fieldTabOrder = useMemo(() => {
+    const map: Record<string, number> = {};
+    editableFieldOrder.forEach((fieldId, index) => {
+      map[fieldId] = index + 1;
+    });
+    return map;
+  }, [editableFieldOrder]);
+
+  const fieldSectionMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    testSections.forEach((section) => {
+      section.params.forEach((param) => {
+        map[param.id] = section.testId;
+      });
+    });
+    return map;
+  }, [testSections]);
+
+  const focusParameterField = useCallback((fieldId: string) => {
+    const sectionId = fieldSectionMap[fieldId];
+
+    if (sectionId && !expandedSections[sectionId]) {
+      setExpandedSections((prev) => ({ ...prev, [sectionId]: true }));
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const input = inputRefs.current[fieldId];
+          input?.focus();
+          input?.select?.();
+          input?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
+      });
+      return;
+    }
+
+    const input = inputRefs.current[fieldId];
+    input?.focus();
+    input?.select?.();
+    input?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [expandedSections, fieldSectionMap]);
+
+  const moveParameterFocus = useCallback((fieldId: string, direction: 1 | -1) => {
+    const currentIndex = editableFieldOrder.indexOf(fieldId);
+    if (currentIndex === -1) return;
+
+    const nextFieldId = editableFieldOrder[currentIndex + direction];
+    if (!nextFieldId) return;
+
+    focusParameterField(nextFieldId);
+  }, [editableFieldOrder, focusParameterField]);
+
+  const handleParameterKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>, fieldId: string, inputType: string) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      moveParameterFocus(fieldId, event.shiftKey ? -1 : 1);
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      moveParameterFocus(fieldId, 1);
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveParameterFocus(fieldId, -1);
+      return;
+    }
+
+    if (inputType !== 'text' && event.key === 'ArrowRight') {
+      event.preventDefault();
+      moveParameterFocus(fieldId, 1);
+      return;
+    }
+
+    if (inputType !== 'text' && event.key === 'ArrowLeft') {
+      event.preventDefault();
+      moveParameterFocus(fieldId, -1);
+    }
+  }, [moveParameterFocus]);
+
+  const handleScrollToSection = useCallback((testId: string) => {
+    setExpandedSections((prev) => ({ ...prev, [testId]: true }));
+    requestAnimationFrame(() => {
+      sectionRefs.current[testId]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, []);
+
+  const toggleSection = useCallback((testId: string) => {
+    setExpandedSections((prev) => ({ ...prev, [testId]: !prev[testId] }));
+  }, []);
 
   // Build test_data object for saving — grouped by test
   const buildTestData = () => {
@@ -923,6 +1060,7 @@ export function ReportEntry() {
   const handleGenerateInterpretation = async () => {
     if (!reportId) {
       setAiError("Please save the report first before generating interpretation.");
+      setShowAiSection(true);
       return;
     }
 
@@ -930,6 +1068,7 @@ export function ReportEntry() {
     const filledValues = Object.values(values).filter(v => v !== undefined && v !== '');
     if (filledValues.length === 0) {
       setAiError("Please enter test values before generating interpretation.");
+      setShowAiSection(true);
       return;
     }
 
@@ -948,10 +1087,11 @@ export function ReportEntry() {
       const response = await reportApi.generateInterpretation(reportId);
       if (response.data) {
         setAiInterpretation(response.data);
-        setShowAiResult(true);
+        setShowAiSection(true);
       }
     } catch (err: any) {
       setAiError(err.message || "Failed to generate interpretation. Please try again.");
+      setShowAiSection(true);
     } finally {
       setIsGeneratingAI(false);
     }
@@ -1080,7 +1220,7 @@ export function ReportEntry() {
     );
   }
   return (
-    <div className="space-y-3 w-full px-2 sm:px-3">
+    <div className="space-y-2 w-full px-2 sm:px-3 pb-3">
       {/* Non-editable warning banner */}
       {!isEditable && (
         <div className="bg-warning/10 border border-warning/20 rounded p-3 flex items-center gap-2">
@@ -1105,19 +1245,19 @@ export function ReportEntry() {
       )}
 
       {/* Header / Actions */}
-      <div className="sticky top-12 z-20 bg-background/95 backdrop-blur py-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3">
+      <div className="sticky top-12 z-30 bg-background/95 backdrop-blur py-1.5 border-b border-border/70 flex flex-wrap items-center justify-between gap-1.5">
+        <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => navigate(-1)}
-            className="w-8 h-8 flex items-center justify-center rounded hover:bg-accent transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <div>
-            <h1 className="text-foreground text-lg mb-0.5">
+          <div className="min-w-0">
+            <h1 className="text-foreground text-base leading-none mb-0.5 truncate">
               Report Entry
             </h1>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground leading-none">
               <span className="tabular-nums">
                 {reportId ? `#${reportId.slice(0, 8)}` : '#NEW'}
               </span>
@@ -1152,13 +1292,13 @@ export function ReportEntry() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {isEditable && (
             <>
               {reportId && (
                 <button
                   onClick={() => navigate('/reports')}
-                  className="h-8 px-2.5 flex items-center gap-1.5 bg-card border border-border rounded hover:bg-accent transition-colors text-xs"
+                  className="h-7 px-2.5 flex items-center gap-1.5 bg-card border border-border rounded hover:bg-accent transition-colors text-[11px]"
                 >
                   <X className="w-3.5 h-3.5" />
                   Cancel
@@ -1167,7 +1307,7 @@ export function ReportEntry() {
               <button
                 onClick={handleSaveDraft}
                 disabled={isSaving || !reportId}
-                className="h-8 px-2.5 flex items-center gap-1.5 bg-card border border-border rounded hover:bg-accent transition-colors text-xs disabled:opacity-50"
+                className="h-7 px-2.5 flex items-center gap-1.5 bg-card border border-border rounded hover:bg-accent transition-colors text-[11px] disabled:opacity-50"
               >
                 {isSaving ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1184,7 +1324,7 @@ export function ReportEntry() {
                 <button
                   onClick={handleSubmitForReview}
                   disabled={isSubmitting || !reportId || Object.keys(values).length === 0}
-                  className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs disabled:opacity-50"
+                  className="h-7 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-[11px] disabled:opacity-50"
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1201,7 +1341,7 @@ export function ReportEntry() {
             <button
               onClick={handlePreview}
               disabled={!patient}
-              className="h-8 px-2.5 flex items-center gap-1.5 bg-success text-white rounded hover:opacity-90 transition-opacity text-xs disabled:opacity-50"
+              className="h-7 px-2.5 flex items-center gap-1.5 bg-success text-white rounded hover:opacity-90 transition-opacity text-[11px] disabled:opacity-50"
             >
               <FileText className="w-3.5 h-3.5" />
               Preview
@@ -1211,8 +1351,8 @@ export function ReportEntry() {
       </div>
 
       <div className="space-y-2">
-        <div className="bg-card border border-border rounded p-2">
-          <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground mb-2">
+        <div className="bg-card border border-border rounded px-2.5 py-2 space-y-2">
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground leading-none">
             <span className="inline-flex items-center gap-1"><FileText className="w-3 h-3" />{reportId ? `#${reportId.slice(0, 8)}` : '#NEW'}</span>
             <span className="inline-flex items-center gap-1"><Microscope className="w-3 h-3" />{testName}</span>
             <span className="inline-flex items-center gap-1"><Calendar className="w-3 h-3" />{format(new Date(), "MMM dd HH:mm")}</span>
@@ -1222,9 +1362,9 @@ export function ReportEntry() {
           </div>
 
           {patient ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-12 gap-2 text-xs">
-              <div className="col-span-2 md:col-span-2 lg:col-span-3">
-                <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-0.5">Patient Name</label>
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(220px,2.1fr)_minmax(110px,0.9fr)_minmax(170px,1.2fr)_minmax(170px,1.2fr)_minmax(240px,1.8fr)] gap-1.5 text-[11px] items-center">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <label className="text-[10px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">Patient</label>
                 <input
                   type="text"
                   value={patient.name}
@@ -1233,8 +1373,8 @@ export function ReportEntry() {
                   className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
                 />
               </div>
-              <div className="col-span-1 md:col-span-1 lg:col-span-2">
-                <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-0.5">Gender</label>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <label className="text-[10px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">Gender</label>
                 <select
                   value={patient.gender || ''}
                   onChange={(e) => setPatient({ ...patient, gender: e.target.value })}
@@ -1247,9 +1387,9 @@ export function ReportEntry() {
                   <option value="Other">Other</option>
                 </select>
               </div>
-              <div className="col-span-1 md:col-span-1 lg:col-span-2">
-                <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-0.5">Age</label>
-                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_88px] gap-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <label className="text-[10px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">Age</label>
+                <div className="grid grid-cols-[minmax(0,1fr)_82px] gap-1 w-full">
                   <input
                     type="number"
                     min={0}
@@ -1271,8 +1411,8 @@ export function ReportEntry() {
                   </select>
                 </div>
               </div>
-              <div className="col-span-2 md:col-span-2 lg:col-span-2">
-                <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-0.5">Contact</label>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <label className="text-[10px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">Contact</label>
                 <input
                   type="tel"
                   value={patient.phone || ''}
@@ -1281,9 +1421,9 @@ export function ReportEntry() {
                   className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary tabular-nums disabled:opacity-60"
                 />
               </div>
-              <div className="col-span-2 md:col-span-4 lg:col-span-3" ref={doctorSearchRef}>
-                <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-0.5">Referring Doctor</label>
-                <div className="relative">
+              <div className="flex items-center gap-1.5 min-w-0" ref={doctorSearchRef}>
+                <label className="text-[10px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">Doctor</label>
+                <div className="relative w-full">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
                   <input
                     type="text"
@@ -1299,7 +1439,7 @@ export function ReportEntry() {
                     }}
                     onFocus={() => isEditable && setShowDoctorDropdown(true)}
                     disabled={!isEditable}
-                    className="w-full h-8 pl-7 pr-14 bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
+                    className="w-full h-8 pl-7 pr-14 bg-background border border-border rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
                     placeholder="Search doctor..."
                   />
                   <button
@@ -1378,25 +1518,24 @@ export function ReportEntry() {
               </div>
             ) : (
               <>
-                {testSections.length > 1 && (
-                  <div className="bg-card border border-border rounded p-1.5">
-                    <div className="overflow-x-auto">
-                      <div className="flex gap-1 min-w-max">
+                {hasQuickNavigation && (
+                  <div className="sticky top-[3.8rem] z-20 bg-background/95 backdrop-blur py-1">
+                    <div className="bg-card border border-border rounded px-2 py-1.5 overflow-x-auto">
+                      <div className="flex gap-1.5 min-w-max text-[11px] leading-none">
                         {testSections.map((section) => {
-                          const isActive = section.testId === activeTestId;
+                          const completion = sectionCompletion[section.testId] || { filled: 0, total: 0, done: false };
                           return (
                             <button
                               key={section.testId}
-                              onClick={() => setActiveTestId(section.testId)}
-                              className={`h-7 px-2.5 rounded text-[11px] whitespace-nowrap transition-colors border ${isActive
-                                  ? 'bg-primary text-white border-primary'
-                                  : 'bg-background text-muted-foreground border-border hover:bg-accent hover:text-foreground'
+                              onClick={() => handleScrollToSection(section.testId)}
+                              className={`h-7 px-2.5 rounded border transition-colors whitespace-nowrap ${completion.done
+                                ? 'border-success/40 bg-success/10 text-success'
+                                : 'border-border bg-background text-foreground hover:bg-accent'
                                 }`}
                             >
-                              {section.testName}
-                              <span className={`ml-1 ${isActive ? 'text-white/90' : 'text-muted-foreground'}`}>
-                                ({section.params.length})
-                              </span>
+                              <span className="font-medium">{section.testCode || section.testName}</span>
+                              <span className="text-muted-foreground ml-1">({completion.filled}/{completion.total})</span>
+                              {completion.done && <span className="ml-1">✓</span>}
                             </button>
                           );
                         })}
@@ -1405,100 +1544,154 @@ export function ReportEntry() {
                   </div>
                 )}
 
-                {visibleTestSections.map((section, sectionIdx) => (
-                  <div key={section.testId} className="bg-card border border-border rounded overflow-hidden">
-                    {/* Test section header */}
-                    <div className="px-3 py-1.5 border-b border-border bg-primary/5 flex items-center gap-2">
-                      <Microscope className="w-3.5 h-3.5 text-primary" />
-                      <h3 className="text-foreground text-sm font-semibold">
-                        {section.testName}
-                        {section.testCode && (
-                          <span className="text-muted-foreground ml-1 text-xs">({section.testCode})</span>
-                        )}
-                      </h3>
-                      <span className="text-[10px] text-muted-foreground ml-auto">
-                        {section.params.length}P
-                      </span>
-                    </div>
+                {testSections.map((section) => {
+                  const completion = sectionCompletion[section.testId] || { filled: 0, total: 0, done: false };
+                  const isExpanded = expandedSections[section.testId] ?? true;
 
-                    {/* Parameter table - Compact */}
-                    <div className="overflow-x-auto">
-                      <table className="w-full table-fixed text-[10px] md:text-[11px]">
-                        <colgroup>
-                          <col className="w-[38%]" />
-                          <col className="w-[11%]" />
-                          <col className="w-[18%]" />
-                          <col className="w-[21%]" />
-                          <col className="w-[12%]" />
-                        </colgroup>
-                        <thead className="bg-secondary/30">
-                          <tr className="border-b border-border">
-                            <th className="px-1.5 py-1 text-left text-muted-foreground uppercase tracking-wider">Parameter</th>
-                            <th className="px-1.5 py-1 text-left text-muted-foreground uppercase tracking-wider">Unit</th>
-                            <th className="px-1.5 py-1 text-left text-muted-foreground uppercase tracking-wider">Ref. Range</th>
-                            <th className="px-1.5 py-1 text-right text-muted-foreground uppercase tracking-wider">Result</th>
-                            <th className="px-1.5 py-1 text-center text-muted-foreground uppercase tracking-wider">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                          {section.params.map((param, index) => (
-                            <tr key={param.id} className="hover:bg-accent/30 transition-colors">
-                              <td className="px-1.5 py-1 text-foreground text-[10px] md:text-xs align-top">
-                                <div className="leading-tight break-words">{param.name}</div>
-                                {param.field_type === 'calculated' && (<span className="mt-0.5 inline-block text-[9px] text-primary bg-primary/10 px-0.5 py-0.25 rounded">calc</span>)}
-                              </td>
-                              <td className="px-1.5 py-1 text-left text-muted-foreground text-[10px] align-top break-words">{param.unit || '-'}</td>
-                              <td className="px-1.5 py-1 text-left text-muted-foreground tabular-nums text-[10px] align-top">
-                                {formatReferenceRange(getPatientReferenceRange(param, patient))}
-                              </td>
-                              <td className="px-1.5 py-1">
-                                <input type={param.input_type === 'text' ? 'text' : 'number'} step={param.step} className={`${getInputClass(statuses[param.id])} h-7 text-[10px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}`} placeholder={param.field_type === 'calculated' ? 'Auto' : '0.0'} value={values[param.id] || ""} onChange={(e) => handleValueChange(param.id, e.target.value)} tabIndex={param.field_type === 'calculated' ? -1 : sectionIdx * 100 + index + 1} disabled={!isEditable} readOnly={param.field_type === 'calculated'} />
-                              </td>
-                              <td className="px-1.5 py-1 text-center">{getStatusBadge(statuses[param.id])}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  return (
+                    <div
+                      key={section.testId}
+                      ref={(node) => {
+                        sectionRefs.current[section.testId] = node;
+                      }}
+                      className="bg-card border border-border rounded overflow-hidden scroll-mt-28"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleSection(section.testId)}
+                        className="w-full px-3 py-2 border-b border-border bg-primary/5 flex items-center gap-2 text-left hover:bg-primary/10 transition-colors"
+                        aria-expanded={isExpanded}
+                      >
+                        <ChevronDownIcon className={`w-3.5 h-3.5 text-primary transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
+                        <Microscope className="w-3.5 h-3.5 text-primary" />
+                        <span className="text-sm text-foreground font-semibold truncate">{section.testName}</span>
+                        {section.testCode && <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{section.testCode}</span>}
+                        <span className="ml-auto text-[11px] text-muted-foreground tabular-nums">
+                          {completion.filled}/{completion.total}
+                        </span>
+                        {completion.done && <span className="text-[11px] font-semibold text-success">Complete</span>}
+                      </button>
+
+                      {isExpanded && (
+                        <>
+                          <div className="bg-secondary/40 grid grid-cols-[45%_25%_20%_10%] gap-0 px-2 py-1 border-b border-border text-[10px] md:text-[11px]">
+                            <div className="text-left text-muted-foreground uppercase tracking-wider font-semibold">Parameter</div>
+                            <div className="px-2 py-1 text-right text-muted-foreground uppercase tracking-wider font-semibold">Result</div>
+                            <div className="px-2 py-1 text-left text-muted-foreground uppercase tracking-wider font-semibold">Reference Range</div>
+                            <div className="text-center text-muted-foreground uppercase tracking-wider font-semibold">Flag</div>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full table-fixed text-[10px] md:text-[11px]">
+                              <colgroup>
+                                <col className="w-[45%]" />
+                                <col className="w-[25%]" />
+                                <col className="w-[20%]" />
+                                <col className="w-[10%]" />
+                              </colgroup>
+                              <tbody className="divide-y divide-border/70">
+                                {section.params.map((param) => (
+                                <tr key={param.id} className="hover:bg-accent/20 transition-colors">
+                                  <td className="px-2 py-1 align-middle text-foreground">
+                                    <div className="leading-tight break-words">{param.name}</div>
+                                    <div className="mt-0.5 flex items-center gap-1 text-[9px] text-muted-foreground">
+                                      <span>{param.unit || '-'}</span>
+                                      {param.field_type === 'calculated' && (
+                                        <span className="inline-flex items-center rounded bg-primary/10 px-1 py-0.5 text-primary">calc</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-2 py-1 align-middle">
+                                    <input
+                                      ref={(node) => {
+                                        inputRefs.current[param.id] = node;
+                                      }}
+                                      type={param.input_type === 'text' ? 'text' : 'number'}
+                                      step={param.step}
+                                      className={`${getInputClass(statuses[param.id])} h-7 text-[11px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}`}
+                                      placeholder={param.field_type === 'calculated' ? 'Auto' : '0.0'}
+                                      value={values[param.id] || ""}
+                                      onChange={(e) => handleValueChange(param.id, e.target.value)}
+                                      onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
+                                      onFocus={(event) => event.currentTarget.select()}
+                                      tabIndex={param.field_type === 'calculated' ? -1 : fieldTabOrder[param.id]}
+                                      disabled={!isEditable}
+                                      readOnly={param.field_type === 'calculated'}
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1 align-middle text-left text-muted-foreground tabular-nums text-[10px] md:text-[11px] leading-tight">
+                                    {formatReferenceRange(getPatientReferenceRange(param, patient))}
+                                  </td>
+                                  <td className="px-2 py-1 align-middle text-center">{getStatusBadge(statuses[param.id])}</td>
+                                </tr>
+                              ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </>
+
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </>
             )}
 
             {/* Status legend */}
             <div className="flex items-center gap-3 text-[10px] text-muted-foreground justify-end">
               <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full border border-info" style={{ backgroundColor: "var(--info)" }}></span>{" "}Low
+                <span className="text-info font-semibold">↓</span> Low
               </div>
               <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full border border-success" style={{ backgroundColor: "var(--success)" }}></span>{" "}Normal
+                <span className="text-success font-semibold">✓</span> Normal
               </div>
               <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full border border-destructive" style={{ backgroundColor: "var(--destructive)" }}></span>{" "}High
+                <span className="text-destructive font-semibold">↑</span> High
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="font-semibold text-red-700 dark:text-red-400">!!</span> Critical
               </div>
             </div>
 
             {/* Technician Notes - Compact */}
-            <div className="bg-card border border-border rounded">
-              <div className="px-3 py-1.5 border-b border-border bg-secondary/30">
-                <h4 className="text-xs text-foreground font-semibold">Technician Notes</h4>
-              </div>
-              <textarea
-                className="w-full border-0 rounded-b p-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary min-h-[60px] bg-background disabled:opacity-50 disabled:cursor-not-allowed resize-none"
-                placeholder="Add notes..."
-                value={technicianNotes}
-                onChange={(e) => setTechnicianNotes(e.target.value)}
-                disabled={!isEditable}
-              ></textarea>
+            <div className="bg-card border border-border rounded overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowNotesSection((prev) => !prev)}
+                className="w-full px-3 py-2 flex items-center justify-between bg-secondary/30 hover:bg-accent transition-colors text-left"
+                aria-expanded={showNotesSection}
+              >
+                <span className="text-xs text-foreground font-semibold flex items-center gap-1.5">
+                  <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showNotesSection ? 'rotate-90' : ''}`} />
+                  Technician Notes
+                </span>
+                {technicianNotes.trim() && <span className="text-[10px] text-muted-foreground">Filled</span>}
+              </button>
+              {showNotesSection && (
+                <textarea
+                  className="w-full border-0 rounded-b p-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary min-h-[64px] bg-background disabled:opacity-50 disabled:cursor-not-allowed resize-y"
+                  placeholder="Add notes..."
+                  value={technicianNotes}
+                  onChange={(e) => setTechnicianNotes(e.target.value)}
+                  disabled={!isEditable}
+                ></textarea>
+              )}
             </div>
 
             {/* AI Clinical Significance Section */}
-            <div className="bg-card border border-border rounded p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs text-foreground flex items-center gap-1.5">
-                  <BrainCircuit className="w-3.5 h-3.5 text-primary" />
-                  AI Clinical Significance
-                </h4>
+            <div className="bg-card border border-border rounded overflow-hidden">
+              <div className="px-3 py-2 flex items-center justify-between gap-2 bg-secondary/30">
+                <button
+                  type="button"
+                  onClick={() => setShowAiSection((prev) => !prev)}
+                  className="flex items-center gap-1.5 text-left"
+                  aria-expanded={showAiSection}
+                >
+                  <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showAiSection ? 'rotate-90' : ''}`} />
+                  <h4 className="text-xs text-foreground flex items-center gap-1.5 font-semibold">
+                    <BrainCircuit className="w-3.5 h-3.5 text-primary" />
+                    AI Clinical Significance
+                  </h4>
+                </button>
                 <button
                   onClick={handleGenerateInterpretation}
                   disabled={isGeneratingAI || !reportId || Object.values(values).filter(v => v).length === 0}
@@ -1513,83 +1706,69 @@ export function ReportEntry() {
                 </button>
               </div>
 
-              {aiError && (
-                <div className="mb-2 p-2 bg-destructive/10 border border-destructive/20 rounded flex items-center gap-1.5">
-                  <AlertCircle className="w-3 h-3 text-destructive flex-shrink-0" />
-                  <span className="text-[11px] text-destructive">{aiError}</span>
+              {showAiSection && (
+                <div className="p-3 space-y-2">
+                  {aiError && (
+                    <div className="p-2 bg-destructive/10 border border-destructive/20 rounded flex items-center gap-1.5">
+                      <AlertCircle className="w-3 h-3 text-destructive flex-shrink-0" />
+                      <span className="text-[11px] text-destructive">{aiError}</span>
+                    </div>
+                  )}
+
+                  {aiInterpretation ? (
+                    <div className="space-y-2">
+                      {aiInterpretation.summary && (
+                        <div className="p-2 bg-primary/5 border border-primary/10 rounded">
+                          <p className="text-[10px] text-primary font-semibold uppercase tracking-wider mb-0.5">Summary</p>
+                          <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.summary}</p>
+                        </div>
+                      )}
+
+                      {aiInterpretation.keyFindings && (
+                        <div className="p-2 bg-warning/5 border border-warning/10 rounded">
+                          <p className="text-[10px] text-warning font-semibold uppercase tracking-wider mb-0.5">Key Findings</p>
+                          <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.keyFindings}</p>
+                        </div>
+                      )}
+
+                      {aiInterpretation.clinicalIndications && (
+                        <div className="p-2 bg-info/5 border border-info/10 rounded">
+                          <p className="text-[10px] text-info font-semibold uppercase tracking-wider mb-0.5">Possible Clinical Indications</p>
+                          <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.clinicalIndications}</p>
+                        </div>
+                      )}
+
+                      {aiInterpretation.recommendation && (
+                        <div className="p-2 bg-success/5 border border-success/10 rounded">
+                          <p className="text-[10px] text-success font-semibold uppercase tracking-wider mb-0.5">Recommendation</p>
+                          <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.recommendation}</p>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          const text = [
+                            aiInterpretation.summary && `Summary: ${aiInterpretation.summary}`,
+                            aiInterpretation.keyFindings && `Key Findings: ${aiInterpretation.keyFindings}`,
+                            aiInterpretation.clinicalIndications && `Clinical Indications: ${aiInterpretation.clinicalIndications}`,
+                            aiInterpretation.recommendation && `Recommendation: ${aiInterpretation.recommendation}`,
+                          ].filter(Boolean).join('\n');
+                          setTechnicianNotes(prev => prev ? `${prev}\n\n--- AI Interpretation ---\n${text}` : text);
+                          setShowNotesSection(true);
+                        }}
+                        className="w-full h-7 flex items-center justify-center gap-1.5 bg-secondary border border-border rounded hover:bg-accent transition-colors text-[11px] text-muted-foreground"
+                      >
+                        <FileText className="w-3 h-3" />
+                        Copy to Notes
+                      </button>
+                    </div>
+                  ) : !isGeneratingAI ? (
+                    <p className="text-[11px] text-muted-foreground text-center py-3">
+                      Enter test values and click "Generate" to get AI-powered clinical interpretation.
+                    </p>
+                  ) : null}
                 </div>
               )}
-
-              {aiInterpretation && showAiResult ? (
-                <div className="space-y-2">
-                  <button
-                    onClick={() => setShowAiResult(!showAiResult)}
-                    className="w-full flex items-center justify-between text-[10px] text-muted-foreground hover:text-foreground"
-                  >
-                    <span>Collapse</span>
-                    <ChevronDownIcon className="w-3 h-3 rotate-180" />
-                  </button>
-
-                  {aiInterpretation.summary && (
-                    <div className="p-2 bg-primary/5 border border-primary/10 rounded">
-                      <p className="text-[10px] text-primary font-semibold uppercase tracking-wider mb-0.5">Summary</p>
-                      <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.summary}</p>
-                    </div>
-                  )}
-
-                  {aiInterpretation.keyFindings && (
-                    <div className="p-2 bg-warning/5 border border-warning/10 rounded">
-                      <p className="text-[10px] text-warning font-semibold uppercase tracking-wider mb-0.5">Key Findings</p>
-                      <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.keyFindings}</p>
-                    </div>
-                  )}
-
-                  {aiInterpretation.clinicalIndications && (
-                    <div className="p-2 bg-info/5 border border-info/10 rounded">
-                      <p className="text-[10px] text-info font-semibold uppercase tracking-wider mb-0.5">Possible Clinical Indications</p>
-                      <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.clinicalIndications}</p>
-                    </div>
-                  )}
-
-                  {aiInterpretation.recommendation && (
-                    <div className="p-2 bg-success/5 border border-success/10 rounded">
-                      <p className="text-[10px] text-success font-semibold uppercase tracking-wider mb-0.5">Recommendation</p>
-                      <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.recommendation}</p>
-                    </div>
-                  )}
-
-                  <button
-                    onClick={() => {
-                      const text = [
-                        aiInterpretation.summary && `Summary: ${aiInterpretation.summary}`,
-                        aiInterpretation.keyFindings && `Key Findings: ${aiInterpretation.keyFindings}`,
-                        aiInterpretation.clinicalIndications && `Clinical Indications: ${aiInterpretation.clinicalIndications}`,
-                        aiInterpretation.recommendation && `Recommendation: ${aiInterpretation.recommendation}`,
-                      ].filter(Boolean).join('\n');
-                      setTechnicianNotes(prev => prev ? `${prev}\n\n--- AI Interpretation ---\n${text}` : text);
-                    }}
-                    className="w-full h-7 flex items-center justify-center gap-1.5 bg-secondary border border-border rounded hover:bg-accent transition-colors text-[11px] text-muted-foreground"
-                  >
-                    <FileText className="w-3 h-3" />
-                    Copy to Notes
-                  </button>
-                </div>
-              ) : aiInterpretation && !showAiResult ? (
-                <button
-                  onClick={() => setShowAiResult(true)}
-                  className="w-full flex items-center justify-between p-2 bg-primary/5 border border-primary/10 rounded text-[11px] text-primary"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Sparkles className="w-3 h-3" />
-                    AI interpretation available
-                  </span>
-                  <ChevronDownIcon className="w-3 h-3" />
-                </button>
-              ) : !isGeneratingAI ? (
-                <p className="text-[11px] text-muted-foreground text-center py-3">
-                  Enter test values and click "Generate" to get AI-powered clinical interpretation.
-                </p>
-              ) : null}
             </div>
           </div>
         </div>
