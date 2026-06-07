@@ -144,7 +144,7 @@ export function InvoiceModal({ isOpen, onClose, reportId, onBillingUpdated }: In
         ) : (
           <div className="p-4">
             {/* BillingSection — the same payment box from ReportEntry */}
-            <BillingSection reportId={reportId} isEditable={true} onBillingUpdated={onBillingUpdated} />
+            <BillingSection reportId={reportId} isEditable={true} isSelfReport={!!report?.is_self_report} onBillingUpdated={onBillingUpdated} />
           </div>
         )}
 

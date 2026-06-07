@@ -173,7 +173,7 @@ export function InvoicePage() {
 
       {/* Toolbar */}
       <div className="no-print sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-200">
-        <div className="max-w-[850px] mx-auto px-6 h-12 flex items-center justify-between">
+        <div className="max-w-[794px] mx-auto px-6 h-12 flex items-center justify-between">
           <Link to="/reports" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
             <ArrowLeft className="w-4 h-4" /> Reports
           </Link>
@@ -181,13 +181,13 @@ export function InvoicePage() {
             <button
               onClick={handleDownloadPdf}
               disabled={isGeneratingPdf}
-              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 cursor-pointer"
             >
               {isGeneratingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} PDF
             </button>
             <button
               onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded text-white transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded text-white transition-colors cursor-pointer"
               style={{ backgroundColor: C.brand }}
             >
               <Printer className="w-3.5 h-3.5" /> Print
@@ -197,52 +197,50 @@ export function InvoicePage() {
       </div>
 
       {/* A4 Invoice */}
-      <div className="min-h-screen print:bg-white" style={{ backgroundColor: '#F3F4F6' }}>
+      <div className="print:bg-white" style={{ backgroundColor: '#F3F4F6', paddingTop: '24px', paddingBottom: '24px' }}>
         <div
           ref={invoiceRef}
-          className="invoice-page bg-white mx-auto my-6 print:my-0"
-          style={{ maxWidth: '794px', minHeight: '1123px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', fontFamily: "'Inter', 'Segoe UI', sans-serif", color: C.text }}
+          className="invoice-page bg-white mx-auto print:my-0"
+          style={{ maxWidth: '794px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', fontFamily: "'Inter', 'Segoe UI', sans-serif", color: C.text }}
         >
-          <div style={{ padding: '40px 48px' }}>
+          <div style={{ padding: '28px 36px' }}>
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32, borderBottom: `2px solid ${C.brand}`, paddingBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, borderBottom: `2px solid ${C.brand}`, paddingBottom: 16 }}>
               <div>
-                <h1 style={{ fontSize: 22, fontWeight: 700, color: C.brand, margin: 0, letterSpacing: '-0.02em' }}>
-                  {branch?.name || 'DiagnoPro Diagnostics'}
+                <h1 style={{ fontSize: 20, fontWeight: 700, color: C.brand, margin: 0, letterSpacing: '-0.02em' }}>
+                  {branch?.name}
                 </h1>
-                <p style={{ fontSize: 11, color: C.secondary, margin: '4px 0 0', lineHeight: 1.5 }}>
-                  {branch?.location || 'Medical District'}{branch?.city ? `, ${branch.city}` : ''}<br />
-                  {branch?.phone ? `Phone: ${branch.phone}` : ''}{branch?.email ? ` | ${branch.email}` : ''}
+                <p style={{ fontSize: 11, color: C.secondary, margin: '3px 0 0', lineHeight: 1.4 }}>
+                  {branch?.location}{branch?.city ? `, ${branch.city}` : ''}{branch?.phone ? ` | ${branch.phone}` : ''}
                 </p>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <h2 style={{ fontSize: 28, fontWeight: 700, color: C.brand, margin: 0, letterSpacing: '0.05em' }}>INVOICE</h2>
-                <p style={{ fontSize: 11, color: C.secondary, margin: '4px 0 0' }}>
-                  {invoiceNumber}<br />
-                  Date: {invoiceDate}
+                <h2 style={{ fontSize: 26, fontWeight: 700, color: C.brand, margin: 0, letterSpacing: '0.05em' }}>INVOICE</h2>
+                <p style={{ fontSize: 10, color: C.secondary, margin: '3px 0 0' }}>
+                  {invoiceNumber} | {invoiceDate}
                 </p>
               </div>
             </div>
 
-            {/* Patient / Bill To */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 28 }}>
-              <div>
-                <p style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px', fontWeight: 600 }}>Bill To</p>
-                <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{report.patient_name || 'Patient'}</p>
-                <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>
-                  {formatAge(report.patient_age, report.patient_age_unit)} {report.patient_gender || ''}{report.patient_phone ? ` | ${report.patient_phone}` : ''}
+            {/* Patient & Doctor Section */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 4px', fontWeight: 600 }}>Bill To</p>
+                <p style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>{report.patient_name || 'Patient'}</p>
+                <p style={{ fontSize: 10, color: C.secondary, margin: '1px 0 0' }}>
+                  {formatAge(report.patient_age, report.patient_age_unit)} • {report.patient_gender || 'N/A'}{report.patient_phone ? ` • ${report.patient_phone}` : ''}
                 </p>
-                <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>
-                  Patient ID: {report.patient_id.slice(0, 8)}
+                <p style={{ fontSize: 10, color: C.secondary, margin: '1px 0 0' }}>
+                  ID: {report.patient_id.slice(0, 8)}
                 </p>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px', fontWeight: 600 }}>Referring Doctor</p>
-                <p style={{ fontSize: 13, fontWeight: 500, margin: 0 }}>
+              <div style={{ textAlign: 'right', flex: 1 }}>
+                <p style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 4px', fontWeight: 600 }}>Referring Doctor</p>
+                <p style={{ fontSize: 12, fontWeight: 500, margin: 0 }}>
                   {report.doctor_name ? `${report.doctor_title || 'Dr'}. ${report.doctor_name}` : report.doctor_firstname ? `Dr. ${report.doctor_firstname} ${report.doctor_lastname}` : 'Self (Walk-in)'}
                 </p>
                 {report.sample_id_code && (
-                  <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>
+                  <p style={{ fontSize: 10, color: C.secondary, margin: '1px 0 0' }}>
                     Sample: {report.sample_id_code}
                   </p>
                 )}
@@ -250,20 +248,20 @@ export function InvoicePage() {
             </div>
 
             {/* Items Table */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 18 }}>
               <thead>
                 <tr style={{ backgroundColor: C.brand, color: 'white' }}>
-                  <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, letterSpacing: '0.04em' }}>#</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600 }}>Test / Service</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, fontWeight: 600 }}>Amount (₹)</th>
+                  <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: 10, fontWeight: 600, letterSpacing: '0.04em' }}>#</th>
+                  <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: 10, fontWeight: 600 }}>Test / Service</th>
+                  <th style={{ padding: '9px 12px', textAlign: 'right', fontSize: 10, fontWeight: 600 }}>Amount (₹)</th>
                 </tr>
               </thead>
               <tbody>
                 {testNames.split(',').map((name, i) => (
                   <tr key={i} style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: i % 2 === 0 ? '#fff' : C.tableBg }}>
-                    <td style={{ padding: '10px 14px', fontSize: 12 }}>{i + 1}</td>
-                    <td style={{ padding: '10px 14px', fontSize: 12 }}>{name.trim()}</td>
-                    <td style={{ padding: '10px 14px', fontSize: 12, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    <td style={{ padding: '8px 12px', fontSize: 11 }}>{i + 1}</td>
+                    <td style={{ padding: '8px 12px', fontSize: 11 }}>{name.trim()}</td>
+                    <td style={{ padding: '8px 12px', fontSize: 11, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                       {i === 0 ? `₹${baseAmount.toFixed(2)}` : '-'}
                     </td>
                   </tr>
@@ -272,28 +270,28 @@ export function InvoicePage() {
             </table>
 
             {/* Totals */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 32 }}>
-              <div style={{ width: 300 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+              <div style={{ width: 280 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 11 }}>
                   <span style={{ color: C.secondary }}>Subtotal</span>
                   <span style={{ fontVariantNumeric: 'tabular-nums' }}>₹{baseAmount.toFixed(2)}</span>
                 </div>
                 {labDiscountAmount > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 11 }}>
                     <span style={{ color: C.secondary }}>
                       Lab Discount {labDiscountType === 'percent' ? `(${labDiscountValue}%)` : ''}
                     </span>
-                    <span style={{ color: C.success, fontVariantNumeric: 'tabular-nums' }}>-₹{labDiscountAmount.toFixed(2)}</span>
+                    <span style={{ color: C.success, fontVariantNumeric: 'tabular-nums' }}>−₹{labDiscountAmount.toFixed(2)}</span>
                   </div>
                 )}
                 {doctorDiscount > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 11 }}>
                     <span style={{ color: C.secondary }}>Doctor Discount</span>
-                    <span style={{ color: C.success, fontVariantNumeric: 'tabular-nums' }}>-₹{doctorDiscount.toFixed(2)}</span>
+                    <span style={{ color: C.success, fontVariantNumeric: 'tabular-nums' }}>−₹{doctorDiscount.toFixed(2)}</span>
                   </div>
                 )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', fontSize: 14, fontWeight: 700, borderTop: `2px solid ${C.brand}`, marginTop: 4 }}>
-                  <span>Total</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 13, fontWeight: 700, borderTop: `2px solid ${C.brand}`, borderBottom: `2px solid ${C.brand}`, marginTop: 2 }}>
+                  <span>Total Amount Due</span>
                   <span style={{ fontVariantNumeric: 'tabular-nums' }}>₹{finalAmount.toFixed(2)}</span>
                 </div>
               </div>
@@ -301,24 +299,24 @@ export function InvoicePage() {
 
             {/* Payments */}
             {payments.length > 0 && (
-              <div style={{ marginBottom: 28 }}>
-                <p style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px', fontWeight: 600 }}>Payment History</p>
+              <div style={{ marginBottom: 18 }}>
+                <p style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px', fontWeight: 600 }}>Payment History</p>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ backgroundColor: C.tableBg }}>
-                      <th style={{ padding: '8px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: C.secondary, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: `1px solid ${C.border}` }}>#</th>
-                      <th style={{ padding: '8px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: C.secondary, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: `1px solid ${C.border}` }}>Date</th>
-                      <th style={{ padding: '8px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: C.secondary, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: `1px solid ${C.border}` }}>Mode</th>
-                      <th style={{ padding: '8px 14px', textAlign: 'right', fontSize: 10, fontWeight: 600, color: C.secondary, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: `1px solid ${C.border}` }}>Amount (₹)</th>
+                      <th style={{ padding: '6px 10px', textAlign: 'left', fontSize: 9, fontWeight: 600, color: C.secondary, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: `1px solid ${C.border}` }}>#</th>
+                      <th style={{ padding: '6px 10px', textAlign: 'left', fontSize: 9, fontWeight: 600, color: C.secondary, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: `1px solid ${C.border}` }}>Date</th>
+                      <th style={{ padding: '6px 10px', textAlign: 'left', fontSize: 9, fontWeight: 600, color: C.secondary, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: `1px solid ${C.border}` }}>Mode</th>
+                      <th style={{ padding: '6px 10px', textAlign: 'right', fontSize: 9, fontWeight: 600, color: C.secondary, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: `1px solid ${C.border}` }}>Amount (₹)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {payments.map((p, i) => (
                       <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                        <td style={{ padding: '8px 14px', fontSize: 11 }}>{i + 1}</td>
-                        <td style={{ padding: '8px 14px', fontSize: 11 }}>{format(new Date(p.created_at), 'dd/MM/yyyy hh:mm a')}</td>
-                        <td style={{ padding: '8px 14px', fontSize: 11 }}>{MODE_LABELS[p.payment_mode] || p.payment_mode}</td>
-                        <td style={{ padding: '8px 14px', fontSize: 11, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>₹{Number(p.amount).toFixed(2)}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 10 }}>{i + 1}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 10 }}>{format(new Date(p.created_at), 'dd/MM/yyyy hh:mm a')}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 10 }}>{MODE_LABELS[p.payment_mode] || p.payment_mode}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 10, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>₹{Number(p.amount).toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -326,32 +324,32 @@ export function InvoicePage() {
               </div>
             )}
 
-            {/* Balance */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 32 }}>
-              <div style={{ width: 300, border: `1px solid ${C.border}`, borderRadius: 6, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', fontSize: 12, backgroundColor: C.tableBg }}>
+            {/* Balance Summary */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 18 }}>
+              <div style={{ width: 280 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', fontSize: 11, backgroundColor: C.tableBg, borderTop: `1px solid ${C.border}` }}>
                   <span style={{ color: C.secondary }}>Total Paid</span>
                   <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>₹{totalPaid.toFixed(2)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', fontSize: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', fontSize: 11 }}>
                   <span style={{ color: C.secondary }}>Balance Due</span>
                   <span style={{ fontWeight: 600, color: balance > 0 ? C.danger : C.success, fontVariantNumeric: 'tabular-nums' }}>
                     ₹{balance.toFixed(2)}
                   </span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 14px', fontSize: 12, fontWeight: 700, backgroundColor: STATUS_COLORS[paymentStatus], color: '#fff', letterSpacing: '0.06em' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 12px', fontSize: 11, fontWeight: 700, backgroundColor: STATUS_COLORS[paymentStatus], color: '#fff', letterSpacing: '0.06em', borderBottomLeftRadius: 4, borderBottomRightRadius: 4 }}>
                   {STATUS_LABELS[paymentStatus]}
                 </div>
               </div>
             </div>
 
             {/* Footer */}
-            <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, textAlign: 'center' }}>
-              <p style={{ fontSize: 10, color: C.muted, margin: 0 }}>
-                This is a computer-generated invoice and does not require a signature.
+            <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14, textAlign: 'center' }}>
+              <p style={{ fontSize: 9, color: C.muted, margin: 0 }}>
+                Computer-generated invoice. No signature required.
               </p>
-              <p style={{ fontSize: 10, color: C.muted, margin: '4px 0 0' }}>
-                {branch?.name || 'DiagnoPro Diagnostics'} — Thank you for choosing us.
+              <p style={{ fontSize: 9, color: C.muted, margin: '3px 0 0' }}>
+                Thank you for your trust in {branch?.name}.
               </p>
             </div>
           </div>
@@ -363,13 +361,13 @@ export function InvoicePage() {
             className="no-print bg-white mx-auto mb-6 rounded-lg border border-gray-200"
             style={{ maxWidth: '794px', fontFamily: "'Inter', 'Segoe UI', sans-serif" }}
           >
-            <div style={{ padding: '20px 48px' }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: '0 0 4px' }}>Collect Payment</h3>
-              <p style={{ fontSize: 11, color: C.secondary, margin: '0 0 16px' }}>
+            <div style={{ padding: '16px 36px' }}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: '0 0 3px' }}>Collect Payment</h3>
+              <p style={{ fontSize: 10, color: C.secondary, margin: '0 0 12px' }}>
                 Balance due: <span style={{ fontWeight: 600, color: C.danger }}>₹{balance.toFixed(2)}</span>
               </p>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <div style={{ display: 'flex', gap: 4 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 3 }}>
                   {([
                     { value: 'cash' as PaymentMode, label: 'Cash', Icon: Banknote },
                     { value: 'upi' as PaymentMode, label: 'UPI', Icon: Smartphone },
@@ -379,20 +377,21 @@ export function InvoicePage() {
                       key={value}
                       onClick={() => setNewPaymentMode(value)}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 4,
-                        padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 3,
+                        padding: '5px 11px', borderRadius: 4, fontSize: 11, fontWeight: 500, cursor: 'pointer',
                         border: `1px solid ${newPaymentMode === value ? C.brand : C.border}`,
                         backgroundColor: newPaymentMode === value ? C.brandLight : '#fff',
                         color: newPaymentMode === value ? C.brand : C.secondary,
+                        transition: 'all 0.2s',
                       }}
                     >
-                      <Icon style={{ width: 14, height: 14 }} />
+                      <Icon style={{ width: 13, height: 13 }} />
                       {label}
                     </button>
                   ))}
                 </div>
                 <div style={{ position: 'relative', flex: 1 }}>
-                  <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: C.muted }}>₹</span>
+                  <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: C.muted }}>₹</span>
                   <input
                     type="number"
                     min="0"
@@ -402,8 +401,8 @@ export function InvoicePage() {
                     onKeyDown={(e) => { if (e.key === 'Enter') handleAddPayment(); }}
                     placeholder={balance.toFixed(2)}
                     style={{
-                      width: '100%', height: 36, paddingLeft: 24, paddingRight: 10, borderRadius: 6,
-                      border: `1px solid ${C.border}`, fontSize: 13, textAlign: 'right',
+                      width: '100%', height: 34, paddingLeft: 22, paddingRight: 8, borderRadius: 4,
+                      border: `1px solid ${C.border}`, fontSize: 12, textAlign: 'right',
                       fontVariantNumeric: 'tabular-nums', outline: 'none',
                     }}
                   />
@@ -412,14 +411,14 @@ export function InvoicePage() {
                   onClick={handleAddPayment}
                   disabled={isAddingPayment || !newPaymentAmount}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '6px 16px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '5px 14px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                     backgroundColor: C.brand, color: '#fff', border: 'none', cursor: 'pointer',
-                    opacity: (isAddingPayment || !newPaymentAmount) ? 0.5 : 1, height: 36,
+                    opacity: (isAddingPayment || !newPaymentAmount) ? 0.5 : 1, height: 34, transition: 'opacity 0.2s',
                   }}
                 >
-                  {isAddingPayment ? <Loader2 style={{ width: 14, height: 14, animation: 'spin 1s linear infinite' }} /> : <Plus style={{ width: 14, height: 14 }} />}
-                  Add Payment
+                  {isAddingPayment ? <Loader2 style={{ width: 13, height: 13, animation: 'spin 1s linear infinite' }} /> : <Plus style={{ width: 13, height: 13 }} />}
+                  Add
                 </button>
               </div>
             </div>

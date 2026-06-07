@@ -18,6 +18,7 @@ import type { PaymentMode, PaymentStatus } from "../../../types";
 interface BillingSectionProps {
   reportId: string | undefined;
   isEditable: boolean;
+  isSelfReport?: boolean;
   onBillingUpdated?: () => void | Promise<void>;
 }
 
@@ -33,7 +34,7 @@ const STATUS_CONFIG: Record<PaymentStatus, { bg: string; text: string; label: st
   pending: { bg: 'var(--muted)', text: 'var(--muted-foreground)', label: 'Pending', icon: AlertCircle },
 };
 
-export function BillingSection({ reportId, isEditable, onBillingUpdated }: BillingSectionProps) {
+export function BillingSection({ reportId, isEditable, isSelfReport = false, onBillingUpdated }: BillingSectionProps) {
   const {
     baseAmount,
     labDiscountType,
@@ -186,24 +187,26 @@ export function BillingSection({ reportId, isEditable, onBillingUpdated }: Billi
         </div>
 
         {/* Doctor Discount */}
-        <div>
-          <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
-            Doctor Discount
-          </label>
-          <div className="relative">
-            <IndianRupee className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              className="w-full h-8 pl-7 pr-2.5 bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary text-right tabular-nums disabled:opacity-50 disabled:cursor-not-allowed"
-              value={doctorDiscount || ''}
-              onChange={(e) => setDoctorDiscount(parseFloat(e.target.value) || 0)}
-              disabled={!isEditable}
-              placeholder="0.00"
-            />
+        {!isSelfReport && (
+          <div>
+            <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
+              Doctor Discount
+            </label>
+            <div className="relative">
+              <IndianRupee className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className="w-full h-8 pl-7 pr-2.5 bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary text-right tabular-nums disabled:opacity-50 disabled:cursor-not-allowed"
+                value={doctorDiscount || ''}
+                onChange={(e) => setDoctorDiscount(parseFloat(e.target.value) || 0)}
+                disabled={!isEditable}
+                placeholder="0.00"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Save Billing Button */}
         {isEditable && (
@@ -276,51 +279,53 @@ export function BillingSection({ reportId, isEditable, onBillingUpdated }: Billi
         </div>
 
         {/* Add Payment Form */}
-        <div>
-          <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1.5">
-            Add Payment
-          </label>
-          <div className="flex gap-1.5">
-            <select
-              className="h-8 px-2 bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-              value={newPaymentMode}
-              onChange={(e) => setNewPaymentMode(e.target.value as PaymentMode)}
-            >
-              {PAYMENT_MODES.map((mode) => (
-                <option key={mode.value} value={mode.value}>
-                  {mode.label}
-                </option>
-              ))}
-            </select>
-            <div className="relative flex-1">
-              <IndianRupee className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                className="w-full h-8 pl-7 pr-2.5 bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary text-right tabular-nums"
-                value={newPaymentAmount}
-                onChange={(e) => setNewPaymentAmount(e.target.value)}
-                placeholder="0.00"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddPayment();
-                }}
-              />
+        {derivedStatus !== 'paid' && (
+          <div>
+            <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1.5">
+              Add Payment
+            </label>
+            <div className="flex gap-1.5">
+              <select
+                className="h-8 px-2 bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                value={newPaymentMode}
+                onChange={(e) => setNewPaymentMode(e.target.value as PaymentMode)}
+              >
+                {PAYMENT_MODES.map((mode) => (
+                  <option key={mode.value} value={mode.value}>
+                    {mode.label}
+                  </option>
+                ))}
+              </select>
+              <div className="relative flex-1">
+                <IndianRupee className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="w-full h-8 pl-7 pr-2.5 bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary text-right tabular-nums"
+                  value={newPaymentAmount}
+                  onChange={(e) => setNewPaymentAmount(e.target.value)}
+                  placeholder="0.00"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddPayment();
+                  }}
+                />
+              </div>
+              <button
+                onClick={handleAddPayment}
+                disabled={isAddingPayment || !newPaymentAmount || !reportId}
+                className="h-8 w-8 flex items-center justify-center bg-primary text-white rounded hover:opacity-90 transition-opacity disabled:opacity-50"
+                title="Add payment"
+              >
+                {isAddingPayment ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Plus className="w-3.5 h-3.5" />
+                )}
+              </button>
             </div>
-            <button
-              onClick={handleAddPayment}
-              disabled={isAddingPayment || !newPaymentAmount || !reportId}
-              className="h-8 w-8 flex items-center justify-center bg-primary text-white rounded hover:opacity-90 transition-opacity disabled:opacity-50"
-              title="Add payment"
-            >
-              {isAddingPayment ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Plus className="w-3.5 h-3.5" />
-              )}
-            </button>
           </div>
-        </div>
+        )}
 
         {/* Divider */}
         <div className="border-t border-border" />

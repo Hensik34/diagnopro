@@ -285,6 +285,7 @@ export function ReportPreview() {
   const [originalSectionOrder, setOriginalSectionOrder] = useState<string[]>([]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [isOrderDrawerOpen, setIsOrderDrawerOpen] = useState(false);
+  const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set());
 
   const viewerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -421,6 +422,7 @@ export function ReportPreview() {
     const ids = nextData.testSections.map(s => s.id);
     setSectionOrder(ids);
     setOriginalSectionOrder(ids);
+    setVisibleSections(new Set(ids));
   }, [rawReport, branches, sectionGroupMap]);
 
   useEffect(() => {
@@ -469,9 +471,10 @@ export function ReportPreview() {
     if (!reportData) return [];
     const map = new Map(reportData.testSections.map(s => [s.id, s]));
     const ordered = sectionOrder.map(id => map.get(id)).filter(Boolean) as TestSection[];
-    if (ordered.length === reportData.testSections.length) return ordered;
-    return reportData.testSections;
-  }, [reportData, sectionOrder]);
+    const filtered = ordered.filter(s => visibleSections.has(s.id));
+    if (filtered.length > 0) return filtered;
+    return [];
+  }, [reportData, sectionOrder, visibleSections]);
 
   const abnormalParams = useMemo(
     () => (reportData?.parameters ?? []).filter(p => p.status === 'high' || p.status === 'low' || p.status === 'critical'),
@@ -743,21 +746,9 @@ export function ReportPreview() {
     setSectionOrder(originalSectionOrder);
   }, [originalSectionOrder]);
 
-  const moveTop = useCallback((id: string) => {
-    setSectionOrder(prev => {
-      const idx = prev.indexOf(id);
-      if (idx <= 0) return prev;
-      return moveItem(prev, idx, 0);
-    });
-  }, []);
+  const hasVisibleTests = visibleSections.size > 0;
 
-  const moveBottom = useCallback((id: string) => {
-    setSectionOrder(prev => {
-      const idx = prev.indexOf(id);
-      if (idx === -1 || idx === prev.length - 1) return prev;
-      return moveItem(prev, idx, prev.length - 1);
-    });
-  }, []);
+
 
   const onDropReorder = useCallback((targetId: string) => {
     if (!draggingId || draggingId === targetId) return;
@@ -769,6 +760,18 @@ export function ReportPreview() {
     });
     setDraggingId(null);
   }, [draggingId]);
+
+  const toggleSectionVisibility = useCallback((id: string) => {
+    setVisibleSections(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
 
   if (isLoading && !reportData) {
     return (
@@ -827,7 +830,7 @@ export function ReportPreview() {
             {hasBranding && (
               <button
                 onClick={() => setShowLetterhead(v => !v)}
-                className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border"
+                className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border cursor-pointer"
                 style={{
                   borderColor: showLetterhead ? C.brand : '#D1D5DB',
                   color: showLetterhead ? C.brand : '#6B7280',
@@ -840,7 +843,7 @@ export function ReportPreview() {
 
             <button
               onClick={() => setZoom(z => clamp(z - 0.1, 0.6, 2))}
-              className="inline-flex items-center justify-center w-8 h-8 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+              className="inline-flex items-center justify-center w-8 h-8 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
               title="Zoom out"
             >
               <ZoomOut className="w-4 h-4" />
@@ -848,7 +851,7 @@ export function ReportPreview() {
             <span className="text-xs text-gray-600 min-w-14 text-center">{Math.round(effectiveScale * 100)}%</span>
             <button
               onClick={() => setZoom(z => clamp(z + 0.1, 0.6, 2))}
-              className="inline-flex items-center justify-center w-8 h-8 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+              className="inline-flex items-center justify-center w-8 h-8 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
               title="Zoom in"
             >
               <ZoomIn className="w-4 h-4" />
@@ -856,28 +859,33 @@ export function ReportPreview() {
 
             <button
               onClick={() => setIsOrderDrawerOpen(true)}
-              className="lg:hidden inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+              className="lg:hidden inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
             >
               <SlidersHorizontal className="w-3.5 h-3.5" /> Arrange Tests
             </button>
 
             <button
               onClick={() => setShowShareModal(true)}
-              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+              disabled={!hasVisibleTests}
+              title={!hasVisibleTests ? 'Select at least one test to share' : 'Share report'}
+              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" /> Share
             </button>
             <button
               onClick={handleDownloadPdf}
-              disabled={isGeneratingPdf}
-              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              disabled={isGeneratingPdf || !hasVisibleTests}
+              title={!hasVisibleTests ? 'Select at least one test to download' : 'Download as PDF'}
+              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {isGeneratingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} PDF
             </button>
             <button
               onClick={() => window.print()}
-              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded text-white"
-              style={{ backgroundColor: C.brand }}
+              disabled={!hasVisibleTests}
+              title={!hasVisibleTests ? 'Select at least one test to print' : 'Print report'}
+              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              style={{ backgroundColor: !hasVisibleTests ? '#9CA3AF' : C.brand }}
             >
               <Printer className="w-3.5 h-3.5" /> Print
             </button>
@@ -889,11 +897,11 @@ export function ReportPreview() {
         <div className="max-w-[1500px] mx-auto flex items-start gap-4">
           <aside className="hidden lg:block w-[308px] shrink-0 sticky top-28 max-h-[calc(100vh-120px)] overflow-y-auto">
             <OrderManagementPanel
-              sections={orderedSections}
+              sections={sectionOrder.map(id => reportData!.testSections.find(s => s.id === id)).filter(Boolean) as TestSection[]}
+              visibleSections={visibleSections}
+              onToggleVisibility={toggleSectionVisibility}
               moveUp={moveUp}
               moveDown={moveDown}
-              moveTop={moveTop}
-              moveBottom={moveBottom}
               resetOrder={resetOrder}
               setDraggingId={setDraggingId}
               onDropReorder={onDropReorder}
@@ -1185,11 +1193,11 @@ export function ReportPreview() {
               </button>
             </div>
             <OrderManagementPanel
-              sections={orderedSections}
+              sections={sectionOrder.map(id => reportData.testSections.find(s => s.id === id)).filter(Boolean) as TestSection[]}
+              visibleSections={visibleSections}
+              onToggleVisibility={toggleSectionVisibility}
               moveUp={moveUp}
               moveDown={moveDown}
-              moveTop={moveTop}
-              moveBottom={moveBottom}
               resetOrder={resetOrder}
               setDraggingId={setDraggingId}
               onDropReorder={onDropReorder}
@@ -1220,20 +1228,20 @@ export function ReportPreview() {
 
 function OrderManagementPanel({
   sections,
+  visibleSections,
+  onToggleVisibility,
   moveUp,
   moveDown,
-  moveTop,
-  moveBottom,
   resetOrder,
   setDraggingId,
   onDropReorder,
   compact = false,
 }: {
   sections: TestSection[];
+  visibleSections: Set<string>;
+  onToggleVisibility: (id: string) => void;
   moveUp: (id: string) => void;
   moveDown: (id: string) => void;
-  moveTop: (id: string) => void;
-  moveBottom: (id: string) => void;
   resetOrder: () => void;
   setDraggingId: (id: string | null) => void;
   onDropReorder: (id: string) => void;
@@ -1245,12 +1253,12 @@ function OrderManagementPanel({
         <p className="text-xs sm:text-sm font-semibold text-slate-800">Test Order Management</p>
         <button
           onClick={resetOrder}
-          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-slate-300 text-slate-700 hover:bg-white"
+          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-slate-300 text-slate-700 hover:bg-white cursor-pointer"
         >
           <RotateCcw className="w-3.5 h-3.5" /> Reset
         </button>
       </div>
-      <p className="text-[11px] text-slate-500 mb-2.5">Drag and drop or use controls to reorder. Pagination updates instantly.</p>
+      <p className="text-[11px] text-slate-500 mb-2.5">Check to include tests in preview. Drag and drop or use controls to reorder.</p>
       <div className={`grid ${compact ? 'grid-cols-1' : 'grid-cols-1'} gap-2`}>
         {sections.map((section, idx) => (
           <div
@@ -1260,38 +1268,31 @@ function OrderManagementPanel({
             onDragEnd={() => setDraggingId(null)}
             onDragOver={e => e.preventDefault()}
             onDrop={() => onDropReorder(section.id)}
-            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 hover:border-slate-300 hover:shadow-sm transition"
+            className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 transition ${visibleSections.has(section.id) ? 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm' : 'border-gray-200 bg-gray-50 opacity-60'}`}
           >
-            <GripVertical className="w-4 h-4 text-slate-400" />
-            <span className="text-xs font-semibold text-slate-700 min-w-6">{idx + 1}.</span>
-            <span className="text-xs sm:text-sm text-slate-800 flex-1 truncate" title={section.testName}>{section.testName}</span>
-            <button
-              onClick={() => moveTop(section.id)}
-              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 hover:bg-slate-50"
-              title="Move to top"
-            >
-              <ArrowUpToLine className="w-3.5 h-3.5" />
-            </button>
+            <input
+              type="checkbox"
+              checked={visibleSections.has(section.id)}
+              onChange={() => onToggleVisibility(section.id)}
+              className="w-4 h-4 rounded border-slate-300 cursor-pointer shrink-0"
+              title="Show in preview"
+            />
+            <GripVertical className="w-4 h-4 text-slate-400 shrink-0 cursor-grab active:cursor-grabbing" />
+            <span className="text-xs font-semibold text-slate-700 min-w-6 shrink-0">{idx + 1}.</span>
+            <span className="text-xs sm:text-sm text-slate-800 min-w-0 truncate" title={section.testName}>{section.testName}</span>
             <button
               onClick={() => moveUp(section.id)}
-              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 hover:bg-slate-50"
+              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 hover:bg-slate-50 cursor-pointer shrink-0"
               title="Move up"
             >
               <ArrowUp className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => moveDown(section.id)}
-              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 hover:bg-slate-50"
+              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 hover:bg-slate-50 cursor-pointer shrink-0"
               title="Move down"
             >
               <ArrowDown className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => moveBottom(section.id)}
-              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 hover:bg-slate-50"
-              title="Move to bottom"
-            >
-              <ArrowDownToLine className="w-3.5 h-3.5" />
             </button>
           </div>
         ))}
