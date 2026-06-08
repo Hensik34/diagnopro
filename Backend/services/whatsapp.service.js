@@ -454,7 +454,7 @@ async function ensureConnected(branchId) {
   return { instance, session };
 }
 
-async function sendMessage({ branchId, to, message, metadata = {}, templateId = null, eventKey = null, recipientName = null }) {
+async function sendMessage({ branchId, to, message, metadata = {}, templateId = null, eventKey = null, recipientName = null, fileBuffer = null, fileName = null, mimeType = null }) {
   const { instance, session } = await ensureConnected(branchId);
 
   const jid = toWhatsAppJid(to);
@@ -465,7 +465,19 @@ async function sendMessage({ branchId, to, message, metadata = {}, templateId = 
   }
 
   try {
-    const response = await instance.socket.sendMessage(jid, { text: message });
+    let messageContent = { text: message };
+    
+    // If a file is provided, send it as a media message
+    if (fileBuffer && fileName) {
+      messageContent = {
+        document: fileBuffer,
+        mimetype: mimeType || 'application/pdf',
+        fileName: fileName,
+        caption: message || undefined,
+      };
+    }
+    
+    const response = await instance.socket.sendMessage(jid, messageContent);
     return { success: true, wa_message_id: response?.key?.id || null };
   } catch (error) {
     throw error;

@@ -118,6 +118,46 @@ exports.sendMessage = async (req, res) => {
   }
 };
 
+exports.sendMessageWithFile = async (req, res) => {
+  try {
+    const { branch_id, to, message } = req.body;
+    await assertBranchAccess(req.user, branch_id);
+
+    if (!to) {
+      return res.status(400).json({ error: "to is required" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: "file is required" });
+    }
+
+    const fileBuffer = req.file.buffer;
+    const fileName = req.file.originalname;
+    const mimeType = req.file.mimetype;
+
+    const log = await whatsappService.sendMessage({
+      branchId: branch_id,
+      to,
+      message: message || '',
+      metadata: { source: "report_sharing", actor_user_id: req.user.id },
+      fileBuffer,
+      fileName,
+      mimeType,
+    });
+
+    res.json({
+      message: "Message with file sent",
+      data: log,
+    });
+  } catch (error) {
+    console.error(`[WhatsApp API] Send message with file failed:`, error.message, error.stack);
+    res.status(error.status || 500).json({ 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined 
+    });
+  }
+};
+
 exports.listTemplates = async (req, res) => {
   try {
     const branchId = getBranchId(req);
