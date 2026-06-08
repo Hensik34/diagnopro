@@ -18,7 +18,7 @@ const {
 const { emitBranchWhatsAppEvent } = require("./realtime.service");
 const { WHATSAPP_EVENTS, DELIVERY_STATUS, CONNECTION_STATUS } = require("./whatsapp.constants");
 
-const SESSIONS_ROOT = path.join(__dirname, "..", "uploads", "whatsapp-sessions");
+const SESSIONS_ROOT = path.join(__dirname, "..", "data", "whatsapp-sessions");
 const clients = new Map();
 const qrCache = new Map();
 const retryAttempts = new Map(); // Track retry attempts to prevent infinite loops

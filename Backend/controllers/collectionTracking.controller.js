@@ -1,32 +1,29 @@
 const CollectionTracking = require("../models/CollectionTracking");
 const User = require("../models/User");
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
-
-const UPLOAD_DIR = path.join(__dirname, "..", "uploads", "collection-tracking");
-
-// Ensure upload directory exists
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
+const { uploadBase64ToCloudinary } = require("../utils/upload");
 
 /**
- * Save a base64 image to disk and return the relative URL path
+ * Save a base64 image to Cloudinary under the branch's collection-tracking folder
+ * @param {string} base64String - Full data URI
+ * @param {string} prefix - Filename prefix (e.g., 'start', 'end', 'bike')
+ * @param {string} branchId - Branch UUID for folder organization
+ * @returns {Promise<string|null>} Cloudinary secure URL or null
  */
-function saveBase64Image(base64String, prefix) {
+async function saveBase64Image(base64String, prefix, branchId) {
   if (!base64String || !base64String.startsWith("data:image/")) return null;
 
-  const matches = base64String.match(/^data:image\/(\w+);base64,(.+)$/);
-  if (!matches) return null;
-
-  const ext = matches[1] === "jpeg" ? "jpg" : matches[1];
-  const buffer = Buffer.from(matches[2], "base64");
-  const filename = `${prefix}_${crypto.randomUUID()}.${ext}`;
-  const filePath = path.join(UPLOAD_DIR, filename);
-  fs.writeFileSync(filePath, buffer);
-
-  return `/uploads/collection-tracking/${filename}`;
+  try {
+    const url = await uploadBase64ToCloudinary(
+      base64String,
+      prefix,
+      branchId,
+      "collection-tracking"
+    );
+    return url;
+  } catch (error) {
+    console.error("Failed to upload collection tracking image:", error.message);
+    return null;
+  }
 }
 
 /**
@@ -162,10 +159,10 @@ exports.create = async (req, res) => {
       date,
     } = req.body;
 
-    // Save images to disk if provided as base64
-    const startImgPath = saveBase64Image(start_meter_image, "start");
-    const endImgPath = saveBase64Image(end_meter_image, "end");
-    const bikeImgPath = saveBase64Image(bike_image, "bike");
+    // Upload images to Cloudinary under the branch's collection-tracking folder
+    const startImgPath = await saveBase64Image(start_meter_image, "start", branch_id);
+    const endImgPath = await saveBase64Image(end_meter_image, "end", branch_id);
+    const bikeImgPath = await saveBase64Image(bike_image, "bike", branch_id);
 
     // If no per_km_rate provided, use user's petrol_price_per_km
     let rate = per_km_rate;
@@ -215,10 +212,13 @@ exports.update = async (req, res) => {
       per_km_rate,
     } = req.body;
 
-    // Save images to disk if provided as base64
-    const startImgPath = saveBase64Image(start_meter_image, "start");
-    const endImgPath = saveBase64Image(end_meter_image, "end");
-    const bikeImgPath = saveBase64Image(bike_image, "bike");
+    // Use existing record's branch_id for Cloudinary folder
+    const branchId = existing.branch_id;
+
+    // Upload images to Cloudinary under the branch's collection-tracking folder
+    const startImgPath = await saveBase64Image(start_meter_image, "start", branchId);
+    const endImgPath = await saveBase64Image(end_meter_image, "end", branchId);
+    const bikeImgPath = await saveBase64Image(bike_image, "bike", branchId);
 
     const record = await CollectionTracking.update(req.params.id, {
       start_km,
