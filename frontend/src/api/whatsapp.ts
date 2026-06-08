@@ -1,6 +1,8 @@
 import { io, type Socket } from 'socket.io-client';
+import axios from 'axios';
 import api from './client';
 import type { ApiResponse } from '../types';
+import { getAuthToken } from './client';
 
 export type WhatsAppConnectionStatus =
   | 'disconnected'
@@ -173,5 +175,30 @@ export const whatsappApi = {
     return response.data;
   },
 
+  sendMessageWithFile: async (branchId: string, to: string, file: File, message?: string): Promise<ApiResponse<any>> => {
+    const formData = new FormData();
+    formData.append('branch_id', branchId);
+    formData.append('to', to);
+    formData.append('file', file);
+    if (message) {
+      formData.append('message', message);
+    }
+
+    const token = getAuthToken();
+    const API_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:5000/api';
+
+    // Use direct axios call without default JSON headers to properly handle FormData
+    const response = await axios.post<ApiResponse<any>>(
+      `${API_URL}/whatsapp/send-with-file`,
+      formData,
+      {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : undefined,
+          // Don't set Content-Type - let axios auto-detect from FormData
+        },
+      }
+    );
+    return response.data;
+  },
 
 };

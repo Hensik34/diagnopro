@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { X, Send, FileText, User, Smartphone, MessageSquare, Mail, Loader2, Download, CheckCircle2 } from 'lucide-react';
+import { X, Send, FileText, User, Smartphone, MessageSquare, Mail, Loader2, Download, CheckCircle2, AlertCircle } from 'lucide-react';
+import { whatsappApi } from '../../api/whatsapp';
+import { useBranchStore } from '../../stores/branchStore';
 
 interface ShareReportModalProps {
   isOpen: boolean;
@@ -31,7 +33,10 @@ export function ShareReportModal({
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfDownloaded, setPdfDownloaded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [sendingTo, setSendingTo] = useState<string | null>(null);
   const [sentItems, setSentItems] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const { currentBranchId } = useBranchStore();
 
   if (!isOpen) return null;
 
@@ -47,6 +52,7 @@ export function ShareReportModal({
   const handleDownloadPdf = async () => {
     if (!generatePDF) return;
     setIsGenerating(true);
+    setError(null);
     try {
       const file = await generatePDF();
       if (file) {
@@ -62,39 +68,73 @@ export function ShareReportModal({
       }
     } catch (err) {
       console.error('PDF generation failed:', err);
+      setError('Failed to generate PDF');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // Step 2: Open WhatsApp with pre-filled message
-  const handleWhatsApp = (recipientType: 'patient' | 'doctor') => {
+  // Step 2: Send via WhatsApp API
+  const handleWhatsApp = async (recipientType: 'patient' | 'doctor') => {
     const phone = recipientType === 'patient' ? patientPhone : doctorPhone;
     const name = recipientType === 'patient' ? patientName : doctorName;
-    if (!phone) return;
+    
+    if (!phone) {
+      setError(`${recipientType === 'patient' ? 'Patient' : 'Doctor'} phone number is not available`);
+      return;
+    }
 
-    const message = buildMessage(name, recipientType);
-    const cleanPhone = phone.replace(/[^0-9+]/g, '');
-    const whatsappUrl = `https://wa.me/${cleanPhone.replace('+', '')}?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
-    setSentItems(prev => [...prev, `whatsapp-${recipientType}`]);
+    if (!pdfFile) {
+      setError('Please generate the PDF first');
+      return;
+    }
+
+    if (!currentBranchId) {
+      setError('Branch ID not found');
+      return;
+    }
+
+    const channel = `whatsapp-${recipientType}`;
+    if (sendingTo === channel) return; // Prevent double-click
+
+    setSendingTo(channel);
+    setError(null);
+
+    try {
+      const message = buildMessage(name, recipientType);
+      await whatsappApi.sendMessageWithFile(currentBranchId, phone, pdfFile, message);
+      setSentItems(prev => [...prev, channel]);
+    } catch (err) {
+      console.error('WhatsApp send failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to send via WhatsApp');
+    } finally {
+      setSendingTo(null);
+    }
   };
 
-  // Step 2: Open email client with pre-filled message
+  // Step 2: Send via Email
   const handleEmail = (recipientType: 'patient' | 'doctor') => {
     const email = recipientType === 'doctor' ? doctorEmail : '';
     const name = recipientType === 'patient' ? patientName : doctorName;
 
+    if (!email) {
+      setError(`${recipientType === 'doctor' ? 'Doctor' : 'Patient'} email is not available`);
+      return;
+    }
+
     const subject = `Lab Report ${displayId} - DiagnoPro`;
     const body = buildMessage(name, recipientType);
 
-    const mailtoUrl = `mailto:${email || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.open(mailtoUrl, '_blank');
     setSentItems(prev => [...prev, `email-${recipientType}`]);
   };
 
   const isSent = (channel: string, recipientType: string) =>
     sentItems.includes(`${channel}-${recipientType}`);
+
+  const isSending = (channel: string, recipientType: string) =>
+    sendingTo === `${channel}-${recipientType}`;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -128,6 +168,17 @@ export function ShareReportModal({
         </div>
 
         <div className="p-4 space-y-4">
+          {/* Error Alert */}
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded p-2 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs text-destructive font-medium">Error</p>
+                <p className="text-xs text-destructive/80">{error}</p>
+              </div>
+            </div>
+          )}
+
           {/* Step 1: Download PDF */}
           {generatePDF && (
             <div className="space-y-2">
@@ -155,7 +206,7 @@ export function ShareReportModal({
               </button>
               {pdfDownloaded && (
                 <p className="text-[10px] text-muted-foreground text-center">
-                  Attach this PDF when sharing via WhatsApp or Email
+                  PDF ready. Click below to send directly via WhatsApp or Email.
                 </p>
               )}
             </div>
@@ -188,15 +239,19 @@ export function ShareReportModal({
               <div className="flex gap-2">
                 <button
                   onClick={() => handleWhatsApp('patient')}
-                  disabled={!patientPhone}
+                  disabled={!patientPhone || !pdfFile || isSending('whatsapp', 'patient')}
                   className={`flex-1 h-9 flex items-center justify-center gap-2 rounded border text-xs transition-all ${
                     isSent('whatsapp', 'patient')
                       ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400'
                       : 'bg-card border-border hover:bg-accent'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  <MessageSquare className="w-3.5 h-3.5 text-green-500" />
-                  <span>{isSent('whatsapp', 'patient') ? 'Opened' : 'WhatsApp'}</span>
+                  {isSending('whatsapp', 'patient') ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <MessageSquare className="w-3.5 h-3.5 text-green-500" />
+                  )}
+                  <span>{isSent('whatsapp', 'patient') ? 'Sent' : 'WhatsApp'}</span>
                 </button>
                 <button
                   onClick={() => handleEmail('patient')}
@@ -235,15 +290,19 @@ export function ShareReportModal({
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleWhatsApp('doctor')}
-                    disabled={!doctorPhone}
+                    disabled={!doctorPhone || !pdfFile || isSending('whatsapp', 'doctor')}
                     className={`flex-1 h-9 flex items-center justify-center gap-2 rounded border text-xs transition-all ${
                       isSent('whatsapp', 'doctor')
                         ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400'
                         : 'bg-card border-border hover:bg-accent'
                     } disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
-                    <MessageSquare className="w-3.5 h-3.5 text-green-500" />
-                    <span>{isSent('whatsapp', 'doctor') ? 'Opened' : 'WhatsApp'}</span>
+                    {isSending('whatsapp', 'doctor') ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <MessageSquare className="w-3.5 h-3.5 text-green-500" />
+                    )}
+                    <span>{isSent('whatsapp', 'doctor') ? 'Sent' : 'WhatsApp'}</span>
                   </button>
                   <button
                     onClick={() => handleEmail('doctor')}
@@ -265,13 +324,13 @@ export function ShareReportModal({
           {/* Hint */}
           {generatePDF && (
             <div className="text-[10px] text-muted-foreground bg-secondary/50 rounded p-2 text-center leading-relaxed">
-              Download the PDF first, then click WhatsApp/Email. Attach the downloaded PDF in the chat or email manually.
+              Generate PDF first, then send directly via WhatsApp. Email will open your email client for manual sending.
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-card border-t border-border px-4 py-3 flex justify-end">
+        <div className="sticky bottom-0 bg-card border-t border-border px-4 py-3 flex justify-end gap-2">
           <button
             onClick={onClose}
             className="h-8 px-4 bg-secondary border border-border rounded text-xs hover:bg-accent transition-colors"
