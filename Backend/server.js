@@ -23,8 +23,7 @@ app.use(cors({
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
-// Serve uploaded files statically
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// Note: File uploads are now stored on Cloudinary — no local static serving needed
 
 // Request logging middleware (opt-in)
 if (process.env.REQUEST_LOGS === "true") {

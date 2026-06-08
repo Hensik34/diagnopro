@@ -1,5 +1,5 @@
 const SettingsService = require("../services/settings.service");
-const path = require("path");
+const { uploadFileToCloudinary, uploadBase64ToCloudinary, deleteFileFromCloudinary } = require("../utils/upload");
 
 const ALLOWED_SAMPLE_ID_FORMATS = ["numeric", "sm_prefix"];
 const ALLOWED_SAMPLE_ID_RESET_POLICIES = ["yearly", "monthly"];
@@ -39,22 +39,36 @@ exports.upsertSettings = async (req, res) => {
       return res.status(400).json({ error: "Branch ID not found in request" });
     }
 
-    // Handle file uploads
-    const letterheadUrl = req.file?.path 
-      ? `/uploads/branches/${branchId}/settings/${path.basename(req.file.path)}`
-      : (req.body.letterhead_url !== undefined ? req.body.letterhead_url : undefined);
+    // Handle file uploads to Cloudinary
+    let letterheadUrl;
+    if (req.files?.["letterhead"]?.[0]) {
+      letterheadUrl = await uploadFileToCloudinary(req.files["letterhead"][0], branchId, "settings");
+    } else if (req.file) {
+      letterheadUrl = await uploadFileToCloudinary(req.file, branchId, "settings");
+    } else {
+      letterheadUrl = req.body.letterhead_url !== undefined ? req.body.letterhead_url : undefined;
+    }
 
-    const ownerSignatureUrl = req.files?.["owner_signature"]?.[0]?.path
-      ? `/uploads/branches/${branchId}/settings/${path.basename(req.files["owner_signature"][0].path)}`
-      : (req.body.owner_signature_url !== undefined ? req.body.owner_signature_url : undefined);
+    let ownerSignatureUrl;
+    if (req.files?.["owner_signature"]?.[0]) {
+      ownerSignatureUrl = await uploadFileToCloudinary(req.files["owner_signature"][0], branchId, "settings");
+    } else {
+      ownerSignatureUrl = req.body.owner_signature_url !== undefined ? req.body.owner_signature_url : undefined;
+    }
 
-    const headerUrl = req.files?.["header"]?.[0]?.path
-      ? `/uploads/branches/${branchId}/settings/${path.basename(req.files["header"][0].path)}`
-      : (req.body.header_url !== undefined ? req.body.header_url : undefined);
+    let headerUrl;
+    if (req.files?.["header"]?.[0]) {
+      headerUrl = await uploadFileToCloudinary(req.files["header"][0], branchId, "settings");
+    } else {
+      headerUrl = req.body.header_url !== undefined ? req.body.header_url : undefined;
+    }
 
-    const footerUrl = req.files?.["footer"]?.[0]?.path
-      ? `/uploads/branches/${branchId}/settings/${path.basename(req.files["footer"][0].path)}`
-      : (req.body.footer_url !== undefined ? req.body.footer_url : undefined);
+    let footerUrl;
+    if (req.files?.["footer"]?.[0]) {
+      footerUrl = await uploadFileToCloudinary(req.files["footer"][0], branchId, "settings");
+    } else {
+      footerUrl = req.body.footer_url !== undefined ? req.body.footer_url : undefined;
+    }
 
     // If no files uploaded, check for base64 strings
     let finalLetterheadUrl = letterheadUrl;
@@ -64,35 +78,39 @@ exports.upsertSettings = async (req, res) => {
 
     // Handle base64 letterhead
     if (finalLetterheadUrl === undefined && req.body.letterhead_base64) {
-      finalLetterheadUrl = await saveBase64Image(
+      finalLetterheadUrl = await uploadBase64ToCloudinary(
         req.body.letterhead_base64, 
         "letterhead", 
-        branchId
+        branchId,
+        "settings"
       );
     }
 
     // Handle base64 owner signature
     if (finalOwnerSignatureUrl === undefined && req.body.owner_signature_base64) {
-      finalOwnerSignatureUrl = await saveBase64Image(
+      finalOwnerSignatureUrl = await uploadBase64ToCloudinary(
         req.body.owner_signature_base64, 
         "owner_sign", 
-        branchId
+        branchId,
+        "settings"
       );
     }
 
     if (finalHeaderUrl === undefined && req.body.header_base64) {
-      finalHeaderUrl = await saveBase64Image(
+      finalHeaderUrl = await uploadBase64ToCloudinary(
         req.body.header_base64, 
         "header", 
-        branchId
+        branchId,
+        "settings"
       );
     }
 
     if (finalFooterUrl === undefined && req.body.footer_base64) {
-      finalFooterUrl = await saveBase64Image(
+      finalFooterUrl = await uploadBase64ToCloudinary(
         req.body.footer_base64, 
         "footer", 
-        branchId
+        branchId,
+        "settings"
       );
     }
 
@@ -175,6 +193,12 @@ exports.removeImage = async (req, res) => {
       return res.status(400).json({ error: `Invalid field: ${field}. Allowed: ${allowedFields.join(', ')}` });
     }
 
+    // Try to delete from Cloudinary before clearing DB
+    const currentSettings = await SettingsService.getSettingsByBranch(branchId);
+    if (currentSettings && currentSettings[field]) {
+      await deleteFileFromCloudinary(currentSettings[field]);
+    }
+
     // When removing a signature URL, also clear its label
     const settings = await SettingsService.removeImage(branchId, field);
 
@@ -207,8 +231,8 @@ exports.uploadLetterhead = async (req, res) => {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    // Build the relative URL for the uploaded file
-    const fileUrl = `/uploads/branches/${branchId}/settings/${req.file.filename}`;
+    // Upload to Cloudinary
+    const fileUrl = await uploadFileToCloudinary(req.file, branchId, "settings");
 
     const settings = await SettingsService.upsertSettings(branchId, {
       letterhead_url: fileUrl
@@ -240,8 +264,8 @@ exports.uploadOwnerSignature = async (req, res) => {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    // Build the relative URL for the uploaded file
-    const fileUrl = `/uploads/branches/${branchId}/settings/${req.file.filename}`;
+    // Upload to Cloudinary
+    const fileUrl = await uploadFileToCloudinary(req.file, branchId, "settings");
 
     const settings = await SettingsService.upsertSettings(branchId, {
       owner_signature_url: fileUrl
@@ -279,7 +303,8 @@ exports.uploadLabSignature = async (req, res) => {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    const fileUrl = `/uploads/branches/${branchId}/settings/${req.file.filename}`;
+    // Upload to Cloudinary
+    const fileUrl = await uploadFileToCloudinary(req.file, branchId, "settings");
     const label = req.body.label || req.query.label || null;
 
     const updateData = {};
@@ -378,8 +403,8 @@ exports.uploadDoctorSignature = async (req, res) => {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    // Build the relative URL for the uploaded file
-    const fileUrl = `/uploads/branches/${branchId}/doctors/${doctorId}/${req.file.filename}`;
+    // Upload to Cloudinary under doctors subfolder
+    const fileUrl = await uploadFileToCloudinary(req.file, branchId, `doctors/${doctorId}`);
 
     const doctor = await SettingsService.updateDoctorSignature(doctorId, fileUrl);
 
@@ -392,30 +417,3 @@ exports.uploadDoctorSignature = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-
-// Helper function to save base64 images
-async function saveBase64Image(base64String, prefix, branchId) {
-  const fs = require("fs");
-  const crypto = require("crypto");
-  
-  const matches = base64String.match(/^data:image\/(\w+);base64,(.+)$/);
-  if (!matches) {
-    throw new Error("Invalid base64 image format");
-  }
-
-  const ext = matches[1] === "jpeg" ? "jpg" : matches[1];
-  const buffer = Buffer.from(matches[2], "base64");
-  
-  // Ensure directory exists
-  const dirPath = path.join(__dirname, "..", "uploads", "branches", branchId, "settings");
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
-  }
-
-  const filename = `${prefix}_${crypto.randomUUID()}.${ext}`;
-  const filePath = path.join(dirPath, filename);
-  
-  fs.writeFileSync(filePath, buffer);
-
-  return `/uploads/branches/${branchId}/settings/${filename}`;
-}

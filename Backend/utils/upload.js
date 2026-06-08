@@ -1,70 +1,28 @@
 const multer = require("multer");
 const path = require("path");
-const fs = require("fs");
+const { uploadBuffer, uploadBase64, deleteAsset, getPublicIdFromUrl } = require("../config/cloudinary");
 
-// Base upload directory
-const UPLOAD_BASE = path.join(__dirname, "..", "uploads", "branches");
+// Cloudinary base folder for all branch uploads
+const CLOUDINARY_BASE_FOLDER = "visionlab/branches";
 
 /**
- * Ensure directory exists, create if not
- * @param {string} dirPath - Directory path to check/create
+ * Build Cloudinary folder path for a branch
+ * @param {string} branchId - Branch UUID
+ * @param {string} subFolder - Subfolder (e.g., 'settings', 'doctors/123', 'collection-tracking')
+ * @returns {string} Full Cloudinary folder path
  */
-const ensureDirectory = (dirPath) => {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
+const buildCloudinaryFolder = (branchId, subFolder = "") => {
+  let folder = `${CLOUDINARY_BASE_FOLDER}/${branchId}`;
+  if (subFolder) {
+    folder = `${folder}/${subFolder}`;
   }
+  return folder;
 };
 
 /**
- * Storage engine for branch-based file uploads
- * @param {string} subFolder - Subfolder path (e.g., 'settings', 'doctors/123')
- * @returns {Multer.StorageEngine} - Configured storage engine
+ * Memory storage engine - files are stored in buffer for Cloudinary upload
  */
-const createStorage = (subFolder) => {
-  return multer.diskStorage({
-    destination: (req, file, cb) => {
-      try {
-        // Get branch_id from query params first, then user context, then params
-        const branchId = req.query?.branch_id || req.user?.branch_id || req.params?.branchId;
-        
-        if (!branchId) {
-          return cb(new Error("Branch ID is required for file uploads"), null);
-        }
-
-        // Build directory path
-        let dirPath = path.join(UPLOAD_BASE, branchId);
-        
-        if (subFolder) {
-          // Handle dynamic subfolders like 'doctors/123'
-          dirPath = path.join(UPLOAD_BASE, branchId, subFolder);
-        }
-
-        // Ensure directory exists
-        ensureDirectory(dirPath);
-
-        cb(null, dirPath);
-      } catch (error) {
-        cb(error, null);
-      }
-    },
-    filename: (req, file, cb) => {
-      try {
-        // Generate timestamp-based filename
-        const timestamp = Date.now();
-        const fieldname = file.fieldname || "file";
-        const ext = path.extname(file.originalname).toLowerCase();
-        
-        // Use .png for images if no extension
-        const extension = ext || ".png";
-        const filename = `${fieldname}_${timestamp}${extension}`;
-
-        cb(null, filename);
-      } catch (error) {
-        cb(error, null);
-      }
-    }
-  });
-};
+const memoryStorage = multer.memoryStorage();
 
 /**
  * File filter for image uploads
@@ -82,23 +40,65 @@ const imageFileFilter = (req, file, cb) => {
 };
 
 /**
- * Create Multer instance for settings uploads
- * @param {string} subFolder - Subfolder path
+ * Create Multer instance with memory storage
  * @param {number} maxFileSize - Max file size in bytes (default 5MB)
  */
 const createMulterUpload = (subFolder, maxFileSize = 5 * 1024 * 1024) => {
-  const storage = createStorage(subFolder);
-  
   return multer({
-    storage,
+    storage: memoryStorage,
     limits: {
-      fileSize: maxFileSize
+      fileSize: maxFileSize,
     },
-    fileFilter: imageFileFilter
+    fileFilter: imageFileFilter,
   });
 };
 
-// Pre-configured upload middleware
+/**
+ * Upload a multer file (from memory) to Cloudinary
+ * @param {object} file - Multer file object (with buffer)
+ * @param {string} branchId - Branch UUID
+ * @param {string} subFolder - Subfolder path
+ * @returns {Promise<string>} Cloudinary secure URL
+ */
+const uploadFileToCloudinary = async (file, branchId, subFolder = "settings") => {
+  if (!file || !file.buffer) {
+    throw new Error("No file buffer available for upload");
+  }
+
+  const folder = buildCloudinaryFolder(branchId, subFolder);
+  const fieldname = file.fieldname || "file";
+  const timestamp = Date.now();
+  const publicId = `${fieldname}_${timestamp}`;
+
+  const result = await uploadBuffer(file.buffer, folder, publicId);
+  return result.secure_url;
+};
+
+/**
+ * Upload a base64 image to Cloudinary under a branch folder
+ * @param {string} base64String - Full data URI
+ * @param {string} prefix - Filename prefix
+ * @param {string} branchId - Branch UUID
+ * @param {string} subFolder - Subfolder path (default: 'settings')
+ * @returns {Promise<string>} Cloudinary secure URL
+ */
+const uploadBase64ToCloudinary = async (base64String, prefix, branchId, subFolder = "settings") => {
+  const folder = buildCloudinaryFolder(branchId, subFolder);
+  return uploadBase64(base64String, folder, prefix);
+};
+
+/**
+ * Delete a file from Cloudinary by its URL
+ * @param {string} url - Cloudinary URL
+ * @returns {Promise<object|null>} Deletion result
+ */
+const deleteFileFromCloudinary = async (url) => {
+  const publicId = getPublicIdFromUrl(url);
+  if (!publicId) return null;
+  return deleteAsset(publicId);
+};
+
+// Pre-configured upload middleware (same interface as before, routes unchanged)
 
 // Letterhead upload (single file)
 const letterheadUpload = createMulterUpload("settings").single("letterhead");
@@ -109,7 +109,7 @@ const ownerSignatureUpload = createMulterUpload("settings").single("owner_signat
 // Doctor signature upload (single file) - requires doctorId in params
 const doctorSignatureUpload = (req, res, next) => {
   const doctorId = req.params.doctorId || req.body.doctorId;
-  
+
   if (!doctorId) {
     return res.status(400).json({ error: "Doctor ID is required" });
   }
@@ -123,16 +123,18 @@ const settingsUpload = createMulterUpload("settings").fields([
   { name: "letterhead", maxCount: 1 },
   { name: "owner_signature", maxCount: 1 },
   { name: "header", maxCount: 1 },
-  { name: "footer", maxCount: 1 }
+  { name: "footer", maxCount: 1 },
 ]);
 
 module.exports = {
-  ensureDirectory,
-  createStorage,
   createMulterUpload,
   letterheadUpload,
   ownerSignatureUpload,
   doctorSignatureUpload,
   settingsUpload,
-  UPLOAD_BASE
+  uploadFileToCloudinary,
+  uploadBase64ToCloudinary,
+  deleteFileFromCloudinary,
+  buildCloudinaryFolder,
+  CLOUDINARY_BASE_FOLDER,
 };
