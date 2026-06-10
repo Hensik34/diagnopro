@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { 
-  Upload, 
+import {
+  Upload,
   Image as ImageIcon,
   FileSignature,
   Loader2,
@@ -27,7 +27,7 @@ export function Settings() {
   const { theme, setTheme } = useTheme();
 
   const [activeTab, setActiveTab] = useState('letterhead-sign');
-  
+
   const [letterheadPreview, setLetterheadPreview] = useState<string | null>(null);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
@@ -375,7 +375,7 @@ export function Settings() {
 
   const handleDeleteImage = async (field: 'letterhead_url' | 'header_url' | 'footer_url' | 'owner_signature_url') => {
     if (!window.confirm(`Are you sure you want to delete the ${field.replace('_url', '').replace('_', ' ')}?`)) return;
-    
+
     setUploadingField(`delete_${field}`);
     try {
       const result = await useSettingsStore.getState().removeImage(field);
@@ -439,7 +439,7 @@ export function Settings() {
 
   const getImageUrl = (path: string | null | undefined) => {
     if (!path) return null;
-    if (path.startsWith('blob:')) return path; 
+    if (path.startsWith('blob:')) return path;
     if (path.startsWith('http')) return path;
     const API_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:5000/api';
     const baseUrl = API_URL.replace(/\/api$/, '');
@@ -458,50 +458,47 @@ export function Settings() {
 
       {/* Main Settings Container (Desktop App Style) */}
       <div className="bg-card border border-border rounded-xl shadow-sm flex flex-1 flex-col md:flex-row overflow-hidden min-h-0">
-        
+
         {/* Sidebar Navigation */}
         <div className="w-full md:w-64 bg-secondary/20 border-b md:border-b-0 md:border-r border-border flex flex-col flex-shrink-0">
           <div className="p-4 md:p-5 border-b border-border">
             <h1 className="text-base md:text-xl font-bold text-foreground">Settings</h1>
             <p className="text-xs text-muted-foreground mt-1">Manage your lab preferences</p>
           </div>
-          
+
           <nav className="flex flex-row md:flex-col flex-1 overflow-x-auto md:overflow-y-auto p-2 md:p-3 space-x-1 md:space-x-0 md:space-y-1">
             <button
               onClick={() => setActiveTab('letterhead-sign')}
-              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'letterhead-sign' 
-                  ? 'bg-primary/10 text-primary' 
+              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'letterhead-sign'
+                  ? 'bg-primary/10 text-primary'
                   : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
-              }`}
+                }`}
             >
               <FileSignature className="w-4 h-4 flex-shrink-0" />
               <span className="hidden md:inline">Letterhead & Sign</span>
               <span className="md:hidden">Letterhead</span>
               {activeTab === 'letterhead-sign' && <ChevronRight className="w-4 h-4 ml-auto opacity-50 hidden md:block" />}
             </button>
-            
+
             <button
               onClick={() => setActiveTab('profile')}
-              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'profile' 
-                  ? 'bg-primary/10 text-primary' 
+              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'profile'
+                  ? 'bg-primary/10 text-primary'
                   : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
-              }`}
+                }`}
             >
               <User className="w-4 h-4 flex-shrink-0" />
               <span className="hidden md:inline">User Profile</span>
               <span className="md:hidden">Profile</span>
               {activeTab === 'profile' && <ChevronRight className="w-4 h-4 ml-auto opacity-50 hidden md:block" />}
             </button>
-            
+
             <button
               onClick={() => setActiveTab('general')}
-              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'general' 
-                  ? 'bg-primary/10 text-primary' 
+              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'general'
+                  ? 'bg-primary/10 text-primary'
                   : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
-              }`}
+                }`}
             >
               <SettingsIcon className="w-4 h-4" />
               <span>General Settings</span>
@@ -510,11 +507,10 @@ export function Settings() {
 
             <button
               onClick={() => setActiveTab('whatsapp')}
-              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'whatsapp'
+              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'whatsapp'
                   ? 'bg-primary/10 text-primary'
                   : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
-              }`}
+                }`}
             >
               <MessageCircle className="w-4 h-4" />
               <span>WhatsApp</span>
@@ -555,9 +551,9 @@ export function Settings() {
                   <div className="border-2 border-dashed border-border rounded-xl p-8 text-center bg-secondary/10">
                     {letterheadPreview ? (
                       <div className="relative">
-                        <img 
-                          src={getImageUrl(letterheadPreview) || ''} 
-                          alt="Letterhead preview" 
+                        <img
+                          src={getImageUrl(letterheadPreview) || ''}
+                          alt="Letterhead preview"
                           className="max-h-64 mx-auto rounded border border-border shadow-sm object-contain bg-white"
                         />
                       </div>
@@ -813,9 +809,9 @@ export function Settings() {
                     <div className="flex flex-col sm:flex-row items-center gap-6">
                       <div className="flex-shrink-0 border border-border rounded-lg bg-card p-4 min-w-[200px] flex items-center justify-center min-h-[100px] shadow-sm">
                         {ownerSignaturePreview ? (
-                          <img 
-                            src={getImageUrl(ownerSignaturePreview) || ''} 
-                            alt="Owner signature" 
+                          <img
+                            src={getImageUrl(ownerSignaturePreview) || ''}
+                            alt="Owner signature"
                             className="max-h-16 object-contain"
                           />
                         ) : (
@@ -1050,10 +1046,10 @@ export function Settings() {
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">Email Address</label>
                     <div className="relative">
-                      <input 
-                        type="email" 
-                        value={user?.email || ''} 
-                        disabled 
+                      <input
+                        type="email"
+                        value={user?.email || ''}
+                        disabled
                         className="w-full h-10 px-3 bg-secondary/50 border border-border rounded-md text-sm text-muted-foreground cursor-not-allowed"
                       />
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium bg-secondary px-2 py-0.5 rounded">
@@ -1068,8 +1064,8 @@ export function Settings() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1.5">First Name</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={formFirstname}
                         onChange={(e) => setFormFirstname(e.target.value)}
                         placeholder="John"
@@ -1078,8 +1074,8 @@ export function Settings() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1.5">Last Name</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={formLastname}
                         onChange={(e) => setFormLastname(e.target.value)}
                         placeholder="Doe"
@@ -1090,8 +1086,8 @@ export function Settings() {
 
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">Phone Number</label>
-                    <input 
-                      type="tel" 
+                    <input
+                      type="tel"
                       value={formPhone}
                       onChange={(e) => setFormPhone(e.target.value)}
                       placeholder="+1 (555) 000-0000"
