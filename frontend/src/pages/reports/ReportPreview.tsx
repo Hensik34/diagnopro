@@ -909,272 +909,272 @@ export function ReportPreview() {
           </aside>
 
           <div ref={viewerRef} className="w-full overflow-x-hidden overflow-y-auto">
-          <div className="report-print-wrapper" style={{ height: stackHeight * effectiveScale, position: 'relative' }}>
-            <div
-              className="report-print-container"
-              style={{
-                width: A4_WIDTH_PX,
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                transform: `scale(${effectiveScale})`,
-                transformOrigin: 'top left',
-              }}
-            >
-              {pages.map((page, pageIndex) => {
-                pageRefs.current.length = pages.length;
+            <div className="report-print-wrapper" style={{ height: stackHeight * effectiveScale, position: 'relative' }}>
+              <div
+                className="report-print-container"
+                style={{
+                  width: A4_WIDTH_PX,
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  transform: `scale(${effectiveScale})`,
+                  transformOrigin: 'top left',
+                }}
+              >
+                {pages.map((page, pageIndex) => {
+                  pageRefs.current.length = pages.length;
 
-                return (
-                  <div
-                    key={pageIndex}
-                    ref={el => {
-                      pageRefs.current[pageIndex] = el;
-                    }}
-                    className="report-page bg-white border border-gray-200"
-                    style={{
-                      width: A4_WIDTH_PX,
-                      height: A4_HEIGHT_PX,
-                      marginBottom: pageIndex === pages.length - 1 ? 0 : PAGE_GAP_PX,
-                      boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-                      position: 'relative',
-                      overflow: 'hidden',
-                      fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
-                    }}
-                  >
-                    {letterheadActive && settings?.letterhead_url && (
-                      <img
-                        src={getImageUrl(settings.letterhead_url) || ''}
-                        alt="Letterhead"
-                        style={{
-                          position: 'absolute',
-                          inset: 0,
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                          zIndex: 0,
-                          pointerEvents: 'none',
-                        }}
-                      />
-                    )}
-
-                    {headerActive && settings?.header_url && (
-                      <img
-                        src={getImageUrl(settings.header_url) || ''}
-                        alt="Header"
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          objectFit: 'contain',
-                          zIndex: 0,
-                          pointerEvents: 'none',
-                        }}
-                      />
-                    )}
-
-                    {footerActive && settings?.footer_url && (
-                      <img
-                        src={getImageUrl(settings.footer_url) || ''}
-                        alt="Footer"
-                        style={{
-                          position: 'absolute',
-                          bottom: 0,
-                          left: 0,
-                          width: '100%',
-                          objectFit: 'contain',
-                          zIndex: 0,
-                          pointerEvents: 'none',
-                        }}
-                      />
-                    )}
-
+                  return (
                     <div
+                      key={pageIndex}
+                      ref={el => {
+                        pageRefs.current[pageIndex] = el;
+                      }}
+                      className="report-page bg-white border border-gray-200"
                       style={{
-                        position: 'absolute',
-                        top: safeZones.top,
-                        bottom: safeZones.bottom,
-                        left: safeZones.left,
-                        right: safeZones.right,
-                        zIndex: 1,
+                        width: A4_WIDTH_PX,
+                        height: A4_HEIGHT_PX,
+                        marginBottom: pageIndex === pages.length - 1 ? 0 : PAGE_GAP_PX,
+                        boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+                        position: 'relative',
                         overflow: 'hidden',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 2,
-                        fontSize: density === 'compact' ? 9.5 : 10,
-                        lineHeight: density === 'compact' ? 1.3 : 1.4,
+                        fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
                       }}
                     >
-                      {page.map((item, idx) => {
-                        if (item.type === 'patient') {
-                          return (
-                            <div key={`p-${idx}`} className="patient-info-box">
-                              <ImprovedPatientBox
-                                patientName={reportData.patient.name}
-                                age={reportData.patient.age as any}
-                                gender={reportData.patient.gender}
-                                patientId={reportData.patient.id}
-                                sampleId={reportData.patient.sampleId}
-                                referringDoctor={reportData.patient.referringDoctor}
-                                reportDate={reportData.report.date}
-                                reportTime={reportData.report.time}
-                                collectionDate={reportData.patient.collectionDate}
-                                reportedDate={reportData.patient.reportedDate}
-                                collectionAddress={`${reportData.lab.address}${reportData.lab.city ? `, ${reportData.lab.city}` : ''}`}
-                                qrCode={
-                                  <QRCodeSVG
-                                    value={`${window.location.origin}/reports/${id}`}
-                                    size={46}
-                                    level="M"
-                                    bgColor="#ffffff"
-                                    fgColor={C.brand}
-                                  />
-                                }
-                                barcode={<Barcode value={reportData.patient.sampleId} />}
+                      {letterheadActive && settings?.letterhead_url && (
+                        <img
+                          src={getImageUrl(settings.letterhead_url) || ''}
+                          alt="Letterhead"
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            zIndex: 0,
+                            pointerEvents: 'none',
+                          }}
+                        />
+                      )}
+
+                      {headerActive && settings?.header_url && (
+                        <img
+                          src={getImageUrl(settings.header_url) || ''}
+                          alt="Header"
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            objectFit: 'contain',
+                            zIndex: 0,
+                            pointerEvents: 'none',
+                          }}
+                        />
+                      )}
+
+                      {footerActive && settings?.footer_url && (
+                        <img
+                          src={getImageUrl(settings.footer_url) || ''}
+                          alt="Footer"
+                          style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            width: '100%',
+                            objectFit: 'contain',
+                            zIndex: 0,
+                            pointerEvents: 'none',
+                          }}
+                        />
+                      )}
+
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: safeZones.top,
+                          bottom: safeZones.bottom,
+                          left: safeZones.left,
+                          right: safeZones.right,
+                          zIndex: 1,
+                          overflow: 'hidden',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 2,
+                          fontSize: density === 'compact' ? 9.5 : 10,
+                          lineHeight: density === 'compact' ? 1.3 : 1.4,
+                        }}
+                      >
+                        {page.map((item, idx) => {
+                          if (item.type === 'patient') {
+                            return (
+                              <div key={`p-${idx}`} className="patient-info-box">
+                                <ImprovedPatientBox
+                                  patientName={reportData.patient.name}
+                                  age={reportData.patient.age as any}
+                                  gender={reportData.patient.gender}
+                                  patientId={reportData.patient.id}
+                                  sampleId={reportData.patient.sampleId}
+                                  referringDoctor={reportData.patient.referringDoctor}
+                                  reportDate={reportData.report.date}
+                                  reportTime={reportData.report.time}
+                                  collectionDate={reportData.patient.collectionDate}
+                                  reportedDate={reportData.patient.reportedDate}
+                                  collectionAddress={`${reportData.lab.address}${reportData.lab.city ? `, ${reportData.lab.city}` : ''}`}
+                                  qrCode={
+                                    <QRCodeSVG
+                                      value={`${window.location.origin}/reports/${id}`}
+                                      size={46}
+                                      level="M"
+                                      bgColor="#ffffff"
+                                      fgColor={C.brand}
+                                    />
+                                  }
+                                  barcode={<Barcode value={reportData.patient.sampleId} />}
+                                  colorTokens={C}
+                                />
+                              </div>
+                            );
+                          }
+
+                          if (item.type === 'test') {
+                            let lastGroup: string | undefined;
+                            return (
+                              <TestSectionBlock
+                                key={`t-${idx}`}
+                                testName={item.chunk.continuation ? `${item.chunk.title} (cont.)` : item.chunk.title}
+                                isFirstSection={false}
                                 colorTokens={C}
-                              />
-                            </div>
-                          );
-                        }
+                              >
+                                <table style={{ width: '100%', borderCollapse: 'collapse', borderSpacing: '0 0', tableLayout: 'fixed', marginTop: '4px' }}>
+                                  <InvestigationTableHeader colorTokens={C} />
+                                  <tbody>
+                                    {item.chunk.parameters.map((param, rowIdx) => {
+                                      const status = (param.status || '').toLowerCase();
+                                      const isCritical = status === 'critical';
+                                      const isHigh = status === 'high';
+                                      const isLow = status === 'low';
+                                      const isAbnormal = isCritical || isHigh || isLow;
+                                      const statusColor = isCritical ? C.high : isHigh ? C.high : isLow ? C.low : C.text;
+                                      const showGroupHeader = !!param.group && param.group !== lastGroup;
+                                      if (param.group) lastGroup = param.group;
 
-                        if (item.type === 'test') {
-                          let lastGroup: string | undefined;
-                          return (
-                            <TestSectionBlock
-                              key={`t-${idx}`}
-                              testName={item.chunk.continuation ? `${item.chunk.title} (cont.)` : item.chunk.title}
-                              isFirstSection={false}
-                              colorTokens={C}
-                            >
-                              <table style={{ width: '100%', borderCollapse: 'collapse', borderSpacing: '0 0', tableLayout: 'fixed', marginTop: '4px' }}>
-                                <InvestigationTableHeader colorTokens={C} />
-                                <tbody>
-                                  {item.chunk.parameters.map((param, rowIdx) => {
-                                    const status = (param.status || '').toLowerCase();
-                                    const isCritical = status === 'critical';
-                                    const isHigh = status === 'high';
-                                    const isLow = status === 'low';
-                                    const isAbnormal = isCritical || isHigh || isLow;
-                                    const statusColor = isCritical ? C.high : isHigh ? C.high : isLow ? C.low : C.text;
-                                    const showGroupHeader = !!param.group && param.group !== lastGroup;
-                                    if (param.group) lastGroup = param.group;
+                                      return (
+                                        <React.Fragment key={`${param.name}-${rowIdx}`}>
+                                          {showGroupHeader && <SectionGroupHeader title={param.group || ''} colorTokens={C} />}
+                                          <InvestigationTableRow
+                                            investigation={param.name}
+                                            result={param.result}
+                                            status={isCritical ? 'Critical' : isHigh ? 'High' : isLow ? 'Low' : ''}
+                                            refRange={param.refRange}
+                                            unit={param.unit}
+                                            isAbnormal={isAbnormal}
+                                            statusColor={statusColor}
+                                            rowIndex={rowIdx}
+                                            indented={!!param.group}
+                                            colorTokens={C}
+                                          />
+                                        </React.Fragment>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </TestSectionBlock>
+                            );
+                          }
 
-                                    return (
-                                      <React.Fragment key={`${param.name}-${rowIdx}`}>
-                                        {showGroupHeader && <SectionGroupHeader title={param.group || ''} colorTokens={C} />}
-                                        <InvestigationTableRow
-                                          investigation={param.name}
-                                          result={param.result}
-                                          status={isCritical ? 'Critical' : isHigh ? 'High' : isLow ? 'Low' : ''}
-                                          refRange={param.refRange}
-                                          unit={param.unit}
-                                          isAbnormal={isAbnormal}
-                                          statusColor={statusColor}
-                                          rowIndex={rowIdx}
-                                          indented={!!param.group}
-                                          colorTokens={C}
-                                        />
-                                      </React.Fragment>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </TestSectionBlock>
-                          );
-                        }
-
-                        if (item.type === 'interpretation') {
-                          return (
-                            <section
-                              key={`i-${idx}`}
-                              style={{
-                                padding: `${ReportLayoutConfig.boxPadding.normal}px ${ReportLayoutConfig.boxPadding.normal + 2}px`,
-                                background: C.remarkBg,
-                                border: `1px solid ${C.remarkBorder}`,
-                                borderLeft: `4px solid ${C.remarkBorder}`,
-                                borderRadius: 4,
-                              }}
-                            >
-                              <p
+                          if (item.type === 'interpretation') {
+                            return (
+                              <section
+                                key={`i-${idx}`}
                                 style={{
-                                  margin: 0,
-                                  marginBottom: 4,
-                                  fontSize: `${ReportLayoutConfig.fontSize.header}px`,
-                                  fontWeight: 700,
-                                  color: C.sectionTitle,
-                                  textTransform: 'uppercase',
-                                  letterSpacing: '0.5px',
+                                  padding: `${ReportLayoutConfig.boxPadding.normal}px ${ReportLayoutConfig.boxPadding.normal + 2}px`,
+                                  background: C.remarkBg,
+                                  border: `1px solid ${C.remarkBorder}`,
+                                  borderLeft: `4px solid ${C.remarkBorder}`,
+                                  borderRadius: 4,
                                 }}
                               >
-                                Interpretation
-                              </p>
-                              <p style={{ margin: 0, fontSize: `${ReportLayoutConfig.fontSize.value}px`, color: C.secondary }}>
-                                {item.text}
-                              </p>
-                            </section>
-                          );
-                        }
+                                <p
+                                  style={{
+                                    margin: 0,
+                                    marginBottom: 4,
+                                    fontSize: `${ReportLayoutConfig.fontSize.header}px`,
+                                    fontWeight: 700,
+                                    color: C.sectionTitle,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px',
+                                  }}
+                                >
+                                  Interpretation
+                                </p>
+                                <p style={{ margin: 0, fontSize: `${ReportLayoutConfig.fontSize.value}px`, color: C.secondary }}>
+                                  {item.text}
+                                </p>
+                              </section>
+                            );
+                          }
 
-                        if (item.type === 'endMarker') {
-                          return (
-                            <div key={`e-${idx}`} style={{ textAlign: 'center', fontSize: '9px', color: C.muted, letterSpacing: '1px' }}>
-                              - - - End of Report - - -
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <section key={`s-${idx}`} style={{ marginTop: 4 }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: isSelfReport ? '1fr' : '1fr 1fr', gap: 80 }}>
-                              <div>
-                                <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
-                                  {settings?.owner_signature_url && (
-                                    <img
-                                      src={getImageUrl(settings.owner_signature_url) || ''}
-                                      alt="Owner Signature"
-                                      style={{ maxHeight: 40, objectFit: 'contain' }}
-                                    />
-                                  )}
-                                </div>
-                                <div style={{ borderTop: `1.5px solid ${C.text}`, paddingTop: 6 }}>
-                                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.text }}>
-                                    {user ? `${user.firstname} ${user.lastname}` : reportData.technician.name}
-                                  </p>
-                                  <p style={{ margin: '1px 0 0', fontSize: 9, color: C.secondary }}>Lab Owner / Incharge</p>
-                                </div>
+                          if (item.type === 'endMarker') {
+                            return (
+                              <div key={`e-${idx}`} style={{ textAlign: 'center', fontSize: '9px', color: C.muted, letterSpacing: '1px' }}>
+                                - - - End of Report - - -
                               </div>
+                            );
+                          }
 
-                              {!isSelfReport && (
-                                <div style={{ textAlign: 'right' }}>
-                                  <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
-                                    {doctorSignatureUrl && (
+                          return (
+                            <section key={`s-${idx}`} style={{ marginTop: 4 }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: isSelfReport ? '1fr' : '1fr 1fr', gap: 80 }}>
+                                <div>
+                                  <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
+                                    {settings?.owner_signature_url && (
                                       <img
-                                        src={getImageUrl(doctorSignatureUrl) || ''}
-                                        alt="Doctor Signature"
+                                        src={getImageUrl(settings.owner_signature_url) || ''}
+                                        alt="Owner Signature"
                                         style={{ maxHeight: 40, objectFit: 'contain' }}
                                       />
                                     )}
                                   </div>
                                   <div style={{ borderTop: `1.5px solid ${C.text}`, paddingTop: 6 }}>
                                     <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.text }}>
-                                      {refDoctor ? `${refDoctor.title} ${refDoctor.name}` : reportData.patient.referringDoctor}
+                                      {user ? `${user.firstname} ${user.lastname}` : reportData.technician.name}
                                     </p>
-                                    <p style={{ margin: '1px 0 0', fontSize: 9, color: C.secondary }}>
-                                      {refDoctor?.specialization || 'Referring Physician'}
-                                    </p>
+                                    <p style={{ margin: '1px 0 0', fontSize: 9, color: C.secondary }}>Lab Owner / Incharge</p>
                                   </div>
                                 </div>
-                              )}
-                            </div>
-                          </section>
-                        );
-                      })}
+
+                                {!isSelfReport && (
+                                  <div style={{ textAlign: 'right' }}>
+                                    <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
+                                      {doctorSignatureUrl && (
+                                        <img
+                                          src={getImageUrl(doctorSignatureUrl) || ''}
+                                          alt="Doctor Signature"
+                                          style={{ maxHeight: 40, objectFit: 'contain' }}
+                                        />
+                                      )}
+                                    </div>
+                                    <div style={{ borderTop: `1.5px solid ${C.text}`, paddingTop: 6 }}>
+                                      <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.text }}>
+                                        {refDoctor ? `${refDoctor.title} ${refDoctor.name}` : reportData.patient.referringDoctor}
+                                      </p>
+                                      <p style={{ margin: '1px 0 0', fontSize: 9, color: C.secondary }}>
+                                        {refDoctor?.specialization || 'Referring Physician'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </section>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
           </div>
         </div>
       </div>
