@@ -32,10 +32,11 @@ export const ReportLayoutConfig = {
     relaxed: 1.55,
   },
   tableColumns: {
-    investigation: '42%',
-    result: '16%',
-    refRange: '26%',
-    unit: '16%',
+    investigation: '30%',
+    result: '15%',
+    refRange: '22%',
+    unit: '12%',
+    extra: '14%',
   },
 };
 
@@ -88,7 +89,7 @@ export function PatientInfoRow({
 /* ------------------------------------------------------------------ */
 
 export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<string, string> }) {
-  const thStyle = (width: string, align: string = 'left'): React.CSSProperties => ({
+  const thStyle = (width: string, align: string = 'left', border: boolean = true): React.CSSProperties => ({
     textAlign: align as any,
     padding: '4px 0',
     fontWeight: 700,
@@ -98,7 +99,7 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
     textTransform: 'uppercase',
     whiteSpace: 'nowrap',
     width,
-    borderBottom: '1.5px solid #333',
+    borderBottom: border ? '1.5px solid #333' : 'none',
   });
 
   return (
@@ -115,6 +116,9 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
         </th>
         <th style={thStyle(ReportLayoutConfig.tableColumns.unit, 'left')}>
           Unit
+        </th>
+        <th style={thStyle(ReportLayoutConfig.tableColumns.extra, 'left', true)}>
+          {/* Spacer */}
         </th>
       </tr>
     </thead>
@@ -215,6 +219,12 @@ export function InvestigationTableRow({
       >
         {unit}
       </td>
+      <td
+        style={{
+          padding: '3px 0',
+          width: ReportLayoutConfig.tableColumns.extra,
+        }}
+      />
     </tr>
   );
 }
@@ -233,7 +243,7 @@ export function SectionGroupHeader({
   return (
     <tr>
       <td
-        colSpan={4}
+        colSpan={5}
         style={{
           padding: '5px 0 2px',
           fontWeight: 700,
@@ -284,18 +294,18 @@ export function ImprovedPatientBox({
   colorTokens: Record<string, string>;
 }) {
   const labelStyle: React.CSSProperties = {
-    fontSize: '9px',
+    fontSize: '8.5px',
     fontWeight: 700,
-    color: '#78909C',
+    color: '#607D8B',
     textTransform: 'uppercase',
-    letterSpacing: '0.3px',
-    lineHeight: 1,
+    letterSpacing: '0.4px',
+    lineHeight: 1.1,
   };
   const valStyle: React.CSSProperties = {
     fontSize: '10.5px',
     fontWeight: 600,
-    color: '#212121',
-    lineHeight: 1.35,
+    color: '#1A1A1A',
+    lineHeight: 1.3,
   };
   const cellDivider: React.CSSProperties = {
     borderRight: `1px solid ${colorTokens.borderLight}`,
@@ -304,22 +314,24 @@ export function ImprovedPatientBox({
   return (
     <div
       style={{
-        border: `1.5px solid ${colorTokens.borderLight}`,
-        borderRadius: '3px',
+        border: `1px solid ${colorTokens.borderLight}`,
+        borderRadius: '5px',
         overflow: 'hidden',
-        marginBottom: '6px',
+        marginBottom: '8px',
+        backgroundColor: '#F8F9FA', // Subtle premium background
       }}
     >
       <div style={{ display: 'flex', alignItems: 'stretch' }}>
         {/* Col 1: Patient identity */}
-        <div style={{ flex: 1.1, padding: '5px 8px', ...cellDivider }}>
+        <div style={{ flex: 1.15, padding: '7px 10px', ...cellDivider, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div
             style={{
-              fontSize: '13.5px',
+              fontSize: '14px',
               fontWeight: 800,
-              color: '#111',
+              color: '#0D47A1', // Accent brand color for patient name
               lineHeight: 1.15,
-              marginBottom: '3px',
+              marginBottom: '4px',
+              textTransform: 'capitalize', // Autocapitalize names
             }}
           >
             {patientName}
@@ -327,16 +339,16 @@ export function ImprovedPatientBox({
           <table style={{ borderCollapse: 'collapse', width: '100%' }}>
             <tbody>
               <tr>
-                <td style={{ ...labelStyle, padding: '1px 0', width: '32px' }}>Age</td>
-                <td style={{ ...valStyle, padding: '1px 0' }}>: {age}</td>
+                <td style={{ ...labelStyle, padding: '1.5px 0', width: '36px' }}>Age</td>
+                <td style={{ ...valStyle, padding: '1.5px 0' }}>: {age}</td>
               </tr>
               <tr>
-                <td style={{ ...labelStyle, padding: '1px 0' }}>Sex</td>
-                <td style={{ ...valStyle, padding: '1px 0' }}>: {gender}</td>
+                <td style={{ ...labelStyle, padding: '1.5px 0' }}>Sex</td>
+                <td style={{ ...valStyle, padding: '1.5px 0', textTransform: 'capitalize' }}>: {gender}</td>
               </tr>
               <tr>
-                <td style={{ ...labelStyle, padding: '1px 0' }}>PID</td>
-                <td style={{ ...valStyle, padding: '1px 0', fontSize: '9.5px' }}>: {patientId}</td>
+                <td style={{ ...labelStyle, padding: '1.5px 0' }}>PID</td>
+                <td style={{ ...valStyle, padding: '1.5px 0', fontSize: '9.5px', color: '#555' }}>: {patientId}</td>
               </tr>
             </tbody>
           </table>
@@ -345,67 +357,75 @@ export function ImprovedPatientBox({
         {/* Col 2: Registration + Ref Doctor + QR */}
         <div
           style={{
-            flex: 1.5,
-            padding: '5px 8px',
+            flex: 1.45,
+            padding: '7px 10px',
             ...cellDivider,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '6px',
+            gap: '8px',
           }}
         >
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={labelStyle}>Registration ID</div>
-            <div
-              style={{
-                fontSize: '12.5px',
-                fontWeight: 800,
-                color: '#111',
-                margin: '2px 0',
-                letterSpacing: '0.3px',
-              }}
-            >
-              {sampleId}
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%' }}>
+            <div>
+              <div style={labelStyle}>Registration ID</div>
+              <div
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  color: '#1A1A1A',
+                  margin: '1px 0 3px',
+                  letterSpacing: '0.2px',
+                }}
+              >
+                {sampleId}
+              </div>
             </div>
-            <div style={{ fontSize: '10px', color: '#333', lineHeight: 1.4 }}>
-              <span style={{ ...labelStyle, textTransform: 'none', fontSize: '9px' }}>Ref. By: </span>
-              <span style={{ fontWeight: 700, fontSize: '10.5px' }}>{referringDoctor}</span>
+            <div style={{ marginTop: '2px' }}>
+              <div style={labelStyle}>Ref. By</div>
+              <div style={{ ...valStyle, color: '#0D47A1', fontWeight: 700, fontSize: '11px', textTransform: 'capitalize' }}>
+                {referringDoctor}
+              </div>
             </div>
           </div>
-          <div style={{ flexShrink: 0 }}>{qrCode}</div>
+          <div style={{ flexShrink: 0, padding: '2px', backgroundColor: '#ffffff', border: `1px solid ${colorTokens.borderLight}`, borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {qrCode}
+          </div>
         </div>
 
         {/* Col 3: Barcode + Dates */}
         <div
           style={{
-            flex: 1.2,
-            padding: '5px 8px',
+            flex: 1.25,
+            padding: '7px 10px',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '2px',
+            gap: '4px',
           }}
         >
-          <div>{barcode}</div>
+          <div style={{ padding: '2px 4px', backgroundColor: '#ffffff', borderRadius: '3px', border: `1px solid ${colorTokens.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {barcode}
+          </div>
           <div
             style={{
               fontSize: '8.5px',
-              color: '#333',
+              color: '#455A64',
               width: '100%',
               lineHeight: 1.4,
               textAlign: 'center',
             }}
           >
             <div>
-              <span style={{ fontWeight: 700, color: '#78909C' }}>Registered:</span> {reportDate},{' '}
+              <span style={{ fontWeight: 700, color: '#607D8B' }}>Registered:</span> {reportDate},{' '}
               {reportTime}
             </div>
             <div>
-              <span style={{ fontWeight: 700, color: '#78909C' }}>Collected:</span> {collectionDate}
+              <span style={{ fontWeight: 700, color: '#607D8B' }}>Collected:</span> {collectionDate}
             </div>
             <div>
-              <span style={{ fontWeight: 700, color: '#78909C' }}>Reported:</span> {reportedDate}
+              <span style={{ fontWeight: 700, color: '#607D8B' }}>Reported:</span> {reportedDate}
             </div>
           </div>
         </div>

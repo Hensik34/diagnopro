@@ -179,29 +179,28 @@ function parsePx(value: unknown, fallback: number) {
   }
   return fallback;
 }
-
 function estimateInterpretationHeight(text: string, dense: boolean) {
-  const charsPerLine = dense ? 95 : 85;
+  const charsPerLine = dense ? 90 : 80;
   const lineHeight = dense ? 16 : 18;
   const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
-  return 24 + lines * lineHeight + 12; // title + lines + padding
+  return 22 + lines * lineHeight + 10; // title + lines + padding
 }
 
 function estimateSectionHeight(section: TestSection, params: Parameter[], dense: boolean) {
-  // Must match actual rendered row heights (4px padding top + 4px bottom + ~14px text = ~22px)
-  const rowHeight = dense ? 20 : 22;
-  const groupHeaderHeight = dense ? 22 : 24;
+  // Row height must match actual rendered: 3px top pad + ~15px text + 3px bottom pad = ~21px
+  const rowHeight = dense ? 21 : 23;
+  const groupHeaderHeight = dense ? 23 : 25;
   const uniqueGroupRows = params.reduce((count, p, idx) => {
     if (!p.group) return count;
     const prev = idx > 0 ? params[idx - 1].group : undefined;
     return prev !== p.group ? count + 1 : count;
   }, 0);
 
-  const heading = 28;       // section title + margin
-  const tableHeader = 24;   // header row
+  const heading = 26;       // section title with lines + margin
+  const tableHeader = 24;   // header row with border
   const rows = params.length * rowHeight;
   const groups = uniqueGroupRows * groupHeaderHeight;
-  const spacing = 12;       // bottom margin
+  const spacing = 10;       // bottom margin
   return heading + tableHeader + rows + groups + spacing;
 }
 
@@ -471,21 +470,27 @@ export function ReportPreview() {
   // Simple, deterministic safe zone calculation.
   // Settings values are the single source of truth.
   // Keep margins and safe areas all the time so they are reserved for pre-printed letterhead.
+  // Replace the safeZones useEffect in ReportPreview.tsx with:
   useEffect(() => {
     const marginTop = parsePx(settings?.report_margin_top, 80);
     const marginBottom = parsePx(settings?.report_margin_bottom, 80);
     const marginLeft = parsePx(settings?.report_margin_left, 24);
     const marginRight = parsePx(settings?.report_margin_right, 24);
+
+    // Safe areas are now just minimum guarantees, not additive
+    // The auto-detected margins already account for header/footer artwork
+    // Only use safe area if margin is somehow smaller (backward compat)
     const headerSafe = parsePx(settings?.header_safe_area, 0);
     const footerSafe = parsePx(settings?.footer_safe_area, 0);
 
     setSafeZones({
-      top: clamp(marginTop + headerSafe, 0, Math.round(A4_HEIGHT_PX * 0.45)),
-      bottom: clamp(marginBottom + footerSafe, 0, Math.round(A4_HEIGHT_PX * 0.45)),
-      left: clamp(marginLeft, 0, 80),
-      right: clamp(marginRight, 0, 80),
+      top: clamp(Math.max(marginTop, headerSafe), 20, Math.round(A4_HEIGHT_PX * 0.35)),
+      bottom: clamp(Math.max(marginBottom, footerSafe), 10, Math.round(A4_HEIGHT_PX * 0.35)),
+      left: clamp(Math.max(marginLeft, 8), 8, 60),
+      right: clamp(Math.max(marginRight, 8), 8, 60),
     });
   }, [settings]);
+
 
   useLayoutEffect(() => {
     const node = viewerRef.current;
@@ -541,19 +546,21 @@ export function ReportPreview() {
     const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom;
     const dense = density !== 'comfortable';
 
-    const patientHeight = 110;   // increased - patient box is taller now
-    const signatureHeight = 80;
-    const endMarkerHeight = 18;
+    const patientHeight = 100;   // bordered patient box
+    const signatureHeight = 72;
+    const endMarkerHeight = 20;
 
-    const maxChunkHeight = Math.max(160, contentHeight - 60);
+    // Reserve space for signature block so it doesn't get pushed to next page
+    const signatureReserve = signatureHeight + endMarkerHeight;
+
+    const maxChunkHeight = Math.max(160, contentHeight - 50);
     const chunks = orderedSections.flatMap(section => splitSection(section, maxChunkHeight, dense));
 
     const out: PageItem[][] = [[]];
     let currentHeight = 0;
 
     const place = (item: PageItem, itemHeight: number) => {
-      // Leave 10px buffer to prevent overflow
-      if (currentHeight + itemHeight > contentHeight - 10 && out[out.length - 1].length > 0) {
+      if (currentHeight + itemHeight > contentHeight && out[out.length - 1].length > 0) {
         out.push([]);
         currentHeight = 0;
       }
@@ -563,6 +570,15 @@ export function ReportPreview() {
 
     place({ type: 'patient' }, patientHeight);
 
+    // Calculate total remaining content height to decide if we need to be careful
+    let remainingContentHeight = 0;
+    for (const chunk of chunks) {
+      const section = orderedSections.find(s => s.id === chunk.sectionId);
+      if (section) remainingContentHeight += estimateSectionHeight(section, chunk.parameters, dense);
+    }
+    if (remarkText) remainingContentHeight += estimateInterpretationHeight(remarkText, dense);
+    remainingContentHeight += signatureReserve;
+
     for (const chunk of chunks) {
       const section = orderedSections.find(s => s.id === chunk.sectionId);
       if (!section) continue;
@@ -571,11 +587,23 @@ export function ReportPreview() {
     }
 
     if (remarkText) {
-      place({ type: 'interpretation', text: remarkText }, estimateInterpretationHeight(remarkText, dense));
+      const remarkH = estimateInterpretationHeight(remarkText, dense);
+      // If interpretation + signature won't fit together, place interpretation
+      // only if it fits with signature on same page, otherwise let it flow
+      if (currentHeight + remarkH + signatureReserve > contentHeight &&
+        currentHeight + remarkH <= contentHeight) {
+        // Interpretation fits but signature won't - push both to new page
+        // only if interpretation is small enough
+        if (remarkH + signatureReserve <= contentHeight) {
+          out.push([]);
+          currentHeight = 0;
+        }
+      }
+      place({ type: 'interpretation', text: remarkText }, remarkH);
     }
 
-    const tailHeight = signatureHeight + endMarkerHeight;
-    if (currentHeight + tailHeight > contentHeight - 10 && out[out.length - 1].length > 0) {
+    // Always try to keep end marker + signature together
+    if (currentHeight + signatureReserve > contentHeight && out[out.length - 1].length > 0) {
       out.push([]);
       currentHeight = 0;
     }
@@ -584,6 +612,7 @@ export function ReportPreview() {
 
     return out;
   }, [reportData, orderedSections, safeZones, remarkText, density]);
+
 
 
   const isSelfReport = reportData?.patient.referringDoctor === 'Self' || rawReport?.is_self_report;
@@ -1035,10 +1064,10 @@ export function ReportPreview() {
                                   qrCode={
                                     <QRCodeSVG
                                       value={`${window.location.origin}/reports/${id}`}
-                                      size={46}
-                                      level="M"
+                                      size={68}
+                                      level="Q"
                                       bgColor="#ffffff"
-                                      fgColor={C.brand}
+                                      fgColor="#000000"
                                     />
                                   }
                                   barcode={<Barcode value={reportData.patient.sampleId} />}
@@ -1060,35 +1089,35 @@ export function ReportPreview() {
                                 <table style={{ width: '100%', borderCollapse: 'collapse', borderSpacing: '0 0', tableLayout: 'fixed', marginTop: '4px' }}>
                                   <InvestigationTableHeader colorTokens={C} />
                                   <tbody>
-                                  {item.chunk.parameters.map((param, rowIdx) => {
-                                    const status = (param.status || '').toLowerCase();
-                                    const isCritical = status === 'critical';
-                                    const isHigh = status === 'high';
-                                    const isLow = status === 'low';
-                                    const isAbnormal = isCritical || isHigh || isLow;
-                                    const statusColor = isCritical ? C.high : isHigh ? C.high : isLow ? C.low : C.text;
-                                    const showGroupHeader = !!param.group && param.group !== lastGroup;
-                                    if (param.group) lastGroup = param.group;
+                                    {item.chunk.parameters.map((param, rowIdx) => {
+                                      const status = (param.status || '').toLowerCase();
+                                      const isCritical = status === 'critical';
+                                      const isHigh = status === 'high';
+                                      const isLow = status === 'low';
+                                      const isAbnormal = isCritical || isHigh || isLow;
+                                      const statusColor = isCritical ? C.high : isHigh ? C.high : isLow ? C.low : C.text;
+                                      const showGroupHeader = !!param.group && param.group !== lastGroup;
+                                      if (param.group) lastGroup = param.group;
 
-                                    return (
-                                      <React.Fragment key={`${param.name}-${rowIdx}`}>
-                                        {showGroupHeader && <SectionGroupHeader title={param.group || ''} colorTokens={C} />}
-                                        <InvestigationTableRow
-                                          investigation={param.name}
-                                          result={param.result}
-                                          status={isCritical ? 'Critical' : isHigh ? 'High' : isLow ? 'Low' : ''}
-                                          refRange={param.refRange}
-                                          unit={param.unit}
-                                          isAbnormal={isAbnormal}
-                                          statusColor={statusColor}
-                                          rowIndex={rowIdx}
-                                          indented={!!param.group}
-                                          colorTokens={C}
-                                        />
-                                      </React.Fragment>
-                                    );
-                                  })}
-                                </tbody>
+                                      return (
+                                        <React.Fragment key={`${param.name}-${rowIdx}`}>
+                                          {showGroupHeader && <SectionGroupHeader title={param.group || ''} colorTokens={C} />}
+                                          <InvestigationTableRow
+                                            investigation={param.name}
+                                            result={param.result}
+                                            status={isCritical ? 'Critical' : isHigh ? 'High' : isLow ? 'Low' : ''}
+                                            refRange={param.refRange}
+                                            unit={param.unit}
+                                            isAbnormal={isAbnormal}
+                                            statusColor={statusColor}
+                                            rowIndex={rowIdx}
+                                            indented={!!param.group}
+                                            colorTokens={C}
+                                          />
+                                        </React.Fragment>
+                                      );
+                                    })}
+                                  </tbody>
                                 </table>
                               </TestSectionBlock>
                             );
@@ -1318,16 +1347,16 @@ function Barcode({ value }: { value: string }) {
 
   let x = 0;
   return (
-    <div style={{ textAlign: 'center' }}>
-      <svg width="90" height="20" viewBox={`0 0 ${bars.reduce((s, b, i) => s + b + (i % 2 === 0 ? 0 : 1), 0)} 20`}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <svg width="110" height="25" viewBox={`0 0 ${bars.reduce((s, b, i) => s + b + (i % 2 === 0 ? 0 : 1), 0)} 25`}>
         {bars.map((w, i) => {
           const isBar = i % 2 === 0;
-          const rect = isBar ? <rect key={i} x={x} y={0} width={w} height={16} fill={C.text} /> : null;
+          const rect = isBar ? <rect key={i} x={x} y={0} width={w} height={21} fill="#000000" /> : null;
           x += w + (isBar ? 0 : 1);
           return rect;
         })}
       </svg>
-      <p style={{ margin: '0px 0 0', fontSize: '7px', color: C.muted, letterSpacing: '0.5px', fontFamily: 'monospace', lineHeight: 1 }}>{value}</p>
+      <p style={{ margin: '2px 0 0', fontSize: '8px', color: C.text, letterSpacing: '0.8px', fontFamily: 'monospace', lineHeight: 1, fontWeight: 600 }}>{value}</p>
     </div>
   );
 }

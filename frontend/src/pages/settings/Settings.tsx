@@ -13,18 +13,23 @@ import {
   Save,
   Star,
   Plus,
-  MessageCircle
+  MessageCircle,
+  RotateCcw,
+  SlidersHorizontal
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useSettingsStore, useBranchStore, useAuthStore } from '../../stores';
 import { authApi } from '../../api/auth';
 import { WhatsAppIntegration } from './WhatsAppIntegration';
+import { analyzeLetterhead } from '../../utils/letterheadAnalyzer';
 
 export function Settings() {
   const { settings, isLoading, error, fetchSettings, uploadLetterhead, uploadLabSignature, updateSignatureLabel, updateDefaultSignature, removeImage: removeSettingsImage } = useSettingsStore();
   const { currentBranchId } = useBranchStore();
   const { user, fetchProfile } = useAuthStore();
   const { theme, setTheme } = useTheme();
+
+  const activeBranchId = currentBranchId || user?.branch_id || '';
 
   const [activeTab, setActiveTab] = useState('letterhead-sign');
 
@@ -57,6 +62,12 @@ export function Settings() {
     header_safe_area: 24,
     footer_safe_area: 24,
   });
+  const [analysisConfidence, setAnalysisConfidence] = useState<{
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+  } | null>(null);
   const [isSavingBranding, setIsSavingBranding] = useState(false);
   const [sampleIdDraft, setSampleIdDraft] = useState({
     sample_id_format: 'numeric' as 'numeric' | 'sm_prefix',
@@ -95,10 +106,10 @@ export function Settings() {
 
   // Fetch settings on mount
   useEffect(() => {
-    if (currentBranchId) {
-      fetchSettings(currentBranchId);
+    if (activeBranchId) {
+      fetchSettings(activeBranchId);
     }
-  }, [fetchSettings, currentBranchId]);
+  }, [fetchSettings, activeBranchId]);
 
   // Set profile data when user changes
   useEffect(() => {
@@ -144,6 +155,14 @@ export function Settings() {
         header_safe_area: normalizePx(settings.header_safe_area, 24),
         footer_safe_area: normalizePx(settings.footer_safe_area, 24),
       });
+      if (settings.letterhead_detected_top !== undefined && settings.letterhead_detected_top !== null) {
+        setAnalysisConfidence({
+          top: 0.95,
+          bottom: 0.95,
+          left: 0.95,
+          right: 0.95
+        });
+      }
       setSampleIdDraft({
         sample_id_format: settings.sample_id_format ?? 'numeric',
         sample_id_reset_policy: settings.sample_id_reset_policy ?? 'yearly',
@@ -159,7 +178,7 @@ export function Settings() {
     setLetterheadError(null);
 
     const img = new Image();
-    img.onload = () => {
+    img.onload = async () => {
       const w = img.naturalWidth;
       const h = img.naturalHeight;
       URL.revokeObjectURL(img.src);
@@ -184,6 +203,24 @@ export function Settings() {
 
       setPendingLetterheadFile(file);
       setLetterheadPreview(URL.createObjectURL(file));
+
+      // Auto-detect safe zones from the image
+      try {
+        const analysis = await analyzeLetterhead(file);
+        setBrandingDraft(prev => ({
+          ...prev,
+          report_margin_top: analysis.topMargin,
+          report_margin_bottom: analysis.bottomMargin,
+          report_margin_left: analysis.leftMargin,
+          report_margin_right: analysis.rightMargin,
+          header_safe_area: 0,
+          footer_safe_area: 0,
+        }));
+        setAnalysisConfidence(analysis.confidence);
+        showSuccess("Margins auto-detected from your letterhead. Review and adjust if needed.");
+      } catch (err) {
+        console.error("Auto-detect failed:", err);
+      }
     };
     img.onerror = () => {
       setLetterheadError('Could not read the image file. Please select a valid image.');
@@ -192,15 +229,37 @@ export function Settings() {
     img.src = URL.createObjectURL(file);
   };
 
+
   const discardLetterhead = () => {
     setPendingLetterheadFile(null);
     setLetterheadPreview(settings?.letterhead_url || null);
     setLetterheadError(null);
     if (letterheadInputRef.current) letterheadInputRef.current.value = '';
+    
+    if (settings) {
+      setBrandingDraft({
+        report_margin_top: normalizePx(settings.report_margin_top, 80),
+        report_margin_bottom: normalizePx(settings.report_margin_bottom, 80),
+        report_margin_left: normalizePx(settings.report_margin_left, 28),
+        report_margin_right: normalizePx(settings.report_margin_right, 28),
+        header_safe_area: normalizePx(settings.header_safe_area, 24),
+        footer_safe_area: normalizePx(settings.footer_safe_area, 24),
+      });
+      if (settings.letterhead_detected_top !== undefined && settings.letterhead_detected_top !== null) {
+        setAnalysisConfidence({
+          top: 0.95,
+          bottom: 0.95,
+          left: 0.95,
+          right: 0.95
+        });
+      } else {
+        setAnalysisConfidence(null);
+      }
+    }
   };
 
   const confirmLetterhead = async () => {
-    if (!currentBranchId) {
+    if (!activeBranchId) {
       alert('Branch ID not found. Please select a branch.');
       return;
     }
@@ -208,10 +267,17 @@ export function Settings() {
 
     setUploadingField('letterhead');
     try {
-      const result = await uploadLetterhead(currentBranchId, pendingLetterheadFile);
+      const detected = {
+        top: brandingDraft.report_margin_top,
+        bottom: brandingDraft.report_margin_bottom,
+        left: brandingDraft.report_margin_left,
+        right: brandingDraft.report_margin_right,
+      };
+      // Save letterhead and margins in a single API call, setting margins auto to true
+      const result = await uploadLetterhead(activeBranchId, pendingLetterheadFile, detected, true);
       if (result) {
         setPendingLetterheadFile(null);
-        showSuccess('Letterhead uploaded successfully');
+        showSuccess('Letterhead uploaded and margins auto-saved successfully');
       }
     } finally {
       setUploadingField(null);
@@ -235,7 +301,7 @@ export function Settings() {
   };
 
   const confirmLabSignature = async (index: number) => {
-    if (!currentBranchId) {
+    if (!activeBranchId) {
       alert('Branch ID not found. Please select a branch.');
       return;
     }
@@ -245,12 +311,12 @@ export function Settings() {
     setUploadingField(`lab_sig_${index}`);
     try {
       const label = sigLabels[index] || `Signature ${index}`;
-      const result = await uploadLabSignature(currentBranchId, index, file, label);
+      const result = await uploadLabSignature(activeBranchId, index, file, label);
       if (result) {
         setLabSignatureFiles({ ...labSignatureFiles, [index]: null });
         showSuccess(`Lab signature ${index} uploaded successfully`);
         // Refresh settings
-        fetchSettings(currentBranchId);
+        fetchSettings(activeBranchId);
       }
     } finally {
       setUploadingField(null);
@@ -258,15 +324,93 @@ export function Settings() {
     }
   };
 
+  const handleReDetect = async () => {
+    if (!letterheadPreview) return;
+    try {
+      setUploadingField('detecting');
+      
+      let fileToAnalyze: File | null = pendingLetterheadFile;
+      if (!fileToAnalyze) {
+        // Fetch from URL
+        const imgUrl = getImageUrl(letterheadPreview);
+        if (!imgUrl) return;
+        const response = await fetch(imgUrl);
+        const blob = await response.blob();
+        fileToAnalyze = new File([blob], 'letterhead.png', { type: blob.type });
+      }
+
+      const analysis = await analyzeLetterhead(fileToAnalyze);
+      setBrandingDraft(prev => ({
+        ...prev,
+        report_margin_top: analysis.topMargin,
+        report_margin_bottom: analysis.bottomMargin,
+        report_margin_left: analysis.leftMargin,
+        report_margin_right: analysis.rightMargin,
+        header_safe_area: 0,
+        footer_safe_area: 0,
+      }));
+      setAnalysisConfidence(analysis.confidence);
+      showSuccess("Letterhead margins re-detected successfully.");
+    } catch (err) {
+      console.error(err);
+      alert("Could not re-detect margins. Try uploading the file again.");
+    } finally {
+      setUploadingField(null);
+    }
+  };
+
+  const handleMouseDown = (edge: 'top' | 'bottom' | 'left' | 'right') => (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startVal = brandingDraft[`report_margin_${edge}` as keyof typeof brandingDraft];
+    const startPos = edge === 'top' || edge === 'bottom' ? e.clientY : e.clientX;
+    const PREVIEW_WIDTH = 280;
+    const PREVIEW_HEIGHT = 396;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const delta = (edge === 'top' || edge === 'bottom' ? moveEvent.clientY : moveEvent.clientX) - startPos;
+      let deltaA4 = 0;
+      if (edge === 'top' || edge === 'bottom') {
+        deltaA4 = Math.round((delta / PREVIEW_HEIGHT) * 1123);
+      } else {
+        deltaA4 = Math.round((delta / PREVIEW_WIDTH) * 794);
+      }
+
+      let newVal = 0;
+      if (edge === 'top') {
+        newVal = Math.max(20, Math.min(450, startVal + deltaA4));
+      } else if (edge === 'bottom') {
+        newVal = Math.max(10, Math.min(450, startVal - deltaA4));
+      } else if (edge === 'left') {
+        newVal = Math.max(8, Math.min(150, startVal + deltaA4));
+      } else if (edge === 'right') {
+        newVal = Math.max(8, Math.min(150, startVal - deltaA4));
+      }
+
+      setBrandingDraft(prev => ({
+        ...prev,
+        [`report_margin_${edge}`]: newVal
+      }));
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+
   const handleSetDefaultSignature = async (index: number) => {
-    if (!currentBranchId) {
+    if (!activeBranchId) {
       alert('Branch ID not found. Please select a branch.');
       return;
     }
 
     setUploadingField(`default_sig`);
     try {
-      const result = await updateDefaultSignature(currentBranchId, index);
+      const result = await updateDefaultSignature(activeBranchId, index);
       if (result) {
         setDefaultSignatureIndex(index);
         showSuccess(`Signature ${index} set as default`);
@@ -298,10 +442,10 @@ export function Settings() {
   };
 
   const handleUpdateSignatureLabel = async (index: number, newLabel: string) => {
-    if (!currentBranchId) return;
+    if (!activeBranchId) return;
 
     try {
-      const result = await updateSignatureLabel(currentBranchId, index, newLabel);
+      const result = await updateSignatureLabel(activeBranchId, index, newLabel);
       if (result) {
         setSigLabels({ ...sigLabels, [index]: newLabel });
         setEditingLabel(null);
@@ -326,7 +470,7 @@ export function Settings() {
   };
 
   const confirmOwnerSignature = async () => {
-    if (!currentBranchId) {
+    if (!activeBranchId) {
       alert('Branch ID not found. Please select a branch.');
       return;
     }
@@ -334,7 +478,7 @@ export function Settings() {
 
     setUploadingField('owner_signature');
     try {
-      const result = await useSettingsStore.getState().uploadOwnerSignature(currentBranchId, pendingOwnerSignatureFile);
+      const result = await useSettingsStore.getState().uploadOwnerSignature(activeBranchId, pendingOwnerSignatureFile);
       if (result) {
         setPendingOwnerSignatureFile(null);
         showSuccess('Owner signature uploaded successfully');
@@ -351,18 +495,19 @@ export function Settings() {
   };
 
   const handleSaveBranding = async () => {
-    if (!currentBranchId) return;
+    if (!activeBranchId) return;
 
     setIsSavingBranding(true);
     try {
       const result = await useSettingsStore.getState().updateSettings({
-        branch_id: currentBranchId,
+        branch_id: activeBranchId,
         report_margin_top: brandingDraft.report_margin_top,
         report_margin_bottom: brandingDraft.report_margin_bottom,
         report_margin_left: brandingDraft.report_margin_left,
         report_margin_right: brandingDraft.report_margin_right,
         header_safe_area: brandingDraft.header_safe_area,
         footer_safe_area: brandingDraft.footer_safe_area,
+        letterhead_margins_auto: false,
       });
 
       if (result) {
@@ -383,7 +528,7 @@ export function Settings() {
         if (field === 'letterhead_url') setLetterheadPreview(null);
         if (field === 'owner_signature_url') setOwnerSignaturePreview(null);
         showSuccess('Image deleted successfully');
-        if (currentBranchId) fetchSettings(currentBranchId);
+        if (activeBranchId) fetchSettings(activeBranchId);
       }
     } catch (err) {
       console.error(err);
@@ -393,12 +538,12 @@ export function Settings() {
   };
 
   const handleSaveSampleIdSettings = async () => {
-    if (!currentBranchId) return;
+    if (!activeBranchId) return;
 
     setIsSavingSampleId(true);
     try {
       const result = await useSettingsStore.getState().updateSettings({
-        branch_id: currentBranchId,
+        branch_id: activeBranchId,
         sample_id_format: sampleIdDraft.sample_id_format,
         sample_id_reset_policy: sampleIdDraft.sample_id_reset_policy,
         sample_id_fy_start_month: sampleIdDraft.sample_id_fy_start_month,
@@ -446,6 +591,30 @@ export function Settings() {
     return path.startsWith('/') ? `${baseUrl}${path}` : `${baseUrl}/${path}`;
   };
 
+  const getConfidenceColor = (score: number) => {
+    if (score >= 0.85) return 'bg-emerald-500';
+    if (score >= 0.6) return 'bg-amber-500';
+    return 'bg-rose-500';
+  };
+
+  const getConfidenceText = (score: number) => {
+    if (score >= 0.85) return 'High confidence';
+    if (score >= 0.6) return 'Medium confidence';
+    return 'Low confidence';
+  };
+
+  const getLowConfidenceWarnings = () => {
+    if (!analysisConfidence) return null;
+    const lowEdges: string[] = [];
+    if (analysisConfidence.top < 0.6) lowEdges.push('top');
+    if (analysisConfidence.bottom < 0.6) lowEdges.push('bottom');
+    if (analysisConfidence.left < 0.6) lowEdges.push('left');
+    if (analysisConfidence.right < 0.6) lowEdges.push('right');
+    
+    if (lowEdges.length === 0) return null;
+    return `Low confidence on ${lowEdges.join(', ')} detection. Please verify manually.`;
+  };
+
   return (
     <div className="p-3 md:p-4 lg:p-6 max-w-full md:max-w-7xl mx-auto h-auto md:h-[calc(100vh-5rem)] flex flex-col md:flex-row gap-4 md:gap-0">
       {/* Success Message overlay */}
@@ -470,8 +639,8 @@ export function Settings() {
             <button
               onClick={() => setActiveTab('letterhead-sign')}
               className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'letterhead-sign'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
                 }`}
             >
               <FileSignature className="w-4 h-4 flex-shrink-0" />
@@ -483,8 +652,8 @@ export function Settings() {
             <button
               onClick={() => setActiveTab('profile')}
               className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'profile'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
                 }`}
             >
               <User className="w-4 h-4 flex-shrink-0" />
@@ -496,8 +665,8 @@ export function Settings() {
             <button
               onClick={() => setActiveTab('general')}
               className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'general'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
                 }`}
             >
               <SettingsIcon className="w-4 h-4" />
@@ -508,8 +677,8 @@ export function Settings() {
             <button
               onClick={() => setActiveTab('whatsapp')}
               className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'whatsapp'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
                 }`}
             >
               <MessageCircle className="w-4 h-4" />
@@ -624,169 +793,297 @@ export function Settings() {
                     )}
                   </div>
 
-                  <div className="mt-5 grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
-                    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-                      <div className="flex items-center justify-between gap-3 mb-3">
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">Report Preview</p>
-                          <p className="text-xs text-muted-foreground">Shows how the uploaded letterhead will frame the first page.</p>
-                        </div>
-                        <span className={`text-[10px] uppercase tracking-[0.2em] px-2 py-1 rounded-full border ${letterheadPreview ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
-                          {letterheadPreview ? 'Ready' : 'No asset'}
-                        </span>
-                      </div>
-
-                      <div className="relative overflow-hidden rounded-lg border border-border bg-[#fdfdfc] p-4 min-h-[220px]">
-                        {letterheadPreview ? (
-                          <img
-                            src={getImageUrl(letterheadPreview) || ''}
-                            alt="Letterhead preview layer"
-                            className="absolute inset-0 h-full w-full object-cover opacity-20"
-                          />
-                        ) : (
-                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(0,102,204,0.08),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.8),rgba(241,243,245,0.9))]" />
-                        )}
-                        <div className="relative space-y-3">
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <div className="h-3 w-40 rounded-full bg-foreground/20" />
-                              <div className="mt-2 h-2.5 w-28 rounded-full bg-foreground/10" />
-                            </div>
-                            <div className="text-right">
-                              <div className="h-2.5 w-20 rounded-full bg-foreground/20 ml-auto" />
-                              <div className="mt-2 h-2.5 w-14 rounded-full bg-foreground/10 ml-auto" />
-                            </div>
-                          </div>
-                          <div className="space-y-2 pt-8">
-                            <div className="h-2.5 rounded-full bg-foreground/10" />
-                            <div className="h-2.5 rounded-full bg-foreground/10 w-11/12" />
-                            <div className="h-2.5 rounded-full bg-foreground/10 w-10/12" />
-                          </div>
-                          <div className="pt-8 grid grid-cols-2 gap-3">
-                            <div className="rounded-md border border-dashed border-border bg-background/70 p-3">
-                              <p className="text-[11px] font-medium text-muted-foreground">Top margin</p>
-                              <p className="text-sm font-semibold text-foreground">{brandingDraft.report_margin_top}px</p>
-                            </div>
-                            <div className="rounded-md border border-dashed border-border bg-background/70 p-3">
-                              <p className="text-[11px] font-medium text-muted-foreground">Bottom margin</p>
-                              <p className="text-sm font-semibold text-foreground">{brandingDraft.report_margin_bottom}px</p>
-                            </div>
-                            <div className="rounded-md border border-dashed border-border bg-background/70 p-3">
-                              <p className="text-[11px] font-medium text-muted-foreground">Header safe area</p>
-                              <p className="text-sm font-semibold text-foreground">{brandingDraft.header_safe_area}px</p>
-                            </div>
-                            <div className="rounded-md border border-dashed border-border bg-background/70 p-3">
-                              <p className="text-[11px] font-medium text-muted-foreground">Footer safe area</p>
-                              <p className="text-sm font-semibold text-foreground">{brandingDraft.footer_safe_area}px</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-border bg-secondary/20 p-4 shadow-sm">
-                      <p className="text-sm font-semibold text-foreground mb-2">Upload guidance</p>
-                      <ul className="space-y-2 text-xs text-muted-foreground leading-5">
-                        <li>Use a portrait A4 asset for the letterhead.</li>
-                        <li>Keep the top margin high enough for header artwork.</li>
-                        <li>Use transparent PNG signatures for crisp print output.</li>
-                        <li>The default signature is still controlled from the signature cards below.</li>
-                      </ul>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 rounded-xl border border-border bg-card p-5 shadow-sm">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="mt-5 rounded-xl border border-border bg-card p-6 shadow-sm">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-border pb-4 mb-6">
                       <div>
-                        <h4 className="text-base font-semibold text-foreground">Report Margins</h4>
-                        <p className="text-xs text-muted-foreground mt-1">These values control how much space the PDF keeps around the letterhead and signature block.</p>
+                        <h4 className="text-base font-semibold text-foreground">Report Margins & Interactive Preview</h4>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Configure report padding margins. Real-time overlay preview allows dragging borders to adjust values directly.
+                        </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleSaveBranding}
-                        disabled={isSavingBranding || !settings || (
-                          brandingDraft.report_margin_top === normalizePx(settings.report_margin_top, 80) &&
-                          brandingDraft.report_margin_bottom === normalizePx(settings.report_margin_bottom, 80) &&
-                          brandingDraft.report_margin_left === normalizePx(settings.report_margin_left, 28) &&
-                          brandingDraft.report_margin_right === normalizePx(settings.report_margin_right, 28) &&
-                          brandingDraft.header_safe_area === normalizePx(settings.header_safe_area, 24) &&
-                          brandingDraft.footer_safe_area === normalizePx(settings.footer_safe_area, 24)
+                      <div className="flex items-center gap-3">
+                        {letterheadPreview && (
+                          <button
+                            type="button"
+                            onClick={handleReDetect}
+                            disabled={uploadingField === 'detecting'}
+                            className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-secondary disabled:opacity-50"
+                          >
+                            {uploadingField === 'detecting' ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                            Re-detect from Image
+                          </button>
                         )}
-                        className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {isSavingBranding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                        Save Layout
-                      </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveBranding}
+                          disabled={isSavingBranding || !settings || (
+                            brandingDraft.report_margin_top === normalizePx(settings.report_margin_top, 80) &&
+                            brandingDraft.report_margin_bottom === normalizePx(settings.report_margin_bottom, 80) &&
+                            brandingDraft.report_margin_left === normalizePx(settings.report_margin_left, 28) &&
+                            brandingDraft.report_margin_right === normalizePx(settings.report_margin_right, 28) &&
+                            brandingDraft.header_safe_area === normalizePx(settings.header_safe_area, 24) &&
+                            brandingDraft.footer_safe_area === normalizePx(settings.footer_safe_area, 24)
+                          )}
+                          className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isSavingBranding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                          Save Layout
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                      <label className="space-y-2 text-sm">
-                        <span className="block font-medium text-foreground">Top Margin (px)</span>
-                        <input
-                          type="number"
-                          min={0}
-                          className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                          value={brandingDraft.report_margin_top}
-                          onChange={(e) => setBrandingDraft((prev) => ({ ...prev, report_margin_top: parseInt(e.target.value, 10) || 0 }))}
-                        />
-                      </label>
-                      <label className="space-y-2 text-sm">
-                        <span className="block font-medium text-foreground">Bottom Margin (px)</span>
-                        <input
-                          type="number"
-                          min={0}
-                          className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                          value={brandingDraft.report_margin_bottom}
-                          onChange={(e) => setBrandingDraft((prev) => ({ ...prev, report_margin_bottom: parseInt(e.target.value, 10) || 0 }))}
-                        />
-                      </label>
-                      <label className="space-y-2 text-sm">
-                        <span className="block font-medium text-foreground">Left Margin (px)</span>
-                        <input
-                          type="number"
-                          min={0}
-                          className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                          value={brandingDraft.report_margin_left}
-                          onChange={(e) => setBrandingDraft((prev) => ({ ...prev, report_margin_left: parseInt(e.target.value, 10) || 0 }))}
-                        />
-                      </label>
-                      <label className="space-y-2 text-sm">
-                        <span className="block font-medium text-foreground">Right Margin (px)</span>
-                        <input
-                          type="number"
-                          min={0}
-                          className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                          value={brandingDraft.report_margin_right}
-                          onChange={(e) => setBrandingDraft((prev) => ({ ...prev, report_margin_right: parseInt(e.target.value, 10) || 0 }))}
-                        />
-                      </label>
-                      <label className="space-y-2 text-sm">
-                        <span className="block font-medium text-foreground">Header Safe Area (px)</span>
-                        <input
-                          type="number"
-                          min={0}
-                          className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                          value={brandingDraft.header_safe_area}
-                          onChange={(e) => setBrandingDraft((prev) => ({ ...prev, header_safe_area: parseInt(e.target.value, 10) || 0 }))}
-                        />
-                      </label>
-                      <label className="space-y-2 text-sm">
-                        <span className="block font-medium text-foreground">Footer Safe Area (px)</span>
-                        <input
-                          type="number"
-                          min={0}
-                          className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                          value={brandingDraft.footer_safe_area}
-                          onChange={(e) => setBrandingDraft((prev) => ({ ...prev, footer_safe_area: parseInt(e.target.value, 10) || 0 }))}
-                        />
-                      </label>
-                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8 items-start">
+                      {/* Left: Inputs & Warnings */}
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <label className="space-y-2 text-sm">
+                            <span className="block font-medium text-foreground flex items-center gap-2">
+                              Top Margin (px)
+                              {analysisConfidence && (
+                                <span
+                                  className={`w-2.5 h-2.5 rounded-full ${getConfidenceColor(analysisConfidence.top)}`}
+                                  title={`${getConfidenceText(analysisConfidence.top)} (${Math.round(analysisConfidence.top * 100)}%)`}
+                                />
+                              )}
+                            </span>
+                            <input
+                              type="number"
+                              min={0}
+                              className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                              value={brandingDraft.report_margin_top}
+                              onChange={(e) => setBrandingDraft((prev) => ({ ...prev, report_margin_top: parseInt(e.target.value, 10) || 0 }))}
+                            />
+                          </label>
 
-                    <div className="mt-4 p-3 bg-secondary/30 border border-border rounded-lg text-xs text-muted-foreground leading-5 space-y-1">
-                      <p className="font-medium text-foreground text-sm">How margins & safe areas work</p>
-                      <p><strong>Top / Bottom Margin</strong> — Distance from page edge to where report content starts. Set this to clear your letterhead header/footer artwork.</p>
-                      <p><strong>Header / Footer Safe Area</strong> — Extra padding added on top of margins <em>only when branding (letterhead) is turned on</em> in the preview. When branding is off, only margins are used.</p>
-                      <p><strong>Effective content start</strong> = Top Margin + Header Safe Area (with branding). Adjust these values and check the Report Preview to fine-tune.</p>
+                          <label className="space-y-2 text-sm">
+                            <span className="block font-medium text-foreground flex items-center gap-2">
+                              Bottom Margin (px)
+                              {analysisConfidence && (
+                                <span
+                                  className={`w-2.5 h-2.5 rounded-full ${getConfidenceColor(analysisConfidence.bottom)}`}
+                                  title={`${getConfidenceText(analysisConfidence.bottom)} (${Math.round(analysisConfidence.bottom * 100)}%)`}
+                                />
+                              )}
+                            </span>
+                            <input
+                              type="number"
+                              min={0}
+                              className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                              value={brandingDraft.report_margin_bottom}
+                              onChange={(e) => setBrandingDraft((prev) => ({ ...prev, report_margin_bottom: parseInt(e.target.value, 10) || 0 }))}
+                            />
+                          </label>
+
+                          <label className="space-y-2 text-sm">
+                            <span className="block font-medium text-foreground flex items-center gap-2">
+                              Left Margin (px)
+                              {analysisConfidence && (
+                                <span
+                                  className={`w-2.5 h-2.5 rounded-full ${getConfidenceColor(analysisConfidence.left)}`}
+                                  title={`${getConfidenceText(analysisConfidence.left)} (${Math.round(analysisConfidence.left * 100)}%)`}
+                                />
+                              )}
+                            </span>
+                            <input
+                              type="number"
+                              min={0}
+                              className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                              value={brandingDraft.report_margin_left}
+                              onChange={(e) => setBrandingDraft((prev) => ({ ...prev, report_margin_left: parseInt(e.target.value, 10) || 0 }))}
+                            />
+                          </label>
+
+                          <label className="space-y-2 text-sm">
+                            <span className="block font-medium text-foreground flex items-center gap-2">
+                              Right Margin (px)
+                              {analysisConfidence && (
+                                <span
+                                  className={`w-2.5 h-2.5 rounded-full ${getConfidenceColor(analysisConfidence.right)}`}
+                                  title={`${getConfidenceText(analysisConfidence.right)} (${Math.round(analysisConfidence.right * 100)}%)`}
+                                />
+                              )}
+                            </span>
+                            <input
+                              type="number"
+                              min={0}
+                              className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                              value={brandingDraft.report_margin_right}
+                              onChange={(e) => setBrandingDraft((prev) => ({ ...prev, report_margin_right: parseInt(e.target.value, 10) || 0 }))}
+                            />
+                          </label>
+
+                          <label className="space-y-2 text-sm">
+                            <span className="block font-medium text-foreground">Header Safe Area (px)</span>
+                            <input
+                              type="number"
+                              min={0}
+                              className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                              value={brandingDraft.header_safe_area}
+                              onChange={(e) => setBrandingDraft((prev) => ({ ...prev, header_safe_area: parseInt(e.target.value, 10) || 0 }))}
+                            />
+                          </label>
+
+                          <label className="space-y-2 text-sm">
+                            <span className="block font-medium text-foreground">Footer Safe Area (px)</span>
+                            <input
+                              type="number"
+                              min={0}
+                              className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                              value={brandingDraft.footer_safe_area}
+                              onChange={(e) => setBrandingDraft((prev) => ({ ...prev, footer_safe_area: parseInt(e.target.value, 10) || 0 }))}
+                            />
+                          </label>
+                        </div>
+
+                        {/* Low confidence warnings */}
+                        {(() => {
+                          const warning = getLowConfidenceWarnings();
+                          if (!warning) return null;
+                          return (
+                            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-md flex items-start gap-2.5 text-amber-700 text-xs animate-in fade-in duration-200">
+                              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                              <span>{warning}</span>
+                            </div>
+                          );
+                        })()}
+
+                        <div className="p-4 bg-secondary/30 border border-border rounded-lg text-xs text-muted-foreground leading-5 space-y-2">
+                          <p className="font-semibold text-foreground text-sm flex items-center gap-1.5">
+                            <SlidersHorizontal className="w-3.5 h-3.5" />
+                            How it works:
+                          </p>
+                          <ul className="list-disc pl-4 space-y-1">
+                            <li>When you upload a letterhead, the system automatically scans the image to detect where your header and footer artwork are.</li>
+                            <li>Margins are set automatically so report content never overlaps your letterhead design.</li>
+                            <li>You can manually adjust any margin value if the auto-detection needs fine-tuning.</li>
+                            <li>The visual preview shows exactly where report content will be placed on your letterhead.</li>
+                            <li>Header/Footer Safe Area fields are kept for backward compatibility. If your margins are already correct (auto-detected), leave safe areas at 0.</li>
+                          </ul>
+                        </div>
+                      </div>
+
+                      {/* Right: Visual Preview */}
+                      <div className="flex flex-col items-center">
+                        <div className="text-center mb-2">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Letterhead Safe Zone Preview</p>
+                          <p className="text-[10px] text-muted-foreground">Drag dashed lines to adjust margins visually</p>
+                        </div>
+
+                        <div 
+                          className="relative border border-border bg-white rounded-lg shadow-md overflow-hidden select-none"
+                          style={{ width: '280px', height: '396px', backgroundImage: letterheadPreview ? `url(${getImageUrl(letterheadPreview)})` : 'none', backgroundSize: '100% 100%' }}
+                        >
+                          {!letterheadPreview && (
+                            <div className="absolute inset-0 bg-secondary/10 flex items-center justify-center text-xs italic text-muted-foreground p-4 text-center">
+                              Upload a letterhead to see live overlay preview
+                            </div>
+                          )}
+
+                          {letterheadPreview && (
+                            <>
+                              {/* Top Zone Overlay (Red-ish, 15% opacity) */}
+                              <div 
+                                className="absolute top-0 left-0 right-0 bg-rose-500/15 border-b border-dashed border-rose-400 pointer-events-none"
+                                style={{ height: `${(brandingDraft.report_margin_top / 1123) * 396}px` }}
+                              />
+                              {/* Top Drag Handle */}
+                              <div
+                                onMouseDown={handleMouseDown('top')}
+                                className="absolute left-0 right-0 cursor-ns-resize z-10 flex items-center justify-center"
+                                style={{ top: `${((brandingDraft.report_margin_top / 1123) * 396) - 5}px`, height: '10px' }}
+                              >
+                                <div className="w-12 h-1 bg-rose-400/80 rounded animate-pulse" />
+                              </div>
+
+                              {/* Bottom Zone Overlay (Red-ish, 15% opacity) */}
+                              <div 
+                                className="absolute bottom-0 left-0 right-0 bg-rose-500/15 border-t border-dashed border-rose-400 pointer-events-none"
+                                style={{ height: `${(brandingDraft.report_margin_bottom / 1123) * 396}px` }}
+                              />
+                              {/* Bottom Drag Handle */}
+                              <div
+                                onMouseDown={handleMouseDown('bottom')}
+                                className="absolute left-0 right-0 cursor-ns-resize z-10 flex items-center justify-center"
+                                style={{ bottom: `${((brandingDraft.report_margin_bottom / 1123) * 396) - 5}px`, height: '10px' }}
+                              >
+                                <div className="w-12 h-1 bg-rose-400/80 rounded animate-pulse" />
+                              </div>
+
+                              {/* Left Zone Overlay (Blue-ish, 12% opacity) */}
+                              <div 
+                                className="absolute left-0 bg-blue-500/12 border-r border-dashed border-blue-400 pointer-events-none"
+                                style={{ 
+                                  top: `${(brandingDraft.report_margin_top / 1123) * 396}px`, 
+                                  bottom: `${(brandingDraft.report_margin_bottom / 1123) * 396}px`,
+                                  width: `${(brandingDraft.report_margin_left / 794) * 280}px` 
+                                }}
+                              />
+                              {/* Left Drag Handle */}
+                              <div
+                                onMouseDown={handleMouseDown('left')}
+                                className="absolute top-0 bottom-0 cursor-ew-resize z-10 flex items-center justify-center"
+                                style={{ 
+                                  left: `${((brandingDraft.report_margin_left / 794) * 280) - 5}px`, 
+                                  width: '10px',
+                                  top: `${(brandingDraft.report_margin_top / 1123) * 396}px`, 
+                                  bottom: `${(brandingDraft.report_margin_bottom / 1123) * 396}px`
+                                }}
+                              >
+                                <div className="w-1 h-12 bg-blue-400/80 rounded animate-pulse" />
+                              </div>
+
+                              {/* Right Zone Overlay (Blue-ish, 12% opacity) */}
+                              <div 
+                                className="absolute right-0 bg-blue-500/12 border-l border-dashed border-blue-400 pointer-events-none"
+                                style={{ 
+                                  top: `${(brandingDraft.report_margin_top / 1123) * 396}px`, 
+                                  bottom: `${(brandingDraft.report_margin_bottom / 1123) * 396}px`,
+                                  width: `${(brandingDraft.report_margin_right / 794) * 280}px` 
+                                }}
+                              />
+                              {/* Right Drag Handle */}
+                              <div
+                                onMouseDown={handleMouseDown('right')}
+                                className="absolute top-0 bottom-0 cursor-ew-resize z-10 flex items-center justify-center"
+                                style={{ 
+                                  right: `${((brandingDraft.report_margin_right / 794) * 280) - 5}px`, 
+                                  width: '10px',
+                                  top: `${(brandingDraft.report_margin_top / 1123) * 396}px`, 
+                                  bottom: `${(brandingDraft.report_margin_bottom / 1123) * 396}px`
+                                }}
+                              >
+                                <div className="w-1 h-12 bg-blue-400/80 rounded animate-pulse" />
+                              </div>
+
+                              {/* Content printable area */}
+                              <div 
+                                className="absolute bg-[#ffffff]/60 border border-dashed border-emerald-400/50 flex flex-col justify-between p-2 pointer-events-none"
+                                style={{ 
+                                  top: `${(brandingDraft.report_margin_top / 1123) * 396}px`, 
+                                  bottom: `${(brandingDraft.report_margin_bottom / 1123) * 396}px`,
+                                  left: `${(brandingDraft.report_margin_left / 794) * 280}px`,
+                                  right: `${(brandingDraft.report_margin_right / 794) * 280}px` 
+                                }}
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div className="space-y-0.5">
+                                    <div className="w-10 h-1 bg-foreground/30 rounded" />
+                                    <div className="w-6 h-0.5 bg-foreground/20 rounded" />
+                                  </div>
+                                  <div className="w-8 h-1 bg-foreground/30 rounded" />
+                                </div>
+                                <div className="flex-1 flex items-center justify-center">
+                                  <span className="text-[9px] font-bold text-emerald-700/80 uppercase tracking-widest text-center">Content Zone</span>
+                                </div>
+                                <div className="flex justify-between items-end">
+                                  <div className="w-6 h-1 bg-foreground/25 rounded" />
+                                  <div className="w-10 h-1 bg-foreground/25 rounded" />
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </section>
