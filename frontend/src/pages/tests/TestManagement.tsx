@@ -16,8 +16,10 @@ import {
   RotateCcw,
   RefreshCw,
   ChevronRight,
-  AlertTriangle
+  AlertTriangle,
+  SlidersHorizontal
 } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { useTestStore } from '../../stores';
 import { useAuthStore } from '../../stores';
 import { useBranchStore } from '../../stores';
@@ -176,6 +178,7 @@ export function TestManagement() {
     resetTestToDefault
   } = useTestStore();
 
+  const navigate = useNavigate();
   const { user, can } = useAuthStore();
   const { currentBranchId } = useBranchStore();
   const canEditTest = can(PERMISSIONS.TEST_UPDATE);
@@ -443,13 +446,22 @@ export function TestManagement() {
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-center gap-1">
                         {canEditTest ? (
-                          <button 
-                            onClick={() => handleEdit(test)}
-                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
-                            title="Edit"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
+                          <>
+                            <button 
+                              onClick={() => handleEdit(test)}
+                              className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
+                              title="Edit"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button 
+                              onClick={() => navigate(`/settings/templates/${test.id}`)}
+                              className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-cyan-600"
+                              title="Configure Layout"
+                            >
+                              <SlidersHorizontal className="w-3.5 h-3.5" />
+                            </button>
+                          </>
                         ) : (
                           <button 
                             onClick={() => handleEdit(test)}

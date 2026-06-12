@@ -439,11 +439,11 @@ export function CreateReport() {
       const target = e.target as HTMLElement;
       if (target === patientSearchInputRef.current || target === testSearchInputRef.current) return;
       if (target.tagName === 'SELECT' && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) return;
-      
+
       const focusable = Array.from(document.querySelectorAll(
         'input:not([disabled]):not([readonly]), select:not([disabled]):not([readonly]), button:not([disabled]):not([readonly])'
       )) as HTMLElement[];
-      
+
       const index = focusable.indexOf(target);
       if (index > -1) {
         let nextIndex = index;
@@ -588,9 +588,8 @@ export function CreateReport() {
                             key={patient.id}
                             onClick={() => handleSelectPatient(patient)}
                             onMouseEnter={() => setActivePatientIndex(index)}
-                            className={`w-full px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 ${
-                              index === activePatientIndex ? 'bg-accent' : 'hover:bg-accent'
-                            }`}
+                            className={`w-full px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 ${index === activePatientIndex ? 'bg-accent' : 'hover:bg-accent'
+                              }`}
                           >
                             <div className="flex items-start justify-between">
                               <div>
@@ -648,8 +647,8 @@ export function CreateReport() {
                         const val = e.target.value;
                         setPatientName(val);
                         const lower = val.toLowerCase().trim();
-                        const femaleRegex = /\b\w*(ben|kumari|baa|devi|kaur|wati|bai)\b/i;
-                        const maleRegex = /\b\w*(bhai|kumar|singh|ram|ji|lal|prasad|rao)\b/i;
+                        const femaleRegex = /\b\w*(ben|kumari|baa|ba|devi|kaur|wati|bai)\b/i;
+                        const maleRegex = /\b\w*(bhai|kumar|singh|ram|ji|lal|prasad|rao|sing)\b/i;
                         if (femaleRegex.test(lower)) {
                           setPatientGender('Female');
                         } else if (maleRegex.test(lower)) {
@@ -844,9 +843,8 @@ export function CreateReport() {
                           key={test.id}
                           onClick={() => handleSelectTest(test)}
                           onMouseEnter={() => setActiveTestIndex(index)}
-                          className={`w-full px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 ${
-                            index === activeTestIndex ? 'bg-accent' : 'hover:bg-accent'
-                          }`}
+                          className={`w-full px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 ${index === activeTestIndex ? 'bg-accent' : 'hover:bg-accent'
+                            }`}
                         >
                           <div className="flex items-start justify-between">
                             <div>
@@ -941,14 +939,12 @@ export function CreateReport() {
                           setB2bCharge('');
                         }
                       }}
-                      className={`relative w-9 h-5 rounded-full transition-colors ${
-                        isB2B ? 'bg-primary' : 'bg-border'
-                      }`}
+                      className={`relative w-9 h-5 rounded-full transition-colors ${isB2B ? 'bg-primary' : 'bg-border'
+                        }`}
                     >
                       <span
-                        className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                          isB2B ? 'translate-x-4' : 'translate-x-0'
-                        }`}
+                        className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${isB2B ? 'translate-x-4' : 'translate-x-0'
+                          }`}
                       />
                     </button>
                   </label>
