@@ -18,6 +18,11 @@ export interface Settings {
   report_margin_right?: number | string;
   header_safe_area?: number;
   footer_safe_area?: number;
+  letterhead_detected_top?: number | null;
+  letterhead_detected_bottom?: number | null;
+  letterhead_detected_left?: number | null;
+  letterhead_detected_right?: number | null;
+  letterhead_margins_auto?: boolean;
   // Lab signatures (up to 4)
   signature_1_url?: string | null;
   signature_1_label?: string | null;
@@ -52,6 +57,11 @@ export interface SettingsUpdateData {
   report_margin_right?: number | string;
   header_safe_area?: number;
   footer_safe_area?: number;
+  letterhead_detected_top?: number | null;
+  letterhead_detected_bottom?: number | null;
+  letterhead_detected_left?: number | null;
+  letterhead_detected_right?: number | null;
+  letterhead_margins_auto?: boolean;
   default_signature_index?: number;
   sample_id_format?: 'numeric' | 'sm_prefix';
   sample_id_reset_policy?: 'yearly' | 'monthly';
@@ -93,9 +103,23 @@ export const settingsApi = {
   /**
    * Upload letterhead image
    */
-  uploadLetterhead: async (branchId: string, file: File): Promise<ApiResponse<Settings>> => {
+  uploadLetterhead: async (
+    branchId: string, 
+    file: File,
+    detectedMargins?: { top: number; bottom: number; left: number; right: number },
+    marginsAuto?: boolean
+  ): Promise<ApiResponse<Settings>> => {
     const formData = new FormData();
     formData.append('letterhead', file);
+    if (detectedMargins) {
+      formData.append('detected_top', detectedMargins.top.toString());
+      formData.append('detected_bottom', detectedMargins.bottom.toString());
+      formData.append('detected_left', detectedMargins.left.toString());
+      formData.append('detected_right', detectedMargins.right.toString());
+    }
+    if (marginsAuto !== undefined) {
+      formData.append('letterhead_margins_auto', marginsAuto.toString());
+    }
     
     const response = await api.patch<ApiResponse<Settings>>(`/settings/letterhead?branch_id=${branchId}`, formData, {
       headers: {

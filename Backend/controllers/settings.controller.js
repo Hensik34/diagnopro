@@ -146,6 +146,39 @@ exports.upsertSettings = async (req, res) => {
       }
     }
 
+    let letterheadMarginsAuto = req.body.letterhead_margins_auto;
+    const hasMargins = req.body.report_margin_top !== undefined ||
+                       req.body.report_margin_bottom !== undefined ||
+                       req.body.report_margin_left !== undefined ||
+                       req.body.report_margin_right !== undefined;
+
+    if (letterheadMarginsAuto === undefined) {
+      if (hasMargins) {
+        const current = await SettingsService.getSettingsByBranch(branchId);
+        if (current) {
+          const checkChanged = (val, detected) => {
+            if (val === undefined || val === null) return false;
+            const parsedVal = typeof val === 'string' ? parseInt(val, 10) : val;
+            const parsedDet = typeof detected === 'string' ? parseInt(detected, 10) : detected;
+            return Number.isInteger(parsedVal) && Number.isInteger(parsedDet) && parsedVal !== parsedDet;
+          };
+
+          const topChanged = checkChanged(req.body.report_margin_top, current.letterhead_detected_top);
+          const bottomChanged = checkChanged(req.body.report_margin_bottom, current.letterhead_detected_bottom);
+          const leftChanged = checkChanged(req.body.report_margin_left, current.letterhead_detected_left);
+          const rightChanged = checkChanged(req.body.report_margin_right, current.letterhead_detected_right);
+
+          if (topChanged || bottomChanged || leftChanged || rightChanged) {
+            letterheadMarginsAuto = false;
+          } else {
+            letterheadMarginsAuto = current.letterhead_margins_auto;
+          }
+        }
+      }
+    } else {
+      letterheadMarginsAuto = letterheadMarginsAuto === "true" || letterheadMarginsAuto === true || letterheadMarginsAuto === 1;
+    }
+
     const settings = await SettingsService.upsertSettings(branchId, {
       letterhead_url: finalLetterheadUrl,
       owner_signature_url: finalOwnerSignatureUrl,
@@ -157,6 +190,11 @@ exports.upsertSettings = async (req, res) => {
       report_margin_right: req.body.report_margin_right,
       header_safe_area: req.body.header_safe_area,
       footer_safe_area: req.body.footer_safe_area,
+      letterhead_detected_top: req.body.letterhead_detected_top !== undefined ? parseInt(req.body.letterhead_detected_top, 10) : undefined,
+      letterhead_detected_bottom: req.body.letterhead_detected_bottom !== undefined ? parseInt(req.body.letterhead_detected_bottom, 10) : undefined,
+      letterhead_detected_left: req.body.letterhead_detected_left !== undefined ? parseInt(req.body.letterhead_detected_left, 10) : undefined,
+      letterhead_detected_right: req.body.letterhead_detected_right !== undefined ? parseInt(req.body.letterhead_detected_right, 10) : undefined,
+      letterhead_margins_auto: letterheadMarginsAuto,
       default_signature_index: req.body.default_signature_index,
       sample_id_format: sampleIdFormat,
       sample_id_reset_policy: sampleIdResetPolicy,
@@ -234,16 +272,51 @@ exports.uploadLetterhead = async (req, res) => {
     // Upload to Cloudinary
     const fileUrl = await uploadFileToCloudinary(req.file, branchId, "settings");
 
-    const settings = await SettingsService.upsertSettings(branchId, {
-      letterhead_url: fileUrl
-    });
+    // Read detected margins and auto flag from body or query
+    const detectedTop = req.body.detected_top || req.query.detected_top;
+    const detectedBottom = req.body.detected_bottom || req.query.detected_bottom;
+    const detectedLeft = req.body.detected_left || req.query.detect_left;
+    const detectedRight = req.body.detected_right || req.query.detected_right;
+    const marginsAutoReq = req.body.letterhead_margins_auto || req.query.letterhead_margins_auto;
+
+    const currentSettings = await SettingsService.getSettingsByBranch(branchId);
+    
+    let marginsAuto = true;
+    if (marginsAutoReq !== undefined) {
+      marginsAuto = marginsAutoReq === "true" || marginsAutoReq === true || marginsAutoReq === "1";
+    } else if (currentSettings) {
+      marginsAuto = currentSettings.letterhead_margins_auto !== false;
+    }
+
+    const detectedTopVal = detectedTop !== undefined ? parseInt(detectedTop, 10) : undefined;
+    const detectedBottomVal = detectedBottom !== undefined ? parseInt(detectedBottom, 10) : undefined;
+    const detectedLeftVal = detectedLeft !== undefined ? parseInt(detectedLeft, 10) : undefined;
+    const detectedRightVal = detectedRight !== undefined ? parseInt(detectedRight, 10) : undefined;
+
+    const updateData = {
+      letterhead_url: fileUrl,
+      letterhead_detected_top: detectedTopVal,
+      letterhead_detected_bottom: detectedBottomVal,
+      letterhead_detected_left: detectedLeftVal,
+      letterhead_detected_right: detectedRightVal,
+      letterhead_margins_auto: marginsAuto,
+      // Default safe areas to 0 on new letterhead uploads
+      header_safe_area: 0,
+      footer_safe_area: 0,
+    };
+
+    if (marginsAuto) {
+      if (detectedTopVal !== undefined) updateData.report_margin_top = detectedTopVal;
+      if (detectedBottomVal !== undefined) updateData.report_margin_bottom = detectedBottomVal;
+      if (detectedLeftVal !== undefined) updateData.report_margin_left = detectedLeftVal;
+      if (detectedRightVal !== undefined) updateData.report_margin_right = detectedRightVal;
+    }
+
+    const settings = await SettingsService.upsertSettings(branchId, updateData);
 
     res.json({
       message: "Letterhead uploaded successfully",
-      data: {
-        ...settings,
-        letterhead_url: fileUrl
-      }
+      data: settings
     });
   } catch (err) {
     console.error("Upload letterhead error:", err);

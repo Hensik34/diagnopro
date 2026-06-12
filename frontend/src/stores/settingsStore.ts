@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { settingsApi } from '../api';
 import type { Settings, SettingsUpdateData } from '../api/settings';
 import { useBranchStore } from './branchStore';
+import { useAuthStore } from './authStore';
 
 // ==========================================
 // Settings Store State Interface
@@ -17,7 +18,12 @@ interface SettingsState {
   fetchSettings: (branchId?: string) => Promise<void>;
   updateSettings: (data: SettingsUpdateData) => Promise<Settings | null>;
   removeImage: (field: string) => Promise<Settings | null>;
-  uploadLetterhead: (branchId: string, file: File) => Promise<Settings | null>;
+  uploadLetterhead: (
+    branchId: string, 
+    file: File,
+    detectedMargins?: { top: number; bottom: number; left: number; right: number },
+    marginsAuto?: boolean
+  ) => Promise<Settings | null>;
   uploadOwnerSignature: (branchId: string, file: File) => Promise<Settings | null>;
   uploadLabSignature: (branchId: string, index: number, file: File, label?: string) => Promise<Settings | null>;
   updateSignatureLabel: (branchId: string, index: number, label: string) => Promise<Settings | null>;
@@ -42,7 +48,7 @@ const initialState = {
 // ==========================================
 
 function getCurrentBranchId(): string | null {
-  return useBranchStore.getState().currentBranchId;
+  return useBranchStore.getState().currentBranchId || useAuthStore.getState().user?.branch_id || null;
 }
 
 // ==========================================
@@ -126,11 +132,16 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   /**
    * Upload letterhead image
    */
-  uploadLetterhead: async (branchId: string, file: File) => {
+  uploadLetterhead: async (
+    branchId: string, 
+    file: File,
+    detectedMargins?: { top: number; bottom: number; left: number; right: number },
+    marginsAuto?: boolean
+  ) => {
     set({ isLoading: true, error: null });
     
     try {
-      const response = await settingsApi.uploadLetterhead(branchId, file);
+      const response = await settingsApi.uploadLetterhead(branchId, file, detectedMargins, marginsAuto);
       set({
         settings: response.data,
         isLoading: false,
