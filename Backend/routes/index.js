@@ -9,6 +9,7 @@ router.use("/patients", require("./patient.routes"));
 router.use("/reports", require("./report.routes"));
 router.use("/samples", require("./sample.routes"));
 router.use("/tests", require("./test.routes"));
+router.use("/test-layouts", require("./layout.routes"));
 router.use("/branches", require("./branch.routes"));
 router.use("/doctors", require("./doctor.routes"));
 router.use("/inventory", require("./inventory.routes"));

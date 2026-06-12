@@ -181,25 +181,27 @@ function parsePx(value: unknown, fallback: number) {
 }
 
 function estimateInterpretationHeight(text: string, dense: boolean) {
-  const charsPerLine = 110;
+  const charsPerLine = dense ? 95 : 85;
+  const lineHeight = dense ? 16 : 18;
   const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
-  return 16 + lines * 14;
+  return 24 + lines * lineHeight + 12; // title + lines + padding
 }
 
 function estimateSectionHeight(section: TestSection, params: Parameter[], dense: boolean) {
-  const rowHeight = 15;
-  const groupHeaderHeight = 16;
+  // Must match actual rendered row heights (4px padding top + 4px bottom + ~14px text = ~22px)
+  const rowHeight = dense ? 20 : 22;
+  const groupHeaderHeight = dense ? 22 : 24;
   const uniqueGroupRows = params.reduce((count, p, idx) => {
     if (!p.group) return count;
     const prev = idx > 0 ? params[idx - 1].group : undefined;
     return prev !== p.group ? count + 1 : count;
   }, 0);
 
-  const heading = 18;
-  const tableHeader = 15;
+  const heading = 28;       // section title + margin
+  const tableHeader = 24;   // header row
   const rows = params.length * rowHeight;
   const groups = uniqueGroupRows * groupHeaderHeight;
-  const spacing = 8;
+  const spacing = 12;       // bottom margin
   return heading + tableHeader + rows + groups + spacing;
 }
 
@@ -363,16 +365,50 @@ export function ReportPreview() {
     const testSections: TestSection[] = [];
     const params: Parameter[] = [];
 
+    const layoutSnapshots = testData?.layout_snapshots || {};
+
     if (testData?.tests?.length) {
       for (let i = 0; i < testData.tests.length; i++) {
         const group = testData.tests[i];
         const sectionParams = (group.parameters || []).map((p: any) => mapParam(p, group.testId));
-        testSections.push({
-          id: `${group.testId || group.testName || 'test'}-${i}`,
-          testName: group.testName,
-          parameters: sectionParams,
-        });
-        params.push(...sectionParams);
+
+        const snapshot = layoutSnapshots[group.testId];
+        if (snapshot?.parameterSettings?.length) {
+          const posMap = new Map<string, any>(snapshot.parameterSettings.map((s: any) => [s.fieldName, s]));
+
+          let filteredParams = sectionParams.filter((p: any) => {
+            const setting = posMap.get(p.name);
+            return !setting || setting.visible !== false;
+          });
+
+          filteredParams.sort((a: any, b: any) => {
+            const posA = posMap.get(a.name)?.position ?? 9999;
+            const posB = posMap.get(b.name)?.position ?? 9999;
+            return posA - posB;
+          });
+
+          filteredParams = filteredParams.map((p: any) => {
+            const setting = posMap.get(p.name);
+            if (setting && setting.group !== undefined) {
+              return { ...p, group: setting.group || undefined };
+            }
+            return p;
+          });
+
+          testSections.push({
+            id: `${group.testId || group.testName || 'test'}-${i}`,
+            testName: group.testName,
+            parameters: filteredParams,
+          });
+          params.push(...filteredParams);
+        } else {
+          testSections.push({
+            id: `${group.testId || group.testName || 'test'}-${i}`,
+            testName: group.testName,
+            parameters: sectionParams,
+          });
+          params.push(...sectionParams);
+        }
       }
     } else if (testData?.parameters?.length) {
       const sectionParams = testData.parameters.map((p: any) => mapParam(p));
@@ -505,18 +541,19 @@ export function ReportPreview() {
     const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom;
     const dense = density !== 'comfortable';
 
-    const patientHeight = 92;
-    const signatureHeight = 70;
-    const endMarkerHeight = 14;
+    const patientHeight = 110;   // increased - patient box is taller now
+    const signatureHeight = 80;
+    const endMarkerHeight = 18;
 
-    const maxChunkHeight = Math.max(140, contentHeight - 45);
+    const maxChunkHeight = Math.max(160, contentHeight - 60);
     const chunks = orderedSections.flatMap(section => splitSection(section, maxChunkHeight, dense));
 
     const out: PageItem[][] = [[]];
     let currentHeight = 0;
 
     const place = (item: PageItem, itemHeight: number) => {
-      if (currentHeight + itemHeight > contentHeight && out[out.length - 1].length > 0) {
+      // Leave 10px buffer to prevent overflow
+      if (currentHeight + itemHeight > contentHeight - 10 && out[out.length - 1].length > 0) {
         out.push([]);
         currentHeight = 0;
       }
@@ -537,9 +574,8 @@ export function ReportPreview() {
       place({ type: 'interpretation', text: remarkText }, estimateInterpretationHeight(remarkText, dense));
     }
 
-    // Place end marker + signature together; only push new page if we really can't fit
     const tailHeight = signatureHeight + endMarkerHeight;
-    if (currentHeight + tailHeight > contentHeight && out[out.length - 1].length > 0) {
+    if (currentHeight + tailHeight > contentHeight - 10 && out[out.length - 1].length > 0) {
       out.push([]);
       currentHeight = 0;
     }
@@ -549,18 +585,15 @@ export function ReportPreview() {
     return out;
   }, [reportData, orderedSections, safeZones, remarkText, density]);
 
+
   const isSelfReport = reportData?.patient.referringDoctor === 'Self' || rawReport?.is_self_report;
   const refDoctor = doctors.find(d => d.id === rawReport?.doctor_id);
   const doctorSignatureUrl = refDoctor?.signature_url;
 
   const generatePDF = useCallback(async (): Promise<File | null> => {
     if (!reportData || pages.length === 0) return null;
-
     setIsGeneratingPdf(true);
 
-    // Create a temporary hidden iframe to isolate html2canvas rendering.
-    // This keeps the main application's UI perfectly styled and responsive,
-    // and allows us to filter out Tailwind's oklch styles entirely from the iframe document context.
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
     iframe.style.width = `${A4_WIDTH_PX}px`;
@@ -568,7 +601,6 @@ export function ReportPreview() {
     iframe.style.top = '-9999px';
     iframe.style.left = '-9999px';
     iframe.style.visibility = 'hidden';
-
     document.body.appendChild(iframe);
 
     const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
@@ -578,129 +610,105 @@ export function ReportPreview() {
       return null;
     }
 
-    // Set up standard HTML and standard typography inside the iframe
     iframeDoc.open();
     iframeDoc.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          body {
-            margin: 0;
-            padding: 0;
-            background-color: #ffffff;
-            font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-          }
-          * {
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-          }
-        </style>
-      </head>
-      <body>
-        <div id="iframe-content-root"></div>
-      </body>
-      </html>
-    `);
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body {
+          margin: 0; padding: 0;
+          background: #ffffff;
+          font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+          -webkit-font-smoothing: antialiased;
+        }
+        /* Force crisp text rendering for PDF */
+        * {
+          text-rendering: geometricPrecision;
+          -webkit-font-smoothing: antialiased;
+        }
+      </style>
+    </head>
+    <body><div id="iframe-content-root"></div></body>
+    </html>
+  `);
     iframeDoc.close();
 
-    // Copy all stylesheets to the iframe, rewriting any "oklch(...)" colors to a safe fallback
-    // color to prevent html2canvas crashes while retaining all layout/reset/table styles.
+    // Copy stylesheets, replacing oklch colors
     document.querySelectorAll('style, link[rel="stylesheet"]').forEach((el) => {
-      const styleEl = el as HTMLStyleElement | HTMLLinkElement;
       try {
         let cssText = '';
-        if (styleEl.tagName === 'STYLE') {
-          cssText = styleEl.textContent || '';
-        } else if (styleEl instanceof HTMLLinkElement) {
-          if (styleEl.sheet) {
-            const rules = styleEl.sheet.cssRules || styleEl.sheet.rules;
-            for (let k = 0; k < rules.length; k++) {
-              cssText += rules[k].cssText + '\n';
-            }
+        if (el.tagName === 'STYLE') {
+          cssText = el.textContent || '';
+        } else if (el instanceof HTMLLinkElement && el.sheet) {
+          const rules = el.sheet.cssRules || el.sheet.rules;
+          for (let k = 0; k < rules.length; k++) {
+            cssText += rules[k].cssText + '\n';
           }
         }
-
         if (cssText) {
-          // Clean the CSS of oklch definitions so html2canvas doesn't crash on parse
-          const cleanedCss = cssText.replace(/oklch\([^)]+\)/gi, '#212121');
-          const newStyle = iframeDoc.createElement('style');
-          newStyle.textContent = cleanedCss;
-          iframeDoc.head.appendChild(newStyle);
-        } else if (styleEl instanceof HTMLLinkElement) {
-          // If no cssText computed but it's a link (e.g. cross-origin/Google Fonts), copy it directly
-          const cloned = styleEl.cloneNode(true);
-          iframeDoc.head.appendChild(cloned);
+          const cleaned = cssText.replace(/oklch\([^)]+\)/gi, '#212121');
+          const s = iframeDoc.createElement('style');
+          s.textContent = cleaned;
+          iframeDoc.head.appendChild(s);
+        } else if (el instanceof HTMLLinkElement) {
+          iframeDoc.head.appendChild(el.cloneNode(true));
         }
-      } catch (e) {
-        // Fallback: Copy link stylesheet elements directly (they throw CORS error, but don't contain oklch)
-        const cloned = styleEl.cloneNode(true);
-        iframeDoc.head.appendChild(cloned);
+      } catch {
+        iframeDoc.head.appendChild(el.cloneNode(true));
       }
     });
 
     try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      pdf.setProperties({ compress: true });
+      const pdf = new jsPDF('p', 'mm', 'a4', true);
       const root = iframeDoc.getElementById('iframe-content-root');
-      if (!root) throw new Error("Iframe root not found");
+      if (!root) throw new Error('Iframe root not found');
 
-      // Wait for fonts to be fully loaded inside the iframe doc context
-      if (iframeDoc.fonts && iframeDoc.fonts.ready) {
-        await iframeDoc.fonts.ready;
-      }
+      if (iframeDoc.fonts?.ready) await iframeDoc.fonts.ready;
 
       for (let i = 0; i < pages.length; i++) {
         const node = pageRefs.current[i];
         if (!node) continue;
-
         if (i > 0) pdf.addPage();
 
-        // Clone node into the iframe DOM context
-        const clonedNode = node.cloneNode(true) as HTMLElement;
-        clonedNode.style.transform = 'none';
-        clonedNode.style.position = 'relative';
-        clonedNode.style.margin = '0';
-        clonedNode.style.boxShadow = 'none';
-        clonedNode.style.border = 'none';
-        (clonedNode.style as any).WebkitFontSmoothing = 'antialiased';
+        const cloned = node.cloneNode(true) as HTMLElement;
+        cloned.style.transform = 'none';
+        cloned.style.position = 'relative';
+        cloned.style.margin = '0';
+        cloned.style.boxShadow = 'none';
+        cloned.style.border = 'none';
+        cloned.style.width = `${A4_WIDTH_PX}px`;
+        cloned.style.height = `${A4_HEIGHT_PX}px`;
+        root.appendChild(cloned);
 
-        root.appendChild(clonedNode);
-
-        // Wait for all images and fonts to load
-        const images = clonedNode.querySelectorAll('img');
-        const imageLoads = Array.from(images).map(
-          img =>
-            new Promise(resolve => {
-              if ((img as HTMLImageElement).complete) resolve(true);
-              else (img as HTMLImageElement).onload = () => resolve(true);
-            }),
+        // Wait for images
+        const imgs = cloned.querySelectorAll('img');
+        await Promise.all(
+          Array.from(imgs).map(
+            img => new Promise(r => { if ((img as HTMLImageElement).complete) r(true); else (img as HTMLImageElement).onload = () => r(true); })
+          )
         );
-        await Promise.all(imageLoads);
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => setTimeout(r, 200));
 
-        const canvas = await html2canvas(clonedNode, {
-          scale: 4, // Ultra-high resolution rendering for crisp, sharp output
+        const canvas = await html2canvas(cloned, {
+          scale: 3,                    // 3 is enough; 4 creates huge files with no visible benefit
           useCORS: true,
           backgroundColor: '#ffffff',
           logging: false,
           width: A4_WIDTH_PX,
           height: A4_HEIGHT_PX,
           allowTaint: true,
-          windowWidth: A4_WIDTH_PX * 4,
-          windowHeight: A4_HEIGHT_PX * 4,
+          // DON'T set windowWidth/windowHeight to 4x - that causes layout reflow issues
         });
 
-        // Clean up page element from iframe
-        root.removeChild(clonedNode);
+        root.removeChild(cloned);
 
-        const imgData = canvas.toDataURL('image/png'); // PNG for lossless quality
-        pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+        // Use JPEG at 95% quality instead of PNG - much smaller file, visually identical
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
       }
 
       const fileName = `Report-${reportData.patient.name.replace(/\s+/g, '_')}-${reportData.report.id}.pdf`;
@@ -714,6 +722,7 @@ export function ReportPreview() {
       setIsGeneratingPdf(false);
     }
   }, [reportData, pages]);
+
 
   const handleDownloadPdf = useCallback(async () => {
     const file = await generatePDF();
@@ -1000,9 +1009,11 @@ export function ReportPreview() {
                           overflow: 'hidden',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: 2,
-                          fontSize: density === 'compact' ? 9.5 : 10,
-                          lineHeight: density === 'compact' ? 1.3 : 1.4,
+                          gap: 3,
+                          fontSize: 11,
+                          lineHeight: 1.45,
+                          color: '#222',
+                          fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
                         }}
                       >
                         {page.map((item, idx) => {
@@ -1049,83 +1060,78 @@ export function ReportPreview() {
                                 <table style={{ width: '100%', borderCollapse: 'collapse', borderSpacing: '0 0', tableLayout: 'fixed', marginTop: '4px' }}>
                                   <InvestigationTableHeader colorTokens={C} />
                                   <tbody>
-                                    {item.chunk.parameters.map((param, rowIdx) => {
-                                      const status = (param.status || '').toLowerCase();
-                                      const isCritical = status === 'critical';
-                                      const isHigh = status === 'high';
-                                      const isLow = status === 'low';
-                                      const isAbnormal = isCritical || isHigh || isLow;
-                                      const statusColor = isCritical ? C.high : isHigh ? C.high : isLow ? C.low : C.text;
-                                      const showGroupHeader = !!param.group && param.group !== lastGroup;
-                                      if (param.group) lastGroup = param.group;
+                                  {item.chunk.parameters.map((param, rowIdx) => {
+                                    const status = (param.status || '').toLowerCase();
+                                    const isCritical = status === 'critical';
+                                    const isHigh = status === 'high';
+                                    const isLow = status === 'low';
+                                    const isAbnormal = isCritical || isHigh || isLow;
+                                    const statusColor = isCritical ? C.high : isHigh ? C.high : isLow ? C.low : C.text;
+                                    const showGroupHeader = !!param.group && param.group !== lastGroup;
+                                    if (param.group) lastGroup = param.group;
 
-                                      return (
-                                        <React.Fragment key={`${param.name}-${rowIdx}`}>
-                                          {showGroupHeader && <SectionGroupHeader title={param.group || ''} colorTokens={C} />}
-                                          <InvestigationTableRow
-                                            investigation={param.name}
-                                            result={param.result}
-                                            status={isCritical ? 'Critical' : isHigh ? 'High' : isLow ? 'Low' : ''}
-                                            refRange={param.refRange}
-                                            unit={param.unit}
-                                            isAbnormal={isAbnormal}
-                                            statusColor={statusColor}
-                                            rowIndex={rowIdx}
-                                            indented={!!param.group}
-                                            colorTokens={C}
-                                          />
-                                        </React.Fragment>
-                                      );
-                                    })}
-                                  </tbody>
+                                    return (
+                                      <React.Fragment key={`${param.name}-${rowIdx}`}>
+                                        {showGroupHeader && <SectionGroupHeader title={param.group || ''} colorTokens={C} />}
+                                        <InvestigationTableRow
+                                          investigation={param.name}
+                                          result={param.result}
+                                          status={isCritical ? 'Critical' : isHigh ? 'High' : isLow ? 'Low' : ''}
+                                          refRange={param.refRange}
+                                          unit={param.unit}
+                                          isAbnormal={isAbnormal}
+                                          statusColor={statusColor}
+                                          rowIndex={rowIdx}
+                                          indented={!!param.group}
+                                          colorTokens={C}
+                                        />
+                                      </React.Fragment>
+                                    );
+                                  })}
+                                </tbody>
                                 </table>
                               </TestSectionBlock>
                             );
                           }
 
+                          // Find item.type === 'interpretation' block, replace with:
                           if (item.type === 'interpretation') {
                             return (
-                              <section
-                                key={`i-${idx}`}
-                                style={{
-                                  padding: `${ReportLayoutConfig.boxPadding.normal}px ${ReportLayoutConfig.boxPadding.normal + 2}px`,
-                                  background: C.remarkBg,
-                                  border: `1px solid ${C.remarkBorder}`,
-                                  borderLeft: `4px solid ${C.remarkBorder}`,
-                                  borderRadius: 4,
-                                }}
-                              >
+                              <section key={`i-${idx}`} style={{ marginTop: '4px' }}>
                                 <p
                                   style={{
-                                    margin: 0,
-                                    marginBottom: 4,
-                                    fontSize: `${ReportLayoutConfig.fontSize.header}px`,
+                                    margin: '0 0 3px 0',
+                                    fontSize: '10.5px',
                                     fontWeight: 700,
-                                    color: C.sectionTitle,
+                                    color: '#222',
                                     textTransform: 'uppercase',
-                                    letterSpacing: '0.5px',
+                                    letterSpacing: '0.4px',
                                   }}
                                 >
                                   Interpretation
                                 </p>
-                                <p style={{ margin: 0, fontSize: `${ReportLayoutConfig.fontSize.value}px`, color: C.secondary }}>
+                                <p style={{ margin: 0, fontSize: '10.5px', color: '#444', lineHeight: 1.5 }}>
                                   {item.text}
                                 </p>
                               </section>
                             );
                           }
 
+
+                          // Find item.type === 'endMarker' block, replace with:
                           if (item.type === 'endMarker') {
                             return (
-                              <div key={`e-${idx}`} style={{ textAlign: 'center', fontSize: '9px', color: C.muted, letterSpacing: '1px' }}>
-                                - - - End of Report - - -
+                              <div key={`e-${idx}`} style={{ textAlign: 'center', fontSize: '9px', color: '#999', letterSpacing: '2px', margin: '6px 0' }}>
+                                *** End of Report ***
                               </div>
                             );
                           }
 
+
+
                           return (
-                            <section key={`s-${idx}`} style={{ marginTop: 4 }}>
-                              <div style={{ display: 'grid', gridTemplateColumns: isSelfReport ? '1fr' : '1fr 1fr', gap: 80 }}>
+                            <section key={`s-${idx}`} style={{ marginTop: '8px' }}>
+                              <div style={{ display: 'flex', justifyContent: isSelfReport ? 'flex-start' : 'space-between' }}>
                                 <div>
                                   <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
                                     {settings?.owner_signature_url && (
@@ -1136,11 +1142,11 @@ export function ReportPreview() {
                                       />
                                     )}
                                   </div>
-                                  <div style={{ borderTop: `1.5px solid ${C.text}`, paddingTop: 6 }}>
-                                    <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.text }}>
+                                  <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
+                                    <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
                                       {user ? `${user.firstname} ${user.lastname}` : reportData.technician.name}
                                     </p>
-                                    <p style={{ margin: '1px 0 0', fontSize: 9, color: C.secondary }}>Lab Owner / Incharge</p>
+                                    <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>Lab Owner / Incharge</p>
                                   </div>
                                 </div>
 
@@ -1155,11 +1161,11 @@ export function ReportPreview() {
                                         />
                                       )}
                                     </div>
-                                    <div style={{ borderTop: `1.5px solid ${C.text}`, paddingTop: 6 }}>
-                                      <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.text }}>
+                                    <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
+                                      <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
                                         {refDoctor ? `${refDoctor.title} ${refDoctor.name}` : reportData.patient.referringDoctor}
                                       </p>
-                                      <p style={{ margin: '1px 0 0', fontSize: 9, color: C.secondary }}>
+                                      <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>
                                         {refDoctor?.specialization || 'Referring Physician'}
                                       </p>
                                     </div>

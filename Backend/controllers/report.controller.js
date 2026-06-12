@@ -6,7 +6,7 @@ const Branch = require("../models/Branch");
 const Doctor = require("../models/Doctor");
 const aiService = require("../services/ai.service");
 const workflowNotificationService = require("../services/workflowNotification.service");
-const { Patient } = require("../models");
+const { Patient, UserTest } = require("../models");
 
 // Use the new status from service
 const { REPORT_STATUS, STATUS_TRANSITIONS, isEditable } = reportService;
@@ -34,6 +34,44 @@ const LEGACY_STATUS_TRANSITIONS = {
   [REPORT_STATUSES.DRAFT]: [REPORT_STATUSES.UNDER_REVIEW],
   [REPORT_STATUSES.UNDER_REVIEW]: [REPORT_STATUSES.APPROVED, REPORT_STATUSES.REJECTED],
   [REPORT_STATUSES.REJECTED]: [REPORT_STATUSES.DRAFT]
+};
+
+// Helper to inject layout config snapshots into test_data
+const injectLayoutSnapshots = async (test_data, branchId) => {
+  if (!test_data) return test_data;
+  
+  // Make a copy of test_data
+  const updatedTestData = { ...test_data };
+  
+  let testIds = [];
+  if (Array.isArray(updatedTestData.testIds)) {
+    testIds = updatedTestData.testIds;
+  } else if (Array.isArray(updatedTestData.tests)) {
+    testIds = updatedTestData.tests.map(t => t.id || t.testId).filter(Boolean);
+  }
+  
+  if (testIds.length === 0) {
+    return updatedTestData;
+  }
+  
+  const layoutSnapshots = {};
+  for (const testId of testIds) {
+    if (!testId) continue;
+    try {
+      const userTest = await UserTest.findOne({
+        where: { test_id: testId, branch_id: branchId },
+        raw: true
+      });
+      if (userTest && userTest.layout_config) {
+        layoutSnapshots[testId] = userTest.layout_config;
+      }
+    } catch (err) {
+      console.error(`Failed to load layout config for test ${testId}:`, err);
+    }
+  }
+  
+  updatedTestData.layout_snapshots = layoutSnapshots;
+  return updatedTestData;
 };
 
 // Validate status transition
@@ -133,8 +171,20 @@ exports.createReport = async (req, res) => {
     // Auto-create sample with auto-generated ID if no sample_id provided
     let linkedSampleId = sample_id || null;
     let sampleIdCode = null;
+    let resolvedBranchId = branch_id || req.user.branch_id;
+
+    if (!resolvedBranchId && patient_id) {
+      try {
+        const patientObj = await Patient.findByPk(patient_id, { raw: true });
+        if (patientObj) {
+          resolvedBranchId = patientObj.branch_id;
+        }
+      } catch (e) {
+        console.error("Error fetching patient branch:", e);
+      }
+    }
+
     if (!linkedSampleId) {
-      const resolvedBranchId = branch_id || req.user.branch_id;
       const generatedSampleIdCode = await sampleService.generateSampleId(resolvedBranchId);
       const sample = await Sample.createSample({
         patient_id,
@@ -149,6 +199,12 @@ exports.createReport = async (req, res) => {
       sampleIdCode = generatedSampleIdCode;
     }
 
+    // Inject layout snapshots
+    let enrichedTestData = test_data || {};
+    if (resolvedBranchId) {
+      enrichedTestData = await injectLayoutSnapshots(enrichedTestData, resolvedBranchId);
+    }
+
     const report = await Report.createReport({
       patient_id,
       doctor_id: selfReport ? null : doctor_id,
@@ -159,7 +215,7 @@ exports.createReport = async (req, res) => {
       status: REPORT_STATUSES.DRAFT,
       report_amount: report_amount || 0,
       is_self_report: selfReport,
-      test_data: test_data || {},
+      test_data: enrichedTestData,
       findings: findings || '',
       recommendations: recommendations || '',
       delivery_preferences: delivery_preferences || {},
@@ -228,12 +284,34 @@ exports.updateReport = async (req, res) => {
       });
     }
 
+    // Get branch_id from current report or patient
+    let resolvedBranchId = req.body.branch_id || req.query.branch_id || currentReport.branch_id;
+    if (!resolvedBranchId && currentReport.patient_id) {
+      try {
+        const patientObj = await Patient.findByPk(currentReport.patient_id, { raw: true });
+        if (patientObj) {
+          resolvedBranchId = patientObj.branch_id;
+        }
+      } catch (e) {
+        console.error("Error fetching patient branch:", e);
+      }
+    }
+    if (!resolvedBranchId) {
+      resolvedBranchId = req.user.branch_id;
+    }
+
+    // Inject layout snapshots if we have test_data
+    let enrichedTestData = test_data;
+    if (test_data && resolvedBranchId) {
+      enrichedTestData = await injectLayoutSnapshots(test_data, resolvedBranchId);
+    }
+
     const report = await Report.updateReport(id, {
       findings,
       recommendations,
       clinical_notes,
       technician_id,
-      test_data,
+      test_data: enrichedTestData,
       doctor_id,
       report_type,
       report_amount,

@@ -15,6 +15,7 @@ const UserTest = sequelize.define("UserTest", {
   price: { type: DataTypes.DECIMAL(10, 2) },
   turnaround_time: { type: DataTypes.INTEGER },
   description: { type: DataTypes.TEXT },
+  layout_config: { type: DataTypes.JSONB, defaultValue: null },
 }, {
   tableName: "branch_tests",
   indexes: [{ unique: true, fields: ["branch_id", "test_id"] }],

@@ -1,74 +1,48 @@
-/**
- * ImprovedReportLayout.tsx
- * Helper components and utilities for better report layout and spacing
- * Styled to match professional pathology lab reports (SRL / Metropolis style)
- */
-
 import React from 'react';
 
 export const ReportLayoutConfig = {
-  // Spacing system
   spacing: {
-    xs: 1,
-    sm: 2,
-    md: 3,
-    lg: 4,
-    xl: 6,
-    xxl: 8,
+    xs: 2,
+    sm: 3,
+    md: 5,
+    lg: 8,
+    xl: 10,
+    xxl: 14,
   },
-
-  // Margins for sections
   sectionMargin: {
-    top: 2,
+    top: 4,
     bottom: 2,
-    between: 4,
+    between: 6,
   },
-
-  // Padding for boxes
   boxPadding: {
-    dense: 2,
-    normal: 3,
-    spacious: 5,
+    dense: 3,
+    normal: 5,
+    spacious: 8,
   },
-
-  // Font sizes (desktop)
   fontSize: {
-    label: 8.5,
-    value: 9.5,
-    header: 9,
-    sectionTitle: 10.5,
-    patientName: 13,
+    label: 10,
+    value: 11,
+    header: 10,
+    sectionTitle: 12,
+    patientName: 14,
   },
-
-  // Font sizes mobile
-  fontSizeMobile: {
-    label: 8,
-    value: 9,
-    header: 9,
-    sectionTitle: 10,
-    patientName: 12,
-  },
-
-  // Line heights
   lineHeight: {
-    tight: 1.2,
-    normal: 1.35,
-    relaxed: 1.45,
-    spacious: 1.55,
+    tight: 1.3,
+    normal: 1.45,
+    relaxed: 1.55,
   },
-
-  // Table column widths (percentages)
   tableColumns: {
-    investigation: '36%',
-    result: '17%',
-    refRange: '30%',
-    unit: '17%',
+    investigation: '42%',
+    result: '16%',
+    refRange: '26%',
+    unit: '16%',
   },
 };
 
-/**
- * PatientInfoRow - improved version with better alignment
- */
+/* ------------------------------------------------------------------ */
+/*  Patient Info Row                                                   */
+/* ------------------------------------------------------------------ */
+
 export function PatientInfoRow({
   label,
   value,
@@ -84,9 +58,9 @@ export function PatientInfoRow({
     <div style={{ flex, display: 'flex', flexDirection: 'column', gap: '2px' }}>
       <div
         style={{
-          fontSize: `${ReportLayoutConfig.fontSize.label}px`,
+          fontSize: '9px',
           fontWeight: 700,
-          color: '#546E7A',
+          color: '#78909C',
           textTransform: 'uppercase',
           letterSpacing: '0.3px',
           margin: 0,
@@ -96,7 +70,7 @@ export function PatientInfoRow({
       </div>
       <div
         style={{
-          fontSize: `${ReportLayoutConfig.fontSize.value}px`,
+          fontSize: '10.5px',
           fontWeight: bold ? 700 : 500,
           color: '#212121',
           margin: 0,
@@ -109,27 +83,27 @@ export function PatientInfoRow({
   );
 }
 
-/**
- * InvestigationTableHeader - Clean professional header with FLAG column
- * Responsive for mobile
- */
+/* ------------------------------------------------------------------ */
+/*  Table Header - Clean underline, no colored background             */
+/* ------------------------------------------------------------------ */
+
 export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<string, string> }) {
-  const thStyle = (width: string, align: string = 'center', extra: React.CSSProperties = {}): React.CSSProperties => ({
+  const thStyle = (width: string, align: string = 'left'): React.CSSProperties => ({
     textAlign: align as any,
-    padding: `${ReportLayoutConfig.boxPadding.dense}px 2px`,
+    padding: '4px 0',
     fontWeight: 700,
-    color: colorTokens.white,
-    fontSize: `${ReportLayoutConfig.fontSize.header - 1}px`,
+    color: '#111',
+    fontSize: '10px',
     letterSpacing: '0.3px',
     textTransform: 'uppercase',
     whiteSpace: 'nowrap',
     width,
-    ...extra,
+    borderBottom: '1.5px solid #333',
   });
 
   return (
     <thead>
-      <tr style={{ background: colorTokens.brand }}>
+      <tr>
         <th style={thStyle(ReportLayoutConfig.tableColumns.investigation, 'left')}>
           Investigation
         </th>
@@ -139,7 +113,7 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
         <th style={thStyle(ReportLayoutConfig.tableColumns.refRange, 'left')}>
           Reference Value
         </th>
-        <th style={thStyle(ReportLayoutConfig.tableColumns.unit, 'center')}>
+        <th style={thStyle(ReportLayoutConfig.tableColumns.unit, 'left')}>
           Unit
         </th>
       </tr>
@@ -147,14 +121,10 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
   );
 }
 
-/**
- * InvestigationTableRow - Compact professional row matching pathology lab style
- * - No alternating colors, clean white background
- * - Abnormal values in bold with color
- * - Ref range and unit also bold when abnormal
- * - Indentation support for grouped sub-parameters
- * - Responsive for mobile
- */
+/* ------------------------------------------------------------------ */
+/*  Table Row - Plain, no borders, no alternating bg                  */
+/* ------------------------------------------------------------------ */
+
 export function InvestigationTableRow({
   investigation,
   result,
@@ -178,66 +148,68 @@ export function InvestigationTableRow({
   indented?: boolean;
   colorTokens: Record<string, string>;
 }) {
-  const vPad = `${ReportLayoutConfig.boxPadding.dense}px`;
-  const fontSize = `${ReportLayoutConfig.fontSize.value}px`;
+  const fontSize = '11px';
 
   return (
-    <tr style={{ background: colorTokens.white }}>
-      {/* Investigation name */}
+    <tr>
       <td
         style={{
-          padding: `${vPad} 1px`,
-          paddingLeft: indented ? '16px' : '2px',
+          padding: '3px 0',
+          paddingLeft: indented ? '14px' : '0',
           fontWeight: isAbnormal ? 700 : 400,
-          color: isAbnormal ? statusColor : colorTokens.text,
+          color: isAbnormal ? statusColor : '#222',
           fontSize,
           textAlign: 'left',
-          lineHeight: 1.25,
+          lineHeight: 1.4,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
+          maxWidth: 0,
         }}
       >
         {investigation}
       </td>
-      {/* Result value with inline flag */}
       <td
         style={{
-          padding: `${vPad} 1px`,
-          paddingLeft: '2px',
+          padding: '3px 0',
           textAlign: 'left',
-          fontWeight: isAbnormal ? 700 : 400,
-          color: isAbnormal ? statusColor : colorTokens.text,
+          fontWeight: isAbnormal ? 800 : 400,
+          color: isAbnormal ? statusColor : '#222',
           fontSize,
           fontVariantNumeric: 'tabular-nums',
           whiteSpace: 'nowrap',
         }}
       >
-        {result} {status === 'High' ? <span style={{ color: statusColor, fontWeight: 700, marginLeft: '4px' }}>High</span> : status === 'Low' ? <span style={{ color: statusColor, fontWeight: 700, marginLeft: '4px' }}>Low</span> : status === 'Critical' ? <span style={{ color: statusColor, fontWeight: 800, marginLeft: '4px', textTransform: 'uppercase' }}>*Critical*</span> : ''}
+        {result}
+        {status === 'High' && (
+          <span style={{ color: statusColor, fontWeight: 700, marginLeft: '4px', fontSize: '9px' }}>H</span>
+        )}
+        {status === 'Low' && (
+          <span style={{ color: statusColor, fontWeight: 700, marginLeft: '4px', fontSize: '9px' }}>L</span>
+        )}
+        {status === 'Critical' && (
+          <span style={{ color: statusColor, fontWeight: 800, marginLeft: '4px', fontSize: '9px' }}>C*</span>
+        )}
       </td>
-      {/* Reference Value */}
       <td
         style={{
-          padding: `${vPad} 1px`,
-          paddingLeft: '2px',
+          padding: '3px 0',
           textAlign: 'left',
-          color: isAbnormal ? colorTokens.text : colorTokens.secondary,
-          fontWeight: isAbnormal ? 700 : 400,
-          fontSize,
+          color: '#555',
+          fontWeight: 400,
+          fontSize: '10.5px',
           whiteSpace: 'nowrap',
         }}
       >
         {refRange}
       </td>
-      {/* Unit */}
       <td
         style={{
-          padding: `${vPad} 1px`,
-          paddingLeft: '2px',
-          textAlign: 'center',
-          color: isAbnormal ? colorTokens.text : colorTokens.secondary,
-          fontWeight: isAbnormal ? 700 : 400,
-          fontSize,
+          padding: '3px 0',
+          textAlign: 'left',
+          color: '#555',
+          fontWeight: 400,
+          fontSize: '10.5px',
           whiteSpace: 'nowrap',
         }}
       >
@@ -247,10 +219,10 @@ export function InvestigationTableRow({
   );
 }
 
-/**
- * SectionGroupHeader - Clean sub-group header (e.g., "Differential Leucocyte Count", "RBC Indices")
- * Plain bold text, left-aligned, no colored background – matches professional lab style
- */
+/* ------------------------------------------------------------------ */
+/*  Section Group Header                                               */
+/* ------------------------------------------------------------------ */
+
 export function SectionGroupHeader({
   title,
   colorTokens,
@@ -263,13 +235,11 @@ export function SectionGroupHeader({
       <td
         colSpan={4}
         style={{
-          padding: `5px 4px 3px`,
+          padding: '5px 0 2px',
           fontWeight: 700,
-          fontSize: `${ReportLayoutConfig.fontSize.value - 0.2}px`,
-          color: colorTokens.text,
+          fontSize: '10.5px',
+          color: '#222',
           letterSpacing: '0.2px',
-          backgroundColor: '#FAFAFA',
-          borderTop: '1px solid #E0E0E0',
         }}
       >
         {title}
@@ -278,11 +248,10 @@ export function SectionGroupHeader({
   );
 }
 
-/**
- * ImprovedPatientBox - Better structured patient information display
- * Styled as a clean bordered info table matching professional lab reports
- * Fully responsive for mobile and tablet
- */
+/* ------------------------------------------------------------------ */
+/*  Patient Box - Bordered box with 3-column layout (KEPT + IMPROVED) */
+/* ------------------------------------------------------------------ */
+
 export function ImprovedPatientBox({
   patientName,
   age,
@@ -314,87 +283,129 @@ export function ImprovedPatientBox({
   barcode: React.ReactNode;
   colorTokens: Record<string, string>;
 }) {
+  const labelStyle: React.CSSProperties = {
+    fontSize: '9px',
+    fontWeight: 700,
+    color: '#78909C',
+    textTransform: 'uppercase',
+    letterSpacing: '0.3px',
+    lineHeight: 1,
+  };
+  const valStyle: React.CSSProperties = {
+    fontSize: '10.5px',
+    fontWeight: 600,
+    color: '#212121',
+    lineHeight: 1.35,
+  };
+  const cellDivider: React.CSSProperties = {
+    borderRight: `1px solid ${colorTokens.borderLight}`,
+  };
+
   return (
     <div
       style={{
-        border: `1px solid ${colorTokens.borderLight}`,
-        borderRadius: '2px',
+        border: `1.5px solid ${colorTokens.borderLight}`,
+        borderRadius: '3px',
         overflow: 'hidden',
+        marginBottom: '6px',
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'stretch',
-        }}
-      >
-        {/* Column 1: Patient Details */}
-        <div style={{
-          flex: '1.2',
-          padding: '4px 8px',
-          borderRight: `1px solid ${colorTokens.borderLight}`,
-        }}>
-          <h2 style={{ fontSize: '13px', fontWeight: 800, margin: '0 0 1px 0', color: colorTokens.text }}>
+      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+        {/* Col 1: Patient identity */}
+        <div style={{ flex: 1.1, padding: '5px 8px', ...cellDivider }}>
+          <div
+            style={{
+              fontSize: '13.5px',
+              fontWeight: 800,
+              color: '#111',
+              lineHeight: 1.15,
+              marginBottom: '3px',
+            }}
+          >
             {patientName}
-          </h2>
-          <div style={{ fontSize: '9.5px', color: '#444', lineHeight: 1.35 }}>
-            <div>Age : {age}</div>
-            <div>Sex : {gender}</div>
-            <div>PID : {patientId}</div>
           </div>
+          <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+            <tbody>
+              <tr>
+                <td style={{ ...labelStyle, padding: '1px 0', width: '32px' }}>Age</td>
+                <td style={{ ...valStyle, padding: '1px 0' }}>: {age}</td>
+              </tr>
+              <tr>
+                <td style={{ ...labelStyle, padding: '1px 0' }}>Sex</td>
+                <td style={{ ...valStyle, padding: '1px 0' }}>: {gender}</td>
+              </tr>
+              <tr>
+                <td style={{ ...labelStyle, padding: '1px 0' }}>PID</td>
+                <td style={{ ...valStyle, padding: '1px 0', fontSize: '9.5px' }}>: {patientId}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
-        {/* Column 2: Registration ID & Ref Doctor & QR */}
-        <div style={{
-          flex: '1.5',
-          padding: '4px 8px',
-          borderRight: `1px solid ${colorTokens.borderLight}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '4px',
-        }}>
-          {/* Left: Registration info */}
-          <div style={{ flex: 1, minWidth: '130px' }}>
-            <div style={{ fontSize: '9.5px', fontWeight: 600, color: colorTokens.secondary, marginBottom: '1px' }}>
-              Registration ID:
-            </div>
-            <div style={{ fontSize: '12px', color: colorTokens.text, marginBottom: '1px', fontWeight: 800 }}>
+        {/* Col 2: Registration + Ref Doctor + QR */}
+        <div
+          style={{
+            flex: 1.5,
+            padding: '5px 8px',
+            ...cellDivider,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '6px',
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={labelStyle}>Registration ID</div>
+            <div
+              style={{
+                fontSize: '12.5px',
+                fontWeight: 800,
+                color: '#111',
+                margin: '2px 0',
+                letterSpacing: '0.3px',
+              }}
+            >
               {sampleId}
             </div>
-            <div style={{ fontSize: '9.5px', color: colorTokens.text }}>
-              Ref. By: <span style={{ fontWeight: 700 }}>{referringDoctor}</span>
+            <div style={{ fontSize: '10px', color: '#333', lineHeight: 1.4 }}>
+              <span style={{ ...labelStyle, textTransform: 'none', fontSize: '9px' }}>Ref. By: </span>
+              <span style={{ fontWeight: 700, fontSize: '10.5px' }}>{referringDoctor}</span>
             </div>
           </div>
-          {/* Right: QR Code */}
-          <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
-            {qrCode}
-          </div>
+          <div style={{ flexShrink: 0 }}>{qrCode}</div>
         </div>
 
-        {/* Column 3: Barcode & Dates */}
-        <div style={{
-          flex: '1.3',
-          padding: '4px 8px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '2px',
-        }}>
-          <div>
-            {barcode}
-          </div>
-          <div style={{ fontSize: '8.5px', color: colorTokens.text, width: '100%', lineHeight: 1.3, textAlign: 'center' }}>
+        {/* Col 3: Barcode + Dates */}
+        <div
+          style={{
+            flex: 1.2,
+            padding: '5px 8px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '2px',
+          }}
+        >
+          <div>{barcode}</div>
+          <div
+            style={{
+              fontSize: '8.5px',
+              color: '#333',
+              width: '100%',
+              lineHeight: 1.4,
+              textAlign: 'center',
+            }}
+          >
             <div>
-              <span style={{ fontWeight: 700 }}>Registered:</span> {reportDate}, {reportTime}
+              <span style={{ fontWeight: 700, color: '#78909C' }}>Registered:</span> {reportDate},{' '}
+              {reportTime}
             </div>
             <div>
-              <span style={{ fontWeight: 700 }}>Collected:</span> {collectionDate}
+              <span style={{ fontWeight: 700, color: '#78909C' }}>Collected:</span> {collectionDate}
             </div>
             <div>
-              <span style={{ fontWeight: 700 }}>Reported:</span> {reportedDate}
+              <span style={{ fontWeight: 700, color: '#78909C' }}>Reported:</span> {reportedDate}
             </div>
           </div>
         </div>
@@ -403,11 +414,11 @@ export function ImprovedPatientBox({
   );
 }
 
-/**
- * TestSectionBlock - Container for each test with proper spacing
- * Clean centered heading with underline
- * Responsive for mobile
- */
+/* ------------------------------------------------------------------ */
+/*  Test Section Block - Improved heading with left-aligned style     */
+/*  Thin line spans full width, title sits on top                     */
+/* ------------------------------------------------------------------ */
+
 export function TestSectionBlock({
   testName,
   children,
@@ -423,38 +434,39 @@ export function TestSectionBlock({
     <div
       style={{
         marginBottom: `${ReportLayoutConfig.sectionMargin.between}px`,
-        marginTop: isFirstSection ? 0 : `${ReportLayoutConfig.sectionMargin.top}px`,
+        marginTop: isFirstSection ? 0 : `${ReportLayoutConfig.sectionMargin.top + 2}px`,
       }}
     >
-      {/* Test section heading */}
+      {/* Full-width thin line with title overlaid center */}
       <div
         style={{
+          position: 'relative',
           display: 'flex',
-          justifyContent: 'center',
           alignItems: 'center',
-          marginBottom: '6px',
-          width: '100%',
+          marginBottom: '4px',
           pageBreakAfter: 'avoid',
         }}
       >
-        <h2
+        {/* Left line */}
+        <div style={{ flex: 1, height: '1px', background: '#BDBDBD' }} />
+        {/* Title */}
+        <span
           style={{
-            margin: 0,
+            padding: '0 10px',
             fontSize: `${ReportLayoutConfig.fontSize.sectionTitle}px`,
             fontWeight: 800,
-            color: colorTokens.text,
+            color: '#111',
             textTransform: 'uppercase',
             letterSpacing: '1px',
-            paddingBottom: '2px',
-            borderBottom: `2px solid ${colorTokens.text}`,
-            pageBreakAfter: 'avoid',
+            whiteSpace: 'nowrap',
           }}
         >
           {testName}
-        </h2>
+        </span>
+        {/* Right line */}
+        <div style={{ flex: 1, height: '1px', background: '#BDBDBD' }} />
       </div>
 
-      {/* Table */}
       {children}
     </div>
   );
