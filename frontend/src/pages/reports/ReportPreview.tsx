@@ -533,28 +533,67 @@ export function ReportPreview() {
       .join(' ') + ' Clinical correlation is advised.';
   }, [rawReport, abnormalParams]);
 
+
   const density = useMemo(() => {
-    const count = orderedSections.reduce((s, sec) => s + sec.parameters.length, 0);
-    if (count > 140) return 'compact';
-    if (count > 75) return 'balanced';
+    const paramCount = orderedSections.reduce((s, sec) => s + sec.parameters.length, 0);
+
+    // Count group headers too - they take as much space as a parameter row
+    const groupCount = orderedSections.reduce((s, sec) => {
+      let groups = 0;
+      let lastGroup: string | undefined;
+      for (const p of sec.parameters) {
+        if (p.group && p.group !== lastGroup) groups++;
+        lastGroup = p.group;
+      }
+      return s + groups;
+    }, 0);
+
+    // Effective row count = parameters + group headers
+    const effectiveRows = paramCount + groupCount;
+
+    if (effectiveRows > 100) return 'compact';
+    if (effectiveRows > 18) return 'balanced';  // was 75 - CBC with 20 params + 5 groups = 25
     return 'comfortable';
   }, [orderedSections]);
+
+
+
+
+
 
   const pages = useMemo(() => {
     if (!reportData) return [] as PageItem[][];
 
     const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom;
-    const dense = density !== 'comfortable';
+    const isDense = density !== 'comfortable';
 
-    const patientHeight = 100;   // bordered patient box
+    const patientHeight = 100;
     const signatureHeight = 72;
     const endMarkerHeight = 20;
 
-    // Reserve space for signature block so it doesn't get pushed to next page
-    const signatureReserve = signatureHeight + endMarkerHeight;
-
     const maxChunkHeight = Math.max(160, contentHeight - 50);
-    const chunks = orderedSections.flatMap(section => splitSection(section, maxChunkHeight, dense));
+    const chunks = orderedSections.flatMap(section => splitSection(section, maxChunkHeight, isDense));
+
+    // First pass: calculate total height to detect overflow
+    let totalNeeded = patientHeight;
+    for (const chunk of chunks) {
+      const section = orderedSections.find(s => s.id === chunk.sectionId);
+      if (section) totalNeeded += estimateSectionHeight(section, chunk.parameters, isDense);
+    }
+    if (remarkText) totalNeeded += estimateInterpretationHeight(remarkText, isDense);
+    totalNeeded += signatureHeight + endMarkerHeight;
+
+    const overflow = totalNeeded - contentHeight;
+
+    // If overflow is small (< 120px), apply micro-compaction to row heights
+    // This simulates tighter rendering without changing components
+    const needsCompact = overflow > 0 && overflow <= 120;
+    const compactScale = needsCompact ? Math.max(0.82, 1 - (overflow + 20) / totalNeeded) : 1;
+
+    const estimateHeight = (section: TestSection, params: Parameter[]) => {
+      const base = estimateSectionHeight(section, params, isDense);
+      return needsCompact ? Math.floor(base * compactScale) : base;
+    };
 
     const out: PageItem[][] = [[]];
     let currentHeight = 0;
@@ -570,40 +609,21 @@ export function ReportPreview() {
 
     place({ type: 'patient' }, patientHeight);
 
-    // Calculate total remaining content height to decide if we need to be careful
-    let remainingContentHeight = 0;
-    for (const chunk of chunks) {
-      const section = orderedSections.find(s => s.id === chunk.sectionId);
-      if (section) remainingContentHeight += estimateSectionHeight(section, chunk.parameters, dense);
-    }
-    if (remarkText) remainingContentHeight += estimateInterpretationHeight(remarkText, dense);
-    remainingContentHeight += signatureReserve;
-
     for (const chunk of chunks) {
       const section = orderedSections.find(s => s.id === chunk.sectionId);
       if (!section) continue;
-      const h = estimateSectionHeight(section, chunk.parameters, dense);
-      place({ type: 'test', chunk }, h);
+      place({ type: 'test', chunk }, estimateHeight(section, chunk.parameters));
     }
 
     if (remarkText) {
-      const remarkH = estimateInterpretationHeight(remarkText, dense);
-      // If interpretation + signature won't fit together, place interpretation
-      // only if it fits with signature on same page, otherwise let it flow
-      if (currentHeight + remarkH + signatureReserve > contentHeight &&
-        currentHeight + remarkH <= contentHeight) {
-        // Interpretation fits but signature won't - push both to new page
-        // only if interpretation is small enough
-        if (remarkH + signatureReserve <= contentHeight) {
-          out.push([]);
-          currentHeight = 0;
-        }
-      }
+      const remarkH = needsCompact
+        ? Math.floor(estimateInterpretationHeight(remarkText, isDense) * compactScale)
+        : estimateInterpretationHeight(remarkText, isDense);
       place({ type: 'interpretation', text: remarkText }, remarkH);
     }
 
-    // Always try to keep end marker + signature together
-    if (currentHeight + signatureReserve > contentHeight && out[out.length - 1].length > 0) {
+    const tailHeight = signatureHeight + endMarkerHeight;
+    if (currentHeight + tailHeight > contentHeight && out[out.length - 1].length > 0) {
       out.push([]);
       currentHeight = 0;
     }
@@ -615,32 +635,50 @@ export function ReportPreview() {
 
 
 
+  // Derive compactAdjustment from pages for rendering
+  const compactAdjustment = useMemo(() => {
+    if (!reportData) return 0;
+    const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom;
+    const isDense = density !== 'comfortable';
+
+    let totalNeeded = 100; // patient
+    for (const section of orderedSections) {
+      totalNeeded += estimateSectionHeight(section, section.parameters, isDense);
+    }
+    if (remarkText) totalNeeded += estimateInterpretationHeight(remarkText, isDense);
+    totalNeeded += 92; // signature + end marker
+
+    const overflow = totalNeeded - contentHeight;
+    return (overflow > 0 && overflow <= 120) ? overflow : 0;
+  }, [reportData, orderedSections, safeZones, remarkText, density]);
+
+
   const isSelfReport = reportData?.patient.referringDoctor === 'Self' || rawReport?.is_self_report;
   const refDoctor = doctors.find(d => d.id === rawReport?.doctor_id);
   const doctorSignatureUrl = refDoctor?.signature_url;
 
-  const generatePDF = useCallback(async (): Promise<File | null> => {
-    if (!reportData || pages.length === 0) return null;
-    setIsGeneratingPdf(true);
+const generatePDF = useCallback(async (): Promise<File | null> => {
+  if (!reportData || pages.length === 0) return null;
+  setIsGeneratingPdf(true);
 
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.width = `${A4_WIDTH_PX}px`;
-    iframe.style.height = `${A4_HEIGHT_PX}px`;
-    iframe.style.top = '-9999px';
-    iframe.style.left = '-9999px';
-    iframe.style.visibility = 'hidden';
-    document.body.appendChild(iframe);
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.width = `${A4_WIDTH_PX}px`;
+  iframe.style.height = `${A4_HEIGHT_PX}px`;
+  iframe.style.top = '-9999px';
+  iframe.style.left = '-9999px';
+  iframe.style.visibility = 'hidden';
+  document.body.appendChild(iframe);
 
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!iframeDoc) {
-      document.body.removeChild(iframe);
-      setIsGeneratingPdf(false);
-      return null;
-    }
+  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!iframeDoc) {
+    document.body.removeChild(iframe);
+    setIsGeneratingPdf(false);
+    return null;
+  }
 
-    iframeDoc.open();
-    iframeDoc.write(`
+  iframeDoc.open();
+  iframeDoc.write(`
     <!DOCTYPE html>
     <html>
     <head>
@@ -654,103 +692,145 @@ export function ReportPreview() {
           print-color-adjust: exact;
           -webkit-font-smoothing: antialiased;
         }
-        /* Force crisp text rendering for PDF */
         * {
           text-rendering: geometricPrecision;
           -webkit-font-smoothing: antialiased;
+          box-sizing: border-box;
         }
       </style>
     </head>
     <body><div id="iframe-content-root"></div></body>
     </html>
   `);
-    iframeDoc.close();
+  iframeDoc.close();
 
-    // Copy stylesheets, replacing oklch colors
-    document.querySelectorAll('style, link[rel="stylesheet"]').forEach((el) => {
-      try {
-        let cssText = '';
-        if (el.tagName === 'STYLE') {
-          cssText = el.textContent || '';
-        } else if (el instanceof HTMLLinkElement && el.sheet) {
-          const rules = el.sheet.cssRules || el.sheet.rules;
-          for (let k = 0; k < rules.length; k++) {
-            cssText += rules[k].cssText + '\n';
-          }
+  // Copy stylesheets, replacing oklch colors
+  document.querySelectorAll('style, link[rel="stylesheet"]').forEach((el) => {
+    try {
+      let cssText = '';
+      if (el.tagName === 'STYLE') {
+        cssText = el.textContent || '';
+      } else if (el instanceof HTMLLinkElement && el.sheet) {
+        const rules = el.sheet.cssRules || el.sheet.rules;
+        for (let k = 0; k < rules.length; k++) {
+          cssText += rules[k].cssText + '\n';
         }
-        if (cssText) {
-          const cleaned = cssText.replace(/oklch\([^)]+\)/gi, '#212121');
-          const s = iframeDoc.createElement('style');
-          s.textContent = cleaned;
-          iframeDoc.head.appendChild(s);
-        } else if (el instanceof HTMLLinkElement) {
-          iframeDoc.head.appendChild(el.cloneNode(true));
-        }
-      } catch {
+      }
+      if (cssText) {
+        const cleaned = cssText.replace(/oklch\([^)]+\)/gi, '#212121');
+        const s = iframeDoc.createElement('style');
+        s.textContent = cleaned;
+        iframeDoc.head.appendChild(s);
+      } else if (el instanceof HTMLLinkElement) {
         iframeDoc.head.appendChild(el.cloneNode(true));
       }
-    });
+    } catch {
+      iframeDoc.head.appendChild(el.cloneNode(true));
+    }
+  });
 
-    try {
-      const pdf = new jsPDF('p', 'mm', 'a4', true);
-      const root = iframeDoc.getElementById('iframe-content-root');
-      if (!root) throw new Error('Iframe root not found');
+  try {
+    const pdf = new jsPDF('p', 'mm', 'a4', true);
+    const root = iframeDoc.getElementById('iframe-content-root');
+    if (!root) throw new Error('Iframe root not found');
 
-      if (iframeDoc.fonts?.ready) await iframeDoc.fonts.ready;
+    if (iframeDoc.fonts?.ready) await iframeDoc.fonts.ready;
 
-      for (let i = 0; i < pages.length; i++) {
-        const node = pageRefs.current[i];
-        if (!node) continue;
-        if (i > 0) pdf.addPage();
+    // Pre-calculate compact values
+    const isCompact = compactAdjustment > 0;
+    const pdfRowPad = isCompact ? '2px' : '3px';
 
-        const cloned = node.cloneNode(true) as HTMLElement;
-        cloned.style.transform = 'none';
-        cloned.style.position = 'relative';
-        cloned.style.margin = '0';
-        cloned.style.boxShadow = 'none';
-        cloned.style.border = 'none';
-        cloned.style.width = `${A4_WIDTH_PX}px`;
-        cloned.style.height = `${A4_HEIGHT_PX}px`;
-        root.appendChild(cloned);
+    for (let i = 0; i < pages.length; i++) {
+      const node = pageRefs.current[i];
+      if (!node) continue;
+      if (i > 0) pdf.addPage();
 
-        // Wait for images
-        const imgs = cloned.querySelectorAll('img');
-        await Promise.all(
-          Array.from(imgs).map(
-            img => new Promise(r => { if ((img as HTMLImageElement).complete) r(true); else (img as HTMLImageElement).onload = () => r(true); })
-          )
-        );
-        await new Promise(r => setTimeout(r, 200));
+      const cloned = node.cloneNode(true) as HTMLElement;
 
-        const canvas = await html2canvas(cloned, {
-          scale: 3,                    // 3 is enough; 4 creates huge files with no visible benefit
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-          width: A4_WIDTH_PX,
-          height: A4_HEIGHT_PX,
-          allowTaint: true,
-          // DON'T set windowWidth/windowHeight to 4x - that causes layout reflow issues
-        });
+      // Reset only visual/transform styles on the page wrapper
+      cloned.style.transform = 'none';
+      cloned.style.position = 'relative';
+      cloned.style.margin = '0';
+      cloned.style.boxShadow = 'none';
+      cloned.style.border = 'none';
+      cloned.style.width = `${A4_WIDTH_PX}px`;
+      cloned.style.height = `${A4_HEIGHT_PX}px`;
+      cloned.style.overflow = 'hidden';
 
-        root.removeChild(cloned);
-
-        // Use JPEG at 95% quality instead of PNG - much smaller file, visually identical
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+      // Use the data attribute to find ONLY the content container
+      // This avoids accidentally targeting letterhead images or other absolute elements
+      const contentContainer = cloned.querySelector('[data-content-area="true"]') as HTMLElement;
+      if (contentContainer) {
+        // Ensure compact styles match the preview exactly
+        contentContainer.style.gap = `${isCompact ? 1 : 3}px`;
+        contentContainer.style.fontSize = `${isCompact && compactAdjustment > 60 ? 10.5 : 11}px`;
+        contentContainer.style.lineHeight = `${isCompact && compactAdjustment > 60 ? 1.35 : 1.45}`;
       }
 
-      const fileName = `Report-${reportData.patient.name.replace(/\s+/g, '_')}-${reportData.report.id}.pdf`;
-      const blob = pdf.output('blob');
-      return new File([blob], fileName, { type: 'application/pdf' });
-    } catch (err) {
-      console.error('PDF generation failed:', err);
-      return null;
-    } finally {
-      document.body.removeChild(iframe);
-      setIsGeneratingPdf(false);
+      // Resolve any CSS var() in table cell padding to explicit values
+      // html2canvas doesn't reliably resolve CSS custom properties
+      const allCells = cloned.querySelectorAll('td, th');
+      allCells.forEach((cell) => {
+        const el = cell as HTMLElement;
+        // Check each padding property for var() usage
+        ['padding', 'paddingTop', 'paddingBottom'].forEach(prop => {
+          const val = (el.style as any)[prop];
+          if (val && typeof val === 'string' && val.includes('var(')) {
+            (el.style as any)[prop] = val.replace(/var\(--row-pad[^)]*\)/g, pdfRowPad);
+          }
+        });
+      });
+
+      root.appendChild(cloned);
+
+      // Wait for all images to load
+      const imgs = cloned.querySelectorAll('img');
+      await Promise.all(
+        Array.from(imgs).map(
+          img => new Promise(resolve => {
+            const imgEl = img as HTMLImageElement;
+            if (imgEl.complete && imgEl.naturalHeight > 0) {
+              resolve(true);
+            } else {
+              imgEl.onload = () => resolve(true);
+              imgEl.onerror = () => resolve(true);
+            }
+          })
+        )
+      );
+
+      // Wait for layout to settle
+      await new Promise(r => setTimeout(r, 200));
+
+      const canvas = await html2canvas(cloned, {
+        scale: 3,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: A4_WIDTH_PX,
+        height: A4_HEIGHT_PX,
+        allowTaint: true,
+      });
+
+      root.removeChild(cloned);
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
     }
-  }, [reportData, pages]);
+
+    const fileName = `Report-${reportData.patient.name.replace(/\s+/g, '_')}-${reportData.report.id}.pdf`;
+    const blob = pdf.output('blob');
+    return new File([blob], fileName, { type: 'application/pdf' });
+  } catch (err) {
+    console.error('PDF generation failed:', err);
+    return null;
+  } finally {
+    document.body.removeChild(iframe);
+    setIsGeneratingPdf(false);
+  }
+}, [reportData, pages, compactAdjustment, safeZones]);
+
+
 
 
   const handleDownloadPdf = useCallback(async () => {
@@ -1026,25 +1106,25 @@ export function ReportPreview() {
                           }}
                         />
                       )}
-
                       <div
-                        style={{
-                          position: 'absolute',
-                          top: safeZones.top,
-                          bottom: safeZones.bottom,
-                          left: safeZones.left,
-                          right: safeZones.right,
-                          zIndex: 1,
-                          overflow: 'hidden',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 3,
-                          fontSize: 11,
-                          lineHeight: 1.45,
-                          color: '#222',
-                          fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
-                        }}
-                      >
+  data-content-area="true"
+  style={{
+    position: 'absolute',
+    top: safeZones.top,
+    bottom: safeZones.bottom,
+    left: safeZones.left,
+    right: safeZones.right,
+    zIndex: 1,
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: compactAdjustment > 0 ? 1 : 3,
+    fontSize: compactAdjustment > 60 ? 10.5 : 11,
+    lineHeight: compactAdjustment > 60 ? 1.35 : 1.45,
+    color: '#222',
+    fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
+  }}
+>
                         {page.map((item, idx) => {
                           if (item.type === 'patient') {
                             return (
@@ -1086,8 +1166,12 @@ export function ReportPreview() {
                                 isFirstSection={false}
                                 colorTokens={C}
                               >
-                                <table style={{ width: '100%', borderCollapse: 'collapse', borderSpacing: '0 0', tableLayout: 'fixed', marginTop: '4px' }}>
-                                  <InvestigationTableHeader colorTokens={C} />
+                                <table style={{
+                                  width: '100%',
+                                  borderCollapse: 'collapse',
+                                  tableLayout: 'fixed',
+                                  marginTop: compactAdjustment > 0 ? '1px' : '2px'
+                                }}>                                  <InvestigationTableHeader colorTokens={C} />
                                   <tbody>
                                     {item.chunk.parameters.map((param, rowIdx) => {
                                       const status = (param.status || '').toLowerCase();
@@ -1101,7 +1185,13 @@ export function ReportPreview() {
 
                                       return (
                                         <React.Fragment key={`${param.name}-${rowIdx}`}>
-                                          {showGroupHeader && <SectionGroupHeader title={param.group || ''} colorTokens={C} />}
+                                          {showGroupHeader && (
+                                            <SectionGroupHeader
+                                              title={param.group || ''}
+                                              colorTokens={C}
+                                              compact={compactAdjustment > 0}
+                                            />
+                                          )}
                                           <InvestigationTableRow
                                             investigation={param.name}
                                             result={param.result}
@@ -1113,7 +1203,9 @@ export function ReportPreview() {
                                             rowIndex={rowIdx}
                                             indented={!!param.group}
                                             colorTokens={C}
+                                            compact={compactAdjustment > 0}
                                           />
+
                                         </React.Fragment>
                                       );
                                     })}

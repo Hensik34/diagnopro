@@ -140,6 +140,7 @@ export function InvestigationTableRow({
   rowIndex = 0,
   indented = false,
   colorTokens,
+  compact = false,
 }: {
   investigation: string;
   result: string;
@@ -151,15 +152,19 @@ export function InvestigationTableRow({
   rowIndex?: number;
   indented?: boolean;
   colorTokens: Record<string, string>;
+  compact?: boolean;
 }) {
-  const fontSize = '11px';
+  const fontSize = compact ? '10.5px' : '11px';
+  const vPad = compact ? '2px' : '3px';
 
   return (
     <tr>
       <td
         style={{
-          padding: '3px 0',
+          paddingTop: vPad,
+          paddingBottom: vPad,
           paddingLeft: indented ? '14px' : '0',
+          paddingRight: 0,
           fontWeight: isAbnormal ? 700 : 400,
           color: isAbnormal ? statusColor : '#222',
           fontSize,
@@ -175,7 +180,10 @@ export function InvestigationTableRow({
       </td>
       <td
         style={{
-          padding: '3px 0',
+          paddingTop: vPad,
+          paddingBottom: vPad,
+          paddingLeft: 0,
+          paddingRight: 0,
           textAlign: 'left',
           fontWeight: isAbnormal ? 800 : 400,
           color: isAbnormal ? statusColor : '#222',
@@ -197,11 +205,14 @@ export function InvestigationTableRow({
       </td>
       <td
         style={{
-          padding: '3px 0',
+          paddingTop: vPad,
+          paddingBottom: vPad,
+          paddingLeft: 0,
+          paddingRight: 0,
           textAlign: 'left',
           color: '#555',
           fontWeight: 400,
-          fontSize: '10.5px',
+          fontSize: compact ? '10px' : '10.5px',
           whiteSpace: 'nowrap',
         }}
       >
@@ -209,11 +220,14 @@ export function InvestigationTableRow({
       </td>
       <td
         style={{
-          padding: '3px 0',
+          paddingTop: vPad,
+          paddingBottom: vPad,
+          paddingLeft: 0,
+          paddingRight: 0,
           textAlign: 'left',
           color: '#555',
           fontWeight: 400,
-          fontSize: '10.5px',
+          fontSize: compact ? '10px' : '10.5px',
           whiteSpace: 'nowrap',
         }}
       >
@@ -221,13 +235,15 @@ export function InvestigationTableRow({
       </td>
       <td
         style={{
-          padding: '3px 0',
+          paddingTop: vPad,
+          paddingBottom: vPad,
           width: ReportLayoutConfig.tableColumns.extra,
         }}
       />
     </tr>
   );
 }
+
 
 /* ------------------------------------------------------------------ */
 /*  Section Group Header                                               */
@@ -236,16 +252,21 @@ export function InvestigationTableRow({
 export function SectionGroupHeader({
   title,
   colorTokens,
+  compact = false,
 }: {
   title: string;
   colorTokens: Record<string, string>;
+  compact?: boolean;
 }) {
   return (
     <tr>
       <td
         colSpan={5}
         style={{
-          padding: '5px 0 2px',
+          paddingTop: compact ? '2px' : '5px',
+          paddingBottom: compact ? '2px' : '2px',
+          paddingLeft: 0,
+          paddingRight: 0,
           fontWeight: 700,
           fontSize: '10.5px',
           color: '#222',
@@ -257,6 +278,7 @@ export function SectionGroupHeader({
     </tr>
   );
 }
+
 
 /* ------------------------------------------------------------------ */
 /*  Patient Box - Bordered box with 3-column layout (KEPT + IMPROVED) */

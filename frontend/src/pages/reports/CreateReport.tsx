@@ -648,7 +648,7 @@ export function CreateReport() {
                         setPatientName(val);
                         const lower = val.toLowerCase().trim();
                         const femaleRegex = /\b\w*(ben|kumari|baa|ba|devi|kaur|wati|bai)\b/i;
-                        const maleRegex = /\b\w*(bhai|kumar|singh|ram|ji|lal|prasad|rao|sing)\b/i;
+                        const maleRegex = /\b\w*(bhai|kumar|singh|ram|ji|lal|prasad|rao|sing|sinh)\b/i;
                         if (femaleRegex.test(lower)) {
                           setPatientGender('Female');
                         } else if (maleRegex.test(lower)) {
