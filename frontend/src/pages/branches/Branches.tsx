@@ -200,9 +200,6 @@ export function Branches() {
                     <td className="px-3 py-2">
                       <div className="flex flex-col">
                         <span className="text-xs text-foreground font-medium">{branch.name}</span>
-                        <span className="text-[10px] text-muted-foreground">
-                          ID: {branch.id.slice(0, 8)}...
-                        </span>
                       </div>
                     </td>
                     <td className="px-3 py-2">

@@ -6,7 +6,7 @@ const Branch = require("../models/Branch");
 const Doctor = require("../models/Doctor");
 const aiService = require("../services/ai.service");
 const workflowNotificationService = require("../services/workflowNotification.service");
-const { Patient, UserTest } = require("../models");
+const { Patient, UserTest, Test } = require("../models");
 
 // Use the new status from service
 const { REPORT_STATUS, STATUS_TRANSITIONS, isEditable } = reportService;
@@ -62,9 +62,14 @@ const injectLayoutSnapshots = async (test_data, branchId) => {
         where: { test_id: testId, branch_id: branchId },
         raw: true
       });
-      if (userTest && userTest.layout_config) {
-        layoutSnapshots[testId] = userTest.layout_config;
-      }
+      const test = await Test.findByPk(testId, { raw: true });
+      const clinicalSignificance = userTest?.clinical_significance || test?.clinical_significance || '';
+      
+      const config = userTest?.layout_config || { parameterSettings: [] };
+      layoutSnapshots[testId] = {
+        ...config,
+        clinical_significance: clinicalSignificance
+      };
     } catch (err) {
       console.error(`Failed to load layout config for test ${testId}:`, err);
     }

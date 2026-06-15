@@ -196,7 +196,11 @@ export function CreateReport() {
   const handleCreateNewPatient = () => {
     setIsNewPatient(true);
     setSelectedPatient(null);
-    setPatientName(patientSearch.trim());
+    const capitalizedName = patientSearch.trim()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+    setPatientName(capitalizedName);
     setPatientAge('');
     setPatientAgeUnit(DEFAULT_AGE_UNIT);
     setPatientGender('Male');
@@ -645,7 +649,11 @@ export function CreateReport() {
                       value={patientName}
                       onChange={(e) => {
                         const val = e.target.value;
-                        setPatientName(val);
+                        const capitalized = val
+                          .split(' ')
+                          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                          .join(' ');
+                        setPatientName(capitalized);
                         const lower = val.toLowerCase().trim();
                         const femaleRegex = /\b\w*(ben|kumari|baa|ba|devi|kaur|wati|bai)\b/i;
                         const maleRegex = /\b\w*(bhai|kumar|singh|ram|ji|lal|prasad|rao|sing|sinh)\b/i;

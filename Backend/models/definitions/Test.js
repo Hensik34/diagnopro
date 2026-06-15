@@ -14,6 +14,7 @@ const Test = sequelize.define("Test", {
   price: { type: DataTypes.DECIMAL(10, 2) },
   turnaround_time: { type: DataTypes.INTEGER },
   description: { type: DataTypes.TEXT },
+  clinical_significance: { type: DataTypes.TEXT },
 }, {
   tableName: "tests",
   indexes: [{ unique: true, fields: ["test_code"] }],

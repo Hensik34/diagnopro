@@ -251,7 +251,7 @@ export function ReportEntry() {
   const { can } = useAuthStore();
   const { tests, testFields, fetchTests, fetchTestFields, fetchTestFieldsMulti } = useTestStore();
   const canAutoApprove = can('report:approve');
-  const { loadFromReport, reset: resetBilling, saveBilling } = useBillingStore();
+  const { loadFromReport, reset: resetBilling, saveBilling, setBaseAmount } = useBillingStore();
   const reportId = rawReportId && rawReportId !== 'undefined' && rawReportId !== 'null' ? rawReportId : undefined;
 
   useEffect(() => {
@@ -386,6 +386,12 @@ export function ReportEntry() {
   const [doctorSearch, setDoctorSearch] = useState("");
   const [showDoctorDropdown, setShowDoctorDropdown] = useState(false);
   const doctorSearchRef = useRef<HTMLDivElement>(null);
+
+  // Test search and selection state
+  const [testSearch, setTestSearch] = useState("");
+  const [showTestDropdown, setShowTestDropdown] = useState(false);
+  const [activeTestIndex, setActiveTestIndex] = useState(0);
+  const testSearchRef = useRef<HTMLDivElement>(null);
 
   // Test parameters state
   const [testName, setTestName] = useState(initialData?.testName || "Complete Blood Count (CBC)");
@@ -576,11 +582,14 @@ export function ReportEntry() {
     fetchDoctors(currentBranchId ? { branch_id: currentBranchId } : undefined);
   }, [fetchDoctors, currentBranchId]);
 
-  // Click outside handler for doctor dropdown
+  // Click outside handler for dropdowns
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (doctorSearchRef.current && !doctorSearchRef.current.contains(event.target as Node)) {
         setShowDoctorDropdown(false);
+      }
+      if (testSearchRef.current && !testSearchRef.current.contains(event.target as Node)) {
+        setShowTestDropdown(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -608,6 +617,132 @@ export function ReportEntry() {
       setDoctorSearch("");
     }
     setShowDoctorDropdown(false);
+  };
+
+  // Filter tests based on search
+  const filteredTests = useMemo(() => {
+    const selectedTestIds = parsedTestData?.testIds || [];
+    return tests.filter(
+      (t) =>
+        !selectedTestIds.includes(t.id) &&
+        ((t.test_name || '').toLowerCase().includes(testSearch.toLowerCase()) ||
+          (t.category || '').toLowerCase().includes(testSearch.toLowerCase()))
+    ).slice(0, 15);
+  }, [tests, parsedTestData, testSearch]);
+
+  const handleAddTest = (test: Test) => {
+    if (!selectedReport) return;
+
+    const currentTestIds = parsedTestData?.testIds || [];
+    if (currentTestIds.includes(test.id)) return;
+
+    const newTestIds = [...currentTestIds, test.id];
+    
+    // Find all test names for these testIds
+    const matchedTests = newTestIds.map(id => tests.find(t => t.id === id)).filter(Boolean) as Test[];
+    const newReportType = matchedTests.map(t => t.test_name).join(', ');
+    const newAmount = matchedTests.reduce((sum, t) => sum + (Number(t.price) || 0), 0);
+
+    const updatedTestData = {
+      ...parsedTestData,
+      testIds: newTestIds,
+      testName: newReportType,
+      testType: matchedTests.map(t => t.category || 'General').join(', '),
+    };
+
+    const updatedReport = {
+      ...selectedReport,
+      report_type: newReportType,
+      report_amount: newAmount,
+      test_data: updatedTestData,
+    };
+
+    setSelectedReport(updatedReport);
+    setTestName(newReportType);
+    setReportAmount(newAmount);
+    setBaseAmount(newAmount);
+    setTestSearch("");
+    setShowTestDropdown(false);
+    setActiveTestIndex(0);
+    setReportStatus("draft");
+  };
+
+  const handleRemoveTest = (testId: string) => {
+    if (!selectedReport) return;
+
+    const currentTestIds = parsedTestData?.testIds || [];
+    const newTestIds = currentTestIds.filter(id => id !== testId);
+    if (newTestIds.length === 0) {
+      toast.error("A report must have at least one test.");
+      return;
+    }
+
+    const matchedTests = newTestIds.map(id => tests.find(t => t.id === id)).filter(Boolean) as Test[];
+    const newReportType = matchedTests.map(t => t.test_name).join(', ');
+    const newAmount = matchedTests.reduce((sum, t) => sum + (Number(t.price) || 0), 0);
+
+    const updatedTestData = {
+      ...parsedTestData,
+      testIds: newTestIds,
+      testName: newReportType,
+      testType: matchedTests.map(t => t.category || 'General').join(', '),
+    };
+
+    const updatedReport = {
+      ...selectedReport,
+      report_type: newReportType,
+      report_amount: newAmount,
+      test_data: updatedTestData,
+    };
+
+    setSelectedReport(updatedReport);
+    setTestName(newReportType);
+    setReportAmount(newAmount);
+    setBaseAmount(newAmount);
+    setReportStatus("draft");
+  };
+
+  const handleTestSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (!showTestDropdown) {
+        setShowTestDropdown(true);
+        return;
+      }
+      if (filteredTests.length > 0) {
+        setActiveTestIndex((currentIndex) => (currentIndex + 1) % filteredTests.length);
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (!showTestDropdown) {
+        setShowTestDropdown(true);
+        return;
+      }
+      if (filteredTests.length > 0) {
+        setActiveTestIndex((currentIndex) =>
+          currentIndex === 0 ? filteredTests.length - 1 : currentIndex - 1
+        );
+      }
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      if (filteredTests.length > 0) {
+        event.preventDefault();
+        const testToSelect = filteredTests[activeTestIndex] ?? filteredTests[0];
+        if (testToSelect) {
+          handleAddTest(testToSelect);
+        }
+      }
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      setShowTestDropdown(false);
+    }
   };
 
   const handleValueChange = (id: string, value: string) => {
@@ -978,6 +1113,8 @@ export function ReportEntry() {
       doctor_id: selectedDoctor?.id,
       is_self_report: isSelfReport,
       test_data: testData,
+      report_type: testName,
+      report_amount: reportAmount,
     });
 
     if (!result) {
@@ -1082,6 +1219,8 @@ export function ReportEntry() {
         doctor_id: selectedDoctor?.id,
         is_self_report: isSelfReport,
         test_data: testData,
+        report_type: testName,
+        report_amount: reportAmount,
       });
 
       const response = await reportApi.generateInterpretation(reportId);
@@ -1439,17 +1578,19 @@ export function ReportEntry() {
                     }}
                     onFocus={() => isEditable && setShowDoctorDropdown(true)}
                     disabled={!isEditable}
-                    className="w-full h-8 pl-7 pr-14 bg-background border border-border rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
+                    className="w-full h-8 pl-7 pr-8 bg-background border border-border rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
                     placeholder="Search doctor..."
                   />
-                  <button
-                    type="button"
-                    onClick={() => isEditable && handleSelectDoctor(null)}
-                    disabled={!isEditable}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-6 px-2 rounded border border-border bg-secondary text-[10px] text-muted-foreground hover:bg-accent disabled:opacity-60"
-                  >
-                    Self
-                  </button>
+                  {(!isSelfReport || doctorSearch !== "") && isEditable && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectDoctor(null)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors"
+                      title="Clear referring doctor (set to self)"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
 
                   {showDoctorDropdown && isEditable && (
                     <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded shadow-lg max-h-56 overflow-y-auto">
@@ -1502,6 +1643,80 @@ export function ReportEntry() {
 
         {/* Main Content */}
         <div className="space-y-2">
+          {/* Manage Tests Section */}
+          {isEditable && (
+            <div className="bg-card border border-border rounded px-2.5 py-2 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Selected Tests</label>
+                <span className="text-[10px] text-muted-foreground">Add or remove tests for this report</span>
+              </div>
+              
+              <div className="flex flex-wrap gap-1.5 items-center">
+                {/* Render selected tests as badges */}
+                {(parsedTestData?.testIds || []).map((tid: string) => {
+                  const masterTest = tests.find(t => t.id === tid);
+                  const testDisplayName = masterTest?.test_name || `Test ${tid.slice(0, 8)}`;
+                  const testDisplayCode = masterTest?.test_code || '';
+                  return (
+                    <div 
+                      key={tid} 
+                      className="inline-flex items-center gap-1.5 px-2 py-1 bg-primary/10 border border-primary/20 rounded text-xs text-foreground font-medium animate-fade-in"
+                    >
+                      <span>{testDisplayName}</span>
+                      {testDisplayCode && <span className="text-[10px] text-muted-foreground uppercase font-semibold">({testDisplayCode})</span>}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTest(tid)}
+                        className="w-4 h-4 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Remove test"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+
+                {/* Search input to add more tests */}
+                <div className="relative flex-1 min-w-[200px]" ref={testSearchRef}>
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={testSearch}
+                    onChange={(e) => {
+                      setTestSearch(e.target.value);
+                      setShowTestDropdown(true);
+                    }}
+                    onFocus={() => setShowTestDropdown(true)}
+                    onKeyDown={handleTestSearchKeyDown}
+                    className="w-full h-8 pl-8 pr-3 bg-background border border-border rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="Search and add more tests..."
+                  />
+
+                  {showTestDropdown && filteredTests.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded shadow-lg max-h-56 overflow-y-auto">
+                      {filteredTests.map((test, index) => (
+                        <button
+                          key={test.id}
+                          onClick={() => handleAddTest(test)}
+                          className={`w-full px-2.5 py-2 text-left hover:bg-accent transition-colors flex items-center justify-between ${
+                            index === activeTestIndex ? 'bg-accent/50' : ''
+                          }`}
+                        >
+                          <div>
+                            <div className="text-xs text-foreground font-medium">{test.test_name}</div>
+                            <div className="text-[10px] text-muted-foreground">{test.category || 'General'}</div>
+                          </div>
+                          <div className="text-xs text-primary font-semibold">
+                            ${test.price}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ─── TEST PARAMETERS: Full-width primary focus ─── */}
           <div className="space-y-2">
