@@ -70,6 +70,8 @@ exports.getTestLayout = async (req, res) => {
       testName,
       layoutConfig,
       fields,
+      hasBranchOverride: !!userTest,
+      clinical_significance: userTest?.clinical_significance || test?.clinical_significance || '',
       updated_at: userTest?.updated_at || test?.updated_at || new Date().toISOString()
     });
 
@@ -84,7 +86,7 @@ exports.updateTestLayout = async (req, res) => {
   try {
     const { testId } = req.params;
     const branchId = req.query?.branch_id || req.body?.branch_id || req.user?.branch_id;
-    const { layoutConfig, updated_at } = req.body;
+    const { layoutConfig, clinical_significance, updated_at } = req.body;
 
     if (!branchId) {
       return res.status(400).json({ error: "Branch ID not found in request" });
@@ -123,6 +125,7 @@ exports.updateTestLayout = async (req, res) => {
     let record;
     if (userTest) {
       userTest.layout_config = layoutConfig;
+      userTest.clinical_significance = clinical_significance;
       userTest.updated_at = new Date();
       await userTest.save();
       record = userTest;
@@ -143,6 +146,7 @@ exports.updateTestLayout = async (req, res) => {
         turnaround_time: test.turnaround_time,
         description: test.description,
         layout_config: layoutConfig,
+        clinical_significance: clinical_significance,
         updated_at: new Date()
       });
     }

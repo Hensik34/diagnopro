@@ -213,15 +213,18 @@ export const useTestStore = create<TestState>((set, get) => ({
       }
 
       const response = await testApi.resetToDefault(testId, branchId);
-      const defaultTest = response.data;
+      const defaultTest = response?.data;
       
       // Update local cache - replace with merged default data, remove override flag
+      // If defaultTest is null/undefined (already deleted), just clear the override flag
       set((state) => ({
         tests: state.tests.map((t) => 
-          t.id === testId ? { ...defaultTest, has_branch_override: false } : t
+          t.id === testId 
+            ? { ...(defaultTest || t), has_branch_override: false } 
+            : t
         ),
         selectedTest: state.selectedTest?.id === testId 
-          ? { ...defaultTest, has_branch_override: false }
+          ? { ...(defaultTest || state.selectedTest), has_branch_override: false }
           : state.selectedTest,
         isLoading: false,
       }));

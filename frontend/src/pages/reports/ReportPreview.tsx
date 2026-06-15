@@ -524,14 +524,34 @@ export function ReportPreview() {
 
   const remarkText = useMemo(() => {
     if (rawReport?.clinical_notes?.trim()) return rawReport.clinical_notes.trim();
-    if (abnormalParams.length === 0) return null;
-    return abnormalParams
-      .map(p => {
-        const dir = p.status === 'critical' ? 'critical' : p.status === 'high' ? 'elevated' : 'below normal range';
-        return `${p.name} is ${dir} (${p.result} ${p.unit}).`;
-      })
-      .join(' ') + ' Clinical correlation is advised.';
-  }, [rawReport, abnormalParams]);
+
+    // Fetch clinical significance from layout snapshots of the tests in this report
+    const testData =
+      typeof rawReport?.test_data === 'string' ? JSON.parse(rawReport.test_data) : rawReport?.test_data;
+
+    const layoutSnapshots = testData?.layout_snapshots || {};
+    const sigs: string[] = [];
+
+    let testIds: string[] = [];
+    if (Array.isArray(testData?.testIds)) {
+      testIds = testData.testIds;
+    } else if (Array.isArray(testData?.tests)) {
+      testIds = testData.tests.map((t: any) => t.id || t.testId).filter(Boolean);
+    }
+
+    for (const testId of testIds) {
+      const snapshot = layoutSnapshots[testId];
+      if (snapshot?.clinical_significance?.trim()) {
+        sigs.push(snapshot.clinical_significance.trim());
+      }
+    }
+
+    if (sigs.length > 0) {
+      return sigs.join('\n');
+    }
+
+    return null;
+  }, [rawReport]);
 
 
   const density = useMemo(() => {
@@ -1229,9 +1249,9 @@ const generatePDF = useCallback(async (): Promise<File | null> => {
                                     letterSpacing: '0.4px',
                                   }}
                                 >
-                                  Interpretation
+                                  Clinical Significance
                                 </p>
-                                <p style={{ margin: 0, fontSize: '10.5px', color: '#444', lineHeight: 1.5 }}>
+                                <p style={{ margin: 0, fontSize: '10.5px', color: '#444', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
                                   {item.text}
                                 </p>
                               </section>

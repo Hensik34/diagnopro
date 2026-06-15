@@ -19,6 +19,10 @@ import {
   IndianRupee,
   Trash2,
   Edit,
+  X,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { useReportStore, useReportSummary } from '../../stores/reportStore';
 import { useBranchStore } from '../../stores/branchStore';
@@ -36,6 +40,26 @@ export function Reports() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [branchFilter, setBranchFilter] = useState<string>('all');
+  const [sortField, setSortField] = useState<'sample_id_code' | 'patient_name' | 'test_type' | 'doctor' | 'status' | 'created_at' | 'technician' | 'payment_status'>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const renderSortIcon = (field: typeof sortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-muted-foreground/40 shrink-0" />;
+    }
+    return sortOrder === 'asc' 
+      ? <ArrowUp className="w-3 h-3 text-foreground shrink-0" />
+      : <ArrowDown className="w-3 h-3 text-foreground shrink-0" />;
+  };
 
   // Payment modal state
   const [invoiceReportId, setInvoiceReportId] = useState<string | null>(null);
@@ -69,27 +93,57 @@ export function Reports() {
    * Example: ["CBC", "KFT"] for multiple tests
    */
   const getTestCodes = (report: Report): string => {
-    // If report has test_data with tests array, use test names
-    if (report.test_data?.tests && report.test_data.tests.length > 0) {
-      return report.test_data.tests
-        .map(t => t.testName)
-        .join(', ')
-        .substring(0, 50); // Limit display length
-    }
+    const cleanCode = (code: string): string => {
+      return code.replace(/[-_]\d+$/, '').toUpperCase();
+    };
 
-    // If report has testIds, look them up in the tests list
-    if (report.test_data?.testIds && report.test_data.testIds.length > 0) {
-      const codes = report.test_data.testIds
-        .map(testId => {
-          const test = tests.find(t => t.id === testId);
-          return test?.test_code || test?.test_name?.substring(0, 4) || 'Test';
-        })
-        .filter(code => code.length > 0);
+    const extractParentheses = (name: string): string | null => {
+      const match = name.match(/\(([^)]+)\)/);
+      return match ? match[1].trim() : null;
+    };
+
+    const findCode = (testName?: string, testId?: string): string | null => {
+      if (testId) {
+        const test = tests.find(t => t.id === testId);
+        if (test?.test_code) return cleanCode(test.test_code);
+      }
+      if (testName) {
+        const test = tests.find(t => t.test_name.toLowerCase() === testName.toLowerCase());
+        if (test?.test_code) return cleanCode(test.test_code);
+        
+        const codeInParen = extractParentheses(testName);
+        if (codeInParen) return cleanCode(codeInParen);
+      }
+      return null;
+    };
+
+    // 1. Grouped structure
+    if (report.test_data?.tests && report.test_data.tests.length > 0) {
+      const codes = report.test_data.tests.map(t => {
+        return findCode(t.testName, t.testId) || t.testName;
+      });
       return codes.join(', ');
     }
 
-    // Fallback: use report_type (the old format)
-    return report.report_type || 'General Test';
+    // 2. Flat structure with testIds
+    if (report.test_data?.testIds && report.test_data.testIds.length > 0) {
+      const codes = report.test_data.testIds.map(testId => {
+        const test = tests.find(t => t.id === testId);
+        return test?.test_code ? cleanCode(test.test_code) : (extractParentheses(test?.test_name || '') || test?.test_name || 'Test');
+      });
+      return codes.join(', ');
+    }
+
+    // 3. Fallback: use report_type (comma-separated string or old format)
+    if (report.report_type) {
+      const parts = report.report_type.split(',').map(p => p.trim());
+      const codes = parts.map(part => {
+        return findCode(part) || part;
+      });
+      return codes.join(', ');
+    }
+
+    return 'General Test';
   };
 
   // Keyboard shortcut: N or A to create new report
@@ -125,7 +179,12 @@ export function Reports() {
     const filters = branchFilter !== 'all' ? { branch_id: branchFilter } : {};
     fetchReports(filters);
     fetchSummary(branchFilter !== 'all' ? branchFilter : undefined);
-  }, [branchFilter, fetchReports, fetchSummary]);
+
+    const targetBranchId = branchFilter !== 'all' ? branchFilter : currentBranchId;
+    if (targetBranchId) {
+      fetchTests(targetBranchId);
+    }
+  }, [branchFilter, currentBranchId, fetchReports, fetchSummary, fetchTests]);
 
   /**
    * Get status configuration for display
@@ -207,6 +266,20 @@ export function Reports() {
   };
 
   /**
+   * Get doctor display name
+   */
+  const getDoctorName = (report: Report) => {
+    if (report.is_self_report) return 'Self';
+    if (report.doctor_name) {
+      return `${report.doctor_title || 'Dr'}. ${report.doctor_name}`;
+    }
+    if (report.doctor_firstname || report.doctor_lastname) {
+      return `${report.doctor_title || 'Dr'}. ${report.doctor_firstname || ''} ${report.doctor_lastname || ''}`.trim();
+    }
+    return 'Self';
+  };
+
+  /**
    * Get branch display name
    */
   const getBranchName = (report: Report) => {
@@ -223,14 +296,18 @@ export function Reports() {
   /**
    * Filter reports based on search and filters
    */
-  const filteredReports = useMemo(() => {
-    return reports.filter((report) => {
+  /**
+   * Filter and sort reports based on search, filters, and selected column
+   */
+  const sortedAndFilteredReports = useMemo(() => {
+    const filtered = reports.filter((report) => {
       const patientName = getPatientName(report).toLowerCase();
       const searchLower = searchQuery.toLowerCase();
 
       const matchesSearch =
         patientName.includes(searchLower) ||
         (report.patient_id || '').toLowerCase().includes(searchLower) ||
+        (report.sample_id_code || '').toLowerCase().includes(searchLower) ||
         report.id.toLowerCase().includes(searchLower) ||
         (report.report_type || '').toLowerCase().includes(searchLower);
 
@@ -239,7 +316,48 @@ export function Reports() {
 
       return matchesSearch && matchesStatus;
     });
-  }, [reports, searchQuery, statusFilter]);
+
+    return [...filtered].sort((a, b) => {
+      let aVal: any = '';
+      let bVal: any = '';
+
+      if (sortField === 'sample_id_code') {
+        aVal = a.sample_id_code || '';
+        bVal = b.sample_id_code || '';
+      } else if (sortField === 'patient_name') {
+        aVal = getPatientName(a);
+        bVal = getPatientName(b);
+      } else if (sortField === 'test_type') {
+        aVal = getTestCodes(a);
+        bVal = getTestCodes(b);
+      } else if (sortField === 'doctor') {
+        aVal = getDoctorName(a);
+        bVal = getDoctorName(b);
+      } else if (sortField === 'status') {
+        aVal = a.status || '';
+        bVal = b.status || '';
+      } else if (sortField === 'created_at') {
+        aVal = new Date(a.created_at).getTime();
+        bVal = new Date(b.created_at).getTime();
+      } else if (sortField === 'technician') {
+        aVal = getTechnicianName(a);
+        bVal = getTechnicianName(b);
+      } else if (sortField === 'payment_status') {
+        aVal = a.payment_status || 'pending';
+        bVal = b.payment_status || 'pending';
+      }
+
+      if (typeof aVal === 'string') {
+        return sortOrder === 'asc' 
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      } else {
+        return sortOrder === 'asc'
+          ? (aVal > bVal ? 1 : aVal < bVal ? -1 : 0)
+          : (bVal > aVal ? 1 : bVal < aVal ? -1 : 0);
+      }
+    });
+  }, [reports, searchQuery, statusFilter, sortField, sortOrder, tests]);
 
   const refreshReportsData = useCallback(async () => {
     const filters = branchFilter !== 'all' ? { branch_id: branchFilter } : {};
@@ -340,7 +458,7 @@ export function Reports() {
             onClick={() => {
               refreshReportsData();
             }}
-            className="h-8 px-2 md:px-3 flex items-center gap-1.5 rounded text-xs bg-secondary border border-border hover:bg-accent transition-colors flex-1 sm:flex-none justify-center sm:justify-start"
+            className="h-8 px-2 md:px-3 flex items-center gap-1.5 rounded text-xs bg-secondary border border-border hover:bg-accent transition-colors flex-1 sm:flex-none justify-center sm:justify-start cursor-pointer"
             disabled={isLoading}
           >
             <RefreshCw className={`w-3.5 h-3.5 flex-shrink-0 ${isLoading ? 'animate-spin' : ''}`} />
@@ -403,16 +521,25 @@ export function Reports() {
             <input
               type="text"
               placeholder="Search patient, ID..."
-              className="w-full h-8 pl-8 pr-3 bg-secondary border border-border rounded text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full h-8 pl-8 pr-8 bg-secondary border border-border rounded text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                title="Clear Search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           {/* Status Filter */}
           <div className="relative w-full sm:w-auto">
             <select
-              className="w-full h-8 pl-2.5 pr-7 bg-secondary border border-border rounded text-xs appearance-none focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full h-8 pl-2.5 pr-7 bg-secondary border border-border rounded text-xs appearance-none focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -452,26 +579,69 @@ export function Reports() {
           <table className="w-full">
             <thead className="bg-secondary/30 sticky top-0">
               <tr className="border-b border-border">
-                <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">
-                  Sample ID
+                <th 
+                  onClick={() => handleSort('sample_id_code')}
+                  className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider cursor-pointer hover:bg-secondary/50 transition-colors"
+                >
+                  <div className="flex items-center gap-1">
+                    Sample ID {renderSortIcon('sample_id_code')}
+                  </div>
                 </th>
-                <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">
-                  Patient
+                <th 
+                  onClick={() => handleSort('patient_name')}
+                  className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider cursor-pointer hover:bg-secondary/50 transition-colors"
+                >
+                  <div className="flex items-center gap-1">
+                    Patient {renderSortIcon('patient_name')}
+                  </div>
                 </th>
-                <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">
-                  Test Type
+                <th 
+                  onClick={() => handleSort('doctor')}
+                  className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider cursor-pointer hover:bg-secondary/50 transition-colors"
+                >
+                  <div className="flex items-center gap-1">
+                    Doctor {renderSortIcon('doctor')}
+                  </div>
                 </th>
-                <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">
-                  Status
+                <th 
+                  onClick={() => handleSort('test_type')}
+                  className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider cursor-pointer hover:bg-secondary/50 transition-colors"
+                >
+                  <div className="flex items-center gap-1">
+                    Test Type {renderSortIcon('test_type')}
+                  </div>
                 </th>
-                <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">
-                  Created
+                <th 
+                  onClick={() => handleSort('status')}
+                  className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider cursor-pointer hover:bg-secondary/50 transition-colors"
+                >
+                  <div className="flex items-center gap-1">
+                    Status {renderSortIcon('status')}
+                  </div>
                 </th>
-                <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">
-                  Technician
+                <th 
+                  onClick={() => handleSort('created_at')}
+                  className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider cursor-pointer hover:bg-secondary/50 transition-colors"
+                >
+                  <div className="flex items-center gap-1">
+                    Created {renderSortIcon('created_at')}
+                  </div>
                 </th>
-                <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">
-                  Payment
+                <th 
+                  onClick={() => handleSort('technician')}
+                  className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider cursor-pointer hover:bg-secondary/50 transition-colors"
+                >
+                  <div className="flex items-center gap-1">
+                    Technician {renderSortIcon('technician')}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('payment_status')}
+                  className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider cursor-pointer hover:bg-secondary/50 transition-colors"
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Payment {renderSortIcon('payment_status')}
+                  </div>
                 </th>
                 {hasAnyAction && (
                   <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">
@@ -481,8 +651,8 @@ export function Reports() {
               </tr>
             </thead>
             <tbody>
-              {filteredReports.length > 0 ? (
-                filteredReports.map((report) => {
+              {sortedAndFilteredReports.length > 0 ? (
+                sortedAndFilteredReports.map((report) => {
                   const statusConfig = getStatusConfig(report.status);
                   const StatusIcon = statusConfig.icon;
 
@@ -493,7 +663,7 @@ export function Reports() {
                     >
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-foreground font-medium font-mono">
+                          <span className="text-sm text-foreground font-medium font-mono">
                             {report.sample_id_code}
                           </span>
                           {report.rejection_reason && (
@@ -507,12 +677,14 @@ export function Reports() {
                         </div>
                       </td>
                       <td className="px-3 py-2.5">
-                        <div className="text-xs text-foreground">
+                        <div className="text-sm text-foreground">
                           {getPatientName(report)}
                         </div>
-                        <div className="text-[10px] text-muted-foreground font-mono">
-                          {getPatientIdPreview(report)}
-                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-xs text-foreground font-medium">
+                          {getDoctorName(report)}
+                        </span>
                       </td>
                       <td className="px-3 py-2.5">
                         <span className="text-xs text-foreground">
@@ -590,7 +762,7 @@ export function Reports() {
                             )}
 
                             {/* Submit for Review - for draft reports with test data */}
-                            {report.status === 'draft' && report.test_data && canEdit && (
+                            {/* {report.status === 'draft' && report.test_data && canEdit && (
                               <button
                                 onClick={() => handleSubmitForReview(report)}
                                 className="h-7 w-7 flex items-center justify-center bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity"
@@ -603,7 +775,7 @@ export function Reports() {
                                   <Send className="w-3.5 h-3.5" />
                                 )}
                               </button>
-                            )}
+                            )} */}
 
                             {/* View - for under_review or approved reports */}
                             {(report.status === 'under_review' || report.status === 'approved') && (
@@ -630,7 +802,7 @@ export function Reports() {
                             {/* Payment Details (popup with print & send) */}
                             <button
                               onClick={() => setInvoiceReportId(report.id)}
-                              className="h-7 w-7 flex items-center justify-center bg-amber-50 border border-amber-200 text-amber-700 rounded hover:bg-amber-100 transition-colors dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400"
+                              className="h-7 w-7 flex items-center justify-center bg-amber-50 border border-amber-200 text-amber-700 rounded hover:bg-amber-100 cursor-pointer transition-colors dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400"
                               title="Payment Details"
                             >
                               <IndianRupee className="w-3.5 h-3.5" />
@@ -640,7 +812,7 @@ export function Reports() {
                             {canDelete && (
                               <button
                                 onClick={() => handleDeleteReport(report)}
-                                className="h-7 w-7 flex items-center justify-center bg-red-50 border border-red-200 text-red-700 rounded hover:bg-red-100 transition-colors dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
+                                className="h-7 w-7 flex items-center justify-center bg-red-50 border border-red-200 text-red-700 rounded hover:bg-red-100 cursor-pointer transition-colors dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
                                 title="Delete Report"
                                 disabled={isActionLoading && actionId === report.id}
                               >

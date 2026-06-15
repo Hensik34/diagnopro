@@ -18,5 +18,6 @@ export interface TestLayoutResponse {
   testName: string;
   layoutConfig: LayoutConfig | null;
   fields: TestField[];
+  clinical_significance?: string;
   updated_at: string;
 }

@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS tests (
     price DECIMAL(10, 2),
     turnaround_time INT, -- in hours
     description TEXT,
+    clinical_significance TEXT DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(test_code)
@@ -511,6 +512,7 @@ ALTER TABLE branch_tests ADD COLUMN IF NOT EXISTS sample_type VARCHAR(100);
 ALTER TABLE branch_tests ADD COLUMN IF NOT EXISTS price DECIMAL(10,2);
 ALTER TABLE branch_tests ADD COLUMN IF NOT EXISTS turnaround_time INT;
 ALTER TABLE branch_tests ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE branch_tests ADD COLUMN IF NOT EXISTS clinical_significance TEXT DEFAULT NULL;
 ALTER TABLE branch_tests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE branch_tests ADD COLUMN IF NOT EXISTS layout_config JSONB DEFAULT NULL;
 

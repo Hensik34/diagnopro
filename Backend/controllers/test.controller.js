@@ -89,8 +89,8 @@ exports.createTest = async (req, res) => {
 exports.updateTest = async (req, res) => {
   try {
     const { id } = req.params;
-    const { test_name, category, sample_type, price, turnaround_time, description } = req.body;
-    const branchId = req.body.branch_id || req.query.branch_id || null;
+    const { test_name, category, sample_type, price, turnaround_time, description } = req.body || {};
+    const branchId = req.body?.branch_id || req.query?.branch_id || null;
     const userRole = req.user?.role; // Get user's role
 
     const test = await Test.updateTest(id, {
@@ -246,8 +246,8 @@ exports.getMultiTestFields = async (req, res) => {
 exports.setTestFields = async (req, res) => {
   try {
     const { testId } = req.params;
-    const { fields } = req.body;
-    const branchId = req.body.branch_id || req.query.branch_id || null;
+    const { fields } = req.body || {};
+    const branchId = req.body?.branch_id || req.query?.branch_id || null;
     const userRole = req.user?.role; // Get user's role
 
     if (!Array.isArray(fields)) {
@@ -287,7 +287,7 @@ exports.deleteTestField = async (req, res) => {
 exports.resetTestOverride = async (req, res) => {
   try {
     const { id } = req.params;
-    const branchId = req.body.branch_id || req.query.branch_id || null;
+    const branchId = req.query?.branch_id || req.body?.branch_id || null;
 
     if (!branchId) {
       return res.status(400).json({ error: "branch_id is required" });

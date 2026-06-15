@@ -8,6 +8,6 @@ export const layoutApi = {
   getTestLayout: (testId: string, branchId?: string) =>
     apiClient.get(`/test-layouts/${testId}${branchId ? `?branch_id=${branchId}` : ''}`),
 
-  updateTestLayout: (testId: string, data: { layoutConfig: LayoutConfig; updated_at: string }, branchId?: string) =>
+  updateTestLayout: (testId: string, data: { layoutConfig: LayoutConfig; clinical_significance?: string; updated_at: string }, branchId?: string) =>
     apiClient.put(`/test-layouts/${testId}${branchId ? `?branch_id=${branchId}` : ''}`, data),
 };

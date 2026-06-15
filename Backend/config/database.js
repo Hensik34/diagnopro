@@ -1,4 +1,10 @@
 const { Sequelize } = require("sequelize");
+const pg = require("pg");
+
+// Parse TIMESTAMP WITHOUT TIME ZONE (OID 1114) as UTC
+pg.types.setTypeParser(1114, function(stringValue) {
+  return new Date(stringValue + "+0000");
+});
 
 const sequelize = new Sequelize(
   process.env.DB_NAME,

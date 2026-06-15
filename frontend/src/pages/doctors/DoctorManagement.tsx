@@ -210,9 +210,6 @@ export function DoctorManagement() {
                             </span>
                           )}
                         </div>
-                        <span className="text-[10px] text-muted-foreground">
-                          {doctor.license_number || `ID: ${doctor.id.slice(0, 8)}...`}
-                        </span>
                       </div>
                     </td>
                     <td className="px-3 py-2">
@@ -245,7 +242,7 @@ export function DoctorManagement() {
                       <div className="flex items-center justify-center gap-1">
                         <button 
                           onClick={() => handleView(doctor.id)}
-                          className="h-7 px-2 flex items-center gap-1 bg-secondary border border-border rounded hover:bg-accent transition-colors text-xs"
+                          className="h-7 px-2 flex items-center gap-1 bg-secondary border border-border rounded hover:bg-accent transition-colors text-xs hover:cursor-pointer"
                           title="View Details"
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -253,7 +250,7 @@ export function DoctorManagement() {
                         </button>
                         <button 
                           onClick={() => handleEdit(doctor)}
-                          className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
+                          className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground hover:cursor-pointer"
                           title="Edit"
                         >
                           <Edit className="w-3.5 h-3.5" />
@@ -261,7 +258,7 @@ export function DoctorManagement() {
                         <button 
                           onClick={() => handleDelete(doctor.id)}
                           disabled={isDeleting === doctor.id}
-                          className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-destructive disabled:opacity-50"
+                          className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-destructive disabled:opacity-50 hover:cursor-pointer"
                           title="Delete"
                         >
                           {isDeleting === doctor.id ? (

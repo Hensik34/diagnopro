@@ -855,6 +855,17 @@ VALUES
   (gen_random_uuid(), 'Kidney Advanced', 'PKG-KIDNEY-ADV-01', 'Renal', 'KFT, Urine, Culture, Protein', 2200, true)
 ON CONFLICT (package_code) DO NOTHING;
 
+-- Set default clinical significance values
+UPDATE tests SET clinical_significance = 'Diagnostic evaluation and clinical monitoring.' WHERE clinical_significance IS NULL;
+UPDATE tests SET clinical_significance = 'Evaluates overall health and detects a wide range of disorders, including anemia, infection, and leukemia.' WHERE test_code = 'CBC-01';
+UPDATE tests SET clinical_significance = 'Measures inflammatory response in the body.' WHERE test_code = 'ESR-01';
+UPDATE tests SET clinical_significance = 'Determines ABO blood group and Rh factor for transfusion compatibility.' WHERE test_code = 'BG-01';
+UPDATE tests SET clinical_significance = 'Assesses cardiovascular risk by measuring cholesterol and triglyceride levels.' WHERE test_code = 'LIPID-01';
+UPDATE tests SET clinical_significance = 'Evaluates liver health, enzymes, proteins, and bilirubin levels.' WHERE test_code = 'LFT-01';
+UPDATE tests SET clinical_significance = 'Assesses renal function, waste filtration, and electrolyte balance.' WHERE test_code = 'KFT-01';
+UPDATE tests SET clinical_significance = 'Screens for thyroid gland disorders and monitors thyroid therapy.' WHERE test_code = 'TSH-01';
+UPDATE tests SET clinical_significance = 'Screens for urinary tract infections, kidney disease, and metabolic disorders.' WHERE test_code = 'URINE-01';
+
 SELECT COUNT(*) AS total_tests FROM tests;
 SELECT COUNT(*) AS total_test_fields FROM test_fields;
 SELECT COUNT(*) AS total_packages FROM test_packages;

@@ -184,26 +184,67 @@ export function TestManagement() {
   const canEditTest = can(PERMISSIONS.TEST_UPDATE);
   const canDeleteTest = can(PERMISSIONS.TEST_DELETE);
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState(() => {
+    return sessionStorage.getItem('test_mgmt_search') || '';
+  });
+  const [categoryFilter, setCategoryFilter] = useState(() => {
+    return sessionStorage.getItem('test_mgmt_category') || 'all';
+  });
+  const [sortBy, setSortBy] = useState(() => {
+    return sessionStorage.getItem('test_mgmt_sort') || 'name-asc';
+  });
   const [showTestModal, setShowTestModal] = useState(false);
   const [selectedTest, setSelectedTest] = useState<Test | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState<string | null>(null);
+
+  // Sync state to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('test_mgmt_search', searchTerm);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    sessionStorage.setItem('test_mgmt_category', categoryFilter);
+  }, [categoryFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('test_mgmt_sort', sortBy);
+  }, [sortBy]);
 
   // Fetch tests on mount or branch change
   useEffect(() => {
     fetchTests(currentBranchId ?? undefined);
   }, [fetchTests, currentBranchId]);
 
-  const filteredTests = tests.filter(test => {
-    const matchesSearch = 
-      test.test_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      test.test_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      test.id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = categoryFilter === 'all' || test.category === categoryFilter;
-    return matchesSearch && matchesCategory;
-  });
+  const filteredTests = [...tests]
+    .filter(test => {
+      const matchesSearch = 
+        test.test_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        test.test_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        test.id.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = categoryFilter === 'all' || test.category === categoryFilter;
+      return matchesSearch && matchesCategory;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name-asc') {
+        return a.test_name.localeCompare(b.test_name);
+      }
+      if (sortBy === 'name-desc') {
+        return b.test_name.localeCompare(a.test_name);
+      }
+      if (sortBy === 'price-asc') {
+        return (a.price || 0) - (b.price || 0);
+      }
+      if (sortBy === 'price-desc') {
+        return (b.price || 0) - (a.price || 0);
+      }
+      if (sortBy === 'category-asc') {
+        const catA = a.category || '';
+        const catB = b.category || '';
+        return catA.localeCompare(catB);
+      }
+      return 0;
+    });
 
   const getCategoryBadge = (category?: string) => {
     const styles: Record<string, { bg: string; text: string }> = {
@@ -258,7 +299,13 @@ export function TestManagement() {
     
     setIsResetting(testId);
     try {
-      await resetTestToDefault(testId);
+      const success = await resetTestToDefault(testId);
+      // Always refresh the test list to get accurate has_branch_override flags
+      await fetchTests(currentBranchId ?? undefined);
+    } catch (err) {
+      console.error('Reset failed:', err);
+      // Refresh anyway to sync the UI state
+      await fetchTests(currentBranchId ?? undefined);
     } finally {
       setIsResetting(null);
     }
@@ -327,30 +374,60 @@ export function TestManagement() {
       </div>
 
       {/* Filters Toolbar */}
-      <div className="flex items-center gap-3 bg-card border border-border rounded p-2.5">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded p-2.5">
+        <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
           <input 
             type="text"
             placeholder="Search by test name or code..."
-            className="w-full h-8 pl-8 pr-3 bg-secondary border-0 rounded text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full h-8 pl-8 pr-8 bg-secondary border-0 rounded text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-border text-muted-foreground transition-colors cursor-pointer"
+              title="Clear search"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
         
-        <div className="h-6 w-px bg-border"></div>
+        <div className="hidden sm:block h-6 w-px bg-border"></div>
 
-        <select 
-          className="h-8 text-xs bg-secondary border-0 rounded px-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-        >
-          <option value="all">All Categories</option>
-          {categories.map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Category</label>
+          <select 
+            className="h-8 text-xs bg-secondary border-0 rounded px-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer font-medium"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+          >
+            <option value="all">All Categories</option>
+            {categories.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="hidden sm:block h-6 w-px bg-border"></div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Sort By</label>
+          <select 
+            className="h-8 text-xs bg-secondary border-0 rounded px-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer font-medium"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          >
+            <option value="name-asc">Alphabetical (A to Z)</option>
+            <option value="name-desc">Alphabetical (Z to A)</option>
+            <option value="price-asc">Price (Low to High)</option>
+            <option value="price-desc">Price (High to Low)</option>
+            <option value="category-asc">Category</option>
+          </select>
+        </div>
       </div>
 
       {/* Error State */}
