@@ -613,30 +613,30 @@ WITH template_fields (
   ('CYTOLOGY_BETHESDA', 'Method', NULL, NULL, NULL, 'text', NULL, 13, 'input', NULL, NULL, 'Cytology | Method', NULL, NULL, NULL, true),
   ('CYTOLOGY_BETHESDA', 'Sign-out Pathologist', NULL, NULL, NULL, 'text', NULL, 14, 'input', NULL, NULL, 'Cytology | Authorization', NULL, NULL, NULL, true),
 
-  ('HORMONE_QUANT_INTERP', 'Result', NULL, NULL, NULL, 'number', NULL, 1, 'input', NULL, NULL, 'Hormone | Quantitative', NULL, NULL, NULL, true),
-  ('HORMONE_QUANT_INTERP', 'Unit', NULL, NULL, NULL, 'text', NULL, 2, 'input', NULL, NULL, 'Hormone | Quantitative', NULL, NULL, NULL, true),
+  ('HORMONE_QUANT_INTERP', 'Result', NULL, NULL, NULL, 'number', NULL, 1, 'input', NULL, NULL, NULL, NULL, NULL, NULL, true),
+  ('HORMONE_QUANT_INTERP', 'Unit', NULL, NULL, NULL, 'text', NULL, 2, 'input', NULL, NULL, NULL, NULL, NULL, NULL, true),
   ('HORMONE_QUANT_INTERP', 'Assay Method', NULL, NULL, NULL, 'text', NULL, 3, 'input', NULL, NULL, 'Hormone | Method', NULL, NULL, NULL, true),
   ('HORMONE_QUANT_INTERP', 'Biological Reference Interval', NULL, NULL, NULL, 'textarea', NULL, 4, 'input', NULL, NULL, 'Hormone | Reference', NULL, NULL, NULL, true),
   ('HORMONE_QUANT_INTERP', 'Clinical Interpretation', NULL, NULL, NULL, 'textarea', NULL, 5, 'input', NULL, NULL, 'Hormone | Interpretation', NULL, NULL, '{"rule":"Interpret by age, sex, menstrual phase, pregnancy and circadian rhythm"}'::jsonb, true),
   ('HORMONE_QUANT_INTERP', 'Recommendation', NULL, NULL, NULL, 'textarea', NULL, 6, 'input', NULL, NULL, 'Hormone | Interpretation', NULL, NULL, NULL, false),
 
-  ('TUMOR_MARKER_QUANT_INTERP', 'Result', NULL, NULL, NULL, 'number', NULL, 1, 'input', NULL, NULL, 'Tumor Marker | Quantitative', NULL, NULL, NULL, true),
-  ('TUMOR_MARKER_QUANT_INTERP', 'Unit', NULL, NULL, NULL, 'text', NULL, 2, 'input', NULL, NULL, 'Tumor Marker | Quantitative', NULL, NULL, NULL, true),
+  ('TUMOR_MARKER_QUANT_INTERP', 'Result', NULL, NULL, NULL, 'number', NULL, 1, 'input', NULL, NULL, NULL, NULL, NULL, NULL, true),
+  ('TUMOR_MARKER_QUANT_INTERP', 'Unit', NULL, NULL, NULL, 'text', NULL, 2, 'input', NULL, NULL, NULL, NULL, NULL, NULL, true),
   ('TUMOR_MARKER_QUANT_INTERP', 'Method', NULL, NULL, NULL, 'text', NULL, 3, 'input', NULL, NULL, 'Tumor Marker | Method', NULL, NULL, NULL, true),
   ('TUMOR_MARKER_QUANT_INTERP', 'Decision Threshold', NULL, NULL, NULL, 'textarea', NULL, 4, 'input', NULL, NULL, 'Tumor Marker | Reference', NULL, NULL, NULL, true),
   ('TUMOR_MARKER_QUANT_INTERP', 'Interpretation', NULL, NULL, NULL, 'textarea', NULL, 5, 'input', NULL, NULL, 'Tumor Marker | Interpretation', NULL, NULL, '{"rule":"Use for trend monitoring and clinical-radiology correlation; not stand-alone diagnosis"}'::jsonb, true),
   ('TUMOR_MARKER_QUANT_INTERP', 'Recommendation', NULL, NULL, NULL, 'textarea', NULL, 6, 'input', NULL, NULL, 'Tumor Marker | Interpretation', NULL, NULL, NULL, false),
 
   ('SEROLOGY_METHOD_RESULT_INTERP', 'Method', NULL, NULL, NULL, 'text', NULL, 1, 'input', NULL, NULL, 'Serology | Method', NULL, NULL, NULL, true),
-  ('SEROLOGY_METHOD_RESULT_INTERP', 'Result', NULL, NULL, NULL, 'text', NULL, 2, 'input', NULL, NULL, 'Serology | Result', NULL, NULL, NULL, true),
-  ('SEROLOGY_METHOD_RESULT_INTERP', 'Result Index/Cutoff', NULL, NULL, NULL, 'text', NULL, 3, 'input', NULL, NULL, 'Serology | Result', NULL, NULL, NULL, false),
+  ('SEROLOGY_METHOD_RESULT_INTERP', 'Result', NULL, NULL, NULL, 'text', NULL, 2, 'input', NULL, NULL, NULL, NULL, NULL, NULL, true),
+  ('SEROLOGY_METHOD_RESULT_INTERP', 'Result Index/Cutoff', NULL, NULL, NULL, 'text', NULL, 3, 'input', NULL, NULL, NULL, NULL, NULL, NULL, false),
   ('SEROLOGY_METHOD_RESULT_INTERP', 'Interpretation', NULL, NULL, NULL, 'textarea', NULL, 4, 'input', NULL, NULL, 'Serology | Interpretation', NULL, NULL, '{"rule":"Interpret considering vaccination history, acute/convalescent windows and cross-reactivity"}'::jsonb, true),
   ('SEROLOGY_METHOD_RESULT_INTERP', 'Clinical Correlation', NULL, NULL, NULL, 'textarea', NULL, 5, 'input', NULL, NULL, 'Serology | Interpretation', NULL, NULL, NULL, false),
   ('SEROLOGY_METHOD_RESULT_INTERP', 'Repeat/Confirmatory Advice', NULL, NULL, NULL, 'textarea', NULL, 6, 'input', NULL, NULL, 'Serology | Interpretation', NULL, NULL, NULL, false),
   ('SEROLOGY_METHOD_RESULT_INTERP', 'Reviewed By', NULL, NULL, NULL, 'text', NULL, 7, 'input', NULL, NULL, 'Serology | Authorization', NULL, NULL, NULL, true),
 
-  ('BASIC_QUANT_PANEL', 'Result', NULL, NULL, NULL, 'number', NULL, 1, 'input', NULL, NULL, 'General | Quantitative', NULL, NULL, NULL, true),
-  ('BASIC_QUANT_PANEL', 'Unit', NULL, NULL, NULL, 'text', NULL, 2, 'input', NULL, NULL, 'General | Quantitative', NULL, NULL, NULL, true),
+  ('BASIC_QUANT_PANEL', 'Result', NULL, NULL, NULL, 'number', NULL, 1, 'input', NULL, NULL, NULL, NULL, NULL, NULL, true),
+  ('BASIC_QUANT_PANEL', 'Unit', NULL, NULL, NULL, 'text', NULL, 2, 'input', NULL, NULL, NULL, NULL, NULL, NULL, true),
   ('BASIC_QUANT_PANEL', 'Reference Interval', NULL, NULL, NULL, 'text', NULL, 3, 'input', NULL, NULL, 'General | Reference', NULL, NULL, NULL, true),
   ('BASIC_QUANT_PANEL', 'Critical Value Policy', NULL, NULL, NULL, 'text', NULL, 4, 'input', NULL, NULL, 'General | Critical', NULL, NULL, NULL, true),
   ('BASIC_QUANT_PANEL', 'Interpretation', NULL, NULL, NULL, 'textarea', NULL, 5, 'input', NULL, NULL, 'General | Interpretation', NULL, NULL, NULL, true),
@@ -679,8 +679,8 @@ WITH template_fields (
   ('BLOOD_GROUP_PANEL', 'Rh(D)', NULL, NULL, NULL, 'select', 'Positive,Negative,Weak D', 2, 'input', NULL, NULL, 'Blood Group | Typing', NULL, NULL, NULL, true),
   ('BLOOD_GROUP_PANEL', 'Result Remark', NULL, NULL, NULL, 'text', NULL, 3, 'input', NULL, NULL, 'Blood Group | Typing', NULL, NULL, NULL, false),
 
-  ('SINGLE_ANALYTE_NUMERIC', 'Result', NULL, NULL, NULL, 'number', NULL, 1, 'input', NULL, NULL, 'Result', NULL, NULL, NULL, true),
-  ('SINGLE_ANALYTE_QUALITATIVE', 'Result', NULL, NULL, NULL, 'select', 'Negative,Positive,Reactive,Non Reactive,Detected,Not Detected,Normal,Abnormal,Trace', 1, 'input', NULL, NULL, 'Result', NULL, NULL, NULL, true)
+  ('SINGLE_ANALYTE_NUMERIC', 'Result', NULL, NULL, NULL, 'number', NULL, 1, 'input', NULL, NULL, NULL, NULL, NULL, NULL, true),
+  ('SINGLE_ANALYTE_QUALITATIVE', 'Result', NULL, NULL, NULL, 'select', 'Negative,Positive,Reactive,Non Reactive,Detected,Not Detected,Normal,Abnormal,Trace', 1, 'input', NULL, NULL, NULL, NULL, NULL, NULL, true)
 ),
 test_panel_map AS (
   SELECT
