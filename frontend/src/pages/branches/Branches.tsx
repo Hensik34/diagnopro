@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { 
   Plus, 
   Search, 
@@ -12,21 +13,28 @@ import {
   Loader2,
   AlertCircle,
   Building2,
-  Trash2
+  Trash2,
+  ArrowRightLeft,
+  CheckCircle2
 } from 'lucide-react';
 import { useBranchStore } from '../../stores';
 import { Branch, CreateBranchData } from '../../types';
 
 export function Branches() {
+  const navigate = useNavigate();
   const { 
     branches, 
+    currentBranchId,
     isLoading, 
     error, 
     fetchBranches, 
     createBranch, 
     updateBranch,
-    deleteBranch 
+    deleteBranch,
+    switchBranch 
   } = useBranchStore();
+
+  const hasMultipleBranches = branches.length > 1;
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
@@ -185,80 +193,111 @@ export function Branches() {
               <thead className="bg-secondary/30 sticky top-0 z-10">
                 <tr className="border-b border-border">
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Branch</th>
+                  {hasMultipleBranches && (
+                    <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-20">Status</th>
+                  )}
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Contact</th>
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Location</th>
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Created</th>
-                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-24">Actions</th>
+                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-28">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredBranches.map((branch) => (
-                  <tr 
-                    key={branch.id} 
-                    className="hover:bg-accent/30 transition-colors"
-                  >
-                    <td className="px-3 py-2">
-                      <div className="flex flex-col">
-                        <span className="text-xs text-foreground font-medium">{branch.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-col gap-0.5">
-                        {branch.phone && (
-                          <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                            <Phone className="w-3 h-3" />
-                            {branch.phone}
-                          </span>
-                        )}
-                        {branch.email && (
-                          <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                            <Mail className="w-3 h-3" />
-                            {branch.email}
-                          </span>
-                        )}
-                        {!branch.phone && !branch.email && (
-                          <span className="text-[11px] text-muted-foreground">-</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-col">
-                        {branch.location && (
-                          <span className="text-[11px] text-foreground">{branch.location}</span>
-                        )}
-                        <span className="text-[10px] text-muted-foreground">
-                          {[branch.city, branch.state, branch.postal_code].filter(Boolean).join(', ') || '-'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {formatDate(branch.created_at)}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center justify-center gap-1">
-                        <button 
-                          onClick={() => handleEdit(branch)}
-                          className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
-                          title="Edit"
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(branch.id)}
-                          disabled={isDeleting === branch.id}
-                          className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors text-destructive disabled:opacity-50"
-                          title="Delete"
-                        >
-                          {isDeleting === branch.id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                {filteredBranches.map((branch) => {
+                  const isCurrentBranch = branch.id === currentBranchId;
+                  return (
+                    <tr 
+                      key={branch.id} 
+                      className={`hover:bg-accent/30 transition-colors ${
+                        isCurrentBranch ? 'bg-primary/5' : ''
+                      }`}
+                    >
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-foreground font-medium">{branch.name}</span>
+                        </div>
+                      </td>
+                      {hasMultipleBranches && (
+                        <td className="px-3 py-2 text-center">
+                          {isCurrentBranch ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Active
+                            </span>
                           ) : (
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <span className="text-[10px] text-muted-foreground">—</span>
                           )}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                        </td>
+                      )}
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col gap-0.5">
+                          {branch.phone && (
+                            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                              <Phone className="w-3 h-3" />
+                              {branch.phone}
+                            </span>
+                          )}
+                          {branch.email && (
+                            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                              <Mail className="w-3 h-3" />
+                              {branch.email}
+                            </span>
+                          )}
+                          {!branch.phone && !branch.email && (
+                            <span className="text-[11px] text-muted-foreground">-</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col">
+                          {branch.location && (
+                            <span className="text-[11px] text-foreground">{branch.location}</span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground">
+                            {[branch.city, branch.state, branch.postal_code].filter(Boolean).join(', ') || '-'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">
+                        {formatDate(branch.created_at)}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center justify-center gap-1">
+                          {/* Switch Branch — only for multi-branch, and not the current one */}
+                          {hasMultipleBranches && !isCurrentBranch && (
+                            <button 
+                              onClick={() => switchBranch(branch.id, navigate)}
+                              className="h-6 px-2 flex items-center justify-center gap-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-[10px] font-medium"
+                              title={`Switch to ${branch.name}`}
+                            >
+                              <ArrowRightLeft className="w-3 h-3" />
+                              Switch
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => handleEdit(branch)}
+                            className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
+                            title="Edit"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(branch.id)}
+                            disabled={isDeleting === branch.id}
+                            className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors text-destructive disabled:opacity-50"
+                            title="Delete"
+                          >
+                            {isDeleting === branch.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -12,7 +12,7 @@ const Report = sequelize.define("Report", {
   technician_id: { type: DataTypes.UUID },
   report_type: { type: DataTypes.STRING(100) },
   sample_id: { type: DataTypes.UUID },
-  branch_id: { type: DataTypes.UUID },
+  branch_id: { type: DataTypes.UUID, allowNull: false },
   status: { type: DataTypes.STRING(50), defaultValue: "draft" },
   clinical_notes: { type: DataTypes.TEXT },
   findings: { type: DataTypes.TEXT },

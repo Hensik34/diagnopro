@@ -1,4 +1,4 @@
-import { Bell, Search, Moon, Sun, Building2, ChevronDown, LogOut, Menu } from 'lucide-react';
+import { Bell, Search, Moon, Sun, Building2, LogOut, Menu } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router';
@@ -12,18 +12,15 @@ interface TopNavProps {
 export function TopNav({ sidebarCollapsed, onSidebarToggle }: TopNavProps) {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
-  const [showBranchDropdown, setShowBranchDropdown] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const branchDropdownRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Get data from stores
   const { user, logout } = useAuthStore();
-  const { branches, currentBranchId, setCurrentBranchId } = useBranchStore();
+  const { branches, currentBranchId } = useBranchStore();
 
   // Get current branch name
   const currentBranch = branches.find(b => b.id === currentBranchId);
-  const displayBranchName = currentBranch?.name || 'Select Branch';
 
   // User display info
   const userDisplayName = user ? `${user.firstname} ${user.lastname}` : 'User';
@@ -35,9 +32,6 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle }: TopNavProps) {
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target as Node)) {
-        setShowBranchDropdown(false);
-      }
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
       }
@@ -45,11 +39,6 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle }: TopNavProps) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const handleBranchSelect = (branchId: string) => {
-    setCurrentBranchId(branchId);
-    setShowBranchDropdown(false);
-  };
 
   const handleLogout = () => {
     logout();
@@ -72,44 +61,16 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle }: TopNavProps) {
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* Branch Selector */}
+        {/* Branch Badge — read-only indicator */}
         <div className="flex items-center gap-2 md:gap-3">
-          {branches.length > 1 ? (
-            /* Multiple branches — show dropdown */
-            <div className="relative" ref={branchDropdownRef}>
-              <button 
-                onClick={() => setShowBranchDropdown(!showBranchDropdown)}
-                className="h-8 pl-2 md:pl-3 pr-6 md:pr-8 flex items-center gap-1.5 md:gap-2 bg-primary text-white rounded text-[11px] md:text-[13px] hover:opacity-90 transition-opacity whitespace-nowrap"
-              >
-                <Building2 className="w-3.5 md:w-4 h-3.5 md:h-4 flex-shrink-0" />
-                <span className="hidden sm:inline max-w-[80px] md:max-w-[150px] truncate">{displayBranchName}</span>
-                <ChevronDown className={`w-3 md:w-3.5 h-3 md:h-3.5 absolute right-1.5 md:right-2.5 transition-transform flex-shrink-0 ${showBranchDropdown ? 'rotate-180' : ''}`} />
-              </button>
-              
-              {/* Branch Dropdown */}
-              {showBranchDropdown && (
-                <div className="absolute top-full left-0 mt-1 w-48 md:w-56 bg-card border border-border rounded-md shadow-lg py-1 z-50">
-                  {branches.map((branch) => (
-                    <button
-                      key={branch.id}
-                      onClick={() => handleBranchSelect(branch.id)}
-                      className={`w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors ${
-                        branch.id === currentBranchId ? 'bg-accent text-primary' : 'text-foreground'
-                      }`}
-                    >
-                      {branch.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : branches.length === 1 ? (
-            /* Single branch — show static name, no dropdown */
-            <div className="h-8 px-2 md:px-3 flex items-center gap-1.5 md:gap-2 bg-primary text-white rounded text-[11px] md:text-[13px] whitespace-nowrap">
+          {currentBranch && (
+            <div className="h-8 px-2 md:px-3 flex items-center gap-1.5 md:gap-2 bg-primary/10 text-primary rounded text-[11px] md:text-[13px] whitespace-nowrap border border-primary/20">
               <Building2 className="w-3.5 md:w-4 h-3.5 md:h-4 flex-shrink-0" />
-              <span className="hidden sm:inline max-w-[80px] md:max-w-[150px] truncate">{branches[0].name}</span>
+              <span className="hidden sm:inline max-w-[80px] md:max-w-[150px] truncate font-medium">
+                {currentBranch.name}
+              </span>
             </div>
-          ) : null}
+          )}
           
           {/* Current Time - Hidden on mobile */}
           <div className="hidden lg:flex items-center text-xs text-muted-foreground border-l border-border pl-3">

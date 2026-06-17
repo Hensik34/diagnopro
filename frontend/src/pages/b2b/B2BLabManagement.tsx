@@ -37,8 +37,8 @@ export function B2BLabManagement() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchLabs();
-  }, [fetchLabs]);
+    fetchLabs(currentBranchId || undefined);
+  }, [fetchLabs, currentBranchId]);
 
   const openCreate = () => {
     setEditingLab(null);

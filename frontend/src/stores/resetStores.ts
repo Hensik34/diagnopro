@@ -119,3 +119,24 @@ export function resetAllStores(): void {
     }
   });
 }
+
+/**
+ * Reset all **data** stores but keep auth and branch stores intact.
+ * Used when switching branches — the user stays logged in and keeps
+ * their branch list, but all branch-scoped data (reports, patients,
+ * tests, settings, etc.) is wiped so it can be re-fetched for the
+ * new branch context.
+ */
+export function resetDataStores(): void {
+  useReportStore.getState().reset();
+  usePatientStore.getState().reset();
+  useSampleStore.getState().reset();
+  useTestStore.getState().reset();
+  useDoctorStore.getState().reset();
+  useBillingStore.getState().reset();
+  useSettingsStore.getState().reset();
+  useLayoutStore.getState().reset();
+  useCollectionTrackingStore.getState().reset();
+  useTimeLogStore.getState().reset();
+  useB2BStore.getState().reset();
+}

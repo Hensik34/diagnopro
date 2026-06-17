@@ -447,6 +447,15 @@ ALTER TABLE reports ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP;
 ALTER TABLE reports ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 ALTER TABLE reports ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;
 ALTER TABLE reports ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id);
+
+-- Backfill branch_id for existing reports from their patient's branch_id
+UPDATE reports 
+SET branch_id = (SELECT branch_id FROM patients WHERE patients.id = reports.patient_id) 
+WHERE reports.branch_id IS NULL;
+
+-- Enforce NOT NULL on branch_id
+ALTER TABLE reports ALTER COLUMN branch_id SET NOT NULL;
+
 ALTER TABLE reports ALTER COLUMN status SET DEFAULT 'draft';
 CREATE INDEX IF NOT EXISTS idx_reports_b2b_lab ON reports(b2b_lab_id) WHERE b2b_lab_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_reports_payment_status ON reports(payment_status);

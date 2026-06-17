@@ -11,7 +11,7 @@ interface B2BState {
   isLoading: boolean;
   error: string | null;
 
-  fetchLabs: () => Promise<void>;
+  fetchLabs: (branchId?: string) => Promise<void>;
   createLab: (data: CreateB2BLabData) => Promise<B2BLab>;
   updateLab: (id: string, data: Partial<B2BLab>) => Promise<void>;
   deleteLab: (id: string) => Promise<void>;
@@ -24,10 +24,10 @@ export const useB2BStore = create<B2BState>((set) => ({
   isLoading: false,
   error: null,
 
-  fetchLabs: async () => {
+  fetchLabs: async (branchId?: string) => {
     set({ isLoading: true, error: null });
     try {
-      const labs = await b2bApi.getLabs();
+      const labs = await b2bApi.getLabs(branchId);
       set({ labs, isLoading: false });
     } catch (err) {
       set({ isLoading: false, error: err instanceof Error ? err.message : 'Failed to fetch labs' });

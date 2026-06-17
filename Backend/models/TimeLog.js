@@ -2,8 +2,8 @@ const { Op, fn, col, literal } = require("sequelize");
 const { TimeLog, User } = require("./index");
 
 // Clock in
-exports.clockIn = async (userId) => {
-  return await TimeLog.create({ user_id: userId, clock_in: new Date() });
+exports.clockIn = async (userId, branchId) => {
+  return await TimeLog.create({ user_id: userId, clock_in: new Date(), branch_id: branchId });
 };
 
 // Clock out
@@ -33,23 +33,31 @@ exports.getActiveSession = async (userId) => {
 };
 
 // Get time logs for a user with date range
-exports.getByUser = async (userId, startDate, endDate) => {
+exports.getByUser = async (userId, startDate, endDate, branchId) => {
+  const where = {
+    user_id: userId,
+    clock_in: { [Op.gte]: startDate, [Op.lt]: endDate },
+  };
+  if (branchId) {
+    where.branch_id = branchId;
+  }
   return await TimeLog.findAll({
-    where: {
-      user_id: userId,
-      clock_in: { [Op.gte]: startDate, [Op.lt]: endDate },
-    },
+    where,
     order: [["clock_in", "DESC"]],
     raw: true,
   });
 };
 
 // Get all users' time logs (admin)
-exports.getAll = async (startDate, endDate, adminId) => {
+exports.getAll = async (startDate, endDate, adminId, branchId) => {
+  const where = {
+    clock_in: { [Op.gte]: startDate, [Op.lt]: endDate },
+  };
+  if (branchId) {
+    where.branch_id = branchId;
+  }
   return await TimeLog.findAll({
-    where: {
-      clock_in: { [Op.gte]: startDate, [Op.lt]: endDate },
-    },
+    where,
     include: [{
       model: User,
       as: "user",
@@ -65,8 +73,17 @@ exports.getAll = async (startDate, endDate, adminId) => {
 };
 
 // Get summary of hours per user
-exports.getUserSummary = async (startDate, endDate, adminId) => {
+exports.getUserSummary = async (startDate, endDate, adminId, branchId) => {
   const { sequelize } = require("./index");
+  let branchJoin = "";
+  let branchFilter = "";
+  const replacements = { startDate, endDate, adminId };
+  if (branchId) {
+    branchJoin = "INNER JOIN user_branches ub ON u.id = ub.user_id AND ub.branch_id = :branchId";
+    branchFilter = "AND tl.branch_id = :branchId";
+    replacements.branchId = branchId;
+  }
+  
   const [results] = await sequelize.query(
     `SELECT
         u.id as user_id, u.firstname, u.lastname, u.email, u.role,
@@ -75,13 +92,14 @@ exports.getUserSummary = async (startDate, endDate, adminId) => {
         MIN(tl.clock_in) as first_clock_in,
         MAX(tl.clock_out) as last_clock_out
      FROM users u
+     ${branchJoin}
      LEFT JOIN time_logs tl ON u.id = tl.user_id
-       AND tl.clock_in >= :startDate AND tl.clock_in < :endDate
+       AND tl.clock_in >= :startDate AND tl.clock_in < :endDate ${branchFilter}
      WHERE u.is_active = true AND u.role != 'admin'
        AND (u.created_by = :adminId OR u.id = :adminId)
      GROUP BY u.id, u.firstname, u.lastname, u.email, u.role
      ORDER BY total_hours DESC`,
-    { replacements: { startDate, endDate, adminId } }
+    { replacements }
   );
   return results;
 };

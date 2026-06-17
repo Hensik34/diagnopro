@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Clock, LogIn, LogOut, Calendar, Timer, Loader2 } from 'lucide-react';
 import { useTimeLogStore } from '../../stores';
+import { useBranchStore } from '../../stores/branchStore';
 
 export function TimeTracking() {
+  const { currentBranchId } = useBranchStore();
   const {
     activeSession,
     myLogs,
@@ -32,7 +34,7 @@ export function TimeTracking() {
     const startDate = new Date(year, month - 1, 1).toISOString();
     const endDate = new Date(year, month, 1).toISOString();
     fetchMyLogs(startDate, endDate);
-  }, [selectedMonth, fetchMyLogs]);
+  }, [selectedMonth, fetchMyLogs, currentBranchId]);
 
   // Active timer logic removed as requested
 
