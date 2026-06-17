@@ -8,8 +8,12 @@ const paymentController = require("../controllers/payment.controller");
 // REPORT ROUTES - RBAC Protected
 // ==========================================
 
+// Public report access (no auth required) - read-only for QR scan download
+router.get("/public/:id", reportController.getPublicReport);
+
 // Get all reports (with optional filters: patient_id, status, branch_id)
 router.get("/", authorize(PERMISSIONS.REPORT_READ), reportController.getReports);
+
 
 // Get workflow summary (counts by status)
 router.get("/summary", authorize(PERMISSIONS.REPORT_READ), reportController.getReportsSummary);

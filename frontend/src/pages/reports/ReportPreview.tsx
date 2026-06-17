@@ -23,6 +23,7 @@ import { format } from 'date-fns';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { QRCodeSVG } from 'qrcode.react';
+import JsBarcode from 'jsbarcode';
 import { ShareReportModal } from '../../app/components/WhatsAppModal';
 import {
   ImprovedPatientBox,
@@ -1163,7 +1164,7 @@ const generatePDF = useCallback(async (): Promise<File | null> => {
                                   collectionAddress={`${reportData.lab.address}${reportData.lab.city ? `, ${reportData.lab.city}` : ''}`}
                                   qrCode={
                                     <QRCodeSVG
-                                      value={`${window.location.origin}/reports/${id}`}
+                                      value={rawReport?.download_token ? `${window.location.origin}/public/report/${id}/download?token=${rawReport.download_token}` : `${window.location.origin}/public/report/${id}/download`}
                                       size={68}
                                       level="Q"
                                       bgColor="#ffffff"
@@ -1449,25 +1450,31 @@ function OrderManagementPanel({
 }
 
 function Barcode({ value }: { value: string }) {
-  const bars: number[] = [];
-  let seed = 0;
-  for (let i = 0; i < value.length; i++) seed += value.charCodeAt(i);
-  for (let i = 0; i < 50; i++) {
-    seed = (seed * 31 + i) % 97;
-    bars.push(seed % 3 === 0 ? 2 : 1);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    if (svgRef.current && value && value !== 'N/A') {
+      try {
+        JsBarcode(svgRef.current, value, {
+          format: 'CODE128',
+          width: 1.2,
+          height: 20,
+          displayValue: false,
+          margin: 0,
+        });
+      } catch (err) {
+        console.error('Barcode generation error:', err);
+      }
+    }
+  }, [value]);
+
+  if (!value || value === 'N/A') {
+    return <span style={{ fontSize: '10px', color: '#999' }}>No Barcode</span>;
   }
 
-  let x = 0;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-      <svg width="110" height="25" viewBox={`0 0 ${bars.reduce((s, b, i) => s + b + (i % 2 === 0 ? 0 : 1), 0)} 25`}>
-        {bars.map((w, i) => {
-          const isBar = i % 2 === 0;
-          const rect = isBar ? <rect key={i} x={x} y={0} width={w} height={21} fill="#000000" /> : null;
-          x += w + (isBar ? 0 : 1);
-          return rect;
-        })}
-      </svg>
+      <svg ref={svgRef} style={{ maxHeight: '20px' }} />
       <p style={{ margin: '2px 0 0', fontSize: '8px', color: C.text, letterSpacing: '0.8px', fontFamily: 'monospace', lineHeight: 1, fontWeight: 600 }}>{value}</p>
     </div>
   );

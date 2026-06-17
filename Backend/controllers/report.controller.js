@@ -1,3 +1,4 @@
+const jwt = require("jsonwebtoken");
 const Report = require("../models/Report");
 const reportService = require("../services/report.service");
 const sampleService = require("../services/sample.service");
@@ -134,9 +135,14 @@ exports.getReportById = async (req, res) => {
       return res.status(404).json({ error: "Report not found" });
     }
 
+    const downloadToken = jwt.sign({ reportId: report.id }, process.env.JWT_SECRET);
+
     res.json({
       message: "Report retrieved successfully",
-      data: report
+      data: {
+        ...report,
+        download_token: downloadToken
+      }
     });
   } catch (err) {
     console.error("Get report error:", err);
@@ -725,6 +731,49 @@ exports.generateInterpretation = async (req, res) => {
     });
   } catch (err) {
     console.error("Generate interpretation error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// GET PUBLIC REPORT BY TOKEN
+exports.getPublicReport = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(401).json({ error: "Access token is missing" });
+    }
+
+    // Verify and decode token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ error: "Invalid or expired access token" });
+    }
+
+    if (decoded.reportId !== id) {
+      return res.status(403).json({ error: "Token mismatch for this report" });
+    }
+
+    const report = await Report.getReportById(id);
+
+    if (!report) {
+      return res.status(404).json({ error: "Report not found" });
+    }
+
+    // Security check: Only allow viewing/downloading approved reports publicly
+    if (report.status !== "approved") {
+      return res.status(403).json({ error: "Report is not approved yet" });
+    }
+
+    res.json({
+      message: "Public report retrieved successfully",
+      data: report
+    });
+  } catch (err) {
+    console.error("Get public report error:", err);
     res.status(500).json({ error: err.message });
   }
 };
