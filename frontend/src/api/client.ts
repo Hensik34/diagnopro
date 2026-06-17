@@ -83,4 +83,24 @@ export const isAuthenticated = (): boolean => {
   return !!getAuthToken();
 };
 
+export const publicApi = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+publicApi.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    const errorMessage =
+      (error.response?.data as { error?: string })?.error ||
+      error.message ||
+      'An unexpected error occurred';
+    return Promise.reject(new Error(errorMessage));
+  }
+);
+
 export default api;
+

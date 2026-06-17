@@ -1,4 +1,4 @@
-import api from './client';
+import api, { publicApi } from './client';
 import type {
   Report,
   CreateReportData,
@@ -60,6 +60,15 @@ export const reportApi = {
     const response = await api.get<ApiResponse<Report>>(`/reports/${id}`);
     return response.data;
   },
+
+  /**
+   * Get public report by ID with verification token (unauthenticated)
+   */
+  getPublicById: async (id: string, token: string): Promise<ApiResponse<Report>> => {
+    const response = await publicApi.get<ApiResponse<Report>>(`/reports/public/${id}?token=${token}`);
+    return response.data;
+  },
+
 
   /**
    * Get reports by patient ID
