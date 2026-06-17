@@ -4,6 +4,7 @@ const TimeLog = require("../models/TimeLog");
 exports.clockIn = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { branch_id } = req.body;
 
     // Check if user already has an active session
     const activeSession = await TimeLog.getActiveSession(userId);
@@ -14,7 +15,7 @@ exports.clockIn = async (req, res) => {
       });
     }
 
-    const log = await TimeLog.clockIn(userId);
+    const log = await TimeLog.clockIn(userId, branch_id || req.user.branch_id || null);
     res.status(201).json({ message: "Clocked in successfully", data: log });
   } catch (err) {
     console.error("Clock in error:", err);
@@ -54,14 +55,14 @@ exports.getActiveSession = async (req, res) => {
 // GET MY LOGS (current user, with date filtering)
 exports.getMyLogs = async (req, res) => {
   try {
-    const { start_date, end_date } = req.query;
+    const { start_date, end_date, branch_id } = req.query;
     
     // Default to current month
     const now = new Date();
     const startDate = start_date || new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const endDate = end_date || new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
-    const logs = await TimeLog.getByUser(req.user.id, startDate, endDate);
+    const logs = await TimeLog.getByUser(req.user.id, startDate, endDate, branch_id || null);
     
     const totalHours = logs.reduce((sum, log) => sum + (parseFloat(log.total_hours) || 0), 0);
 
@@ -80,14 +81,14 @@ exports.getMyLogs = async (req, res) => {
 // GET ALL LOGS (admin - team users only)
 exports.getAllLogs = async (req, res) => {
   try {
-    const { start_date, end_date } = req.query;
+    const { start_date, end_date, branch_id } = req.query;
     const adminId = req.user.id;
     
     const now = new Date();
     const startDate = start_date || new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const endDate = end_date || new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
-    const logs = await TimeLog.getAll(startDate, endDate, adminId);
+    const logs = await TimeLog.getAll(startDate, endDate, adminId, branch_id || null);
     res.json({
       message: "All time logs retrieved",
       count: logs.length,
@@ -102,14 +103,14 @@ exports.getAllLogs = async (req, res) => {
 // GET USER SUMMARY (admin - team hours per user)
 exports.getUserSummary = async (req, res) => {
   try {
-    const { start_date, end_date } = req.query;
+    const { start_date, end_date, branch_id } = req.query;
     const adminId = req.user.id;
     
     const now = new Date();
     const startDate = start_date || new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const endDate = end_date || new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
-    const summary = await TimeLog.getUserSummary(startDate, endDate, adminId);
+    const summary = await TimeLog.getUserSummary(startDate, endDate, adminId, branch_id || null);
     
     const totalHoursAll = summary.reduce((sum, u) => sum + (parseFloat(u.total_hours) || 0), 0);
 
@@ -129,13 +130,13 @@ exports.getUserSummary = async (req, res) => {
 exports.getUserLogs = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { start_date, end_date } = req.query;
+    const { start_date, end_date, branch_id } = req.query;
     
     const now = new Date();
     const startDate = start_date || new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const endDate = end_date || new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
-    const logs = await TimeLog.getByUser(userId, startDate, endDate);
+    const logs = await TimeLog.getByUser(userId, startDate, endDate, branch_id || null);
     
     const totalHours = logs.reduce((sum, log) => sum + (parseFloat(log.total_hours) || 0), 0);
 

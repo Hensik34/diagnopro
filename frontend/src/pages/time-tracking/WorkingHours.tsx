@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Clock, Users, Calendar, Timer, ChevronDown, ChevronUp, Trash2, Loader2 } from 'lucide-react';
 import { useTimeLogStore } from '../../stores';
+import { useBranchStore } from '../../stores/branchStore';
 import type { TimeLog } from '../../api/timeLogs';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -16,6 +17,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export function WorkingHours() {
+  const { currentBranchId } = useBranchStore();
   const {
     userSummary,
     totalHoursAll,
@@ -40,7 +42,7 @@ export function WorkingHours() {
     const startDate = new Date(year, month - 1, 1).toISOString();
     const endDate = new Date(year, month, 1).toISOString();
     fetchUserSummary(startDate, endDate);
-  }, [selectedMonth, fetchUserSummary]);
+  }, [selectedMonth, fetchUserSummary, currentBranchId]);
 
   const handleExpandUser = async (userId: string) => {
     if (expandedUser === userId) {

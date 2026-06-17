@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router';
+import { Building2 } from 'lucide-react';
 import { Sidebar } from '../../app/components/layout/Sidebar';
 import { TopNav } from '../../app/components/layout/TopNav';
 import { ThemeProvider } from 'next-themes';
@@ -23,8 +24,11 @@ export function Root() {
   const navigate = useNavigate();
   
   const { isAuthenticated, isLoading: authLoading, user, initialize, can } = useAuthStore();
-  const { branches, fetchBranches, currentBranchId, setCurrentBranchId, isLoading: branchesLoading } = useBranchStore();
+  const { branches, fetchBranches, currentBranchId, isSwitchingBranch, isLoading: branchesLoading } = useBranchStore();
   const [branchesFetched, setBranchesFetched] = useState(false);
+
+  // Get the name of the branch being switched to (for the overlay)
+  const switchingToBranch = branches.find(b => b.id === currentBranchId);
 
   // Check if user has permission to access admin/staff features (not a doctor-only user)
   const hasAdminStaffAccess = can('branch:read') || can('patient:read');
@@ -120,6 +124,25 @@ export function Root() {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
       <div className="min-h-screen bg-background">
+        {/* Full-screen Branch Switching Overlay */}
+        {isSwitchingBranch && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/95 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-4 animate-in fade-in duration-200">
+              <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Building2 className="w-7 h-7 text-primary" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-foreground">Switching branch...</p>
+                {switchingToBranch && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Loading {switchingToBranch.name}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <Sidebar
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}

@@ -1,16 +1,21 @@
 import { create } from 'zustand';
 import { branchApi } from '../api';
 import type { Branch } from '../types';
+import { resetDataStores } from './resetStores';
 
 // ==========================================
 // Branch Store State Interface
 // ==========================================
+
+// localStorage key for persisting the user's active branch across refreshes
+const BRANCH_STORAGE_KEY = 'visionlab_active_branch';
 
 interface BranchState {
   // State
   branches: Branch[];
   selectedBranch: Branch | null;
   currentBranchId: string | null; // User's active branch
+  isSwitchingBranch: boolean; // True during branch switch (shows full-screen loader)
   isLoading: boolean;
   error: string | null;
 
@@ -20,6 +25,7 @@ interface BranchState {
   createBranch: (data: Partial<Branch>) => Promise<Branch | null>;
   updateBranch: (id: string, data: Partial<Branch>) => Promise<Branch | null>;
   deleteBranch: (id: string) => Promise<boolean>;
+  switchBranch: (branchId: string, navigate: (path: string) => void) => void;
   setSelectedBranch: (branch: Branch | null) => void;
   setCurrentBranchId: (branchId: string | null) => void;
   clearError: () => void;
@@ -34,6 +40,7 @@ const initialState = {
   branches: [],
   selectedBranch: null,
   currentBranchId: null,
+  isSwitchingBranch: false,
   isLoading: false,
   error: null,
 };
@@ -57,10 +64,22 @@ export const useBranchStore = create<BranchState>((set, get) => ({
       const branches = response.data;
       const current = get().currentBranchId;
 
-      // Auto-select first branch if no branch is selected,
-      // or if the previously selected branch no longer exists
+      // Try to restore persisted branch from localStorage
+      const persisted = localStorage.getItem(BRANCH_STORAGE_KEY);
+      const fromStorage = persisted && branches.some((b: Branch) => b.id === persisted) ? persisted : null;
+
+      // Priority: current in-memory > persisted from storage > first branch
       const validCurrent = current && branches.some((b: Branch) => b.id === current);
-      const selectedId = validCurrent ? current : (branches.length > 0 ? branches[0].id : null);
+      const selectedId = validCurrent
+        ? current
+        : fromStorage
+          ? fromStorage
+          : (branches.length > 0 ? branches[0].id : null);
+
+      // Persist the resolved branch
+      if (selectedId) {
+        localStorage.setItem(BRANCH_STORAGE_KEY, selectedId);
+      }
 
       set({
         branches,
@@ -175,10 +194,44 @@ export const useBranchStore = create<BranchState>((set, get) => ({
   },
 
   /**
+   * Switch to a different branch — SaaS workspace-style.
+   * 1. Shows full-screen loader overlay
+   * 2. Resets all data stores (reports, patients, tests, etc.)
+   * 3. Updates currentBranchId + persists to localStorage
+   * 4. Navigates to Dashboard
+   * 5. Hides loader after a brief delay (lets Dashboard re-mount)
+   */
+  switchBranch: (branchId: string, navigate: (path: string) => void) => {
+    const current = get().currentBranchId;
+    if (branchId === current) return; // Already on this branch
+
+    // 1. Show switching overlay
+    set({ isSwitchingBranch: true });
+
+    // 2. Reset all data stores (keep auth & branch list intact)
+    resetDataStores();
+
+    // 3. Update branch + persist
+    set({ currentBranchId: branchId });
+    localStorage.setItem(BRANCH_STORAGE_KEY, branchId);
+
+    // 4. Navigate to dashboard
+    navigate('/');
+
+    // 5. Hide overlay after a brief delay so Dashboard can re-mount with new data
+    setTimeout(() => {
+      set({ isSwitchingBranch: false });
+    }, 800);
+  },
+
+  /**
    * Set current active branch
    */
   setCurrentBranchId: (branchId: string | null) => {
     set({ currentBranchId: branchId });
+    if (branchId) {
+      localStorage.setItem(BRANCH_STORAGE_KEY, branchId);
+    }
   },
 
   /**
@@ -203,6 +256,7 @@ export const useBranchStore = create<BranchState>((set, get) => ({
 export const useBranches = () => useBranchStore((state) => state.branches);
 export const useSelectedBranch = () => useBranchStore((state) => state.selectedBranch);
 export const useCurrentBranchId = () => useBranchStore((state) => state.currentBranchId);
+export const useIsSwitchingBranch = () => useBranchStore((state) => state.isSwitchingBranch);
 export const useBranchLoading = () => useBranchStore((state) => state.isLoading);
 export const useBranchError = () => useBranchStore((state) => state.error);
 

@@ -30,8 +30,8 @@ export interface UserTimeSummary {
 
 export const timeLogApi = {
   // Clock in
-  clockIn: async (): Promise<{ message: string; data: TimeLog }> => {
-    const response = await api.post('/time-logs/clock-in');
+  clockIn: async (branchId?: string): Promise<{ message: string; data: TimeLog }> => {
+    const response = await api.post('/time-logs/clock-in', { branch_id: branchId });
     return response.data;
   },
 
@@ -48,45 +48,49 @@ export const timeLogApi = {
   },
 
   // Get my logs
-  getMyLogs: async (startDate?: string, endDate?: string): Promise<{ 
+  getMyLogs: async (startDate?: string, endDate?: string, branchId?: string): Promise<{ 
     count: number; total_hours: number; data: TimeLog[] 
   }> => {
     const params = new URLSearchParams();
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
+    if (branchId) params.append('branch_id', branchId);
     const response = await api.get(`/time-logs/my-logs?${params.toString()}`);
     return response.data;
   },
 
   // Admin: get all logs
-  getAllLogs: async (startDate?: string, endDate?: string): Promise<{
+  getAllLogs: async (startDate?: string, endDate?: string, branchId?: string): Promise<{
     count: number; data: TimeLog[]
   }> => {
     const params = new URLSearchParams();
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
+    if (branchId) params.append('branch_id', branchId);
     const response = await api.get(`/time-logs/all?${params.toString()}`);
     return response.data;
   },
 
   // Admin: get user summary
-  getUserSummary: async (startDate?: string, endDate?: string): Promise<{
+  getUserSummary: async (startDate?: string, endDate?: string, branchId?: string): Promise<{
     total_users: number; total_hours_all: number; data: UserTimeSummary[]
   }> => {
     const params = new URLSearchParams();
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
+    if (branchId) params.append('branch_id', branchId);
     const response = await api.get(`/time-logs/summary?${params.toString()}`);
     return response.data;
   },
 
   // Admin: get specific user's logs
-  getUserLogs: async (userId: string, startDate?: string, endDate?: string): Promise<{
+  getUserLogs: async (userId: string, startDate?: string, endDate?: string, branchId?: string): Promise<{
     count: number; total_hours: number; data: TimeLog[]
   }> => {
     const params = new URLSearchParams();
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
+    if (branchId) params.append('branch_id', branchId);
     const response = await api.get(`/time-logs/user/${userId}?${params.toString()}`);
     return response.data;
   },

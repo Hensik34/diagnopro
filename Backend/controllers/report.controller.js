@@ -189,6 +189,10 @@ exports.createReport = async (req, res) => {
       }
     }
 
+    if (!resolvedBranchId) {
+      return res.status(400).json({ error: "branch_id is required to create a report" });
+    }
+
     if (!linkedSampleId) {
       const generatedSampleIdCode = await sampleService.generateSampleId(resolvedBranchId);
       const sample = await Sample.createSample({
@@ -226,6 +230,7 @@ exports.createReport = async (req, res) => {
       delivery_preferences: delivery_preferences || {},
       b2b_lab_id: b2b_lab_id || null,
       b2b_charge: b2b_charge || 0,
+      branch_id: resolvedBranchId,
     });
 
     const reportJson = report && typeof report.toJSON === 'function' ? report.toJSON() : report;

@@ -13,8 +13,10 @@ export const b2bApi = {
     return res.data.data as B2BLab;
   },
 
-  getLabs: async () => {
-    const res = await api.get(`${BASE}/labs`);
+  getLabs: async (branchId?: string) => {
+    const params = new URLSearchParams();
+    if (branchId) params.append('branch_id', branchId);
+    const res = await api.get(`${BASE}/labs?${params.toString()}`);
     return res.data.data as B2BLab[];
   },
 

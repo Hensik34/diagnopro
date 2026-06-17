@@ -13,13 +13,19 @@ exports.createLab = async (req, res) => {
       return res.status(400).json({ error: "lab_name is required" });
     }
 
+    const resolvedBranchId = owner_branch_id || req.query.branch_id || req.user.branch_id;
+
+    if (!resolvedBranchId) {
+      return res.status(400).json({ error: "owner_branch_id is required" });
+    }
+
     const lab = await B2BLab.create({
       lab_name,
       lab_code: lab_name.replace(/\s+/g, "-").toUpperCase().slice(0, 20) + "-" + Date.now().toString(36).toUpperCase(),
       contact_person: contact_person || null,
       mobile: mobile || null,
       email: email || null,
-      owner_branch_id: owner_branch_id || null,
+      owner_branch_id: resolvedBranchId,
       created_by: req.user.id,
     });
 
@@ -33,11 +39,27 @@ exports.createLab = async (req, res) => {
 // Get all B2B partner labs
 exports.getAllLabs = async (req, res) => {
   try {
+    const { branch_id } = req.query;
     const { Op } = require("sequelize");
+    
+    const where = {
+      [Op.or]: [{ is_deleted: false }, { is_deleted: null }],
+    };
+
+    if (branch_id) {
+      where.owner_branch_id = branch_id;
+    } else {
+      // Auto-filter by user's/doctor's branches if not specified, to prevent cross-branch leakage
+      const userId = req.user.id;
+      const { Branch } = require("../models");
+      const userBranches = await Branch.getUserBranches(userId);
+      if (userBranches.length > 0) {
+        where.owner_branch_id = { [Op.in]: userBranches.map(b => b.id) };
+      }
+    }
+
     const labs = await B2BLab.findAll({
-      where: {
-        [Op.or]: [{ is_deleted: false }, { is_deleted: null }],
-      },
+      where,
       order: [["created_at", "DESC"]],
     });
     res.json({ message: "Labs retrieved", data: labs });

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { timeLogApi } from '../api/timeLogs';
 import type { TimeLog, UserTimeSummary } from '../api/timeLogs';
+import { useBranchStore } from './branchStore';
 
 interface TimeLogState {
   // State
@@ -14,13 +15,13 @@ interface TimeLogState {
   error: string | null;
 
   // Actions
-  clockIn: () => Promise<boolean>;
+  clockIn: (branchId?: string) => Promise<boolean>;
   clockOut: (notes?: string) => Promise<boolean>;
   fetchActiveSession: () => Promise<void>;
-  fetchMyLogs: (startDate?: string, endDate?: string) => Promise<void>;
-  fetchAllLogs: (startDate?: string, endDate?: string) => Promise<void>;
-  fetchUserSummary: (startDate?: string, endDate?: string) => Promise<void>;
-  fetchUserLogs: (userId: string, startDate?: string, endDate?: string) => Promise<TimeLog[]>;
+  fetchMyLogs: (startDate?: string, endDate?: string, branchId?: string) => Promise<void>;
+  fetchAllLogs: (startDate?: string, endDate?: string, branchId?: string) => Promise<void>;
+  fetchUserSummary: (startDate?: string, endDate?: string, branchId?: string) => Promise<void>;
+  fetchUserLogs: (userId: string, startDate?: string, endDate?: string, branchId?: string) => Promise<TimeLog[]>;
   deleteLog: (id: string) => Promise<boolean>;
   clearError: () => void;
   reset: () => void;
@@ -36,10 +37,11 @@ export const useTimeLogStore = create<TimeLogState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  clockIn: async () => {
+  clockIn: async (branchId?: string) => {
     set({ isLoading: true, error: null });
     try {
-      const res = await timeLogApi.clockIn();
+      const activeBranchId = branchId || useBranchStore.getState().currentBranchId || undefined;
+      const res = await timeLogApi.clockIn(activeBranchId);
       set({ activeSession: res.data, isLoading: false });
       return true;
     } catch (err) {
@@ -70,39 +72,43 @@ export const useTimeLogStore = create<TimeLogState>((set, get) => ({
     }
   },
 
-  fetchMyLogs: async (startDate?: string, endDate?: string) => {
+  fetchMyLogs: async (startDate?: string, endDate?: string, branchId?: string) => {
     set({ isLoading: true, error: null });
     try {
-      const res = await timeLogApi.getMyLogs(startDate, endDate);
+      const activeBranchId = branchId || useBranchStore.getState().currentBranchId || undefined;
+      const res = await timeLogApi.getMyLogs(startDate, endDate, activeBranchId);
       set({ myLogs: res.data, myTotalHours: res.total_hours, isLoading: false });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to fetch logs', isLoading: false });
     }
   },
 
-  fetchAllLogs: async (startDate?: string, endDate?: string) => {
+  fetchAllLogs: async (startDate?: string, endDate?: string, branchId?: string) => {
     set({ isLoading: true, error: null });
     try {
-      const res = await timeLogApi.getAllLogs(startDate, endDate);
+      const activeBranchId = branchId || useBranchStore.getState().currentBranchId || undefined;
+      const res = await timeLogApi.getAllLogs(startDate, endDate, activeBranchId);
       set({ allLogs: res.data, isLoading: false });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to fetch logs', isLoading: false });
     }
   },
 
-  fetchUserSummary: async (startDate?: string, endDate?: string) => {
+  fetchUserSummary: async (startDate?: string, endDate?: string, branchId?: string) => {
     set({ isLoading: true, error: null });
     try {
-      const res = await timeLogApi.getUserSummary(startDate, endDate);
+      const activeBranchId = branchId || useBranchStore.getState().currentBranchId || undefined;
+      const res = await timeLogApi.getUserSummary(startDate, endDate, activeBranchId);
       set({ userSummary: res.data, totalHoursAll: res.total_hours_all, isLoading: false });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to fetch summary', isLoading: false });
     }
   },
 
-  fetchUserLogs: async (userId: string, startDate?: string, endDate?: string) => {
+  fetchUserLogs: async (userId: string, startDate?: string, endDate?: string, branchId?: string) => {
     try {
-      const res = await timeLogApi.getUserLogs(userId, startDate, endDate);
+      const activeBranchId = branchId || useBranchStore.getState().currentBranchId || undefined;
+      const res = await timeLogApi.getUserLogs(userId, startDate, endDate, activeBranchId);
       return res.data;
     } catch {
       return [];

@@ -39,7 +39,6 @@ export function Reports() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [branchFilter, setBranchFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<'sample_id_code' | 'patient_name' | 'test_type' | 'doctor' | 'status' | 'created_at' | 'technician' | 'payment_status'>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -166,25 +165,13 @@ export function Reports() {
     }
   }, [fetchBranches, fetchTests, currentBranchId]);
 
-  // Set initial branch filter to user's current branch
+  // Refetch when branch changes (always scoped to current branch)
   useEffect(() => {
-    if (currentBranchId && branchFilter === 'all' && branches.length <= 1) {
-      // Single-branch user: always filter by their branch
-      setBranchFilter(currentBranchId);
-    }
-  }, [currentBranchId, branches.length]);
-
-  // Refetch when branch filter changes
-  useEffect(() => {
-    const filters = branchFilter !== 'all' ? { branch_id: branchFilter } : {};
-    fetchReports(filters);
-    fetchSummary(branchFilter !== 'all' ? branchFilter : undefined);
-
-    const targetBranchId = branchFilter !== 'all' ? branchFilter : currentBranchId;
-    if (targetBranchId) {
-      fetchTests(targetBranchId);
-    }
-  }, [branchFilter, currentBranchId, fetchReports, fetchSummary, fetchTests]);
+    if (!currentBranchId) return;
+    fetchReports({ branch_id: currentBranchId });
+    fetchSummary(currentBranchId);
+    fetchTests(currentBranchId);
+  }, [currentBranchId, fetchReports, fetchSummary, fetchTests]);
 
   /**
    * Get status configuration for display
@@ -360,10 +347,10 @@ export function Reports() {
   }, [reports, searchQuery, statusFilter, sortField, sortOrder, tests]);
 
   const refreshReportsData = useCallback(async () => {
-    const filters = branchFilter !== 'all' ? { branch_id: branchFilter } : {};
-    await fetchReports(filters);
-    await fetchSummary(branchFilter !== 'all' ? branchFilter : undefined);
-  }, [branchFilter, fetchReports, fetchSummary]);
+    if (!currentBranchId) return;
+    await fetchReports({ branch_id: currentBranchId });
+    await fetchSummary(currentBranchId);
+  }, [currentBranchId, fetchReports, fetchSummary]);
 
   /**
    * Handle submit for review action
@@ -551,25 +538,6 @@ export function Reports() {
             </select>
             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
           </div>
-
-          {/* Branch Filter - only show when multiple branches */}
-          {branches.length > 1 && (
-            <div className="relative">
-              <select
-                className="h-8 pl-2.5 pr-7 bg-secondary border border-border rounded text-xs appearance-none focus:outline-none focus:ring-2 focus:ring-primary"
-                value={branchFilter}
-                onChange={(e) => setBranchFilter(e.target.value)}
-              >
-                <option value="all">All Branches</option>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
-            </div>
-          )}
         </div>
       </div>
 
