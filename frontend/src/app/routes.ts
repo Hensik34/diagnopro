@@ -9,7 +9,7 @@ import { Login, Register, ForgotPassword } from '../pages/auth';
 // Dashboard
 import { Dashboard, Analytics, DashboardDayDetail } from '../pages/dashboard';
 // Reports
-import { Reports, CreateReport, ReportEntry, ReportPreview, ReportReview } from '../pages/reports';
+import { Reports, CreateReport, ReportEntry, ReportPreview, ReportReview, PublicReportDownload } from '../pages/reports';
 // Patients
 import { Patients } from '../pages/patients';
 // Samples
@@ -91,6 +91,10 @@ export const router = createBrowserRouter([
   {
     path: '/unauthorized',
     Component: Unauthorized,
+  },
+  {
+    path: '/public/report/:id/download',
+    Component: PublicReportDownload,
   },
   // Protected routes
   {
