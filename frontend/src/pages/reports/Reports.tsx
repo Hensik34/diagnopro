@@ -31,6 +31,13 @@ import { useTestStore } from '../../stores/testStore';
 import type { Report, ReportStatus } from '../../types';
 import { InvoiceModal } from '../../app/components/reports/InvoiceModal';
 
+const getLocalDateString = (date: Date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 /**
  * Reports Page - Lists all reports with filtering, search, and workflow actions
  * Connected to backend via reportStore
@@ -39,6 +46,7 @@ export function Reports() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<string>(getLocalDateString());
   const [sortField, setSortField] = useState<'sample_id_code' | 'patient_name' | 'test_type' | 'doctor' | 'status' | 'created_at' | 'technician' | 'payment_status'>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -301,7 +309,18 @@ export function Reports() {
       const matchesStatus =
         statusFilter === 'all' || report.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      let matchesDate = true;
+      if (dateFilter && report.created_at) {
+        try {
+          const reportDate = new Date(report.created_at);
+          const reportLocalDateStr = getLocalDateString(reportDate);
+          matchesDate = reportLocalDateStr === dateFilter;
+        } catch (e) {
+          console.error("Invalid report created_at date:", report.created_at, e);
+        }
+      }
+
+      return matchesSearch && matchesStatus && matchesDate;
     });
 
     return [...filtered].sort((a, b) => {
@@ -344,7 +363,7 @@ export function Reports() {
           : (bVal > aVal ? 1 : bVal < aVal ? -1 : 0);
       }
     });
-  }, [reports, searchQuery, statusFilter, sortField, sortOrder, tests]);
+  }, [reports, searchQuery, statusFilter, dateFilter, sortField, sortOrder, tests]);
 
   const refreshReportsData = useCallback(async () => {
     if (!currentBranchId) return;
@@ -537,6 +556,25 @@ export function Reports() {
               <option value="rejected">Rejected</option>
             </select>
             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+          </div>
+
+          {/* Date Filter */}
+          <div className="relative w-full sm:w-auto flex items-center gap-1.5">
+            <input
+              type="date"
+              className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer text-foreground"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value || getLocalDateString())}
+            />
+            {dateFilter !== getLocalDateString() && (
+              <button
+                onClick={() => setDateFilter(getLocalDateString())}
+                className="h-8 px-2 flex items-center justify-center bg-secondary border border-border rounded text-xs text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer transition-colors"
+                title="Reset to Today"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -799,9 +837,19 @@ export function Reports() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={hasAnyAction ? 8 : 7} className="px-3 py-8 text-center">
+                  <td colSpan={hasAnyAction ? 9 : 8} className="px-3 py-8 text-center">
                     <p className="text-sm text-muted-foreground">
-                      {isLoading ? 'Loading reports...' : 'No reports found matching your filters'}
+                      {isLoading ? (
+                        'Loading reports...'
+                      ) : dateFilter ? (
+                        (() => {
+                          const [y, m, d] = dateFilter.split('-').map(Number);
+                          const localDate = new Date(y, m - 1, d);
+                          return `No reports found for ${localDate.toLocaleDateString(undefined, { dateStyle: 'medium' })}`;
+                        })()
+                      ) : (
+                        'No reports found matching your filters'
+                      )}
                     </p>
                   </td>
                 </tr>

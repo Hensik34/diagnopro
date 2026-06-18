@@ -51,7 +51,7 @@ exports.getAllLabs = async (req, res) => {
     } else {
       // Auto-filter by user's/doctor's branches if not specified, to prevent cross-branch leakage
       const userId = req.user.id;
-      const { Branch } = require("../models");
+      const Branch = require("../models/Branch");
       const userBranches = await Branch.getUserBranches(userId);
       if (userBranches.length > 0) {
         where.owner_branch_id = { [Op.in]: userBranches.map(b => b.id) };
