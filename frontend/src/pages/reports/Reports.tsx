@@ -95,6 +95,16 @@ export function Reports() {
   const canDelete = can('report:delete');
   const hasAnyAction = canEdit || canDelete || can('report:create') || can('report:read') || can('report:approve');
 
+  console.log('RBAC Reports Table Debug:', {
+    userRole: useAuthStore.getState().user?.role,
+    canEdit,
+    canDelete,
+    canRead: can('report:read'),
+    canApprove: can('report:approve'),
+    hasAnyAction,
+    reportsCount: reports.length
+  });
+
   /**
    * Get test codes for a report - extracts short codes from test data
    * Example: ["CBC", "KFT"] for multiple tests

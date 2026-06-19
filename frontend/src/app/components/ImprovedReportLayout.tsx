@@ -176,26 +176,21 @@ export function InvestigationTableRow({
           paddingTop: vPad,
           paddingBottom: vPad,
           paddingLeft: indented ? '14px' : '0',
-          paddingRight: 0,
+          paddingRight: '6px',
           fontWeight: isAbnormal ? 700 : 400,
           color: isAbnormal ? statusColor : '#222',
           fontSize,
           textAlign: 'left',
+          verticalAlign: 'baseline',   // was 'middle' — middle pushes descenders into the clip
+          lineHeight: 1.6,             // was 1.5 — more room below baseline for g/y/j
+          whiteSpace: 'nowrap',
+          overflow: 'visible',         // was 'hidden' — let descenders render
+          textOverflow: 'clip',        // ellipsis needs overflow:hidden; with fixed table it rarely truncates anyway
         }}
       >
-        <div
-          style={{
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            lineHeight: 1.45,
-            paddingBottom: '2.5px',
-            marginBottom: '-2.5px',
-          }}
-        >
-          {investigation}
-        </div>
+        {investigation}
       </td>
+
       <td
         style={{
           paddingTop: vPad,

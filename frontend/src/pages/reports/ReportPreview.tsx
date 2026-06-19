@@ -715,9 +715,8 @@ export function ReportPreview() {
         cloned.style.boxShadow = 'none';
         cloned.style.border = 'none';
         cloned.style.width = `${A4_WIDTH_PX}px`;
-        cloned.style.height = `${A4_HEIGHT_PX}px`;
+        cloned.style.height = `${A4_HEIGHT_PX}px`;  
         cloned.style.overflow = 'hidden';
-
         offscreenRoot.appendChild(cloned);
 
         // Wait for all images to load
@@ -743,11 +742,17 @@ export function ReportPreview() {
           scale: 3,
           useCORS: true,
           backgroundColor: '#ffffff',
-          logging: false,
           width: A4_WIDTH_PX,
           height: A4_HEIGHT_PX,
-          allowTaint: true,
+          windowWidth: A4_WIDTH_PX,
+          windowHeight: A4_HEIGHT_PX,
+          scrollX: 0,
+          scrollY: 0,
+          onclone: (doc) => {
+            doc.body.style.setProperty('-webkit-font-smoothing', 'antialiased');
+          },
         });
+
 
         offscreenRoot.removeChild(cloned);
 
@@ -1191,7 +1196,7 @@ export function ReportPreview() {
                             <section key={`s-${idx}`} style={{ marginTop: '8px' }}>
                               <div style={{ display: 'flex', justifyContent: isSelfReport ? 'flex-start' : 'space-between' }}>
                                 <div>
-                                  <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
+                                  <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 6 }}>
                                     {settings?.owner_signature_url && (
                                       <img
                                         src={getImageUrl(settings.owner_signature_url) || ''}

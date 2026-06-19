@@ -1,15 +1,55 @@
 -- ============================================
--- MIGRATION 002: SEED TESTS, TEST FIELDS, PACKAGES
+-- MIGRATION 002: SEED TEST DATA
 -- ============================================
--- Seed data moved from models/index.js autoSeedData
+-- Seeds: default branch, admin users, tests, test fields, packages, whatsapp templates
+-- All columns already exist from 001_final_schema.sql
+-- Safe to run on a freshly created database.
+-- ============================================
 
--- Extend test field schema for NABL/CAP style reporting metadata.
-ALTER TABLE test_fields
-ADD COLUMN IF NOT EXISTS reference_rules JSONB,
-ADD COLUMN IF NOT EXISTS critical_rules JSONB,
-ADD COLUMN IF NOT EXISTS interpretation_logic JSONB,
-ADD COLUMN IF NOT EXISTS is_mandatory BOOLEAN DEFAULT true,
-ADD COLUMN IF NOT EXISTS display_format VARCHAR(50) DEFAULT 'standard';
+-- ============================================
+-- DEFAULT BRANCH (required before any branch-dependent data)
+-- ============================================
+INSERT INTO branches (id, name, location, city, state, phone, email, created_at, updated_at)
+SELECT 
+  'a0000000-0000-0000-0000-000000000001'::UUID,
+  'Main Branch', 'Headquarters', 'Default City', 'Default State',
+  '+1234567890', 'main@lab.com', NOW(), NOW()
+WHERE NOT EXISTS (SELECT 1 FROM branches LIMIT 1);
+
+-- ============================================
+-- DEFAULT ADMIN USER  (password: Admin@123)
+-- bcrypt hash of 'Admin@123'
+-- ============================================
+INSERT INTO users (id, firstname, lastname, email, password_hash, phone, role, is_active, created_at, updated_at)
+SELECT
+  'a0000000-0000-0000-0000-000000000002'::UUID,
+  'Admin', 'User', 'admin@visionlab.com',
+  '$2b$10$dPGKh5FbGJNlByBh0WERtu8OFPGhHxR7XPYfMzL.MjZuBmYfXKm6C',
+  '+1234567890', 'admin', TRUE, NOW(), NOW()
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE role = 'admin' LIMIT 1);
+
+-- Link admin to default branch
+INSERT INTO user_branches (id, user_id, branch_id, role, created_at)
+SELECT
+  gen_random_uuid(),
+  'a0000000-0000-0000-0000-000000000002'::UUID,
+  (SELECT id FROM branches LIMIT 1),
+  'admin',
+  NOW()
+WHERE NOT EXISTS (
+  SELECT 1 FROM user_branches WHERE user_id = 'a0000000-0000-0000-0000-000000000002'::UUID
+);
+
+-- Default settings for the default branch
+INSERT INTO settings (id, branch_id, created_at, updated_at)
+SELECT
+  gen_random_uuid(),
+  (SELECT id FROM branches LIMIT 1),
+  NOW(), NOW()
+WHERE NOT EXISTS (
+  SELECT 1 FROM settings WHERE branch_id = (SELECT id FROM branches LIMIT 1)
+);
+
 
 INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turnaround_time, description, created_at, updated_at) VALUES
   (gen_random_uuid(), 'Complete Blood Count (CBC)', 'CBC-01', 'Hematology', 'Blood', 250, 4, 'Comprehensive blood cell count including RBC, WBC, platelets', NOW(), NOW()),
@@ -169,8 +209,7 @@ ON CONFLICT (test_code) DO NOTHING;
 -- INSERT NEW CBC, KFT, LIPID FIELDS
 -- ==========================================
 
--- Step 1: Clean up any existing duplicates before adding the unique index.
--- This is safe to run multiple times.
+-- Clean up any existing duplicates before inserting (safe to run multiple times)
 WITH duplicates AS (
   SELECT
     ctid,
@@ -183,16 +222,6 @@ WHERE ctid IN (
   SELECT ctid FROM duplicates WHERE rn > 1
 );
 
--- Step 2: Create a unique index to prevent future duplicates and fix ON CONFLICT.
--- This is idempotent.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_test_fields_unique_test_id_field_name ON test_fields(test_id, field_name);
-
--- Ensure columns exist
-ALTER TABLE test_fields
-ADD COLUMN IF NOT EXISTS section_group VARCHAR(100),
-ADD COLUMN IF NOT EXISTS display_order INTEGER,
-ADD COLUMN IF NOT EXISTS field_type VARCHAR(50) DEFAULT 'input',
-ADD COLUMN IF NOT EXISTS calculation_formula TEXT;
 
 INSERT INTO test_fields (
   id,
@@ -1040,7 +1069,23 @@ UPDATE tests SET clinical_significance = 'Kidney Function Tests (KFTs) are used 
 
 UPDATE tests SET clinical_significance = 'Lipid Profile is used to assess cardiovascular risk. Elevated levels of Total Cholesterol, LDL ("bad") Cholesterol, and Triglycerides, combined with low levels of HDL ("good") Cholesterol, are associated with an increased risk of atherosclerosis and coronary heart disease.' WHERE test_code = 'LIPID-01';
 
+-- ============================================
+-- WHATSAPP SYSTEM TEMPLATES (from old migration 003)
+-- ============================================
+INSERT INTO whatsapp_templates (id, branch_id, event_key, template_name, template_body, is_enabled, is_system, created_at, updated_at)
+VALUES
+(gen_random_uuid(), NULL, 'report_ready', 'Report Ready', 'Hello {{patient_name}}, your report for {{test_name}} is ready at {{branch_name}}. View report: {{report_link}}', TRUE, TRUE, NOW(), NOW()),
+(gen_random_uuid(), NULL, 'report_approved', 'Report Approved', 'Hello {{patient_name}}, your report for {{test_name}} has been approved by our pathologist at {{branch_name}}. View report: {{report_link}}', TRUE, TRUE, NOW(), NOW()),
+(gen_random_uuid(), NULL, 'appointment_confirmation', 'Appointment Confirmation', 'Hello {{patient_name}}, your appointment is confirmed at {{branch_name}} on {{appointment_date}} at {{appointment_time}}.', TRUE, TRUE, NOW(), NOW()),
+(gen_random_uuid(), NULL, 'appointment_reminder', 'Appointment Reminder', 'Reminder: {{patient_name}}, you have an appointment at {{branch_name}} on {{appointment_date}} at {{appointment_time}}.', TRUE, TRUE, NOW(), NOW()),
+(gen_random_uuid(), NULL, 'payment_confirmation', 'Payment Confirmation', 'Hello {{patient_name}}, we received your payment of {{payment_amount}} for {{test_name}} at {{branch_name}}. Thank you.', TRUE, TRUE, NOW(), NOW()),
+(gen_random_uuid(), NULL, 'registration_confirmation', 'Registration Confirmation', 'Welcome {{patient_name}}. Your registration at {{branch_name}} is complete for tests: {{patient_tests}}. Thank you for choosing us!', TRUE, TRUE, NOW(), NOW())
+ON CONFLICT (branch_id, event_key) DO NOTHING;
+
+-- ============================================
+-- SUMMARY COUNTS
+-- ============================================
 SELECT COUNT(*) AS total_tests FROM tests;
 SELECT COUNT(*) AS total_test_fields FROM test_fields;
 SELECT COUNT(*) AS total_packages FROM test_packages;
-SELECT 'Seed migration complete' AS status;
+SELECT 'Seed migration 002 complete' AS status;
