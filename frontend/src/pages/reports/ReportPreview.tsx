@@ -678,178 +678,94 @@ export function ReportPreview() {
   const refDoctor = doctors.find(d => d.id === rawReport?.doctor_id);
   const doctorSignatureUrl = refDoctor?.signature_url;
 
-const generatePDF = useCallback(async (): Promise<File | null> => {
-  if (!reportData || pages.length === 0) return null;
-  setIsGeneratingPdf(true);
+  const generatePDF = useCallback(async (): Promise<File | null> => {
+    if (!reportData || pages.length === 0) return null;
+    setIsGeneratingPdf(true);
 
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.width = `${A4_WIDTH_PX}px`;
-  iframe.style.height = `${A4_HEIGHT_PX}px`;
-  iframe.style.top = '-9999px';
-  iframe.style.left = '-9999px';
-  iframe.style.visibility = 'hidden';
-  document.body.appendChild(iframe);
+    // Render clones in the MAIN document (not an iframe) so they get the
+    // exact same fonts, styles, and layout engine as the preview.
+    // This is the root fix for bottom-cropping: the iframe had different
+    // font metrics / rendering context which made content taller than expected.
+    const offscreenRoot = document.createElement('div');
+    offscreenRoot.style.position = 'fixed';
+    offscreenRoot.style.top = '0';
+    offscreenRoot.style.left = '0';
+    offscreenRoot.style.width = `${A4_WIDTH_PX}px`;
+    offscreenRoot.style.height = `${A4_HEIGHT_PX}px`;
+    offscreenRoot.style.zIndex = '-9999';
+    offscreenRoot.style.opacity = '0';
+    offscreenRoot.style.pointerEvents = 'none';
+    offscreenRoot.style.overflow = 'hidden';
+    document.body.appendChild(offscreenRoot);
 
-  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-  if (!iframeDoc) {
-    document.body.removeChild(iframe);
-    setIsGeneratingPdf(false);
-    return null;
-  }
-
-  iframeDoc.open();
-  iframeDoc.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <style>
-        body {
-          margin: 0; padding: 0;
-          background: #ffffff;
-          font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-          -webkit-font-smoothing: antialiased;
-        }
-        * {
-          text-rendering: geometricPrecision;
-          -webkit-font-smoothing: antialiased;
-          box-sizing: border-box;
-        }
-      </style>
-    </head>
-    <body><div id="iframe-content-root"></div></body>
-    </html>
-  `);
-  iframeDoc.close();
-
-  // Copy stylesheets, replacing oklch colors
-  document.querySelectorAll('style, link[rel="stylesheet"]').forEach((el) => {
     try {
-      let cssText = '';
-      if (el.tagName === 'STYLE') {
-        cssText = el.textContent || '';
-      } else if (el instanceof HTMLLinkElement && el.sheet) {
-        const rules = el.sheet.cssRules || el.sheet.rules;
-        for (let k = 0; k < rules.length; k++) {
-          cssText += rules[k].cssText + '\n';
-        }
-      }
-      if (cssText) {
-        const cleaned = cssText.replace(/oklch\([^)]+\)/gi, '#212121');
-        const s = iframeDoc.createElement('style');
-        s.textContent = cleaned;
-        iframeDoc.head.appendChild(s);
-      } else if (el instanceof HTMLLinkElement) {
-        iframeDoc.head.appendChild(el.cloneNode(true));
-      }
-    } catch {
-      iframeDoc.head.appendChild(el.cloneNode(true));
-    }
-  });
+      const pdf = new jsPDF('p', 'mm', 'a4', true);
 
-  try {
-    const pdf = new jsPDF('p', 'mm', 'a4', true);
-    const root = iframeDoc.getElementById('iframe-content-root');
-    if (!root) throw new Error('Iframe root not found');
+      for (let i = 0; i < pages.length; i++) {
+        const node = pageRefs.current[i];
+        if (!node) continue;
+        if (i > 0) pdf.addPage();
 
-    if (iframeDoc.fonts?.ready) await iframeDoc.fonts.ready;
+        const cloned = node.cloneNode(true) as HTMLElement;
 
-    // Pre-calculate compact values
-    const isCompact = compactAdjustment > 0;
-    const pdfRowPad = isCompact ? '2px' : '3px';
+        // Reset visual styles that are only for the preview
+        cloned.style.transform = 'none';
+        cloned.style.position = 'relative';
+        cloned.style.margin = '0';
+        cloned.style.boxShadow = 'none';
+        cloned.style.border = 'none';
+        cloned.style.width = `${A4_WIDTH_PX}px`;
+        cloned.style.height = `${A4_HEIGHT_PX}px`;
+        cloned.style.overflow = 'hidden';
 
-    for (let i = 0; i < pages.length; i++) {
-      const node = pageRefs.current[i];
-      if (!node) continue;
-      if (i > 0) pdf.addPage();
+        offscreenRoot.appendChild(cloned);
 
-      const cloned = node.cloneNode(true) as HTMLElement;
+        // Wait for all images to load
+        const imgs = cloned.querySelectorAll('img');
+        await Promise.all(
+          Array.from(imgs).map(
+            img => new Promise(resolve => {
+              const imgEl = img as HTMLImageElement;
+              if (imgEl.complete && imgEl.naturalHeight > 0) {
+                resolve(true);
+              } else {
+                imgEl.onload = () => resolve(true);
+                imgEl.onerror = () => resolve(true);
+              }
+            })
+          )
+        );
 
-      // Reset only visual/transform styles on the page wrapper
-      cloned.style.transform = 'none';
-      cloned.style.position = 'relative';
-      cloned.style.margin = '0';
-      cloned.style.boxShadow = 'none';
-      cloned.style.border = 'none';
-      cloned.style.width = `${A4_WIDTH_PX}px`;
-      cloned.style.height = `${A4_HEIGHT_PX}px`;
-      cloned.style.overflow = 'hidden';
+        // Wait for layout to settle
+        await new Promise(r => setTimeout(r, 150));
 
-      // Use the data attribute to find ONLY the content container
-      // This avoids accidentally targeting letterhead images or other absolute elements
-      const contentContainer = cloned.querySelector('[data-content-area="true"]') as HTMLElement;
-      if (contentContainer) {
-        // Ensure compact styles match the preview exactly
-        contentContainer.style.gap = `${isCompact ? 1 : 3}px`;
-        contentContainer.style.fontSize = `${isCompact && compactAdjustment > 60 ? 10.5 : 11}px`;
-        contentContainer.style.lineHeight = `${isCompact && compactAdjustment > 60 ? 1.35 : 1.45}`;
-      }
-
-      // Resolve any CSS var() in table cell padding to explicit values
-      // html2canvas doesn't reliably resolve CSS custom properties
-      const allCells = cloned.querySelectorAll('td, th');
-      allCells.forEach((cell) => {
-        const el = cell as HTMLElement;
-        // Check each padding property for var() usage
-        ['padding', 'paddingTop', 'paddingBottom'].forEach(prop => {
-          const val = (el.style as any)[prop];
-          if (val && typeof val === 'string' && val.includes('var(')) {
-            (el.style as any)[prop] = val.replace(/var\(--row-pad[^)]*\)/g, pdfRowPad);
-          }
+        const canvas = await html2canvas(cloned, {
+          scale: 3,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          width: A4_WIDTH_PX,
+          height: A4_HEIGHT_PX,
+          allowTaint: true,
         });
-      });
 
-      root.appendChild(cloned);
+        offscreenRoot.removeChild(cloned);
 
-      // Wait for all images to load
-      const imgs = cloned.querySelectorAll('img');
-      await Promise.all(
-        Array.from(imgs).map(
-          img => new Promise(resolve => {
-            const imgEl = img as HTMLImageElement;
-            if (imgEl.complete && imgEl.naturalHeight > 0) {
-              resolve(true);
-            } else {
-              imgEl.onload = () => resolve(true);
-              imgEl.onerror = () => resolve(true);
-            }
-          })
-        )
-      );
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+      }
 
-      // Wait for layout to settle
-      await new Promise(r => setTimeout(r, 200));
-
-      const canvas = await html2canvas(cloned, {
-        scale: 3,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        width: A4_WIDTH_PX,
-        height: A4_HEIGHT_PX,
-        allowTaint: true,
-      });
-
-      root.removeChild(cloned);
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+      const fileName = `Report-${reportData.patient.name.replace(/\s+/g, '_')}-${reportData.report.id}.pdf`;
+      const blob = pdf.output('blob');
+      return new File([blob], fileName, { type: 'application/pdf' });
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+      return null;
+    } finally {
+      document.body.removeChild(offscreenRoot);
+      setIsGeneratingPdf(false);
     }
-
-    const fileName = `Report-${reportData.patient.name.replace(/\s+/g, '_')}-${reportData.report.id}.pdf`;
-    const blob = pdf.output('blob');
-    return new File([blob], fileName, { type: 'application/pdf' });
-  } catch (err) {
-    console.error('PDF generation failed:', err);
-    return null;
-  } finally {
-    document.body.removeChild(iframe);
-    setIsGeneratingPdf(false);
-  }
-}, [reportData, pages, compactAdjustment, safeZones]);
+  }, [reportData, pages, safeZones]);
 
 
 
@@ -1128,24 +1044,24 @@ const generatePDF = useCallback(async (): Promise<File | null> => {
                         />
                       )}
                       <div
-  data-content-area="true"
-  style={{
-    position: 'absolute',
-    top: safeZones.top,
-    bottom: safeZones.bottom,
-    left: safeZones.left,
-    right: safeZones.right,
-    zIndex: 1,
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: compactAdjustment > 0 ? 1 : 3,
-    fontSize: compactAdjustment > 60 ? 10.5 : 11,
-    lineHeight: compactAdjustment > 60 ? 1.35 : 1.45,
-    color: '#222',
-    fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
-  }}
->
+                        data-content-area="true"
+                        style={{
+                          position: 'absolute',
+                          top: safeZones.top,
+                          bottom: safeZones.bottom,
+                          left: safeZones.left,
+                          right: safeZones.right,
+                          zIndex: 1,
+                          overflow: 'hidden',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: compactAdjustment > 0 ? 1 : 3,
+                          fontSize: compactAdjustment > 60 ? 10.5 : 11,
+                          lineHeight: compactAdjustment > 60 ? 1.35 : 1.45,
+                          color: '#222',
+                          fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
+                        }}
+                      >
                         {page.map((item, idx) => {
                           if (item.type === 'patient') {
                             return (
@@ -1189,11 +1105,11 @@ const generatePDF = useCallback(async (): Promise<File | null> => {
                               >
                                 <table style={{
                                   width: '100%',
-                                  borderCollapse: 'collapse',
+                                  borderCollapse: 'separate',
+                                  borderSpacing: 0,
                                   tableLayout: 'fixed',
                                   marginTop: compactAdjustment > 0 ? '1px' : '2px'
-                                }}>                                  <InvestigationTableHeader colorTokens={C} />
-                                  <tbody>
+                                }}><InvestigationTableHeader colorTokens={C} /><tbody>
                                     {item.chunk.parameters.map((param, rowIdx) => {
                                       const status = (param.status || '').toLowerCase();
                                       const isCritical = status === 'critical';

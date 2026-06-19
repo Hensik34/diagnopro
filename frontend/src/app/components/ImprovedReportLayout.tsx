@@ -89,7 +89,7 @@ export function PatientInfoRow({
 /* ------------------------------------------------------------------ */
 
 export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<string, string> }) {
-  const thStyle = (width: string, align: string = 'left', border: boolean = true): React.CSSProperties => ({
+  const thStyle = (width: string, align: string = 'left'): React.CSSProperties => ({
     textAlign: align as any,
     padding: '4px 0',
     fontWeight: 700,
@@ -99,7 +99,6 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
     textTransform: 'uppercase',
     whiteSpace: 'nowrap',
     width,
-    borderBottom: border ? '1.5px solid #333' : 'none',
   });
 
   return (
@@ -117,9 +116,22 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
         <th style={thStyle(ReportLayoutConfig.tableColumns.unit, 'left')}>
           Unit
         </th>
-        <th style={thStyle(ReportLayoutConfig.tableColumns.extra, 'left', true)}>
+        <th style={thStyle(ReportLayoutConfig.tableColumns.extra, 'left')}>
           {/* Spacer */}
         </th>
+      </tr>
+      <tr>
+        <td
+          colSpan={5}
+          style={{
+            padding: '2px 0 4px 0',
+            border: 'none',
+            lineHeight: 0,
+            fontSize: 0,
+          }}
+        >
+          <div style={{ height: '1.5px', backgroundColor: '#333', width: '100%' }} />
+        </td>
       </tr>
     </thead>
   );
@@ -169,14 +181,20 @@ export function InvestigationTableRow({
           color: isAbnormal ? statusColor : '#222',
           fontSize,
           textAlign: 'left',
-          lineHeight: 1.4,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          maxWidth: 0,
         }}
       >
-        {investigation}
+        <div
+          style={{
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            lineHeight: 1.45,
+            paddingBottom: '2.5px',
+            marginBottom: '-2.5px',
+          }}
+        >
+          {investigation}
+        </div>
       </td>
       <td
         style={{

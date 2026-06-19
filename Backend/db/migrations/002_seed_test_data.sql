@@ -232,59 +232,27 @@ NULL,NULL,
 true,NOW(),NOW()),
 
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
-'Hematocrit (PCV)','%','number','input',
-NULL,NULL,
-'RBC Parameters',3,
-'{"male":{"min":40,"max":52},"female":{"min":36,"max":46}}',
-'{"low":20,"high":60}',
-true,NOW(),NOW()),
-
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
-'MCV','fL','number','input',
-NULL,NULL,
-'RBC Parameters',4,
-'{"min":80,"max":100}',
-'{"low":60,"high":120}',
-true,NOW(),NOW()),
-
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
-'MCH','pg','number','input',
-NULL,NULL,
-'RBC Parameters',5,
-'{"min":27,"max":33}',
-'{"low":20,"high":40}',
-true,NOW(),NOW()),
-
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
-'MCHC','g/dL','number','input',
-NULL,NULL,
-'RBC Parameters',6,
-'{"min":32,"max":36}',
-'{"low":25,"high":40}',
-true,NOW(),NOW()),
-
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
-'RDW-CV','%','number','input',
-NULL,NULL,
-'RBC Parameters',7,
-'{"min":11.5,"max":14.5}',
-'{"high":25}',
-true,NOW(),NOW()),
-
--- WBC PARAMETERS
-
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
 'Total WBC Count','/uL','number','input',
 NULL,NULL,
-'WBC Parameters',8,
+'RBC Parameters',3,
 '{"min":4000,"max":11000}',
 '{"low":1000,"high":50000}',
 true,NOW(),NOW()),
 
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
+'Platelet Count','/uL','number','input',
+NULL,NULL,
+'RBC Parameters',4,
+'{"min":150000,"max":450000}',
+'{"low":20000,"high":1000000}',
+true,NOW(),NOW()),
+
+-- DIFFERENTIAL COUNT
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
 'Neutrophils','%','number','input',
 NULL,NULL,
-'Differential Count',9,
+'Differential Count',5,
 '{"min":40,"max":70}',
 '{"low":10,"high":90}',
 true,NOW(),NOW()),
@@ -292,7 +260,7 @@ true,NOW(),NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
 'Lymphocytes','%','number','input',
 NULL,NULL,
-'Differential Count',10,
+'Differential Count',6,
 '{"min":20,"max":40}',
 '{"low":5,"high":80}',
 true,NOW(),NOW()),
@@ -300,7 +268,7 @@ true,NOW(),NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
 'Monocytes','%','number','input',
 NULL,NULL,
-'Differential Count',11,
+'Differential Count',7,
 '{"min":2,"max":8}',
 '{"high":20}',
 true,NOW(),NOW()),
@@ -308,7 +276,7 @@ true,NOW(),NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
 'Eosinophils','%','number','input',
 NULL,NULL,
-'Differential Count',12,
+'Differential Count',8,
 '{"min":1,"max":6}',
 '{"high":20}',
 true,NOW(),NOW()),
@@ -316,36 +284,16 @@ true,NOW(),NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
 'Basophils','%','number','input',
 NULL,NULL,
-'Differential Count',13,
+'Differential Count',9,
 '{"min":0,"max":2}',
 '{"high":5}',
 true,NOW(),NOW()),
-
--- PLATELETS
-
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
-'Platelet Count','/uL','number','input',
-NULL,NULL,
-'Platelet Parameters',14,
-'{"min":150000,"max":450000}',
-'{"low":20000,"high":1000000}',
-true,NOW(),NOW()),
-
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
-'MPV','fL','number','input',
-NULL,NULL,
-'Platelet Parameters',15,
-'{"min":7.5,"max":11.5}',
-'{"high":20}',
-true,NOW(),NOW()),
-
--- CALCULATED CBC VALUES
 
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
 'Absolute Neutrophil Count','/uL','number','calculated',
 '(Total WBC Count * Neutrophils) / 100',
 'Total WBC Count,Neutrophils',
-'Differential Count',16,
+'Differential Count',10,
 '{"min":1500,"max":8000}',
 '{"low":500}',
 true,NOW(),NOW()),
@@ -354,7 +302,7 @@ true,NOW(),NOW()),
 'Absolute Lymphocyte Count','/uL','number','calculated',
 '(Total WBC Count * Lymphocytes) / 100',
 'Total WBC Count,Lymphocytes',
-'Differential Count',17,
+'Differential Count',11,
 '{"min":1000,"max":4800}',
 '{"low":500}',
 true,NOW(),NOW()),
@@ -363,7 +311,7 @@ true,NOW(),NOW()),
 'Absolute Monocyte Count','/uL','number','calculated',
 '(Total WBC Count * Monocytes) / 100',
 'Total WBC Count,Monocytes',
-'Differential Count',18,
+'Differential Count',12,
 '{"min":200,"max":800}',
 '{"high":3000}',
 true,NOW(),NOW()),
@@ -372,7 +320,7 @@ true,NOW(),NOW()),
 'Absolute Eosinophil Count','/uL','number','calculated',
 '(Total WBC Count * Eosinophils) / 100',
 'Total WBC Count,Eosinophils',
-'Differential Count',19,
+'Differential Count',13,
 '{"min":0,"max":500}',
 '{"high":1500}',
 true,NOW(),NOW()),
@@ -381,48 +329,295 @@ true,NOW(),NOW()),
 'Absolute Basophil Count','/uL','number','calculated',
 '(Total WBC Count * Basophils) / 100',
 'Total WBC Count,Basophils',
-'Differential Count',20,
+'Differential Count',14,
 '{"min":0,"max":200}',
 '{"high":500}',
+true,NOW(),NOW()),
+
+-- BLOOD INDICES
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
+'Hematocrit (PCV)','%','number','input',
+NULL,NULL,
+'Blood Indices',15,
+'{"male":{"min":40,"max":52},"female":{"min":36,"max":46}}',
+'{"low":20,"high":60}',
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
+'RDW-CV','%','number','input',
+NULL,NULL,
+'Blood Indices',16,
+'{"min":11.5,"max":14.5}',
+'{"high":25}',
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
+'MCHC','g/dL','number','input',
+NULL,NULL,
+'Blood Indices',17,
+'{"min":32,"max":36}',
+'{"low":25,"high":40}',
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
+'MCH','pg','number','input',
+NULL,NULL,
+'Blood Indices',18,
+'{"min":27,"max":33}',
+'{"low":20,"high":40}',
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
+'MCV','fL','number','input',
+NULL,NULL,
+'Blood Indices',19,
+'{"min":80,"max":100}',
+'{"low":60,"high":120}',
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
+'MPV','fL','number','input',
+NULL,NULL,
+'Blood Indices',20,
+'{"min":7.5,"max":11.5}',
+'{"high":20}',
 true,NOW(),NOW())
 
 ON CONFLICT (test_id, field_name)
 DO UPDATE SET
+section_group = EXCLUDED.section_group,
+order_index = EXCLUDED.order_index,
 reference_rules = EXCLUDED.reference_rules,
 critical_rules = EXCLUDED.critical_rules,
 formula = EXCLUDED.formula,
 depends_on = EXCLUDED.depends_on,
 updated_at = NOW();
 
--- KFT Fields (8 total)
-INSERT INTO test_fields (
-  id, test_id, field_name, unit, input_type, field_type,
-  section_group, display_order, calculation_formula, is_mandatory, created_at, updated_at
-)
-VALUES
-  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code = 'KFT-01'), 'Urea', 'mg/dL', 'number', 'input', 'Renal Function', 1, NULL, true, NOW(), NOW()),
-  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code = 'KFT-01'), 'Creatinine', 'mg/dL', 'number', 'input', 'Renal Function', 2, NULL, true, NOW(), NOW()),
-  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code = 'KFT-01'), 'Uric Acid', 'mg/dL', 'number', 'input', 'Renal Function', 3, NULL, true, NOW(), NOW()),
-  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code = 'KFT-01'), 'eGFR', 'mL/min/1.73m²', 'number', 'calculated', 'Renal Function', 4, 'CKD-EPI: 141 × min(Cr/κ, 1)^α × max(Cr/κ, 1)^-1.209 × 0.993^age', true, NOW(), NOW()),
-  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code = 'KFT-01'), 'Sodium', 'mmol/L', 'number', 'input', 'Electrolytes', 5, NULL, true, NOW(), NOW()),
-  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code = 'KFT-01'), 'Potassium', 'mmol/L', 'number', 'input', 'Electrolytes', 6, NULL, true, NOW(), NOW()),
-  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code = 'KFT-01'), 'Chloride', 'mmol/L', 'number', 'input', 'Electrolytes', 7, NULL, true, NOW(), NOW()),
-  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code = 'KFT-01'), 'Calcium', 'mg/dL', 'number', 'input', 'Minerals', 8, NULL, true, NOW(), NOW())
-ON CONFLICT (test_id, field_name) DO NOTHING;
+-- Clean up old fields for LFT, KFT, and Lipid Profile to prevent orphans
+DELETE FROM test_fields WHERE test_id IN (SELECT id FROM tests WHERE test_code IN ('LFT-01', 'KFT-01', 'LIPID-01'));
 
--- Lipid Profile Fields (6 total)
+-- Direct insertion of LFT, KFT, and LIPID fields
 INSERT INTO test_fields (
-  id, test_id, field_name, unit, input_type, field_type,
-  section_group, display_order, calculation_formula, is_mandatory, created_at, updated_at
+  id,
+  test_id,
+  field_name,
+  unit,
+  input_type,
+  field_type,
+  formula,
+  depends_on,
+  section_group,
+  order_index,
+  reference_rules,
+  critical_rules,
+  is_mandatory,
+  created_at,
+  updated_at
 )
 VALUES
-  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code = 'LIPID-01'), 'Total Cholesterol', 'mg/dL', 'number', 'input', 'Lipid Values', 1, NULL, true, NOW(), NOW()),
-  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code = 'LIPID-01'), 'Triglycerides', 'mg/dL', 'number', 'input', 'Lipid Values', 2, NULL, true, NOW(), NOW()),
-  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code = 'LIPID-01'), 'HDL Cholesterol', 'mg/dL', 'number', 'input', 'Lipid Values', 3, NULL, true, NOW(), NOW()),
-  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code = 'LIPID-01'), 'LDL Cholesterol', 'mg/dL', 'number', 'calculated', 'Lipid Values', 4, 'Total Cholesterol - HDL Cholesterol - (Triglycerides / 5)', true, NOW(), NOW()),
-  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code = 'LIPID-01'), 'VLDL Cholesterol', 'mg/dL', 'number', 'calculated', 'Lipid Values', 5, 'Triglycerides / 5', true, NOW(), NOW()),
-  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code = 'LIPID-01'), 'TC/HDL Ratio', NULL, 'number', 'calculated', 'Ratios', 6, 'Total Cholesterol / HDL Cholesterol', true, NOW(), NOW())
-ON CONFLICT (test_id, field_name) DO NOTHING;
+
+-- LIVER FUNCTION TESTS (LFT-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LFT-01'),
+'Total Bilirubin','mg/dL','number','input',
+NULL,NULL,
+'Serum Billirubin',1,
+'{"min":0.2,"max":1.0}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LFT-01'),
+'Direct Bilirubin','mg/dL','number','input',
+NULL,NULL,
+'Serum Billirubin',2,
+'{"min":0.0,"max":0.8}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LFT-01'),
+'Indirect Bilirubin','mg/dL','number','calculated',
+'Total Bilirubin - Direct Bilirubin','Total Bilirubin,Direct Bilirubin',
+'Serum Billirubin',3,
+'{"min":0.0,"max":0.4}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LFT-01'),
+'S.G.P.T.','U/L','number','input',
+NULL,NULL,
+'Enzymes',4,
+'{"min":5.0,"max":40.0}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LFT-01'),
+'S.G.O.T.','U/L','number','input',
+NULL,NULL,
+'Enzymes',5,
+'{"min":5.0,"max":35.0}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LFT-01'),
+'S. Alkaline Phosphatase','U/L','number','input',
+NULL,NULL,
+'Enzymes',6,
+'{"male":{"min":25.0,"max":100.0},"female":{"min":25.0,"max":100.0},"pediatric":{"min":37.0,"max":147.0}}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LFT-01'),
+'Total Protein','gm/dL','number','input',
+NULL,NULL,
+'Serum Proteins',7,
+'{"min":6.0,"max":8.0}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LFT-01'),
+'Albumin','gm/dL','number','input',
+NULL,NULL,
+'Serum Proteins',8,
+'{"min":3.3,"max":5.5}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LFT-01'),
+'Globulin','gm/dL','number','calculated',
+'Total Protein - Albumin','Total Protein,Albumin',
+'Serum Proteins',9,
+'{"min":1.5,"max":3.8}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LFT-01'),
+'A : G Ratio',NULL,'number','calculated',
+'Albumin / Globulin','Albumin,Globulin',
+'Serum Proteins',10,
+'{"min":0.9,"max":2.0}',NULL,
+true,NOW(),NOW()),
+
+-- RENAL FUNCTION TESTS (KFT-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='KFT-01'),
+'Blood Urea','mg/dL','number','input',
+NULL,NULL,
+'Renal Function',1,
+'{"min":10.0,"max":40.0}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='KFT-01'),
+'Serum Creatinine','mg/dL','number','input',
+NULL,NULL,
+'Renal Function',2,
+'{"min":0.5,"max":1.3}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='KFT-01'),
+'Urea/Creatinine Ratio',NULL,'number','calculated',
+'Blood Urea / Serum Creatinine','Blood Urea,Serum Creatinine',
+'Renal Function',3,
+'{"min":14.0,"max":24.0}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='KFT-01'),
+'Serum Uric Acid','mg/dL','number','input',
+NULL,NULL,
+'Renal Function',4,
+'{"male":{"min":3.2,"max":7.0},"female":{"min":2.8,"max":6.0}}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='KFT-01'),
+'Total Protein','gm/dL','number','input',
+NULL,NULL,
+'Serum Proteins',5,
+'{"min":6.0,"max":8.0}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='KFT-01'),
+'Albumin','gm/dL','number','input',
+NULL,NULL,
+'Serum Proteins',6,
+'{"min":3.3,"max":5.5}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='KFT-01'),
+'Globulin','gm/dL','number','calculated',
+'Total Protein - Albumin','Total Protein,Albumin',
+'Serum Proteins',7,
+'{"min":1.5,"max":3.8}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='KFT-01'),
+'A/G Ratio',NULL,'number','calculated',
+'Albumin / Globulin','Albumin,Globulin',
+'Serum Proteins',8,
+'{"min":0.9,"max":2.0}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='KFT-01'),
+'Serum Albumin-Creatinine Ratio','mg/g','number','calculated',
+'Albumin / Creatinine','Albumin,Creatinine',
+'Renal Function',9,
+'{"max":60.0}',NULL,
+true,NOW(),NOW()),
+
+-- LIPID PROFILE (LIPID-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LIPID-01'),
+'Serum Cholesterol','mg/dL','number','input',
+NULL,NULL,
+'Lipid Values',1,
+'{"max":200.0}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LIPID-01'),
+'Serum Triglyceride','mg/dL','number','input',
+NULL,NULL,
+'Lipid Values',2,
+'{"max":150.0}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LIPID-01'),
+'S. HDL Cholesterol','mg/dL','number','input',
+NULL,NULL,
+'Lipid Values',3,
+'{"min":40.0,"max":60.0}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LIPID-01'),
+'S. LDL Cholesterol','mg/dL','number','calculated',
+'Serum Cholesterol - S. HDL Cholesterol - (Serum Triglyceride / 5)','Serum Cholesterol,S. HDL Cholesterol,Serum Triglyceride',
+'Lipid Values',4,
+'{"max":130.0}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LIPID-01'),
+'S. VLDL Cholesterol','mg/dL','number','calculated',
+'Serum Triglyceride / 5','Serum Triglyceride',
+'Lipid Values',5,
+'{"max":34.0}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LIPID-01'),
+'LDL/HDL Ratio',NULL,'number','calculated',
+'S. LDL Cholesterol / S. HDL Cholesterol','S. LDL Cholesterol,S. HDL Cholesterol',
+'Ratios',6,
+'{"min":0.5,"max":3.0}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LIPID-01'),
+'Total Cholesterol/HDL',NULL,'number','calculated',
+'Serum Cholesterol / S. HDL Cholesterol','Serum Cholesterol,S. HDL Cholesterol',
+'Ratios',7,
+'{"min":3.3,"max":4.4}',NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LIPID-01'),
+'Total Lipids','mg/dL','number','input',
+NULL,NULL,
+'Lipid Values',8,
+'{"min":400.0,"max":700.0}',NULL,
+true,NOW(),NOW())
+
+ON CONFLICT (test_id, field_name)
+DO UPDATE SET
+section_group = EXCLUDED.section_group,
+order_index = EXCLUDED.order_index,
+reference_rules = EXCLUDED.reference_rules,
+critical_rules = EXCLUDED.critical_rules,
+formula = EXCLUDED.formula,
+depends_on = EXCLUDED.depends_on,
+updated_at = NOW();
 
 WITH template_fields (
   template_code,
@@ -443,24 +638,6 @@ WITH template_fields (
   is_mandatory
 ) AS (
   VALUES
-  ('LFT_COMPREHENSIVE', 'Total Bilirubin', 'mg/dL', 0.30, 1.20, 'number', NULL, 1, 'input', NULL, NULL, 'LFT | Bilirubin', NULL, '{"high":15.0}'::jsonb, NULL, true),
-  ('LFT_COMPREHENSIVE', 'Direct Bilirubin', 'mg/dL', 0.00, 0.30, 'number', NULL, 2, 'input', NULL, NULL, 'LFT | Bilirubin', NULL, '{"high":8.0}'::jsonb, NULL, true),
-  ('LFT_COMPREHENSIVE', 'Indirect Bilirubin', 'mg/dL', 0.20, 0.90, 'number', NULL, 3, 'calculated', 'Total Bilirubin - Direct Bilirubin', 'Total Bilirubin,Direct Bilirubin', 'LFT | Bilirubin', NULL, NULL, NULL, true),
-  ('LFT_COMPREHENSIVE', 'AST (SGOT)', 'U/L', 0.00, 40.00, 'number', NULL, 4, 'input', NULL, NULL, 'LFT | Enzymes', NULL, '{"high":1000}'::jsonb, NULL, true),
-  ('LFT_COMPREHENSIVE', 'ALT (SGPT)', 'U/L', 0.00, 41.00, 'number', NULL, 5, 'input', NULL, NULL, 'LFT | Enzymes', NULL, '{"high":1000}'::jsonb, NULL, true),
-  ('LFT_COMPREHENSIVE', 'AST/ALT Ratio', NULL, 0.70, 1.30, 'number', NULL, 6, 'calculated', 'AST (SGOT) / NULLIF(ALT (SGPT),0)', 'AST (SGOT),ALT (SGPT)', 'LFT | Enzymes', NULL, NULL, '{"rule":">2 suggests alcoholic liver disease pattern"}'::jsonb, true),
-  ('LFT_COMPREHENSIVE', 'Alkaline Phosphatase', 'U/L', 44.00, 147.00, 'number', NULL, 7, 'input', NULL, NULL, 'LFT | Enzymes', NULL, '{"high":500}'::jsonb, NULL, true),
-  ('LFT_COMPREHENSIVE', 'Gamma GT', 'U/L', 9.00, 48.00, 'number', NULL, 8, 'input', NULL, NULL, 'LFT | Enzymes', NULL, '{"high":800}'::jsonb, NULL, true),
-  ('LFT_COMPREHENSIVE', 'LDH', 'U/L', 120.00, 246.00, 'number', NULL, 9, 'input', NULL, NULL, 'LFT | Enzymes', NULL, NULL, NULL, true),
-  ('LFT_COMPREHENSIVE', 'Total Protein', 'g/dL', 6.40, 8.30, 'number', NULL, 10, 'input', NULL, NULL, 'LFT | Proteins', NULL, NULL, NULL, true),
-  ('LFT_COMPREHENSIVE', 'Albumin', 'g/dL', 3.50, 5.00, 'number', NULL, 11, 'input', NULL, NULL, 'LFT | Proteins', NULL, NULL, NULL, true),
-  ('LFT_COMPREHENSIVE', 'Globulin', 'g/dL', 2.00, 3.50, 'number', NULL, 12, 'calculated', 'Total Protein - Albumin', 'Total Protein,Albumin', 'LFT | Proteins', NULL, NULL, NULL, true),
-  ('LFT_COMPREHENSIVE', 'Albumin/Globulin Ratio', NULL, 1.00, 2.20, 'number', NULL, 13, 'calculated', 'Albumin / NULLIF(Globulin,0)', 'Albumin,Globulin', 'LFT | Proteins', NULL, NULL, NULL, true),
-  ('LFT_COMPREHENSIVE', 'Prothrombin Time', 'sec', 11.00, 14.50, 'number', NULL, 14, 'input', NULL, NULL, 'LFT | Synthetic Function', NULL, '{"high":25}'::jsonb, NULL, true),
-  ('LFT_COMPREHENSIVE', 'INR', NULL, 0.80, 1.20, 'number', NULL, 15, 'input', NULL, NULL, 'LFT | Synthetic Function', NULL, '{"high":5.0}'::jsonb, NULL, true),
-  ('LFT_COMPREHENSIVE', 'Serum Bile Acids', 'umol/L', 0.00, 10.00, 'number', NULL, 16, 'input', NULL, NULL, 'LFT | Cholestatic Markers', NULL, NULL, NULL, true),
-  ('LFT_COMPREHENSIVE', 'Interpretation', NULL, NULL, NULL, 'textarea', NULL, 17, 'input', NULL, NULL, 'LFT | Interpretation', NULL, NULL, '{"rule":"Pattern recognition: hepatocellular/cholestatic/mixed"}'::jsonb, true),
-  ('LFT_COMPREHENSIVE', 'Method', NULL, NULL, NULL, 'text', NULL, 18, 'input', NULL, NULL, 'LFT | Method', NULL, NULL, NULL, true),
 
   -- CBC, KFT, Lipid fields now seeded directly via migration 002 - New simplified structure
   -- Old template entries (CBC_EXTENDED, KFT_COMPREHENSIVE, LIPID_ADVANCED) removed per migration 003
@@ -687,10 +864,6 @@ test_panel_map AS (
     t.id AS test_id,
     t.test_code,
     CASE
-      WHEN t.test_code = 'CBC-01' THEN 'CBC_EXTENDED'
-      WHEN t.test_code = 'LFT-01' THEN 'LFT_COMPREHENSIVE'
-      WHEN t.test_code = 'KFT-01' THEN 'KFT_COMPREHENSIVE'
-      WHEN t.test_code = 'LIPID-01' THEN 'LIPID_ADVANCED'
       WHEN t.test_code = 'THYPRO-01' THEN 'THYROID_COMPREHENSIVE'
       WHEN t.test_code = 'URINE-01' THEN 'URINE_ROUTINE_COMPLETE'
       WHEN t.test_code = 'SEMEN-01' THEN 'SEMEN_WHO_COMPLETE'
@@ -705,6 +878,7 @@ test_panel_map AS (
       ELSE 'SINGLE_ANALYTE_NUMERIC'
     END AS template_code
   FROM tests t
+  WHERE t.test_code NOT IN ('CBC-01', 'LFT-01', 'KFT-01', 'LIPID-01')
 ),
 seed_rows AS (
   SELECT
@@ -856,6 +1030,15 @@ VALUES
 ON CONFLICT (package_code) DO NOTHING;
 
  
+
+-- Update default clinical significance for key panel tests
+UPDATE tests SET clinical_significance = 'Complete Blood Count (CBC) is a routine screening test used to evaluate overall health and detect a wide range of disorders, including anemia, infection, and leukemia. Hemoglobin levels evaluate oxygen-carrying capacity. White Blood Cell (WBC) count and differentials assess immune status and inflammatory response. Platelet counts are crucial for blood clotting assessment. Clinical correlation is recommended.' WHERE test_code = 'CBC-01';
+
+UPDATE tests SET clinical_significance = 'Liver Function Tests (LFTs) assess hepatic synthetic, metabolic, and excretory function. Elevations in transaminases (SGOT/SGPT) suggest hepatocellular injury, while increases in alkaline phosphatase (ALP) and bilirubin indicate cholestasis or biliary tract pathology. Total protein and albumin levels reflect synthetic function.' WHERE test_code = 'LFT-01';
+
+UPDATE tests SET clinical_significance = 'Kidney Function Tests (KFTs) are used to evaluate renal function. Serum creatinine and urea are excretory waste products; elevations suggest reduced glomerular filtration rate (GFR). Electrolyte levels (sodium, potassium, chloride) are critical for maintaining fluid and acid-base balance.' WHERE test_code = 'KFT-01';
+
+UPDATE tests SET clinical_significance = 'Lipid Profile is used to assess cardiovascular risk. Elevated levels of Total Cholesterol, LDL ("bad") Cholesterol, and Triglycerides, combined with low levels of HDL ("good") Cholesterol, are associated with an increased risk of atherosclerosis and coronary heart disease.' WHERE test_code = 'LIPID-01';
 
 SELECT COUNT(*) AS total_tests FROM tests;
 SELECT COUNT(*) AS total_test_fields FROM test_fields;
