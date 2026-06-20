@@ -488,10 +488,12 @@ export function TemplateEditor() {
   useEffect(() => {
     async function loadLayout() {
       if (!testId) return;
+      if (!currentBranchId) return; // Don't fetch if branch ID isn't set yet
+
       setIsLoading(true);
       setError(null);
       try {
-        const response = await layoutApi.getTestLayout(testId, currentBranchId || undefined);
+        const response = await layoutApi.getTestLayout(testId, currentBranchId);
         const data = response.data as TestLayoutResponse;
 
         setTestName(data.testName);

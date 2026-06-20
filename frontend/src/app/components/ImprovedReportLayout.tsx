@@ -89,7 +89,7 @@ export function PatientInfoRow({
 /* ------------------------------------------------------------------ */
 
 export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<string, string> }) {
-  const thStyle = (width: string, align: string = 'left', border: boolean = true): React.CSSProperties => ({
+  const thStyle = (width: string, align: string = 'left'): React.CSSProperties => ({
     textAlign: align as any,
     padding: '4px 0',
     fontWeight: 700,
@@ -99,7 +99,6 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
     textTransform: 'uppercase',
     whiteSpace: 'nowrap',
     width,
-    borderBottom: border ? '1.5px solid #333' : 'none',
   });
 
   return (
@@ -117,9 +116,22 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
         <th style={thStyle(ReportLayoutConfig.tableColumns.unit, 'left')}>
           Unit
         </th>
-        <th style={thStyle(ReportLayoutConfig.tableColumns.extra, 'left', true)}>
+        <th style={thStyle(ReportLayoutConfig.tableColumns.extra, 'left')}>
           {/* Spacer */}
         </th>
+      </tr>
+      <tr>
+        <td
+          colSpan={5}
+          style={{
+            padding: '2px 0 4px 0',
+            border: 'none',
+            lineHeight: 0,
+            fontSize: 0,
+          }}
+        >
+          <div style={{ height: '1.5px', backgroundColor: '#333', width: '100%' }} />
+        </td>
       </tr>
     </thead>
   );
@@ -164,20 +176,21 @@ export function InvestigationTableRow({
           paddingTop: vPad,
           paddingBottom: vPad,
           paddingLeft: indented ? '14px' : '0',
-          paddingRight: 0,
+          paddingRight: '6px',
           fontWeight: isAbnormal ? 700 : 400,
           color: isAbnormal ? statusColor : '#222',
           fontSize,
           textAlign: 'left',
-          lineHeight: 1.4,
+          verticalAlign: 'baseline',   // was 'middle' — middle pushes descenders into the clip
+          lineHeight: 1.6,             // was 1.5 — more room below baseline for g/y/j
           whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          maxWidth: 0,
+          overflow: 'visible',         // was 'hidden' — let descenders render
+          textOverflow: 'clip',        // ellipsis needs overflow:hidden; with fixed table it rarely truncates anyway
         }}
       >
         {investigation}
       </td>
+
       <td
         style={{
           paddingTop: vPad,

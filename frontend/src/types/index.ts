@@ -412,6 +412,7 @@ export interface Report {
   b2b_lab_id?: string;
   b2b_charge?: number;
   b2b_lab_name?: string;
+  download_token?: string;
   created_at: string;
   updated_at: string;
   // Joined fields
