@@ -56,8 +56,8 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'ESR (Erythrocyte Sedimentation Rate)', 'ESR-01', 'Hematology', 'Blood', 100, 2, 'Measures inflammatory response', NOW(), NOW()),
   (gen_random_uuid(), 'Blood Group & Rh Typing', 'BG-01', 'Hematology', 'Blood', 150, 1, 'ABO blood group and Rh factor determination', NOW(), NOW()),
   (gen_random_uuid(), 'Peripheral Blood Smear', 'PBS-01', 'Hematology', 'Blood', 200, 6, 'Microscopic examination of blood cells', NOW(), NOW()),
-  (gen_random_uuid(), 'PT/INR (Prothrombin Time)', 'PTINR-01', 'Hematology', 'Blood', 250, 4, 'Coagulation profile - PT/INR', NOW(), NOW()),
-  (gen_random_uuid(), 'aPTT (Activated Partial Thromboplastin Time)', 'APTT-01', 'Hematology', 'Blood', 250, 4, 'Intrinsic coagulation pathway test', NOW(), NOW()),
+  (gen_random_uuid(), 'Prothrombin Time (PT/INR)', 'PT', 'Coagulation', 'Citrated Plasma (Blue Top)', 300.00, 4, 'Measures the time taken for blood to clot via the extrinsic pathway; includes INR for monitoring anticoagulant (warfarin) therapy.', NOW(), NOW()),
+  (gen_random_uuid(), 'Activated Partial Thromboplastin Time (APTT)', 'APTT', 'Coagulation', 'Citrated Plasma (Blue Top)', 300.00, 4, 'Measures the time taken for blood to clot via the intrinsic pathway; used to monitor heparin therapy and screen for clotting factor deficiencies.', NOW(), NOW()),
   (gen_random_uuid(), 'Bleeding Time', 'BT-01', 'Hematology', 'Blood', 150, 2, 'Platelet function screening test', NOW(), NOW()),
   (gen_random_uuid(), 'Clotting Time', 'CT-01', 'Hematology', 'Blood', 150, 2, 'Extrinsic coagulation pathway test', NOW(), NOW()),
   (gen_random_uuid(), 'Fibrinogen', 'FIBR-01', 'Hematology', 'Blood', 300, 4, 'Blood clotting factor measurement', NOW(), NOW()),
@@ -76,7 +76,6 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'Blood Sugar PP (Post Prandial)', 'PPBS-01', 'Biochemistry', 'Blood', 80, 2, 'Post-meal glucose measurement', NOW(), NOW()),
   (gen_random_uuid(), 'Random Blood Sugar (RBS)', 'RBS-01', 'Biochemistry', 'Blood', 80, 1, 'Random glucose level', NOW(), NOW()),
   (gen_random_uuid(), 'HbA1c (Glycated Hemoglobin)', 'HBA1C-01', 'Biochemistry', 'Blood', 350, 4, 'Average blood sugar over 3 months', NOW(), NOW()),
-  (gen_random_uuid(), 'Oral Glucose Tolerance Test (OGTT)', 'OGTT-01', 'Biochemistry', 'Blood', 400, 4, 'Glucose tolerance assessment', NOW(), NOW()),
   (gen_random_uuid(), 'GTT (2-hour)', 'GTT-01', 'Biochemistry', 'Blood', 350, 4, '2-hour glucose tolerance test', NOW(), NOW()),
   (gen_random_uuid(), 'Fasting Insulin', 'INS-F-01', 'Biochemistry', 'Blood', 300, 4, 'Fasting insulin level', NOW(), NOW()),
   (gen_random_uuid(), 'C-Peptide', 'CPEP-01', 'Biochemistry', 'Blood', 350, 4, 'Beta cell function assessment', NOW(), NOW()),
@@ -135,10 +134,10 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'Beta-HCG (Tumor Marker)', 'BHCG-TM-01', 'Biochemistry', 'Blood', 300, 4, 'Germ cell tumor marker', NOW(), NOW()),
   (gen_random_uuid(), 'Widal Test', 'WIDAL-01', 'Serology', 'Blood', 200, 4, 'Typhoid fever antibodies', NOW(), NOW()),
   (gen_random_uuid(), 'VDRL (Syphilis Screening)', 'VDRL-01', 'Serology', 'Blood', 200, 4, 'Syphilis screening test', NOW(), NOW()),
-  (gen_random_uuid(), 'RPR (Rapid Plasma Reagin)', 'RPR-01', 'Serology', 'Blood', 200, 4, 'Syphilis detection test', NOW(), NOW()),
+  (gen_random_uuid(), 'RPR (Rapid Plasma Reagin)', 'RPR-01', 'Serology', 'Serum', 200, 4, 'Syphilis detection test', NOW(), NOW()),
   (gen_random_uuid(), 'FTA-ABS (Syphilis Confirmation)', 'FTAABS-01', 'Serology', 'Blood', 300, 4, 'Syphilis confirmation test', NOW(), NOW()),
   (gen_random_uuid(), 'HIV I & II (ELISA)', 'HIV-01', 'Serology', 'Blood', 300, 6, 'HIV antibody screening', NOW(), NOW()),
-  (gen_random_uuid(), 'HIV Rapid Test', 'HIV-RAPID-01', 'Serology', 'Blood', 150, 1, 'Rapid HIV screening', NOW(), NOW()),
+  (gen_random_uuid(), 'HIV Rapid Test', 'HIV-RAPID-01', 'Serology', 'Serum', 150, 1, 'Rapid HIV screening', NOW(), NOW()),
   (gen_random_uuid(), 'HBsAg (Hepatitis B Surface Antigen)', 'HBSAG-01', 'Serology', 'Blood', 250, 4, 'Hepatitis B screening', NOW(), NOW()),
   (gen_random_uuid(), 'Anti-HBc (Hepatitis B Core Antibodies)', 'AHBC-01', 'Serology', 'Blood', 250, 4, 'Hepatitis B exposure', NOW(), NOW()),
   (gen_random_uuid(), 'Anti-HBs (Hepatitis B Surface Antibodies)', 'AHBS-01', 'Serology', 'Blood', 250, 4, 'Hepatitis B immunity', NOW(), NOW()),
@@ -147,9 +146,7 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'HCV RNA (Hepatitis C Viral Load)', 'HCV-RNA-01', 'Serology', 'Blood', 600, 4, 'Hepatitis C PCR quantification', NOW(), NOW()),
   (gen_random_uuid(), 'Anti-HAV IgM (Hepatitis A)', 'AHAV-IGM-01', 'Serology', 'Blood', 250, 4, 'Acute Hepatitis A infection', NOW(), NOW()),
   (gen_random_uuid(), 'Anti-HAV IgG (Hepatitis A)', 'AHAV-IGG-01', 'Serology', 'Blood', 250, 4, 'Hepatitis A immunity', NOW(), NOW()),
-  (gen_random_uuid(), 'Dengue NS1 Antigen', 'DENGNS1-01', 'Serology', 'Blood', 500, 4, 'Early dengue detection', NOW(), NOW()),
-  (gen_random_uuid(), 'Dengue IgM / IgG', 'DENGIGG-01', 'Serology', 'Blood', 500, 4, 'Dengue antibodies', NOW(), NOW()),
-  (gen_random_uuid(), 'Chikungunya IgM', 'CHIK-IGM-01', 'Serology', 'Blood', 400, 4, 'Acute chikungunya infection', NOW(), NOW()),
+  (gen_random_uuid(), 'Dengue NS1 & IgM/IgG', 'DENGUE-01', 'Serology', 'Serum', 600, 4, 'Qualitative detection of Dengue NS1 antigen and IgM/IgG antibodies', NOW(), NOW()),
   (gen_random_uuid(), 'Zika IgM', 'ZIKA-IGM-01', 'Serology', 'Blood', 400, 4, 'Zika virus antibodies', NOW(), NOW()),
   (gen_random_uuid(), 'CMV IgM', 'CMV-IGM-01', 'Serology', 'Blood', 350, 4, 'Acute CMV infection', NOW(), NOW()),
   (gen_random_uuid(), 'CMV IgG', 'CMV-IGG-01', 'Serology', 'Blood', 350, 4, 'CMV immunity status', NOW(), NOW()),
@@ -636,6 +633,50 @@ true,NOW(),NOW()),
 NULL,NULL,
 'Lipid Values',8,
 '{"min":400.0,"max":700.0}',NULL,
+true,NOW(),NOW()),
+
+-- PT PARAMETERS
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PT'),
+'PT (Patient)','seconds','number','input',
+NULL,NULL,
+'Prothrombin Time',1,
+'{"min":11.0,"max":13.5}'::jsonb,
+'{"low":7.0,"high":40.0}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PT'),
+'PT (Control)','seconds','number','input',
+NULL,NULL,
+'Prothrombin Time',2,
+'{"min":11.0,"max":13.5}'::jsonb,
+NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PT'),
+'INR','ratio','number','calculated',
+'(PT (Patient) / PT (Control))','PT (Patient),PT (Control)',
+'Prothrombin Time',3,
+'{"min":0.8,"max":1.2}'::jsonb,
+'{"high":5.0}'::jsonb,
+true,NOW(),NOW()),
+
+-- APTT PARAMETERS
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='APTT'),
+'APTT (Patient)','seconds','number','input',
+NULL,NULL,
+'Activated Partial Thromboplastin Time',1,
+'{"min":25.0,"max":35.0}'::jsonb,
+'{"low":15.0,"high":100.0}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='APTT'),
+'APTT (Control)','seconds','number','input',
+NULL,NULL,
+'Activated Partial Thromboplastin Time',2,
+'{"min":25.0,"max":35.0}'::jsonb,
+NULL,
 true,NOW(),NOW())
 
 ON CONFLICT (test_id, field_name)
@@ -646,6 +687,331 @@ reference_rules = EXCLUDED.reference_rules,
 critical_rules = EXCLUDED.critical_rules,
 formula = EXCLUDED.formula,
 depends_on = EXCLUDED.depends_on,
+updated_at = NOW();
+
+-- ============ USER ADDED TESTS ============
+INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turnaround_time, description, created_at, updated_at) VALUES
+(gen_random_uuid(), 'HbA1c (Glycated Hemoglobin)', 'HBA1C-01', 'Biochemistry', 'Blood', 350, 4, 'Average blood sugar over 3 months', NOW(), NOW()),
+(gen_random_uuid(), 'Malaria Antigen (Rapid Card)', 'MAL-AG-01', 'Serology', 'Whole Blood (EDTA)', 250, 1, 'Rapid antigen detection of P. falciparum and P. vivax', NOW(), NOW()),
+(gen_random_uuid(), 'Total Protein', 'TP-01', 'Biochemistry', 'Serum', 150, 4, 'Total serum protein (albumin + globulins)', NOW(), NOW()),
+(gen_random_uuid(), 'HIV I & II (Rapid)', 'HIV-01', 'Serology', 'Serum', 300, 2, 'Screening for HIV-1 and HIV-2 antibodies', NOW(), NOW()),
+(gen_random_uuid(), 'HBsAg (Rapid)', 'HBSAG-01', 'Serology', 'Serum', 300, 2, 'Hepatitis B surface antigen screening', NOW(), NOW()),
+(gen_random_uuid(), 'HCV (Rapid)', 'HCV-01', 'Serology', 'Serum', 300, 2, 'Hepatitis C virus antibody screening', NOW(), NOW()),
+(gen_random_uuid(), 'Chikungunya IgM', 'CHIK-IGM-01', 'Serology', 'Serum', 600, 24, 'Detection of IgM antibodies to Chikungunya virus', NOW(), NOW()),
+(gen_random_uuid(), 'Urine Albumin/Creatinine Ratio (ACR)', 'UACR-01', 'Biochemistry', 'Urine', 400, 4, 'Spot urine albumin to creatinine ratio for early kidney damage / microalbuminuria', NOW(), NOW()),
+(gen_random_uuid(), 'TORCH Evaluation', 'TORCH-01', 'Serology', 'Serum', 2500, 24, 'Panel for Toxoplasma, Rubella, CMV and Herpes (IgG & IgM antibodies)', NOW(), NOW())
+ON CONFLICT (test_code)
+DO UPDATE SET
+test_name = EXCLUDED.test_name,
+category = EXCLUDED.category,
+sample_type = EXCLUDED.sample_type,
+price = EXCLUDED.price,
+turnaround_time = EXCLUDED.turnaround_time,
+description = EXCLUDED.description,
+updated_at = NOW();
+
+-- ============ FIX SAMPLE TYPES ============
+UPDATE tests SET sample_type = 'Serum', updated_at = NOW()
+WHERE test_code IN ('HCV-01','HBSAG-01','HIV-01','HIV-RAPID-01','RPR-01','DENGUE-01');
+
+UPDATE tests SET sample_type = 'Whole Blood (EDTA)', updated_at = NOW()
+WHERE test_code = 'MAL-AG-01';
+
+UPDATE tests SET sample_type = 'Sputum', updated_at = NOW()
+WHERE test_code = 'TB-XPERT-01';
+
+-- ============ USER ADDED TEST FIELDS ============
+INSERT INTO test_fields (id, test_id, field_name, unit, input_type, options, field_type, formula, depends_on, section_group, order_index, reference_rules, critical_rules, is_mandatory, created_at, updated_at)
+VALUES
+
+-- HbA1c (HBA1C-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HBA1C-01'),
+'HbA1c','%','number',NULL,'input',
+NULL,NULL,
+'Glycated Hemoglobin',1,
+'{"min":4.0,"max":5.6}'::jsonb,
+'{"high":15.0}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HBA1C-01'),
+'Estimated Average Glucose (eAG)','mg/dL','number',NULL,'calculated',
+'(28.7 * HbA1c) - 46.7',
+'HbA1c',
+'Glycated Hemoglobin',2,
+'{"min":68,"max":114}'::jsonb,
+'{"high":300}'::jsonb,
+false,NOW(),NOW()),
+
+-- Malaria Antigen (MAL-AG-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='MAL-AG-01'),
+'P. falciparum (HRP-2)',NULL,'select','Negative,Positive','input',
+NULL,NULL,
+'Malaria Antigen',1,
+'{"normal":"Negative","method":"Rapid Antigen Card"}'::jsonb,
+'{"positive":"Positive"}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='MAL-AG-01'),
+'P. vivax (pLDH)',NULL,'select','Negative,Positive','input',
+NULL,NULL,
+'Malaria Antigen',2,
+'{"normal":"Negative","method":"Rapid Antigen Card"}'::jsonb,
+'{"positive":"Positive"}'::jsonb,
+true,NOW(),NOW()),
+
+-- Dengue NS1 & IgM/IgG (DENGUE-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DENGUE-01'),
+'Dengue NS1 Antigen',NULL,'select','Negative,Positive','input',
+NULL,NULL,
+'Dengue Serology',1,
+'{"normal":"Negative","method":"Rapid Immunochromatography"}'::jsonb,
+'{"positive":"Positive"}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DENGUE-01'),
+'Dengue IgM',NULL,'select','Negative,Positive','input',
+NULL,NULL,
+'Dengue Serology',2,
+'{"normal":"Negative","method":"Rapid Immunochromatography"}'::jsonb,
+'{"positive":"Positive"}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DENGUE-01'),
+'Dengue IgG',NULL,'select','Negative,Positive','input',
+NULL,NULL,
+'Dengue Serology',3,
+'{"normal":"Negative","method":"Rapid Immunochromatography"}'::jsonb,
+'{"positive":"Positive"}'::jsonb,
+true,NOW(),NOW()),
+
+-- Total Protein (TP-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TP-01'),
+'Total Protein','gm/dL','number',NULL,'input',
+NULL,NULL,
+'Total Protein',1,
+'{"min":6.0,"max":8.0}'::jsonb,
+'{"low":4.0,"high":10.0}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TP-01'),
+'Albumin','gm/dL','number',NULL,'input',
+NULL,NULL,
+'Total Protein',2,
+'{"min":3.3,"max":5.5}'::jsonb,
+NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TP-01'),
+'Globulin','gm/dL','number',NULL,'calculated',
+'Total Protein - Albumin','Total Protein,Albumin',
+'Total Protein',3,
+'{"min":1.5,"max":3.8}'::jsonb,
+NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TP-01'),
+'A G Ratio',NULL,'number',NULL,'calculated',
+'Albumin / Globulin','Albumin,Globulin',
+'Total Protein',4,
+'{"min":0.9,"max":2.0}'::jsonb,
+NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TP-01'),
+'Remarks',NULL,'textarea',NULL,'input',
+NULL,NULL,
+'Total Protein',5,
+NULL,
+NULL,
+false,NOW(),NOW()),
+
+-- HIV (HIV-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HIV-01'),
+'HIV I & II',NULL,'select','Non-Reactive,Reactive','input',
+NULL,NULL,
+'HIV Screening',1,
+'{"normal":"Non-Reactive","method":"Rapid Immunochromatography","note":"Reactive results require confirmation"}'::jsonb,
+'{"positive":"Reactive"}'::jsonb,
+true,NOW(),NOW()),
+
+-- HBsAg (HBSAG-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HBSAG-01'),
+'HBsAg',NULL,'select','Non-Reactive,Reactive','input',
+NULL,NULL,
+'Hepatitis B Screening',1,
+'{"normal":"Non-Reactive","method":"Rapid Immunochromatography","note":"Reactive results require confirmation"}'::jsonb,
+'{"positive":"Reactive"}'::jsonb,
+true,NOW(),NOW()),
+
+-- HCV (HCV-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HCV-01'),
+'Anti-HCV',NULL,'select','Non-Reactive,Reactive','input',
+NULL,NULL,
+'Hepatitis C Screening',1,
+'{"normal":"Non-Reactive","method":"Rapid Immunochromatography"}'::jsonb,
+'{"positive":"Reactive"}'::jsonb,
+true,NOW(),NOW()),
+
+-- Chikungunya IgM (CHIK-IGM-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CHIK-IGM-01'),
+'Chikungunya IgM','','select','Non-Reactive,Reactive','input',
+NULL,NULL,
+'Chikungunya Serology',1,
+'{"normal":"Non-Reactive"}'::jsonb,
+'{"positive":"Reactive"}'::jsonb,
+true,NOW(),NOW()),
+
+-- URINE ALBUMIN/CREATININE RATIO (UACR-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='UACR-01'),
+'Urine Albumin','mg/L','number',NULL,'input',
+NULL,NULL,
+'Urine ACR',1,
+'{"min":0,"max":30}'::jsonb,
+'{"high":300}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='UACR-01'),
+'Urine Creatinine','mg/dL','number',NULL,'input',
+NULL,NULL,
+'Urine ACR',2,
+'{"min":20,"max":320}'::jsonb,
+NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='UACR-01'),
+'Albumin/Creatinine Ratio (ACR)','mg/g','number',NULL,'calculated',
+'(Urine Albumin / (Urine Creatinine * 10)) * 1000',
+'Urine Albumin,Urine Creatinine',
+'Urine ACR',3,
+'{"min":0,"max":30}'::jsonb,
+'{"high":300}'::jsonb,
+true,NOW(),NOW()),
+
+-- TORCH EVALUATION (TORCH-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TORCH-01'),
+'Toxoplasma gondii IgG','IU/mL','number',NULL,'input',
+NULL,NULL,
+'Toxoplasma',1,
+'{"negative_max":7.2,"equivocal_min":7.2,"equivocal_max":8.8,"positive_min":8.8,"note":"<7.2 Non-immune; >8.8 Immune/Past exposure"}'::jsonb,
+NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TORCH-01'),
+'Toxoplasma gondii IgM','Index','number',NULL,'input',
+NULL,NULL,
+'Toxoplasma',2,
+'{"negative_max":0.9,"equivocal_min":0.9,"equivocal_max":1.1,"positive_min":1.1}'::jsonb,
+'{"high":1.1}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TORCH-01'),
+'Rubella IgG','IU/mL','number',NULL,'input',
+NULL,NULL,
+'Rubella',3,
+'{"negative_max":10,"equivocal_min":10,"equivocal_max":11,"positive_min":11,"note":">=10 IU/mL indicates immunity"}'::jsonb,
+NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TORCH-01'),
+'Rubella IgM','Index','number',NULL,'input',
+NULL,NULL,
+'Rubella',4,
+'{"negative_max":0.9,"equivocal_min":0.9,"equivocal_max":1.1,"positive_min":1.1}'::jsonb,
+'{"high":1.1}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TORCH-01'),
+'CMV IgG','AU/mL','number',NULL,'input',
+NULL,NULL,
+'CMV',5,
+'{"negative_max":6.0,"equivocal_min":6.0,"equivocal_max":6.0,"positive_min":6.0,"note":">=6.0 AU/mL indicates past exposure"}'::jsonb,
+NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TORCH-01'),
+'CMV IgM','Index','number',NULL,'input',
+NULL,NULL,
+'CMV',6,
+'{"negative_max":0.85,"equivocal_min":0.85,"equivocal_max":1.0,"positive_min":1.0}'::jsonb,
+'{"high":1.0}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TORCH-01'),
+'HSV 1/2 IgG','Index','number',NULL,'input',
+NULL,NULL,
+'Herpes',7,
+'{"negative_max":0.9,"equivocal_min":0.9,"equivocal_max":1.1,"positive_min":1.1}'::jsonb,
+NULL,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TORCH-01'),
+'HSV 1/2 IgM','Index','number',NULL,'input',
+NULL,NULL,
+'Herpes',8,
+'{"negative_max":0.9,"equivocal_min":0.9,"equivocal_max":1.1,"positive_min":1.1}'::jsonb,
+'{"high":1.1}'::jsonb,
+true,NOW(),NOW()),
+
+-- HIV Rapid Test - HIV-RAPID-01
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HIV-RAPID-01'),
+'HIV Rapid',NULL,'select','Non-Reactive,Reactive','input',
+NULL,NULL,
+'HIV Screening',1,
+'{"normal":"Non-Reactive","method":"Rapid Immunochromatography","note":"Reactive results require confirmation by ELISA/Western Blot"}'::jsonb,
+'{"positive":"Reactive"}'::jsonb,
+true,NOW(),NOW()),
+
+-- RPR (Rapid Plasma Reagin) - RPR-01
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='RPR-01'),
+'RPR (Qualitative)',NULL,'select','Non-Reactive,Reactive','input',
+NULL,NULL,
+'Syphilis Screening',1,
+'{"normal":"Non-Reactive","method":"Rapid Plasma Reagin (flocculation)"}'::jsonb,
+'{"positive":"Reactive"}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='RPR-01'),
+'RPR Titre (if Reactive)','ratio','select','1:1,1:2,1:4,1:8,1:16,1:32,1:64,1:128,1:256','input',
+NULL,NULL,
+'Syphilis Screening',2,
+'{"normal":"Non-Reactive","note":"Titre reported only when qualitative is Reactive"}'::jsonb,
+NULL,
+false,NOW(),NOW()),
+
+-- TB GENE XPERT (Rapid TB) - TB-XPERT-01
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TB-XPERT-01'),
+'MTB Detection',NULL,'select','Not Detected,Detected,Invalid','input',
+NULL,NULL,
+'GeneXpert',1,
+'{"normal":"Not Detected","method":"CBNAAT / GeneXpert MTB/RIF"}'::jsonb,
+'{"positive":"Detected"}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TB-XPERT-01'),
+'Rifampicin Resistance',NULL,'select','Not Detected,Detected,Indeterminate,Not Applicable','input',
+NULL,NULL,
+'GeneXpert',2,
+'{"normal":"Not Detected","note":"Reported only when MTB Detected"}'::jsonb,
+'{"positive":"Detected"}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TB-XPERT-01'),
+'Bacterial Load',NULL,'select','High,Medium,Low,Very Low,Trace,Not Applicable','input',
+NULL,NULL,
+'GeneXpert',3,
+'{"normal":"Not Applicable","note":"Semi-quantitative; reported when MTB Detected"}'::jsonb,
+NULL,
+false,NOW(),NOW())
+
+ON CONFLICT (test_id, field_name)
+DO UPDATE SET
+section_group = EXCLUDED.section_group,
+order_index = EXCLUDED.order_index,
+reference_rules = EXCLUDED.reference_rules,
+critical_rules = EXCLUDED.critical_rules,
+formula = EXCLUDED.formula,
+depends_on = EXCLUDED.depends_on,
+options = EXCLUDED.options,
 updated_at = NOW();
 
 WITH template_fields (
@@ -850,10 +1216,9 @@ WITH template_fields (
   ('GLUCOSE_TOLERANCE_PANEL', 'Fasting Glucose', 'mg/dL', 70.00, 99.00, 'number', NULL, 1, 'input', NULL, NULL, 'Glucose Tolerance | Values', NULL, '{"low":50,"high":400}'::jsonb, NULL, true),
   ('GLUCOSE_TOLERANCE_PANEL', '1 Hour Glucose', 'mg/dL', 0.00, 180.00, 'number', NULL, 2, 'input', NULL, NULL, 'Glucose Tolerance | Values', NULL, '{"high":450}'::jsonb, NULL, true),
   ('GLUCOSE_TOLERANCE_PANEL', '2 Hour Glucose', 'mg/dL', 0.00, 140.00, 'number', NULL, 3, 'input', NULL, NULL, 'Glucose Tolerance | Values', NULL, '{"high":450}'::jsonb, NULL, true),
-  ('GLUCOSE_TOLERANCE_PANEL', '3 Hour Glucose', 'mg/dL', 0.00, 140.00, 'number', NULL, 4, 'input', NULL, NULL, 'Glucose Tolerance | Values', NULL, '{"high":450}'::jsonb, NULL, false),
-  ('GLUCOSE_TOLERANCE_PANEL', 'AUC (Glucose)', 'mg*h/dL', 0.00, 1000.00, 'number', NULL, 5, 'calculated', '(Fasting Glucose + 1 Hour Glucose + 2 Hour Glucose + COALESCE(3 Hour Glucose,0))', 'Fasting Glucose,1 Hour Glucose,2 Hour Glucose,3 Hour Glucose', 'Glucose Tolerance | Calculated', NULL, NULL, NULL, true),
-  ('GLUCOSE_TOLERANCE_PANEL', 'Diagnostic Category', NULL, NULL, NULL, 'text', NULL, 6, 'input', NULL, NULL, 'Glucose Tolerance | Interpretation', NULL, NULL, NULL, true),
-  ('GLUCOSE_TOLERANCE_PANEL', 'Interpretation', NULL, NULL, NULL, 'textarea', NULL, 7, 'input', NULL, NULL, 'Glucose Tolerance | Interpretation', NULL, NULL, NULL, true),
+  ('GLUCOSE_TOLERANCE_PANEL', 'AUC (Glucose)', 'mg*h/dL', 0.00, 1000.00, 'number', NULL, 4, 'calculated', '(Fasting Glucose + 1 Hour Glucose + 2 Hour Glucose)', 'Fasting Glucose,1 Hour Glucose,2 Hour Glucose', 'Glucose Tolerance | Calculated', NULL, NULL, NULL, true),
+  ('GLUCOSE_TOLERANCE_PANEL', 'Diagnostic Category', NULL, NULL, NULL, 'text', NULL, 5, 'input', NULL, NULL, 'Glucose Tolerance | Interpretation', NULL, NULL, NULL, true),
+  ('GLUCOSE_TOLERANCE_PANEL', 'Interpretation', NULL, NULL, NULL, 'textarea', NULL, 6, 'input', NULL, NULL, 'Glucose Tolerance | Interpretation', NULL, NULL, NULL, true),
 
   ('FLUID_ANALYSIS_PANEL', 'Color', NULL, NULL, NULL, 'text', NULL, 1, 'input', NULL, NULL, 'Fluid Analysis | Physical', NULL, NULL, NULL, true),
   ('FLUID_ANALYSIS_PANEL', 'Appearance', NULL, NULL, NULL, 'text', NULL, 2, 'input', NULL, NULL, 'Fluid Analysis | Physical', NULL, NULL, NULL, true),
@@ -899,15 +1264,14 @@ test_panel_map AS (
       WHEN t.test_code IN ('UCULT-01', 'BCULT-01', 'SCULT-01', 'SPCULT-01', 'PCULT-01', 'TCULT-01', 'FCULT-01', 'SEMEN-CULT-01', 'TBCULT-01') THEN 'CULTURE_COMPLETE'
       WHEN t.test_code IN ('BIOPSY-01', 'BM-01') THEN 'HISTOPATH_STANDARD'
       WHEN t.test_code IN ('FNAC-01', 'PAP-01') THEN 'CYTOLOGY_BETHESDA'
-      WHEN t.test_code IN ('OGTT-01', 'GTT-01') THEN 'GLUCOSE_TOLERANCE_PANEL'
+      WHEN t.test_code = 'GTT-01' THEN 'GLUCOSE_TOLERANCE_PANEL'
       WHEN t.test_code IN ('CSF-01', 'PLEURAL-01', 'ASCITIC-01', 'JOINT-01') THEN 'FLUID_ANALYSIS_PANEL'
-      WHEN t.test_code = 'TB-XPERT-01' THEN 'TB_XPERT_PANEL'
       WHEN t.test_code = 'BG-01' THEN 'BLOOD_GROUP_PANEL'
       WHEN t.category = 'Serology' THEN 'SINGLE_ANALYTE_QUALITATIVE'
       ELSE 'SINGLE_ANALYTE_NUMERIC'
     END AS template_code
   FROM tests t
-  WHERE t.test_code NOT IN ('CBC-01', 'LFT-01', 'KFT-01', 'LIPID-01')
+  WHERE t.test_code NOT IN ('CBC-01', 'LFT-01', 'KFT-01', 'LIPID-01', 'PT', 'APTT', 'HBA1C-01', 'MAL-AG-01', 'TP-01', 'HIV-01', 'HBSAG-01', 'HCV-01', 'CHIK-IGM-01', 'UACR-01', 'TORCH-01', 'HIV-RAPID-01', 'RPR-01', 'TB-XPERT-01', 'DENGUE-01')
 ),
 seed_rows AS (
   SELECT
