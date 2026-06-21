@@ -262,6 +262,19 @@ export interface CriticalRules {
   policy?: string;
 }
 
+export interface QualitativeBand {
+  label: string;
+  operator: 'lt' | 'lte' | 'gt' | 'gte' | 'range' | 'eq';
+  value?: number | null;
+  min?: number | null;
+  max?: number | null;
+}
+
+export interface ReferenceRulesObject {
+  qualitative_bands?: QualitativeBand[];
+  [key: string]: any;
+}
+
 export interface TestField {
   id: string;
   test_id: string;
@@ -269,14 +282,14 @@ export interface TestField {
   unit?: string;
   min_value?: number | null;
   max_value?: number | null;
-  input_type?: string; // 'number' | 'text' | 'select'
-  options?: string;     // comma-separated for select type
+  input_type?: 'number' | 'text' | 'select' | 'textarea' | string;
+  options?: string | null;     // comma-separated for select type
   field_type?: FieldType; // input (default), calculated, flag
   formula?: string;       // JS expression for calculated fields, e.g. "TotalCholesterol / HDL"
   depends_on?: string;    // JSON array of field names this field depends on
   section_group?: string; // Sub-section heading within a test, e.g. "HEMOGLOBIN", "RBC COUNT"
   order_index: number;
-  reference_rules?: ReferenceRule[] | Record<string, any> | null;
+  reference_rules?: ReferenceRule[] | ReferenceRulesObject | null;
   critical_rules?: CriticalRules | null;
   interpretation_logic?: Record<string, any> | null;
   is_mandatory?: boolean;
@@ -290,14 +303,14 @@ export interface CreateTestFieldData {
   unit?: string;
   min_value?: number | null;
   max_value?: number | null;
-  input_type?: string;
-  options?: string;
+  input_type?: 'number' | 'text' | 'select' | 'textarea' | string;
+  options?: string | null;
   field_type?: FieldType;
   formula?: string;
   depends_on?: string;
   order_index?: number;
   section_group?: string;
-  reference_rules?: ReferenceRule[] | null;
+  reference_rules?: ReferenceRule[] | ReferenceRulesObject | null;
   critical_rules?: CriticalRules | null;
 }
 

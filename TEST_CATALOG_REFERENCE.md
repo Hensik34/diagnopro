@@ -245,8 +245,7 @@
 ### Viral Diseases (10 tests)
 | Test Name | Code | Unit | Turnaround |
 |-----------|------|------|-----------|
-| Dengue NS1 | DENGNS1-01 | - | 4h |
-| Dengue IgM/IgG | DENGIGG-01 | - | 4h |
+| Dengue NS1 & IgM/IgG | DENGUE-01 | - | 4h |
 | Chikungunya IgM | CHIK-IGM-01 | - | 4h |
 | Zika IgM | ZIKA-IGM-01 | - | 4h |
 | CMV IgM | CMV-IGM-01 | - | 4h |

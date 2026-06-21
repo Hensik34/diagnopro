@@ -16,8 +16,9 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle }: TopNavProps) {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Get data from stores
-  const { user, logout } = useAuthStore();
+  const { user, logout, getBranchRole } = useAuthStore();
   const { branches, currentBranchId } = useBranchStore();
+  const isDoctor = getBranchRole() === 'doctor';
 
   // Get current branch name
   const currentBranch = branches.find(b => b.id === currentBranchId);
@@ -53,13 +54,15 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle }: TopNavProps) {
     >
       <div className="h-full flex items-center justify-between px-3 md:px-4 gap-2 md:gap-4">
         {/* Mobile Menu Button */}
-        <button
-          onClick={onSidebarToggle}
-          className="md:hidden p-1 rounded hover:bg-accent transition-colors"
-          aria-label="Toggle menu"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
+        {!isDoctor && (
+          <button
+            onClick={onSidebarToggle}
+            className="md:hidden p-1 rounded hover:bg-accent transition-colors"
+            aria-label="Toggle menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
 
         {/* Branch Badge — read-only indicator */}
         <div className="flex items-center gap-2 md:gap-3">
