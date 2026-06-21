@@ -25,7 +25,7 @@ import { useAuthStore } from '../../stores';
 import { useBranchStore } from '../../stores';
 import { testApi } from '../../api';
 import { PERMISSIONS } from '../../utils/permissions';
-import type { Test, CreateTestData, TestField, CreateTestFieldData, FieldType, ReferenceRule, CriticalRules } from '../../types';
+import type { Test, CreateTestData, TestField, CreateTestFieldData, FieldType, ReferenceRule, CriticalRules, QualitativeBand } from '../../types';
 
 // Common lab measurement units organized by category
 const LAB_UNITS: Record<string, string[]> = {
@@ -653,20 +653,23 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
       setLoadingFields(true);
       testApi.getFields(test.id)
         .then(res => {
-          setFields(res.data.map((f: TestField) => ({
-            field_name: f.field_name,
-            unit: f.unit || '',
-            min_value: f.min_value ?? undefined,
-            max_value: f.max_value ?? undefined,
-            input_type: f.input_type || 'number',
-            order_index: f.order_index ?? 0,
-            field_type: f.field_type || 'input',
-            formula: f.formula || '',
-            depends_on: f.depends_on || '',
-            section_group: f.section_group || '',
-            _referenceRules: normalizeReferenceRules(f.reference_rules),
-            _criticalRules: f.critical_rules || { low: null, high: null },
-          })));
+          setFields(res.data.map((f: TestField) => {
+            return {
+              field_name: f.field_name,
+              unit: f.unit || '',
+              min_value: f.min_value ?? undefined,
+              max_value: f.max_value ?? undefined,
+              input_type: f.input_type || 'number',
+              options: f.options || '',
+              order_index: f.order_index ?? 0,
+              field_type: f.field_type || 'input',
+              formula: f.formula || '',
+              depends_on: f.depends_on || '',
+              section_group: f.section_group || '',
+              _referenceRules: normalizeReferenceRules(f.reference_rules),
+              _criticalRules: f.critical_rules || { low: null, high: null }
+            };
+          }));
         })
         .catch(() => {})
         .finally(() => setLoadingFields(false));
@@ -690,13 +693,14 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
       min_value: undefined,
       max_value: undefined,
       input_type: 'number',
+      options: '',
       order_index: prev.length,
       field_type: 'input',
       formula: '',
       depends_on: '',
       section_group: '',
       _referenceRules: [],
-      _criticalRules: { low: null, high: null },
+      _criticalRules: { low: null, high: null }
     }]);
   };
 
@@ -719,6 +723,8 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
       return updated;
     }));
   };
+
+
 
   const removeField = (index: number) => {
     setFields(prev => prev.filter((_, i) => i !== index).map((f, i) => ({ ...f, order_index: i })));
@@ -784,16 +790,28 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
         if (validFields.length > 0) {
           // Convert FieldEditorData to CreateTestFieldData with reference_rules
           const fieldsToSave: CreateTestFieldData[] = validFields.map(f => {
-            const refRules = f._referenceRules.length > 0 ? f._referenceRules : null;
-            const critRules = (f._criticalRules.low != null || f._criticalRules.high != null)
-              ? f._criticalRules : null;
+            let refRules: any = null;
+            let critRules: any = null;
+            let finalOptions = null;
+            
+            if (f.input_type === 'select') {
+              refRules = f._referenceRules.length > 0 ? f._referenceRules : null;
+              critRules = null;
+              finalOptions = 'Negative,Positive';
+            } else {
+              refRules = f._referenceRules.length > 0 ? f._referenceRules : null;
+              critRules = (f._criticalRules.low != null || f._criticalRules.high != null)
+                ? f._criticalRules : null;
+              finalOptions = null;
+            }
 
             return {
               field_name: f.field_name,
               unit: f.unit,
               min_value: f.min_value,
               max_value: f.max_value,
-              input_type: f.input_type,
+              input_type: f.input_type || 'number',
+              options: finalOptions,
               order_index: f.order_index,
               field_type: f.field_type,
               formula: f.formula,
@@ -952,8 +970,9 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
                     <tr className="border-b border-border">
                       <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider w-8">#</th>
                       <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Name</th>
-                      <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider w-36">Unit</th>
-                      <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-20">Type</th>
+                      <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider w-32">Unit</th>
+                      <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-24">Field Type</th>
+                      <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-24">Input Type</th>
                       <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Reference Ranges</th>
                       <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-16">Actions</th>
                     </tr>
@@ -1041,28 +1060,43 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
                           </select>
                         </td>
                         <td className="px-2 py-1.5">
-                          {QUALITATIVE_UNITS.includes(field.unit || '') ? (
-                            <span className="text-[10px] text-muted-foreground block py-1">Qualitative</span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setExpandedRangeIndex(expandedRangeIndex === index ? null : index)}
-                              className="flex items-center gap-1.5 w-full text-left group"
-                            >
-                              <ChevronRight className={`w-3 h-3 text-muted-foreground transition-transform flex-shrink-0 ${expandedRangeIndex === index ? 'rotate-90' : ''}`} />
-                              <span className="text-[11px] text-foreground truncate">
-                                {field._referenceRules.length > 0
-                                  ? referenceRulesSummary(field._referenceRules)
-                                  : (field.min_value != null || field.max_value != null)
-                                    ? `${field.min_value ?? '—'} – ${field.max_value ?? '—'}`
-                                    : <span className="text-muted-foreground">Click to add</span>
-                                }
-                              </span>
-                              {field._criticalRules.low != null || field._criticalRules.high != null ? (
-                                <AlertTriangle className="w-3 h-3 text-red-500 flex-shrink-0" title="Has critical thresholds" />
-                              ) : null}
-                            </button>
-                          )}
+                          <select
+                            value={field.input_type || 'number'}
+                            onChange={e => {
+                              const val = e.target.value;
+                              updateField(index, {
+                                input_type: val,
+                                options: val === 'select' ? 'Negative,Positive' : '',
+                              });
+                            }}
+                            disabled={readOnly}
+                            className="w-full h-7 px-1 bg-secondary border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary"
+                          >
+                            <option value="number">Number</option>
+                            <option value="text">Text</option>
+                            <option value="select">Selection</option>
+                          </select>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedRangeIndex(expandedRangeIndex === index ? null : index)}
+                            className="flex items-center gap-1.5 w-full text-left group"
+                          >
+                            <ChevronRight className={`w-3 h-3 text-muted-foreground transition-transform flex-shrink-0 ${expandedRangeIndex === index ? 'rotate-90' : ''}`} />
+                            <span className="text-[11px] text-foreground truncate">
+                              {field._referenceRules.length > 0 ? (
+                                referenceRulesSummary(field._referenceRules)
+                              ) : (field.min_value != null || field.max_value != null) ? (
+                                `${field.min_value ?? '—'} – ${field.max_value ?? '—'}`
+                              ) : (
+                                <span className="text-muted-foreground">Click to add</span>
+                              )}
+                            </span>
+                            {field._criticalRules && (field._criticalRules.low != null || field._criticalRules.high != null) ? (
+                              <AlertTriangle className="w-3 h-3 text-red-500 flex-shrink-0" title="Has critical thresholds" />
+                            ) : null}
+                          </button>
                         </td>
                         <td className="px-2 py-1.5 text-center">
                           <button
@@ -1076,10 +1110,10 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
                       </tr>
 
                       {/* Expanded Reference Range Editor */}
-                      {expandedRangeIndex === index && !QUALITATIVE_UNITS.includes(field.unit || '') && (
+                      {expandedRangeIndex === index && (
                         <tr className="bg-gradient-to-r from-emerald-50/50 to-blue-50/50 dark:from-emerald-950/20 dark:to-blue-950/20">
                           <td className="px-2 py-2"></td>
-                          <td colSpan={5} className="px-2 py-2">
+                          <td colSpan={6} className="px-2 py-2">
                             <ReferenceRangeEditor
                               rules={field._referenceRules}
                               criticalRules={field._criticalRules}
@@ -1097,7 +1131,7 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
                       {field.field_type === 'calculated' && (
                         <tr className="bg-primary/5">
                           <td className="px-2 py-1.5"></td>
-                          <td colSpan={3} className="px-2 py-1.5">
+                          <td colSpan={4} className="px-2 py-1.5">
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] text-primary font-medium whitespace-nowrap">Formula:</span>
                               <div className="flex-1 h-7 px-2 bg-gray-100 dark:bg-gray-800 border border-primary/20 rounded text-xs flex items-center font-mono text-gray-600 dark:text-gray-400">
@@ -1116,7 +1150,7 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
                       {QUALITATIVE_UNITS.includes(field.unit || '') && field.field_type !== 'calculated' && (
                         <tr className="bg-amber-50/50 dark:bg-amber-950/20">
                           <td className="px-2 py-1.5"></td>
-                          <td colSpan={3} className="px-2 py-1.5">
+                          <td colSpan={4} className="px-2 py-1.5">
                             <div>
                               <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium whitespace-nowrap">Options:</span>
                             </div>
@@ -1291,6 +1325,19 @@ function ReferenceRangeEditor({
                   />
                 </div>
 
+                {/* Text Range / Note */}
+                <div className="flex flex-col flex-grow min-w-[150px]">
+                  <span className="text-[9px] text-muted-foreground mb-0.5">Text Range / Note</span>
+                  <input
+                    type="text"
+                    value={rule.note || ''}
+                    onChange={e => onUpdateRule(ri, { note: e.target.value })}
+                    disabled={readOnly}
+                    className="h-6 px-2 bg-secondary border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    placeholder="e.g., Negative <0.8 or Normal"
+                  />
+                </div>
+
                 {/* Delete rule */}
                 {!readOnly && (
                   <button
@@ -1348,3 +1395,5 @@ function ReferenceRangeEditor({
     </div>
   );
 }
+
+

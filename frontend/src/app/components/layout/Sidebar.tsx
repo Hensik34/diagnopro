@@ -118,6 +118,7 @@ const menuItems = [
     label: 'Time Tracking', 
     icon: Clock,
     // Visible to all authenticated users (no permission needed)
+    hideForDoctor: true,
   },
   { 
     path: '/working-hours', 
@@ -245,7 +246,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </div>
 
       {/* Mobile Sidebar (Drawer) */}
-      {!collapsed && isMobile && (
+      {!collapsed && isMobile && !isDoctor && (
         <>
           {/* Overlay */}
           <div 
