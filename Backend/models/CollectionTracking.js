@@ -83,12 +83,17 @@ exports.getTodayByStaff = async (staffId) => {
  * Create a new tracking record
  */
 exports.create = async (data) => {
+  const start = data.start_km != null ? Number(data.start_km) : null;
+  const end = data.end_km != null ? Number(data.end_km) : null;
+  const total_km = (start != null && end != null) ? Math.max(0, end - start) : null;
+
   return await SampleCollectionTracking.create({
     staff_id: data.staff_id,
     branch_id: data.branch_id || null,
     date: data.date || new Date(),
-    start_km: data.start_km || null,
-    end_km: data.end_km || null,
+    start_km: start,
+    end_km: end,
+    total_km: total_km,
     start_meter_image: data.start_meter_image || null,
     end_meter_image: data.end_meter_image || null,
     bike_image: data.bike_image || null,
@@ -106,6 +111,16 @@ exports.update = async (id, data) => {
 
   if (data.start_km !== undefined) record.start_km = data.start_km;
   if (data.end_km !== undefined) record.end_km = data.end_km;
+  
+  // Calculate/recalculate total_km
+  const start = record.start_km != null ? Number(record.start_km) : null;
+  const end = record.end_km != null ? Number(record.end_km) : null;
+  if (start != null && end != null) {
+    record.total_km = Math.max(0, end - start);
+  } else {
+    record.total_km = null;
+  }
+
   if (data.start_meter_image !== undefined) record.start_meter_image = data.start_meter_image;
   if (data.end_meter_image !== undefined) record.end_meter_image = data.end_meter_image;
   if (data.bike_image !== undefined) record.bike_image = data.bike_image;

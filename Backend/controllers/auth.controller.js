@@ -192,6 +192,7 @@ exports.login = async (req, res) => {
           lastname: user.lastname,
           email: user.email,
           role: user.role,
+          petrol_price_per_km: user.petrol_price_per_km,
           created_at: user.created_at
         },
         branches: branches.map(b => ({
@@ -690,6 +691,7 @@ exports.googleLogin = async (req, res) => {
           lastname: user.lastname,
           email: user.email,
           role: user.role,
+          petrol_price_per_km: user.petrol_price_per_km,
           created_at: user.created_at
         },
         branches: branches.map(b => ({
@@ -789,6 +791,7 @@ exports.googleLogin = async (req, res) => {
         lastname: newUser.lastname,
         email: newUser.email,
         role: newUser.role,
+        petrol_price_per_km: newUser.petrol_price_per_km,
         created_at: newUser.created_at
       },
       branches: [],
