@@ -20,6 +20,14 @@ export const authApi = {
   },
 
   /**
+   * Login/Register with Google ID token
+   */
+  googleLogin: async (idToken: string): Promise<AuthResponse> => {
+    const response = await api.post<AuthResponse>('/auth/google-login', { idToken });
+    return response.data;
+  },
+
+  /**
    * Register a new admin user (self-registration)
    */
   register: async (userData: {

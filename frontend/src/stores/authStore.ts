@@ -33,6 +33,7 @@ interface AuthState {
 
   // Actions
   login: (credentials: LoginCredentials) => Promise<boolean>;
+  googleLogin: (idToken: string) => Promise<boolean>;
   register: (data: RegisterData) => Promise<boolean>;
   logout: () => void;
   fetchProfile: () => Promise<void>;
@@ -92,6 +93,43 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
+      set({
+        isLoading: false,
+        error: errorMessage,
+        isAuthenticated: false,
+        user: null,
+        doctorProfile: null,
+        loginBranches: [],
+      });
+      return false;
+    }
+  },
+
+  /**
+   * Login or Register with Google ID Token
+   */
+  googleLogin: async (idToken: string): Promise<boolean> => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const response = await authApi.googleLogin(idToken);
+
+      // Store token in localStorage
+      setAuthToken(response.token);
+
+      // Store user in Zustand state
+      set({
+        user: response.user,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+        doctorProfile: response.doctorProfile || null,
+        loginBranches: response.branches || [],
+      });
+
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Google login failed';
       set({
         isLoading: false,
         error: errorMessage,

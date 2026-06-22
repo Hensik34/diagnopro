@@ -612,3 +612,192 @@ exports.resetPassword = async (req, res) => {
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 };
+
+// GOOGLE LOGIN & REGISTRATION
+exports.googleLogin = async (req, res) => {
+  const { idToken } = req.body;
+
+  if (!idToken) {
+    return res.status(400).json({ error: "Google idToken is required" });
+  }
+
+  try {
+    // 1. Verify Google token via Google API tokeninfo endpoint
+    let tokenInfo;
+    
+    // Node 18+ has global fetch, we'll try that first, with a fallback to native https
+    if (typeof fetch !== 'undefined') {
+      const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+      if (!response.ok) {
+        return res.status(400).json({ error: "Invalid or expired Google token" });
+      }
+      tokenInfo = await response.json();
+    } else {
+      tokenInfo = await new Promise((resolve, reject) => {
+        const https = require("https");
+        https.get(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`, (response) => {
+          let data = "";
+          response.on("data", (chunk) => { data += chunk; });
+          response.on("end", () => {
+            if (response.statusCode !== 200) {
+              reject(new Error("Invalid or expired Google token"));
+            } else {
+              try {
+                resolve(JSON.parse(data));
+              } catch (e) {
+                reject(e);
+              }
+            }
+          });
+        }).on("error", (err) => reject(err));
+      });
+    }
+
+    const { email, given_name, family_name } = tokenInfo;
+    if (!email) {
+      return res.status(400).json({ error: "Email not provided by Google account" });
+    }
+
+    // 2. Check if user already exists (users table)
+    let user = await User.findUserByEmail(email);
+
+    if (user) {
+      if (user.is_active === false) {
+        return res.status(403).json({ error: "Your account has been deactivated. Please contact your administrator." });
+      }
+
+      // Get user's branches with their branch-specific roles
+      const branches = await Branch.getUserBranches(user.id);
+
+      // Create JWT token
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role, source: "user" },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      // If user is a doctor role, also get their linked doctor record
+      let doctorProfile = null;
+      if (user.role === "doctor" || branches.some(b => b.user_role === "doctor")) {
+        doctorProfile = await Doctor.getDoctorByUserId(user.id);
+      }
+
+      return res.json({
+        message: "Login successful",
+        user: {
+          id: user.id,
+          firstname: user.firstname,
+          lastname: user.lastname,
+          email: user.email,
+          role: user.role,
+          created_at: user.created_at
+        },
+        branches: branches.map(b => ({
+          id: b.id,
+          name: b.name,
+          location: b.location,
+          city: b.city,
+          role: b.user_role
+        })),
+        doctorProfile,
+        token
+      });
+    }
+
+    // 3. Check if they are in the doctors table directly
+    const doctor = await Doctor.findDoctorByEmail(email);
+
+    if (doctor) {
+      if (doctor.is_active === false) {
+        return res.status(403).json({ error: "Your account has been deactivated. Please contact your administrator." });
+      }
+
+      // Get doctor's branches from doctor_branches table
+      const doctorBranches = await Doctor.getDoctorBranches(doctor.id);
+
+      // Create JWT token — role is always 'doctor', source is 'doctor'
+      const token = jwt.sign(
+        { id: doctor.id, email: doctor.email, role: "doctor", source: "doctor" },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      return res.json({
+        message: "Login successful",
+        user: {
+          id: doctor.id,
+          firstname: doctor.firstname || doctor.name,
+          lastname: doctor.lastname || "",
+          email: doctor.email,
+          role: "doctor",
+          created_at: doctor.created_at
+        },
+        branches: doctorBranches.map(b => ({
+          id: b.id,
+          name: b.name,
+          location: b.location,
+          city: b.city,
+          role: "doctor"
+        })),
+        doctorProfile: {
+          id: doctor.id,
+          title: doctor.title,
+          name: doctor.name,
+          specialization: doctor.specialization,
+          commission_percentage: doctor.commission_percentage,
+          phone: doctor.phone,
+          email: doctor.email,
+          signature_url: doctor.signature_url
+        },
+        token
+      });
+    }
+
+    // 4. If neither exists, self-register the user as admin
+    const crypto = require("crypto");
+    const randomPassword = crypto.randomBytes(16).toString("hex");
+    
+    // Self-registered users are always admin (branch owner)
+    const newUser = await User.createUser(
+      given_name || email.split("@")[0] || "Google",
+      family_name || "User",
+      email,
+      randomPassword,
+      null, // phone
+      "admin",
+      0, // petrol price
+      null // created by
+    );
+
+    // Create JWT token
+    const token = jwt.sign(
+      { id: newUser.id, email: newUser.email, role: newUser.role, source: "user" },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // Send welcome email (fire-and-forget)
+    sendWelcomeEmail({ firstname: newUser.firstname, email: newUser.email }).catch((err) => {
+      console.error("Failed to send welcome email:", err.message);
+    });
+
+    return res.status(201).json({
+      message: "User registered successfully",
+      user: {
+        id: newUser.id,
+        firstname: newUser.firstname,
+        lastname: newUser.lastname,
+        email: newUser.email,
+        role: newUser.role,
+        created_at: newUser.created_at
+      },
+      branches: [],
+      doctorProfile: null,
+      token
+    });
+
+  } catch (err) {
+    console.error("Google login error:", err);
+    return res.status(500).json({ error: err.message || "Failed to process Google sign in" });
+  }
+};
