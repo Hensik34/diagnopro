@@ -118,7 +118,7 @@ export const router = createBrowserRouter([
       { path: 'branches', Component: withPermission(Branches, PERMISSIONS.BRANCH_READ) },
       { path: 'users', Component: withPermission(Users, PERMISSIONS.USER_READ) },
       { path: 'inventory', Component: withPermission(Inventory, PERMISSIONS.INVENTORY_READ) },
-      { path: 'time-tracking', Component: TimeTracking },
+      { path: 'time-tracking', Component: withPermission(TimeTracking, PERMISSIONS.TIMELOG_TRACK) },
       { path: 'working-hours', Component: withPermission(WorkingHours, PERMISSIONS.TIMELOG_VIEW_ALL) },
       { path: 'analytics', Component: withPermission(Analytics, PERMISSIONS.ANALYTICS_VIEW) },
       { path: 'settings', Component: withPermission(Settings, PERMISSIONS.SETTINGS_VIEW) },

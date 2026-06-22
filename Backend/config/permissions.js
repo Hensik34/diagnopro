@@ -85,6 +85,7 @@ const PERMISSIONS = {
   // Time Log Management
   TIMELOG_VIEW_ALL: 'timelog:view_all',
   TIMELOG_DELETE: 'timelog:delete',
+  TIMELOG_TRACK: 'timelog:track',
 
   // Settings & System
   SETTINGS_READ: 'settings:read',
@@ -235,6 +236,7 @@ const ROLE_PERMISSIONS = {
     PERMISSIONS.B2B_PAYMENT_DELETE,
     PERMISSIONS.B2B_DASHBOARD_VIEW,
     PERMISSIONS.B2B_AUDIT_VIEW,
+    PERMISSIONS.TIMELOG_TRACK,
   ],
 
   // Staff: Front desk operations - patient registration, report generation, basic reads
@@ -271,6 +273,7 @@ const ROLE_PERMISSIONS = {
     // Settings - can manage WhatsApp and notifications
     PERMISSIONS.SETTINGS_READ,
     PERMISSIONS.SETTINGS_UPDATE,
+    PERMISSIONS.TIMELOG_TRACK,
   ],
 
   // B2B Lab: Partner lab with restricted access to own data

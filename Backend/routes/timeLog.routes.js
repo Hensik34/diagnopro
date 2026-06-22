@@ -8,16 +8,16 @@ const timeLogController = require("../controllers/timeLog.controller");
 // ==========================================
 
 // Clock in
-router.post("/clock-in", authenticate, timeLogController.clockIn);
+router.post("/clock-in", authenticate, authorize(PERMISSIONS.TIMELOG_TRACK), timeLogController.clockIn);
 
 // Clock out
-router.post("/clock-out", authenticate, timeLogController.clockOut);
+router.post("/clock-out", authenticate, authorize(PERMISSIONS.TIMELOG_TRACK), timeLogController.clockOut);
 
 // Get my active session
-router.get("/active", authenticate, timeLogController.getActiveSession);
+router.get("/active", authenticate, authorize(PERMISSIONS.TIMELOG_TRACK), timeLogController.getActiveSession);
 
 // Get my time logs
-router.get("/my-logs", authenticate, timeLogController.getMyLogs);
+router.get("/my-logs", authenticate, authorize(PERMISSIONS.TIMELOG_TRACK), timeLogController.getMyLogs);
 
 // ==========================================
 // Admin routes

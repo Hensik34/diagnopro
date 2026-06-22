@@ -12,17 +12,19 @@ const p = new Pool({
 (async () => {
   const c = await p.connect();
   try {
+    const dbName = process.env.DB_NAME || "diagnopro";
     // Terminate all connections to the target database
     await c.query(
-      "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='diangopro' AND pid <> pg_backend_pid()"
+      `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`,
+      [dbName]
     );
-    console.log("✅ All connections to diangopro terminated");
+    console.log(`✅ All connections to ${dbName} terminated`);
 
-    await c.query("DROP DATABASE IF EXISTS diangopro");
-    console.log("✅ Database dropped");
+    await c.query(`DROP DATABASE IF EXISTS "${dbName}"`);
+    console.log(`✅ Database ${dbName} dropped`);
 
-    await c.query("CREATE DATABASE diangopro");
-    console.log("✅ Database created fresh");
+    await c.query(`CREATE DATABASE "${dbName}"`);
+    console.log(`✅ Database ${dbName} created fresh`);
   } finally {
     c.release();
     await p.end();

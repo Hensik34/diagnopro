@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from 'react-router';
 import { Building2 } from 'lucide-react';
 import { Sidebar } from '../../app/components/layout/Sidebar';
 import { TopNav } from '../../app/components/layout/TopNav';
+import { DoctorBottomNav } from '../../app/components/layout/DoctorBottomNav';
 import { ThemeProvider } from 'next-themes';
 import { useAuthStore, useBranchStore } from '../../stores';
 import { onLogout, offLogout } from '../../stores/resetStores';
@@ -23,8 +24,10 @@ export function Root() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const navigate = useNavigate();
   
-  const { isAuthenticated, isLoading: authLoading, user, initialize, can } = useAuthStore();
+  const { isAuthenticated, isLoading: authLoading, user, initialize, can, getBranchRole } = useAuthStore();
   const { branches, fetchBranches, currentBranchId, isSwitchingBranch, isLoading: branchesLoading } = useBranchStore();
+  
+  const isDoctor = getBranchRole() === 'doctor';
   const [branchesFetched, setBranchesFetched] = useState(false);
 
   // Get the name of the branch being switched to (for the overlay)
@@ -151,12 +154,13 @@ export function Root() {
         <main
           className={`pt-12 transition-all duration-200 print:ml-0 print:pt-0 print:p-0 ${
             sidebarCollapsed ? 'ml-0 md:ml-14' : 'ml-0 md:ml-56'
-          }`}
+          } ${isDoctor ? 'pb-16 md:pb-0' : ''}`}
         >
           <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 max-w-full lg:max-w-7xl xl:max-w-[1920px] mx-auto print:p-0 print:max-w-none">
             <Outlet />
           </div>
         </main>
+        {isDoctor && <DoctorBottomNav />}
       </div>
     </ThemeProvider>
   );

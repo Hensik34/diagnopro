@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { 
-  User, Loader2, AlertCircle, Check, Mail, Phone, Calendar
+  User, Loader2, AlertCircle, Check, Mail, Phone, Calendar, Percent
 } from 'lucide-react';
 import { useAuthStore } from '../../stores';
 import { authApi } from '../../api/auth';
+import { doctorPortalApi } from '../../api/doctorPortal';
 import { getRoleLabel } from '../../utils/permissions';
 
 export function DoctorProfile() {
@@ -15,6 +16,12 @@ export function DoctorProfile() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Doctor detail state
+  const [commissionPercentage, setCommissionPercentage] = useState<number | null>(null);
+  const [doctorName, setDoctorName] = useState(user ? `${user.firstname} ${user.lastname}` : 'Doctor');
+  const [specialization, setSpecialization] = useState('');
+  const [isLoadingDoctor, setIsLoadingDoctor] = useState(false);
+
   useEffect(() => {
     if (user) {
       setFormFirstname(user.firstname || '');
@@ -22,6 +29,32 @@ export function DoctorProfile() {
       setFormPhone(user.phone || '');
     }
   }, [user]);
+
+  useEffect(() => {
+    const loadDoctorDetail = async () => {
+      setIsLoadingDoctor(true);
+      try {
+        const res = await doctorPortalApi.getMyProfile();
+        if (res?.data) {
+          setCommissionPercentage(res.data.commission_percentage);
+          if (res.data.name) {
+            setDoctorName(res.data.name);
+          }
+          setSpecialization(res.data.specialization || '');
+        }
+      } catch (err) {
+        console.error('Failed to load doctor profile details:', err);
+      } finally {
+        setIsLoadingDoctor(false);
+      }
+    };
+
+    loadDoctorDetail();
+  }, []);
+
+  const userInitials = user 
+    ? `${user.firstname?.charAt(0) || ''}${user.lastname?.charAt(0) || ''}`.toUpperCase()
+    : 'DR';
 
   const handleSaveProfile = async () => {
     if (!formFirstname.trim() || !formLastname.trim()) {
@@ -55,7 +88,7 @@ export function DoctorProfile() {
     formPhone !== user?.phone;
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-2xl pb-10">
       {/* Page Header */}
       <div>
         <h1 className="text-foreground text-2xl font-bold mb-1">My Profile</h1>
@@ -80,41 +113,64 @@ export function DoctorProfile() {
         </div>
       )}
 
-      {/* Profile Info Cards */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Email - Read Only */}
-        <div className="bg-card border border-border rounded-lg p-4">
-          <label className="text-xs text-muted-foreground uppercase tracking-wide block mb-2">Email Address</label>
-          <div className="flex items-center gap-3 mb-1">
-            <Mail className="w-4 h-4 text-muted-foreground" />
-            <p className="text-foreground font-medium">{user?.email || 'N/A'}</p>
-          </div>
-          <p className="text-xs text-muted-foreground ml-7">Cannot be changed</p>
+      {/* Premium Profile Header Card */}
+      <div className="bg-card border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm">
+        <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center text-lg font-bold shadow-md">
+          {userInitials}
         </div>
+        <div>
+          <h2 className="text-base font-bold text-foreground leading-snug">{doctorName}</h2>
+          {specialization ? (
+            <p className="text-xs text-muted-foreground font-medium">{specialization}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground font-medium">Practitioner</p>
+          )}
+          <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+            Active Doctor
+          </span>
+        </div>
+      </div>
 
-        {/* Role - Read Only */}
-        <div className="bg-card border border-border rounded-lg p-4">
-          <label className="text-xs text-muted-foreground uppercase tracking-wide block mb-2">Role</label>
-          <p className="text-foreground font-medium capitalize">{getRoleLabel(user?.role || '')}</p>
-          <p className="text-xs text-muted-foreground mt-1">Your account role</p>
+      {/* Profile Info Cards (Responsive layout) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Email - Read Only */}
+        <div className="bg-card border border-border rounded-xl p-4 flex items-start gap-3 shadow-sm">
+          <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
+            <Mail className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <label className="text-[10px] text-muted-foreground uppercase tracking-wider block font-semibold">Email Address</label>
+            <p className="text-foreground text-sm font-semibold truncate mt-0.5" title={user?.email}>{user?.email || 'N/A'}</p>
+            <p className="text-[10px] text-muted-foreground">Cannot be changed</p>
+          </div>
         </div>
 
         {/* Member Since - Read Only */}
-        <div className="bg-card border border-border rounded-lg p-4">
-          <label className="text-xs text-muted-foreground uppercase tracking-wide block mb-2">Member Since</label>
-          <div className="flex items-center gap-3">
-            <Calendar className="w-4 h-4 text-muted-foreground" />
-            <p className="text-foreground font-medium">
-              {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
+        <div className="bg-card border border-border rounded-xl p-4 flex items-start gap-3 shadow-sm">
+          <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400">
+            <Calendar className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <label className="text-[10px] text-muted-foreground uppercase tracking-wider block font-semibold">Member Since</label>
+            <p className="text-foreground text-sm font-semibold mt-0.5">
+              {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
             </p>
+            <p className="text-[10px] text-muted-foreground">Account creation date</p>
           </div>
         </div>
 
-        {/* User ID - Read Only */}
-        <div className="bg-card border border-border rounded-lg p-4">
-          <label className="text-xs text-muted-foreground uppercase tracking-wide block mb-2">User ID</label>
-          <p className="text-foreground font-mono text-sm">{user?.id?.slice(0, 12)}...</p>
-          <p className="text-xs text-muted-foreground mt-1">Your unique identifier</p>
+        {/* Sharing Percentage - Read Only */}
+        <div className="bg-card border border-border rounded-xl p-4 flex items-start gap-3 shadow-sm">
+          <div className="p-2 rounded-lg bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400">
+            <Percent className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <label className="text-[10px] text-muted-foreground uppercase tracking-wider block font-semibold">Revenue Share</label>
+            <p className="text-foreground text-sm font-semibold mt-0.5">
+              {isLoadingDoctor ? 'Loading...' : `${commissionPercentage ?? 0}%`}
+            </p>
+            <p className="text-[10px] text-muted-foreground">Referred test share</p>
+          </div>
         </div>
       </div>
 

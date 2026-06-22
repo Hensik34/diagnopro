@@ -95,6 +95,8 @@ interface MatchedRange {
   criticalHigh: number | null;
 }
 
+
+
 function getPatientReferenceRange(
   field: {
     reference_rules?: any;
@@ -104,14 +106,37 @@ function getPatientReferenceRange(
   },
   patient: Patient | null
 ): MatchedRange {
-  const rules = normalizeReferenceRules(field.reference_rules);
-
   let criticalLow: number | null = null;
   let criticalHigh: number | null = null;
   if (field.critical_rules) {
     criticalLow = field.critical_rules.low ?? null;
     criticalHigh = field.critical_rules.high ?? null;
   }
+
+  // If there are qualitative bands, build their summary note
+  if (field.reference_rules && typeof field.reference_rules === 'object' && !Array.isArray(field.reference_rules) && 'qualitative_bands' in field.reference_rules) {
+    const bands = field.reference_rules.qualitative_bands || [];
+    const bandsSummary = bands.map((b: any) => {
+      let opStr = '';
+      if (b.operator === 'lt') opStr = `<${b.value ?? ''}`;
+      else if (b.operator === 'lte') opStr = `≤${b.value ?? ''}`;
+      else if (b.operator === 'gt') opStr = `>${b.value ?? ''}`;
+      else if (b.operator === 'gte') opStr = `≥${b.value ?? ''}`;
+      else if (b.operator === 'eq') opStr = `=${b.value ?? ''}`;
+      else if (b.operator === 'range') opStr = `${b.min ?? ''}–${b.max ?? ''}`;
+      return `${b.label} ${opStr}`;
+    }).join(' | ');
+    return {
+      low: null,
+      high: null,
+      note: bandsSummary,
+      isRuleMatched: true,
+      criticalLow,
+      criticalHigh,
+    };
+  }
+
+  const rules = normalizeReferenceRules(field.reference_rules);
 
   const fallbackRange: MatchedRange = {
     low: field.min_value != null ? Number(field.min_value) : null,
@@ -279,6 +304,7 @@ export function ReportEntry() {
         max: field.max_value != null ? Number(field.max_value) : 0,
         step: field.input_type === 'number' ? 0.1 : 1,
         input_type: field.input_type || 'number',
+        options: field.options || '',
         field_type: (field.field_type || 'input') as 'input' | 'calculated' | 'flag',
         formula: field.formula || '',
         depends_on: field.depends_on || '',
@@ -432,7 +458,7 @@ export function ReportEntry() {
   const [showNotesSection, setShowNotesSection] = useState(false);
   const [showAiSection, setShowAiSection] = useState(false);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const inputRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | null>>({});
 
   // Fetch report data when reportId is provided
   useEffect(() => {
@@ -789,6 +815,16 @@ export function ReportEntry() {
         return;
       }
 
+      // Qualitative Select (Case 1)
+      if (param.input_type === 'select') {
+        if (valStr && valStr.toLowerCase() === 'positive') {
+          newStatuses[param.id] = "critical";
+        } else {
+          newStatuses[param.id] = "normal";
+        }
+        return;
+      }
+
       // Text fields don't have numeric ranges — any non-empty value is "normal"
       if (param.input_type === 'text') {
         newStatuses[param.id] = "normal";
@@ -1005,10 +1041,14 @@ export function ReportEntry() {
     focusParameterField(nextFieldId);
   }, [editableFieldOrder, focusParameterField]);
 
-  const handleParameterKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>, fieldId: string, inputType: string) => {
+  const handleParameterKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>, fieldId: string, inputType: string) => {
     if (event.key === 'Enter') {
       event.preventDefault();
       moveParameterFocus(fieldId, event.shiftKey ? -1 : 1);
+      return;
+    }
+
+    if (inputType === 'select') {
       return;
     }
 
@@ -1059,8 +1099,15 @@ export function ReportEntry() {
         const localStatus = statuses[param.id];
         const mappedStatus = localStatus === 'empty' ? undefined : localStatus as 'normal' | 'high' | 'low' | 'critical' | undefined;
         const rawValue = values[param.id];
-        const value = rawValue !== undefined && rawValue !== ''
-          ? (param.input_type === 'text' ? rawValue : parseFloat(rawValue))
+        
+        // If select type, default to first option if not entered
+        // If select type, default to Negative if not entered
+        const finalRawValue = (rawValue === undefined || rawValue === '') && param.input_type === 'select'
+          ? 'Negative'
+          : rawValue;
+
+        const value = finalRawValue !== undefined && finalRawValue !== ''
+          ? ((param.input_type === 'text' || param.input_type === 'select' || param.input_type === 'textarea') ? finalRawValue : parseFloat(finalRawValue))
           : null;
 
         const resolvedRange = getPatientReferenceRange(param, patient);
@@ -1804,41 +1851,60 @@ export function ReportEntry() {
                                 <col className="w-[10%]" />
                               </colgroup>
                               <tbody className="divide-y divide-border/70">
-                                {section.params.map((param) => (
-                                <tr key={param.id} className="hover:bg-accent/20 transition-colors">
-                                  <td className="px-2 py-1 align-middle text-foreground">
-                                    <div className="leading-tight break-words">{param.name}</div>
-                                    <div className="mt-0.5 flex items-center gap-1 text-[9px] text-muted-foreground">
-                                      <span>{param.unit || '-'}</span>
-                                      {param.field_type === 'calculated' && (
-                                        <span className="inline-flex items-center rounded bg-primary/10 px-1 py-0.5 text-primary">calc</span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="px-2 py-1 align-middle">
-                                    <input
-                                      ref={(node) => {
-                                        inputRefs.current[param.id] = node;
-                                      }}
-                                      type={param.input_type === 'text' ? 'text' : 'number'}
-                                      step={param.step}
-                                      className={`${getInputClass(statuses[param.id])} h-7 text-[11px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}`}
-                                      placeholder={param.field_type === 'calculated' ? 'Auto' : '0.0'}
-                                      value={values[param.id] || ""}
-                                      onChange={(e) => handleValueChange(param.id, e.target.value)}
-                                      onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
-                                      onFocus={(event) => event.currentTarget.select()}
-                                      tabIndex={param.field_type === 'calculated' ? -1 : fieldTabOrder[param.id]}
-                                      disabled={!isEditable}
-                                      readOnly={param.field_type === 'calculated'}
-                                    />
-                                  </td>
-                                  <td className="px-2 py-1 align-middle text-left text-muted-foreground tabular-nums text-[10px] md:text-[11px] leading-tight">
-                                    {formatReferenceRange(getPatientReferenceRange(param, patient))}
-                                  </td>
-                                  <td className="px-2 py-1 align-middle text-center">{getStatusBadge(statuses[param.id])}</td>
-                                </tr>
-                              ))}
+                                {section.params.map((param) => {
+                                  return (
+                                    <tr key={param.id} className="hover:bg-accent/20 transition-colors">
+                                      <td className="px-2 py-1 align-middle text-foreground">
+                                        <div className="leading-tight break-words">{param.name}</div>
+                                        <div className="mt-0.5 flex items-center gap-1 text-[9px] text-muted-foreground">
+                                          <span>{param.unit || '-'}</span>
+                                          {param.field_type === 'calculated' && (
+                                            <span className="inline-flex items-center rounded bg-primary/10 px-1 py-0.5 text-primary">calc</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="px-2 py-1 align-middle">
+                                        {param.input_type === 'select' ? (
+                                          <select
+                                            ref={(node) => {
+                                              inputRefs.current[param.id] = node;
+                                            }}
+                                            className={`${getInputClass(statuses[param.id])} h-7 text-[11px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''} !text-left bg-background`}
+                                            value={values[param.id] || "Negative"}
+                                            onChange={(e) => handleValueChange(param.id, e.target.value)}
+                                            onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
+                                            tabIndex={param.field_type === 'calculated' ? -1 : fieldTabOrder[param.id]}
+                                            disabled={!isEditable}
+                                          >
+                                            <option value="Negative">Negative</option>
+                                            <option value="Positive">Positive</option>
+                                          </select>
+                                        ) : (
+                                          <input
+                                            ref={(node) => {
+                                              inputRefs.current[param.id] = node;
+                                            }}
+                                            type={param.input_type === 'text' ? 'text' : 'number'}
+                                            step={param.step}
+                                            className={`${getInputClass(statuses[param.id])} h-7 text-[11px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}`}
+                                            placeholder={param.field_type === 'calculated' ? 'Auto' : '0.0'}
+                                            value={values[param.id] || ""}
+                                            onChange={(e) => handleValueChange(param.id, e.target.value)}
+                                            onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
+                                            onFocus={(event) => event.currentTarget.select()}
+                                            tabIndex={param.field_type === 'calculated' ? -1 : fieldTabOrder[param.id]}
+                                            disabled={!isEditable}
+                                            readOnly={param.field_type === 'calculated'}
+                                          />
+                                        )}
+                                      </td>
+                                      <td className="px-2 py-1 align-middle text-left text-muted-foreground tabular-nums text-[10px] md:text-[11px] leading-tight">
+                                        {formatReferenceRange(getPatientReferenceRange(param, patient))}
+                                      </td>
+                                      <td className="px-2 py-1 align-middle text-center">{getStatusBadge(statuses[param.id])}</td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
