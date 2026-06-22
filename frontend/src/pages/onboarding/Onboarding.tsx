@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Building2, MapPin, Phone, Mail, CheckCircle, Loader2, FlaskConical, Users, Stethoscope, FileText, ClipboardList, Package, ArrowRight } from 'lucide-react';
 import { useBranchStore, useAuthStore } from '../../stores';
@@ -14,10 +14,41 @@ const FEATURES = [
 
 export function Onboarding() {
   const navigate = useNavigate();
-  const { createBranch, setCurrentBranchId, isLoading, error } = useBranchStore();
-  const { user } = useAuthStore();
+  const { createBranch, setCurrentBranchId, fetchBranches, isLoading, error } = useBranchStore();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuthStore();
 
+  const [isChecking, setIsChecking] = useState(true);
   const [step, setStep] = useState(1);
+
+  useEffect(() => {
+    const verifyOnboardingStatus = async () => {
+      // 1. If not authenticated, go to login
+      if (!isAuthenticated) {
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      // 2. Fetch branches to get accurate count
+      try {
+        await fetchBranches();
+        const currentBranches = useBranchStore.getState().branches;
+        
+        // 3. If they already have branches, they are onboarded! Redirect to dashboard
+        if (currentBranches.length > 0) {
+          localStorage.setItem('onboarding_complete', 'true');
+          navigate('/', { replace: true });
+        } else {
+          setIsChecking(false);
+        }
+      } catch (err) {
+        setIsChecking(false);
+      }
+    };
+
+    if (!authLoading) {
+      verifyOnboardingStatus();
+    }
+  }, [isAuthenticated, authLoading, fetchBranches, navigate]);
   const [formData, setFormData] = useState({
     name: '',
     location: '',
@@ -48,6 +79,17 @@ export function Onboarding() {
   const handleFinish = () => {
     navigate('/', { replace: true });
   };
+
+  if (authLoading || isChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <p className="text-sm text-muted-foreground">Checking onboarding status...</p>
+        </div>
+      </div>
+    );
+  }
 
   const isFormValid = formData.name.trim().length >= 2 && formData.location.trim().length >= 5;
 

@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuthStore, useBranchStore } from '../../stores';
 
@@ -8,8 +8,67 @@ import { useAuthStore, useBranchStore } from '../../stores';
  */
 export function Login() {
   const navigate = useNavigate();
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, googleLogin, isLoading, error, clearError } = useAuthStore();
   const { fetchBranches } = useBranchStore();
+
+  useEffect(() => {
+    const handleGoogleCredentialResponse = async (response: any) => {
+      clearError();
+      const success = await googleLogin(response.credential);
+      
+      if (success) {
+        const user = useAuthStore.getState().user;
+
+        // Doctor login: skip onboarding check, go straight to dashboard
+        if (user?.role === 'doctor') {
+          fetchBranches().catch(() => {});
+          navigate('/');
+          return;
+        }
+
+        // Lab admin/staff login: check for onboarding
+        try {
+          await fetchBranches();
+          const branches = useBranchStore.getState().branches;
+          if (branches.length === 0) {
+            navigate('/onboarding');
+          } else {
+            localStorage.setItem('onboarding_complete', 'true');
+            navigate('/');
+          }
+        } catch {
+          navigate('/');
+        }
+      }
+    };
+
+    const initializeGoogleSignIn = () => {
+      const google = (window as any).google;
+      if (google?.accounts?.id) {
+        google.accounts.id.initialize({
+          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || "1068884242636-placeholder.apps.googleusercontent.com",
+          callback: handleGoogleCredentialResponse,
+        });
+        google.accounts.id.renderButton(
+          document.getElementById("google-signin-button"),
+          { theme: "outline", size: "large", width: "100%" }
+        );
+      }
+    };
+
+    // Script might load asynchronously
+    if ((window as any).google?.accounts?.id) {
+      initializeGoogleSignIn();
+    } else {
+      const timer = setInterval(() => {
+        if ((window as any).google?.accounts?.id) {
+          initializeGoogleSignIn();
+          clearInterval(timer);
+        }
+      }, 500);
+      return () => clearInterval(timer);
+    }
+  }, [googleLogin, clearError, fetchBranches, navigate]);
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -117,6 +176,21 @@ export function Login() {
             >
               {isLoading ? 'Signing in...' : 'Sign In'}
             </button>
+
+            {/* Divider */}
+            <div className="relative my-4 flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border"></div>
+              </div>
+              <span className="relative px-2 bg-card text-xs text-muted-foreground uppercase">
+                Or continue with
+              </span>
+            </div>
+
+            {/* Google Sign-in Button */}
+            <div className="flex justify-center">
+              <div id="google-signin-button" className="w-full"></div>
+            </div>
 
             {/* Register Link */}
             <div className="text-center text-sm text-muted-foreground">

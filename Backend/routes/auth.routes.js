@@ -10,6 +10,7 @@ const { authenticate, authorize, PERMISSIONS } = require("../middlewere/authoriz
 // Public routes (no authentication required)
 router.post("/register", authController.register);
 router.post("/login", authController.login);
+router.post("/google-login", authController.googleLogin);
 router.get("/check-email", authController.checkEmail);
 
 // Forgot password flow (public)
