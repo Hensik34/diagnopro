@@ -36,9 +36,9 @@ interface SidebarProps {
  * Items with doctorOnly are only visible to doctor role users
  */
 const menuItems = [
-  { 
-    path: '/', 
-    label: 'Dashboard', 
+  {
+    path: '/',
+    label: 'Dashboard',
     icon: LayoutDashboard,
     // Dashboard visible to all
   },
@@ -55,80 +55,80 @@ const menuItems = [
     icon: User,
     doctorOnly: true,
   },
-  { 
-    path: '/reports', 
-    label: 'Reports', 
+  {
+    path: '/reports',
+    label: 'Reports',
     icon: FileText,
     permission: PERMISSIONS.REPORT_READ,
     hideForDoctor: true,
   },
-  { 
-    path: '/reports/review', 
-    label: 'Review Reports', 
+  {
+    path: '/reports/review',
+    label: 'Review Reports',
     icon: CheckSquare,
     permission: PERMISSIONS.REPORT_APPROVE,
   },
-  { 
-    path: '/patients', 
-    label: 'Patients', 
+  {
+    path: '/patients',
+    label: 'Patients',
     icon: User,
     permission: PERMISSIONS.PATIENT_READ,
     hideForDoctor: true,
   },
-  { 
-    path: '/sample-collection', 
-    label: 'Sample Collection', 
+  {
+    path: '/sample-collection',
+    label: 'Sample Collection',
     icon: Syringe,
     permission: PERMISSIONS.COLLECTION_READ,
   },
-  { 
-    path: '/tests', 
-    label: 'Test Management', 
+  {
+    path: '/tests',
+    label: 'Test Management',
     icon: Beaker,
     permission: PERMISSIONS.TEST_READ,
     hideForDoctor: true,
   },
-  { 
-    path: '/doctors', 
-    label: 'Doctor Management', 
+  {
+    path: '/doctors',
+    label: 'Doctor Management',
     icon: Stethoscope,
     permission: PERMISSIONS.DOCTOR_UPDATE,
   },
-  { 
-    path: '/branches', 
-    label: 'Branches', 
+  {
+    path: '/branches',
+    label: 'Branches',
     icon: Building2,
     permission: PERMISSIONS.BRANCH_UPDATE,
   },
-  { 
-    path: '/users', 
-    label: 'Users', 
+  {
+    path: '/users',
+    label: 'Users',
     icon: Users,
     permission: PERMISSIONS.USER_READ,
   },
-  { 
-    path: '/inventory', 
-    label: 'Inventory', 
+  {
+    path: '/inventory',
+    label: 'Inventory',
     icon: Package,
     // Placeholder - visible to admin only for now
     permission: PERMISSIONS.SETTINGS_UPDATE,
   },
-  { 
-    path: '/time-tracking', 
-    label: 'Time Tracking', 
+  {
+    path: '/time-tracking',
+    label: 'Time Tracking',
     icon: Clock,
     // Visible to all authenticated users (no permission needed)
     hideForDoctor: true,
   },
-  { 
-    path: '/working-hours', 
-    label: 'Working Hours', 
+  {
+    path: '/working-hours',
+    label: 'Working Hours',
     icon: Timer,
     permission: PERMISSIONS.TIMELOG_VIEW_ALL,
   },
-  { 
-    path: '/analytics', 
-    label: 'Analytics', 
+  {
+    path: '/analytics',
+    label: 'Analytics',
     icon: BarChart3,
     permission: PERMISSIONS.ANALYTICS_VIEW,
   },
@@ -140,9 +140,9 @@ const menuItems = [
     permission: PERMISSIONS.B2B_LAB_READ,
     hideForDoctor: true,
   },
-  { 
-    path: '/settings', 
-    label: 'Settings', 
+  {
+    path: '/settings',
+    label: 'Settings',
     icon: Settings,
     permission: PERMISSIONS.SETTINGS_VIEW,
   },
@@ -191,12 +191,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   return (
     <>
       {/* Desktop Sidebar */}
-      <div className={`fixed left-0 top-0 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 print:hidden hidden md:block ${
-        collapsed ? 'w-14' : 'w-56'
-      }`}>
+      <div className={`fixed left-0 top-0 h-full bg-white dark:bg-gray-900 border-r border-border transition-all duration-300 print:hidden hidden md:block ${collapsed ? 'w-14' : 'w-56'
+        }`}>
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between p-4 border-b border-border">
             {!collapsed && (
               <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">DiagnoPro</h1>
             )}
@@ -213,9 +212,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </div>
 
           {/* Menu Items */}
-          <nav className={`flex-1 space-y-2 overflow-y-auto scrollbar-hide ${
-            collapsed ? 'p-2' : 'p-4'
-          }`}>
+          <nav className={`flex-1 space-y-2 overflow-y-auto scrollbar-hide ${collapsed ? 'p-2' : 'p-4'
+            }`}>
             {visibleMenuItems.map((item: any) => {
               const Icon = item.icon;
               const isActive = item.path === longestMatch;
@@ -224,15 +222,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center transition-all duration-200 rounded-lg ${
-                    collapsed ? 'justify-center px-4 py-2' : 'px-3 py-2'
-                  } ${
-                    isActive
-                      ? collapsed
-                        ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                        : 'bg-blue-50 text-blue-700 border-r-2 border-blue-700 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400'
+                  className={`flex items-center transition-all duration-200 rounded-lg ${collapsed ? 'justify-center px-4 py-2' : 'px-3 py-2'
+                    } ${isActive
+                      ? 'bg-blue-600 text-white shadow-md dark:bg-blue-600 dark:text-white'
                       : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
-                  }`}
+                    }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
                   {!collapsed && (
@@ -249,15 +243,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {!collapsed && isMobile && !isDoctor && (
         <>
           {/* Overlay */}
-          <div 
+          <div
             className="fixed inset-0 bg-black/50 z-40 md:hidden"
             onClick={onToggle}
           />
           {/* Mobile Drawer */}
-          <div className="fixed left-0 top-0 h-full w-56 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transition-transform duration-300 print:hidden md:hidden z-50 transform translate-x-0">
+          <div className="fixed left-0 top-0 h-full w-56 bg-white dark:bg-gray-900 border-r border-border transition-transform duration-300 print:hidden md:hidden z-50 transform translate-x-0">
             <div className="flex flex-col h-full">
               {/* Header */}
-              <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between p-4 border-b border-border">
                 <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">DiagnoPro</h1>
                 <button
                   onClick={onToggle}
@@ -278,11 +272,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                       key={item.path}
                       to={item.path}
                       onClick={onToggle}
-                      className={`flex items-center transition-all duration-200 rounded-lg px-3 py-2 ${
-                        isActive
-                          ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400'
+                      className={`flex items-center transition-all duration-200 rounded-lg px-3 py-2 ${isActive
+                          ? 'bg-blue-600 text-white shadow-md dark:bg-blue-600 dark:text-white'
                           : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
-                      }`}
+                        }`}
                     >
                       <Icon className="w-5 h-5 flex-shrink-0" />
                       <span className="ml-3 text-sm font-medium">{item.label}</span>

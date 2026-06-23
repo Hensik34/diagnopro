@@ -25,7 +25,7 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle }: TopNavProps) {
 
   // User display info
   const userDisplayName = user ? `${user.firstname} ${user.lastname}` : 'User';
-  const userInitials = user 
+  const userInitials = user
     ? `${user.firstname?.charAt(0) || ''}${user.lastname?.charAt(0) || ''}`.toUpperCase()
     : 'U';
   const userRole = user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).replace('_', ' ') : 'Staff';
@@ -48,9 +48,8 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle }: TopNavProps) {
 
   return (
     <header
-      className={`fixed top-0 right-0 h-12 bg-card border-b border-border z-30 transition-all duration-200 print:hidden ${
-        sidebarCollapsed ? 'left-0 md:left-14' : 'left-0 md:left-56'
-      }`}
+      className={`fixed top-0 right-0 h-12 bg-card border-b border-border z-30 transition-all duration-200 print:hidden ${sidebarCollapsed ? 'left-0 md:left-14' : 'left-0 md:left-56'
+        }`}
     >
       <div className="h-full flex items-center justify-between px-3 md:px-4 gap-2 md:gap-4">
         {/* Mobile Menu Button */}
@@ -74,7 +73,7 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle }: TopNavProps) {
               </span>
             </div>
           )}
-          
+
           {/* Current Time - Hidden on mobile */}
           <div className="hidden lg:flex items-center text-xs text-muted-foreground border-l border-border pl-3">
             <span>{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
@@ -121,7 +120,7 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle }: TopNavProps) {
 
           {/* User profile - Compact with dropdown */}
           <div className="relative ml-0 md:ml-1 md:pl-2 md:border-l border-border" ref={userMenuRef}>
-            <button 
+            <button
               onClick={() => setShowUserMenu(!showUserMenu)}
               className="flex items-center gap-1.5 md:gap-2 hover:bg-accent rounded p-1 transition-colors"
             >
