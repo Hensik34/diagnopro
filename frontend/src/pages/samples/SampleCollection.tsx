@@ -11,7 +11,7 @@ import {
   Fuel,
 } from 'lucide-react';
 import { useCollectionTrackingStore } from '../../stores/collectionTrackingStore';
-import { useAuthStore } from '../../stores';
+import { useAuthStore, useBranchStore } from '../../stores';
 import type { CollectionTracking } from '../../types';
 
 const API_BASE = (import.meta as any).env?.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
@@ -55,7 +55,7 @@ function ImageModal({ src, onClose }: { src: string; onClose: () => void }) {
 function ImageButton({ imagePath, label }: { imagePath: string | null; label: string }) {
   const [showModal, setShowModal] = useState(false);
   if (!imagePath) return <span className="text-muted-foreground">-</span>;
-  const fullUrl = `${API_BASE}${imagePath}`;
+  const fullUrl = imagePath.startsWith('http') ? imagePath : `${API_BASE}${imagePath}`;
   return (
     <>
       <button
@@ -76,6 +76,7 @@ function StaffView() {
   const { todayRecords, myRecords, isLoading, error, fetchToday, fetchMyRecords, createRecord, clearError } =
     useCollectionTrackingStore();
   const { user } = useAuthStore();
+  const { currentBranchId } = useBranchStore();
 
   const [startKm, setStartKm] = useState('');
   const [endKm, setEndKm] = useState('');
@@ -119,6 +120,7 @@ function StaffView() {
       if (startKm) data.start_km = Number(startKm);
       if (endKm) data.end_km = Number(endKm);
       if (visitCharge) data.visit_charge = Number(visitCharge);
+      if (currentBranchId) data.branch_id = currentBranchId;
 
       if (startImageRef.current?.files?.[0]) {
         data.start_meter_image = await toBase64(startImageRef.current.files[0]);
@@ -285,7 +287,9 @@ function StaffView() {
                 </tr>
               ) : (
                 myRecords.map((r) => {
-                  const km = r.total_km != null ? Number(r.total_km) : null;
+                  const startKmVal = r.start_km != null ? Number(r.start_km) : null;
+                  const endKmVal = r.end_km != null ? Number(r.end_km) : null;
+                  const km = r.total_km != null ? Number(r.total_km) : (startKmVal != null && endKmVal != null ? Math.max(0, endKmVal - startKmVal) : null);
                   const rate = Number(r.per_km_rate ?? 0);
                   const petrol = km != null ? km * rate : null;
                   const total = (petrol ?? 0) + Number(r.visit_charge ?? 0);
@@ -327,12 +331,19 @@ function StaffView() {
             <div className="flex gap-4 text-xs text-foreground tabular-nums font-medium">
               <span>
                 Total KM:{' '}
-                {myRecords.reduce((s, r) => s + (r.total_km != null ? Number(r.total_km) : 0), 0)}
+                {myRecords.reduce((s, r) => {
+                  const startKmVal = r.start_km != null ? Number(r.start_km) : null;
+                  const endKmVal = r.end_km != null ? Number(r.end_km) : null;
+                  const km = r.total_km != null ? Number(r.total_km) : (startKmVal != null && endKmVal != null ? Math.max(0, endKmVal - startKmVal) : 0);
+                  return s + km;
+                }, 0)}
               </span>
               <span>
                 Total: ₹
                 {myRecords.reduce((s, r) => {
-                  const km = r.total_km != null ? Number(r.total_km) : 0;
+                  const startKmVal = r.start_km != null ? Number(r.start_km) : null;
+                  const endKmVal = r.end_km != null ? Number(r.end_km) : null;
+                  const km = r.total_km != null ? Number(r.total_km) : (startKmVal != null && endKmVal != null ? Math.max(0, endKmVal - startKmVal) : 0);
                   return s + km * Number(r.per_km_rate ?? 0) + Number(r.visit_charge ?? 0);
                 }, 0).toFixed(2)}
               </span>
@@ -509,14 +520,18 @@ function AdminView() {
               <span>
                 Total KM:{' '}
                 {records.reduce((sum: number, r: CollectionTracking) => {
-                  const km = r.total_km != null ? Number(r.total_km) : (r.start_km != null && r.end_km != null ? Number(r.end_km) - Number(r.start_km) : 0);
+                  const startKm = r.start_km != null ? Number(r.start_km) : null;
+                  const endKmVal = r.end_km != null ? Number(r.end_km) : null;
+                  const km = r.total_km != null ? Number(r.total_km) : (startKm != null && endKmVal != null ? Math.max(0, endKmVal - startKm) : 0);
                   return sum + km;
                 }, 0)}
               </span>
               <span>
                 Total: ₹
                 {records.reduce((sum: number, r: CollectionTracking) => {
-                  const km = r.total_km != null ? Number(r.total_km) : 0;
+                  const startKm = r.start_km != null ? Number(r.start_km) : null;
+                  const endKmVal = r.end_km != null ? Number(r.end_km) : null;
+                  const km = r.total_km != null ? Number(r.total_km) : (startKm != null && endKmVal != null ? Math.max(0, endKmVal - startKm) : 0);
                   const cost = km * Number(r.per_km_rate ?? 0) + Number(r.visit_charge ?? 0);
                   return sum + cost;
                 }, 0).toFixed(2)}

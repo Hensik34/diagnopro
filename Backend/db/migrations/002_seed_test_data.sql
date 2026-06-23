@@ -138,11 +138,13 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'FTA-ABS (Syphilis Confirmation)', 'FTAABS-01', 'Serology', 'Blood', 300, 4, 'Syphilis confirmation test', NOW(), NOW()),
   (gen_random_uuid(), 'HIV I & II (ELISA)', 'HIV-01', 'Serology', 'Serum', 300, 6, 'HIV antibody screening', NOW(), NOW()),
   (gen_random_uuid(), 'HIV Rapid Test', 'HIV-RAPID-01', 'Serology', 'Serum', 150, 1, 'Rapid HIV screening', NOW(), NOW()),
-  (gen_random_uuid(), 'HBsAg (Hepatitis B Surface Antigen)', 'HBSAG-01', 'Serology', 'Serum', 250, 4, 'Hepatitis B screening', NOW(), NOW()),
+  (gen_random_uuid(), 'HBsAg (ELISA)', 'HBSAG-01', 'Serology', 'Serum', 250, 4, 'Hepatitis B screening', NOW(), NOW()),
+  (gen_random_uuid(), 'HBsAg Rapid Test', 'HBSAG-RAPID-01', 'Serology', 'Serum', 150, 1, 'Rapid Hepatitis B screening', NOW(), NOW()),
   (gen_random_uuid(), 'Anti-HBc (Hepatitis B Core Antibodies)', 'AHBC-01', 'Serology', 'Blood', 250, 4, 'Hepatitis B exposure', NOW(), NOW()),
   (gen_random_uuid(), 'Anti-HBs (Hepatitis B Surface Antibodies)', 'AHBS-01', 'Serology', 'Blood', 250, 4, 'Hepatitis B immunity', NOW(), NOW()),
   (gen_random_uuid(), 'HBeAg (Hepatitis B E Antigen)', 'HBEAG-01', 'Serology', 'Blood', 300, 4, 'Hepatitis B viral load', NOW(), NOW()),
-  (gen_random_uuid(), 'Anti-HCV (Hepatitis C)', 'HCV-01', 'Serology', 'Serum', 300, 6, 'Hepatitis C screening', NOW(), NOW()),
+  (gen_random_uuid(), 'Anti-HCV (ELISA)', 'HCV-01', 'Serology', 'Serum', 300, 6, 'Hepatitis C screening', NOW(), NOW()),
+  (gen_random_uuid(), 'Anti-HCV Rapid Test', 'HCV-RAPID-01', 'Serology', 'Serum', 150, 1, 'Rapid Hepatitis C screening', NOW(), NOW()),
   (gen_random_uuid(), 'HCV RNA (Hepatitis C Viral Load)', 'HCV-RNA-01', 'Serology', 'Blood', 600, 4, 'Hepatitis C PCR quantification', NOW(), NOW()),
   (gen_random_uuid(), 'Anti-HAV IgM (Hepatitis A)', 'AHAV-IGM-01', 'Serology', 'Blood', 250, 4, 'Acute Hepatitis A infection', NOW(), NOW()),
   (gen_random_uuid(), 'Anti-HAV IgG (Hepatitis A)', 'AHAV-IGG-01', 'Serology', 'Blood', 250, 4, 'Hepatitis A immunity', NOW(), NOW()),
@@ -700,7 +702,7 @@ true,NOW(),NOW()),
 
 -- Dengue rapid (DENGUE-RAPID)
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DENGUE-RAPID'),
-'Dengue IgM',NULL,'select','Negative,Positive','input',
+'Dengue NS1',NULL,'select','Negative,Positive','input',
 NULL,NULL,
 'Dengue Serology',1,
 NULL,
@@ -708,9 +710,17 @@ NULL,
 true,NOW(),NOW()),
 
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DENGUE-RAPID'),
-'Dengue IgG',NULL,'select','Negative,Positive','input',
+'Dengue IgM',NULL,'select','Negative,Positive','input',
 NULL,NULL,
 'Dengue Serology',2,
+NULL,
+'{"positive":"Positive"}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DENGUE-RAPID'),
+'Dengue IgG',NULL,'select','Negative,Positive','input',
+NULL,NULL,
+'Dengue Serology',3,
 NULL,
 '{"positive":"Positive"}'::jsonb,
 true,NOW(),NOW()),
@@ -758,31 +768,31 @@ NULL,
 NULL,
 false,NOW(),NOW()),
 
--- HIV (HIV-01)
+-- HIV (HIV-01) - ELISA version (numeric, unit, reference range)
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HIV-01'),
-'HIV I & II',NULL,'select','Negative,Positive','input',
+'HIV I & II','S/CO','number',NULL,'input',
 NULL,NULL,
 'HIV Screening',1,
+'{"min":0.00,"max":0.99}'::jsonb,
 NULL,
-'{"positive":"Positive"}'::jsonb,
 true,NOW(),NOW()),
 
--- HBsAg (HBSAG-01)
+-- HBsAg (HBSAG-01) - ELISA version (numeric, unit, reference range)
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HBSAG-01'),
-'HBsAg',NULL,'select','Negative,Positive','input',
+'HBsAg','S/CO','number',NULL,'input',
 NULL,NULL,
 'Hepatitis B Screening',1,
+'{"min":0.00,"max":0.99}'::jsonb,
 NULL,
-'{"positive":"Positive"}'::jsonb,
 true,NOW(),NOW()),
 
--- HCV (HCV-01)
+-- HCV (HCV-01) - ELISA version (numeric, unit, reference range)
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HCV-01'),
-'Anti-HCV',NULL,'select','Negative,Positive','input',
+'Anti-HCV','S/CO','number',NULL,'input',
 NULL,NULL,
 'Hepatitis C Screening',1,
+'{"min":0.00,"max":0.99}'::jsonb,
 NULL,
-'{"positive":"Positive"}'::jsonb,
 true,NOW(),NOW()),
 
 -- Chikungunya IgM (CHIK-IGM-01)
@@ -891,6 +901,24 @@ true,NOW(),NOW()),
 'HIV Rapid',NULL,'select','Negative,Positive','input',
 NULL,NULL,
 'HIV Screening',1,
+NULL,
+'{"positive":"Positive"}'::jsonb,
+true,NOW(),NOW()),
+
+-- HBsAg Rapid Test - HBSAG-RAPID-01
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HBSAG-RAPID-01'),
+'HBsAg Rapid',NULL,'select','Negative,Positive','input',
+NULL,NULL,
+'Hepatitis B Screening',1,
+NULL,
+'{"positive":"Positive"}'::jsonb,
+true,NOW(),NOW()),
+
+-- Anti-HCV Rapid Test - HCV-RAPID-01
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HCV-RAPID-01'),
+'Anti-HCV Rapid',NULL,'select','Negative,Positive','input',
+NULL,NULL,
+'Hepatitis C Screening',1,
 NULL,
 '{"positive":"Positive"}'::jsonb,
 true,NOW(),NOW()),
@@ -1209,7 +1237,7 @@ test_panel_map AS (
       ELSE 'SINGLE_ANALYTE_NUMERIC'
     END AS template_code
   FROM tests t
-  WHERE t.test_code NOT IN ('CBC-01', 'LFT-01', 'KFT-01', 'LIPID-01', 'PT', 'APTT', 'HBA1C-01', 'MAL-AG-01', 'TP-01', 'HIV-01', 'HBSAG-01', 'HCV-01', 'CHIK-IGM-01', 'UACR-01', 'TORCH-01', 'HIV-RAPID-01', 'RPR-01', 'TB-XPERT-01', 'DENGUE-01', 'DENGUE-RAPID', 'DENGNS1-RAPID', 'DENGNS1-01', 'DENGIGG-01')
+  WHERE t.test_code NOT IN ('CBC-01', 'LFT-01', 'KFT-01', 'LIPID-01', 'PT', 'APTT', 'HBA1C-01', 'MAL-AG-01', 'TP-01', 'HIV-01', 'HBSAG-01', 'HCV-01', 'CHIK-IGM-01', 'UACR-01', 'TORCH-01', 'HIV-RAPID-01', 'RPR-01', 'TB-XPERT-01', 'DENGUE-01', 'DENGUE-RAPID', 'DENGNS1-RAPID', 'DENGNS1-01', 'DENGIGG-01', 'HBSAG-RAPID-01', 'HCV-RAPID-01')
 ),
 seed_rows AS (
   SELECT

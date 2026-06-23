@@ -69,20 +69,39 @@ function withPermission(Component: any, requiredPermission: string) {
   return ProtectedComponent;
 }
 
+/**
+ * Guard for guest-only pages (Login, Register, ForgotPassword).
+ * Redirects logged-in users to the dashboard.
+ */
+function guestOnly(Component: any) {
+  const GuestComponent = (props: any): React.ReactElement | null => {
+    const { isAuthenticated } = useAuthStore();
+
+    if (isAuthenticated) {
+      return React.createElement(Navigate, { to: '/', replace: true });
+    }
+
+    return React.createElement(Component, props);
+  };
+  
+  GuestComponent.displayName = `GuestOnly(${Component.displayName || Component.name || 'Component'})`;
+  return GuestComponent;
+}
+
 
 export const router = createBrowserRouter([
-  // Public routes
+  // Public/Guest-only routes
   {
     path: '/login',
-    Component: Login,
+    Component: guestOnly(Login),
   },
   {
     path: '/register',
-    Component: Register,
+    Component: guestOnly(Register),
   },
   {
     path: '/forgot-password',
-    Component: ForgotPassword,
+    Component: guestOnly(ForgotPassword),
   },
   {
     path: '/onboarding',

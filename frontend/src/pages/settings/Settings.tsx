@@ -235,7 +235,7 @@ export function Settings() {
     setLetterheadPreview(settings?.letterhead_url || null);
     setLetterheadError(null);
     if (letterheadInputRef.current) letterheadInputRef.current.value = '';
-    
+
     if (settings) {
       setBrandingDraft({
         report_margin_top: normalizePx(settings.report_margin_top, 80),
@@ -328,7 +328,7 @@ export function Settings() {
     if (!letterheadPreview) return;
     try {
       setUploadingField('detecting');
-      
+
       let fileToAnalyze: File | null = pendingLetterheadFile;
       if (!fileToAnalyze) {
         // Fetch from URL
@@ -610,7 +610,7 @@ export function Settings() {
     if (analysisConfidence.bottom < 0.6) lowEdges.push('bottom');
     if (analysisConfidence.left < 0.6) lowEdges.push('left');
     if (analysisConfidence.right < 0.6) lowEdges.push('right');
-    
+
     if (lowEdges.length === 0) return null;
     return `Low confidence on ${lowEdges.join(', ')} detection. Please verify manually.`;
   };
@@ -969,7 +969,7 @@ export function Settings() {
                           <p className="text-[10px] text-muted-foreground">Drag dashed lines to adjust margins visually</p>
                         </div>
 
-                        <div 
+                        <div
                           className="relative border border-border bg-white rounded-lg shadow-md overflow-hidden select-none"
                           style={{ width: '280px', height: '396px', backgroundImage: letterheadPreview ? `url(${getImageUrl(letterheadPreview)})` : 'none', backgroundSize: '100% 100%' }}
                         >
@@ -982,7 +982,7 @@ export function Settings() {
                           {letterheadPreview && (
                             <>
                               {/* Top Zone Overlay (Red-ish, 15% opacity) */}
-                              <div 
+                              <div
                                 className="absolute top-0 left-0 right-0 bg-rose-500/15 border-b border-dashed border-rose-400 pointer-events-none"
                                 style={{ height: `${(brandingDraft.report_margin_top / 1123) * 396}px` }}
                               />
@@ -996,7 +996,7 @@ export function Settings() {
                               </div>
 
                               {/* Bottom Zone Overlay (Red-ish, 15% opacity) */}
-                              <div 
+                              <div
                                 className="absolute bottom-0 left-0 right-0 bg-rose-500/15 border-t border-dashed border-rose-400 pointer-events-none"
                                 style={{ height: `${(brandingDraft.report_margin_bottom / 1123) * 396}px` }}
                               />
@@ -1010,22 +1010,22 @@ export function Settings() {
                               </div>
 
                               {/* Left Zone Overlay (Blue-ish, 12% opacity) */}
-                              <div 
+                              <div
                                 className="absolute left-0 bg-blue-500/12 border-r border-dashed border-blue-400 pointer-events-none"
-                                style={{ 
-                                  top: `${(brandingDraft.report_margin_top / 1123) * 396}px`, 
+                                style={{
+                                  top: `${(brandingDraft.report_margin_top / 1123) * 396}px`,
                                   bottom: `${(brandingDraft.report_margin_bottom / 1123) * 396}px`,
-                                  width: `${(brandingDraft.report_margin_left / 794) * 280}px` 
+                                  width: `${(brandingDraft.report_margin_left / 794) * 280}px`
                                 }}
                               />
                               {/* Left Drag Handle */}
                               <div
                                 onMouseDown={handleMouseDown('left')}
                                 className="absolute top-0 bottom-0 cursor-ew-resize z-10 flex items-center justify-center"
-                                style={{ 
-                                  left: `${((brandingDraft.report_margin_left / 794) * 280) - 5}px`, 
+                                style={{
+                                  left: `${((brandingDraft.report_margin_left / 794) * 280) - 5}px`,
                                   width: '10px',
-                                  top: `${(brandingDraft.report_margin_top / 1123) * 396}px`, 
+                                  top: `${(brandingDraft.report_margin_top / 1123) * 396}px`,
                                   bottom: `${(brandingDraft.report_margin_bottom / 1123) * 396}px`
                                 }}
                               >
@@ -1033,22 +1033,22 @@ export function Settings() {
                               </div>
 
                               {/* Right Zone Overlay (Blue-ish, 12% opacity) */}
-                              <div 
+                              <div
                                 className="absolute right-0 bg-blue-500/12 border-l border-dashed border-blue-400 pointer-events-none"
-                                style={{ 
-                                  top: `${(brandingDraft.report_margin_top / 1123) * 396}px`, 
+                                style={{
+                                  top: `${(brandingDraft.report_margin_top / 1123) * 396}px`,
                                   bottom: `${(brandingDraft.report_margin_bottom / 1123) * 396}px`,
-                                  width: `${(brandingDraft.report_margin_right / 794) * 280}px` 
+                                  width: `${(brandingDraft.report_margin_right / 794) * 280}px`
                                 }}
                               />
                               {/* Right Drag Handle */}
                               <div
                                 onMouseDown={handleMouseDown('right')}
                                 className="absolute top-0 bottom-0 cursor-ew-resize z-10 flex items-center justify-center"
-                                style={{ 
-                                  right: `${((brandingDraft.report_margin_right / 794) * 280) - 5}px`, 
+                                style={{
+                                  right: `${((brandingDraft.report_margin_right / 794) * 280) - 5}px`,
                                   width: '10px',
-                                  top: `${(brandingDraft.report_margin_top / 1123) * 396}px`, 
+                                  top: `${(brandingDraft.report_margin_top / 1123) * 396}px`,
                                   bottom: `${(brandingDraft.report_margin_bottom / 1123) * 396}px`
                                 }}
                               >
@@ -1056,13 +1056,13 @@ export function Settings() {
                               </div>
 
                               {/* Content printable area */}
-                              <div 
+                              <div
                                 className="absolute bg-[#ffffff]/60 border border-dashed border-emerald-400/50 flex flex-col justify-between p-2 pointer-events-none"
-                                style={{ 
-                                  top: `${(brandingDraft.report_margin_top / 1123) * 396}px`, 
+                                style={{
+                                  top: `${(brandingDraft.report_margin_top / 1123) * 396}px`,
                                   bottom: `${(brandingDraft.report_margin_bottom / 1123) * 396}px`,
                                   left: `${(brandingDraft.report_margin_left / 794) * 280}px`,
-                                  right: `${(brandingDraft.report_margin_right / 794) * 280}px` 
+                                  right: `${(brandingDraft.report_margin_right / 794) * 280}px`
                                 }}
                               >
                                 <div className="flex justify-between items-start">

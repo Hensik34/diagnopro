@@ -20,13 +20,13 @@ export function Root() {
     const saved = localStorage.getItem(SIDEBAR_STATE_KEY);
     return saved !== null ? JSON.parse(saved) : true; // Default collapsed on desktop too
   });
-  
+
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const navigate = useNavigate();
-  
+
   const { isAuthenticated, isLoading: authLoading, user, initialize, can, getBranchRole } = useAuthStore();
   const { branches, fetchBranches, currentBranchId, isSwitchingBranch, isLoading: branchesLoading } = useBranchStore();
-  
+
   const isDoctor = getBranchRole() === 'doctor';
   const [branchesFetched, setBranchesFetched] = useState(false);
 
@@ -152,9 +152,8 @@ export function Root() {
         />
         <TopNav sidebarCollapsed={sidebarCollapsed} onSidebarToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
         <main
-          className={`pt-12 transition-all duration-200 print:ml-0 print:pt-0 print:p-0 ${
-            sidebarCollapsed ? 'ml-0 md:ml-14' : 'ml-0 md:ml-56'
-          } ${isDoctor ? 'pb-16 md:pb-0' : ''}`}
+          className={`pt-12 transition-all duration-200 print:ml-0 print:pt-0 print:p-0 ${sidebarCollapsed ? 'ml-0 md:ml-14' : 'ml-0 md:ml-56'
+            } ${isDoctor ? 'pb-16 md:pb-0' : ''}`}
         >
           <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 max-w-full lg:max-w-7xl xl:max-w-[1920px] mx-auto print:p-0 print:max-w-none">
             <Outlet />
