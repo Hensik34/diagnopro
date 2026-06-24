@@ -29,7 +29,7 @@ export function Settings() {
   const { user, fetchProfile } = useAuthStore();
   const { theme, setTheme } = useTheme();
 
-  const activeBranchId = currentBranchId || user?.branch_id || '';
+  const activeBranchId = currentBranchId || '';
 
   const [activeTab, setActiveTab] = useState('letterhead-sign');
 

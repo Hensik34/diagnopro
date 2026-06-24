@@ -1,5 +1,6 @@
 const Test = require("../models/Test");
 const TestField = require("../models/TestField");
+const TestPackage = require("../models/TestPackage");
 
 // GET ALL TESTS
 exports.getTests = async (req, res) => {
@@ -89,7 +90,7 @@ exports.createTest = async (req, res) => {
 exports.updateTest = async (req, res) => {
   try {
     const { id } = req.params;
-    const { test_name, category, sample_type, price, turnaround_time, description } = req.body || {};
+    const { test_name, category, sample_type, price, turnaround_time, description, clinical_significance } = req.body || {};
     const branchId = req.body?.branch_id || req.query?.branch_id || null;
     const userRole = req.user?.role; // Get user's role
 
@@ -99,7 +100,8 @@ exports.updateTest = async (req, res) => {
       sample_type,
       price,
       turnaround_time,
-      description
+      description,
+      clinical_significance
     }, branchId, userRole); // Pass role for permission check
 
     if (!test) {
@@ -304,6 +306,111 @@ exports.resetTestOverride = async (req, res) => {
     });
   } catch (err) {
     console.error("Reset test override error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// GET ALL PACKAGES
+exports.getPackages = async (req, res) => {
+  try {
+    const branchId = req.query.branch_id || null;
+    if (!branchId) {
+      return res.status(400).json({ error: "branch_id is required" });
+    }
+    const packages = await TestPackage.getAllPackages(branchId);
+    res.json({
+      message: "Packages retrieved successfully",
+      count: packages.length,
+      data: packages
+    });
+  } catch (err) {
+    console.error("Get packages error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// GET PACKAGE BY ID
+exports.getPackageById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pkg = await TestPackage.getPackageById(id);
+    if (!pkg) {
+      return res.status(404).json({ error: "Package not found" });
+    }
+    res.json({
+      message: "Package retrieved successfully",
+      data: pkg
+    });
+  } catch (err) {
+    console.error("Get package by ID error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// CREATE PACKAGE
+exports.createPackage = async (req, res) => {
+  try {
+    const { package_name, package_code, category, description, price, is_active, branch_id, test_ids } = req.body;
+    if (!package_name || !package_code) {
+      return res.status(400).json({ error: "package_name and package_code are required" });
+    }
+    const pkg = await TestPackage.createPackage({
+      package_name,
+      package_code,
+      category,
+      description,
+      price,
+      is_active,
+      branch_id,
+      test_ids
+    });
+    res.status(201).json({
+      message: "Package created successfully",
+      data: pkg
+    });
+  } catch (err) {
+    console.error("Create package error:", err);
+    if (err.code === '23505') {
+      return res.status(400).json({ error: "Package code already exists" });
+    }
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// UPDATE PACKAGE
+exports.updatePackage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const branchId = req.body?.branch_id || req.query?.branch_id || null;
+    const userRole = req.user?.role;
+    const pkg = await TestPackage.updatePackage(id, req.body, branchId, userRole);
+    if (!pkg) {
+      return res.status(404).json({ error: "Package not found" });
+    }
+    res.json({
+      message: "Package updated successfully",
+      data: pkg
+    });
+  } catch (err) {
+    console.error("Update package error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// DELETE PACKAGE
+exports.deletePackage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pkg = await TestPackage.deletePackage(id);
+    if (!pkg) {
+      return res.status(404).json({ error: "Package not found" });
+    }
+    res.json({
+      message: "Package deleted successfully",
+      data: pkg
+    });
+  } catch (err) {
+    console.error("Delete package error:", err);
     res.status(500).json({ error: err.message });
   }
 };

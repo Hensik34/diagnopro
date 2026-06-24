@@ -39,7 +39,7 @@ exports.getFieldsByTestId = async (testId, branchId = null) => {
 
   const mergedDefaults = defaultFields.map((field) => {
     const override = overrideMap.get(field.id);
-    if (!override) return field;
+    if (!override) return { ...field, test_field_id: field.id };
     return {
       ...field,
       field_name: override.field_name ?? field.field_name,
@@ -53,13 +53,14 @@ exports.getFieldsByTestId = async (testId, branchId = null) => {
       formula: override.formula ?? field.formula,
       depends_on: override.depends_on ?? field.depends_on,
       section_group: override.section_group ?? field.section_group,
+      test_field_id: field.id,
       has_branch_override: true,
     };
   });
 
   const customBranchFields = branchFields
     .filter((f) => !f.test_field_id)
-    .map((f) => ({ ...f, id: f.id, has_branch_override: true }));
+    .map((f) => ({ ...f, id: f.id, test_field_id: null, has_branch_override: true }));
 
   return [...mergedDefaults, ...customBranchFields].sort((a, b) => {
     const ao = a.order_index ?? 0;
@@ -106,7 +107,7 @@ exports.getFieldsByTestIds = async (testIds, branchId = null) => {
 
   const mergedDefaults = defaultFields.map((field) => {
     const override = overrideMap.get(`${field.test_id}:${field.id}`);
-    if (!override) return field;
+    if (!override) return { ...field, test_field_id: field.id };
     return {
       ...field,
       field_name: override.field_name ?? field.field_name,
@@ -120,13 +121,14 @@ exports.getFieldsByTestIds = async (testIds, branchId = null) => {
       formula: override.formula ?? field.formula,
       depends_on: override.depends_on ?? field.depends_on,
       section_group: override.section_group ?? field.section_group,
+      test_field_id: field.id,
       has_branch_override: true,
     };
   });
 
   const customBranchFields = branchFields
     .filter((f) => !f.test_field_id)
-    .map((f) => ({ ...f, id: f.id, has_branch_override: true }));
+    .map((f) => ({ ...f, id: f.id, test_field_id: null, has_branch_override: true }));
 
   return [...mergedDefaults, ...customBranchFields].sort((a, b) => {
     if (a.test_id === b.test_id) {
@@ -147,7 +149,8 @@ exports.getFieldById = async (id) => {
 exports.setFieldsForTest = async (testId, fields, branchId = null, userRole = null) => {
   const t = await sequelize.transaction();
   try {
-    if (userRole === "admin") {
+    // Only modify global test_fields when admin AND no branch context
+    if (userRole === "admin" && !branchId) {
       await TestField.destroy({ where: { test_id: testId }, transaction: t });
 
       const inserted = [];
@@ -192,7 +195,7 @@ exports.setFieldsForTest = async (testId, fields, branchId = null, userRole = nu
       const record = await UserTestField.create({
         branch_id: branchId,
         test_id: testId,
-        test_field_id: f.test_field_id || f.id || null,
+        test_field_id: f.test_field_id || null,
         field_name: f.field_name,
         unit: f.unit ?? null,
         min_value: f.min_value != null ? f.min_value : null,

@@ -3,7 +3,7 @@ const path = require("path");
 const { uploadBuffer, uploadBase64, deleteAsset, getPublicIdFromUrl } = require("../config/cloudinary");
 
 // Cloudinary base folder for all branch uploads
-const CLOUDINARY_BASE_FOLDER = "visionlab/branches";
+const CLOUDINARY_BASE_FOLDER = "diagnopro/branches";
 
 /**
  * Build Cloudinary folder path for a branch

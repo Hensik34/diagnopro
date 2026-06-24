@@ -132,4 +132,38 @@ export const testApi = {
     const response = await api.delete<{ message: string }>(`/tests/fields/${fieldId}`);
     return response.data;
   },
+
+  // ==========================================
+  // Test Packages API
+  // ==========================================
+  
+  getPackages: async (branchId: string): Promise<ApiResponse<any[]>> => {
+    const response = await api.get<ApiResponse<any[]>>('/tests/packages', {
+      params: { branch_id: branchId }
+    });
+    return response.data;
+  },
+
+  getPackageById: async (id: string, branchId?: string): Promise<ApiResponse<any>> => {
+    const response = await api.get<ApiResponse<any>>(`/tests/packages/${id}`, {
+      params: branchId ? { branch_id: branchId } : undefined
+    });
+    return response.data;
+  },
+
+  createPackage: async (data: any): Promise<ApiResponse<any>> => {
+    const response = await api.post<ApiResponse<any>>('/tests/packages', data);
+    return response.data;
+  },
+
+  updatePackage: async (id: string, data: any, branchId?: string): Promise<ApiResponse<any>> => {
+    const payload = branchId ? { ...data, branch_id: branchId } : data;
+    const response = await api.put<ApiResponse<any>>(`/tests/packages/${id}`, payload);
+    return response.data;
+  },
+
+  deletePackage: async (id: string): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/tests/packages/${id}`);
+    return response.data;
+  },
 };

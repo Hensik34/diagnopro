@@ -220,6 +220,7 @@ export interface Test {
   price?: number;
   turnaround_time?: number; // in hours
   description?: string;
+  clinical_significance?: string;
   has_branch_override?: boolean;
   created_at: string;
   updated_at: string;
@@ -233,6 +234,7 @@ export interface CreateTestData {
   price?: number;
   turnaround_time?: number;
   description?: string;
+  clinical_significance?: string;
   branch_id?: string;
 }
 
@@ -299,6 +301,7 @@ export interface TestField {
 }
 
 export interface CreateTestFieldData {
+  test_field_id?: string;
   field_name: string;
   unit?: string;
   min_value?: number | null;

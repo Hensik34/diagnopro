@@ -8,7 +8,7 @@ import { resetDataStores } from './resetStores';
 // ==========================================
 
 // localStorage key for persisting the user's active branch across refreshes
-const BRANCH_STORAGE_KEY = 'visionlab_active_branch';
+const BRANCH_STORAGE_KEY = 'diagnopro_active_branch';
 
 interface BranchState {
   // State

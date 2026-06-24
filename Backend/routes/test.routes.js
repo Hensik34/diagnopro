@@ -13,6 +13,15 @@ router.get("/", authorize(PERMISSIONS.TEST_READ), testController.getTests);
 // Get tests for a sample (must be before /:id to avoid route conflict)
 router.get("/sample/:sampleId", authorize(PERMISSIONS.TEST_READ), testController.getTestsForSample);
 
+// ==========================================
+// TEST PACKAGES ROUTES (before /:id to avoid conflicts)
+// ==========================================
+router.get("/packages", authorize(PERMISSIONS.TEST_READ), testController.getPackages);
+router.get("/packages/:id", authorize(PERMISSIONS.TEST_READ), testController.getPackageById);
+router.post("/packages", authorize(PERMISSIONS.TEST_CREATE), testController.createPackage);
+router.put("/packages/:id", authorize(PERMISSIONS.TEST_UPDATE), testController.updatePackage);
+router.delete("/packages/:id", authorize(PERMISSIONS.TEST_DELETE), testController.deletePackage);
+
 // Get test by ID
 router.get("/:id", authorize(PERMISSIONS.TEST_READ), testController.getTestById);
 
