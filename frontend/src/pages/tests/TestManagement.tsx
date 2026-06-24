@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, Fragment,useRef,useMemo } from 'react';
 import { 
   Plus, 
   Search, 
@@ -29,14 +29,14 @@ import type { Test, CreateTestData, TestField, CreateTestFieldData, FieldType, R
 
 // Common lab measurement units organized by category
 const LAB_UNITS: Record<string, string[]> = {
-  'Concentration': ['g/dL', 'mg/dL', 'µg/dL', 'g/L', 'mg/L', 'µg/L', 'ng/mL', 'pg/mL'],
+  'Concentration': ['g/dL', 'mg/dL', 'µg/dL', 'ug/dL', 'g/L', 'mg/L', 'µg/L', 'ng/mL', 'pg/mL', 'ng/dL', 'uIU/mL', 'µIU/mL'],
   'Molar': ['mmol/L', 'µmol/L', 'nmol/L', 'pmol/L', 'mEq/L'],
   'Enzyme': ['U/L', 'IU/L', 'mIU/mL', 'IU/mL'],
-  'Cell Count': ['cells/µL', 'cells/mm³', 'x10³/µL', 'x10⁶/µL', 'x10⁹/L', 'x10¹²/L'],
+  'Cell Count': ['cells/µL', 'cells/mm³', 'x10³/µL', 'x10⁶/µL', 'x10⁹/L', 'x10¹²/L', 'million/uL', '/uL'],
   'Percentage & Ratio': ['%', 'ratio', 'index'],
   'Hematology': ['fL', 'pg', 'mm/hr', 'sec'],
   'Volume': ['mL', 'L', 'dL', 'µL'],
-  'Other Numeric': ['mm Hg', 'mOsm/kg', 'pH', 'mg/24hr', 'mL/min'],
+  'Other Numeric': ['mm Hg', 'mOsm/kg', 'pH', 'mg/24hr', 'mL/min', '/HPF', '/LPF'],
   'Qualitative': ['Color', 'Appearance', 'Consistency', 'Odor', 'Viscosity', 'Turbidity', 'Presence'],
 };
 
@@ -162,6 +162,7 @@ function defaultRule(): ReferenceRule {
 // Extended field data type (with reference rules for the editor)
 // ============================================
 interface FieldEditorData extends CreateTestFieldData {
+  test_field_id?: string;
   _referenceRules: ReferenceRule[];
   _criticalRules: CriticalRules;
 }
@@ -198,6 +199,14 @@ export function TestManagement() {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState<string | null>(null);
 
+  // Package states
+  const [activeTab, setActiveTab] = useState<'tests' | 'packages'>('tests');
+  const [packages, setPackages] = useState<any[]>([]);
+  const [packagesLoading, setPackagesLoading] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState<any | null>(null);
+  const [showPackageModal, setShowPackageModal] = useState(false);
+  const [isDeletingPackage, setIsDeletingPackage] = useState<string | null>(null);
+
   // Sync state to sessionStorage
   useEffect(() => {
     sessionStorage.setItem('test_mgmt_search', searchTerm);
@@ -215,6 +224,65 @@ export function TestManagement() {
   useEffect(() => {
     fetchTests(currentBranchId ?? undefined);
   }, [fetchTests, currentBranchId]);
+
+  // Fetch packages list helper
+  const fetchPackagesList = async () => {
+    if (!currentBranchId) return;
+    setPackagesLoading(true);
+    try {
+      const res = await testApi.getPackages(currentBranchId);
+      setPackages(res.data);
+    } catch (err) {
+      console.error("Failed to fetch packages:", err);
+    } finally {
+      setPackagesLoading(false);
+    }
+  };
+
+  // Fetch packages on mount or branch change
+  useEffect(() => {
+    if (currentBranchId) {
+      fetchPackagesList();
+    }
+  }, [currentBranchId]);
+
+  const handleAddPackage = () => {
+    setSelectedPackage(null);
+    setShowPackageModal(true);
+  };
+
+  const handleEditPackage = (pkg: any) => {
+    setSelectedPackage(pkg);
+    setShowPackageModal(true);
+  };
+
+  const handleDeletePackage = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this package?")) return;
+    setIsDeletingPackage(id);
+    try {
+      await testApi.deletePackage(id);
+      await fetchPackagesList();
+    } catch (err) {
+      console.error("Delete package failed:", err);
+    } finally {
+      setIsDeletingPackage(null);
+    }
+  };
+
+  const handleSavePackage = async (data: any) => {
+    if (selectedPackage) {
+      await testApi.updatePackage(selectedPackage.id, data, currentBranchId || undefined);
+    } else {
+      await testApi.createPackage({ ...data, branch_id: currentBranchId! });
+    }
+    await fetchPackagesList();
+  };
+
+  const getTestNamesForPackage = (testIds: string[] | null) => {
+    if (!testIds || !Array.isArray(testIds)) return '—';
+    const names = testIds.map(id => tests.find(t => t.id === id)?.test_name).filter(Boolean);
+    return names.length > 0 ? names.join(', ') : '—';
+  };
 
   const filteredTests = [...tests]
     .filter(test => {
@@ -270,6 +338,22 @@ export function TestManagement() {
 
   // Get unique categories
   const categories = [...new Set(tests.map(t => t.category).filter(Boolean))];
+  const packageCategories = [...new Set(packages.map(p => p.category).filter(Boolean))];
+
+  const filteredPackages = [...packages]
+    .filter(pkg => {
+      const matchSearch = (pkg.package_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (pkg.package_code || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const matchCategory = categoryFilter === 'all' || pkg.category === categoryFilter;
+      return matchSearch && matchCategory;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name-asc') return (a.package_name || '').localeCompare(b.package_name || '');
+      if (sortBy === 'name-desc') return (b.package_name || '').localeCompare(a.package_name || '');
+      if (sortBy === 'price-asc') return (Number(a.price) || 0) - (Number(b.price) || 0);
+      if (sortBy === 'price-desc') return (Number(b.price) || 0) - (Number(a.price) || 0);
+      return 0;
+    });
   
   // Calculate stats
 
@@ -332,34 +416,62 @@ export function TestManagement() {
         </div>
         <div className="flex items-center gap-2">
           <button 
-            onClick={() => fetchTests(currentBranchId ?? undefined)}
-            disabled={isLoading}
+            onClick={() => activeTab === 'tests' ? fetchTests(currentBranchId ?? undefined) : fetchPackagesList()}
+            disabled={isLoading || packagesLoading}
             className="h-8 px-2.5 flex items-center gap-1.5 bg-secondary text-foreground rounded hover:bg-secondary/80 transition-colors text-xs disabled:opacity-50"
-            title="Refresh test list"
+            title={activeTab === 'tests' ? "Refresh test list" : "Refresh package list"}
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading || packagesLoading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
           {canEditTest && (
             <button 
-              onClick={handleAdd}
+              onClick={() => activeTab === 'tests' ? handleAdd() : handleAddPackage()}
               className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs"
             >
               <Plus className="w-3.5 h-3.5" />
-              Add Test
+              {activeTab === 'tests' ? 'Add Test' : 'Add Package'}
             </button>
           )}
         </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-border">
+        <button
+          onClick={() => { setActiveTab('tests'); setCategoryFilter('all'); setSearchTerm(''); }}
+          className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors -mb-[2px] ${
+            activeTab === 'tests'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Tests
+        </button>
+        <button
+          onClick={() => { setActiveTab('packages'); setCategoryFilter('all'); setSearchTerm(''); }}
+          className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors -mb-[2px] ${
+            activeTab === 'packages'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Packages
+        </button>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-card border border-border rounded p-3">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Total Tests</span>
+            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">
+              {activeTab === 'tests' ? 'Total Tests' : 'Total Packages'}
+            </span>
             <Beaker className="w-3.5 h-3.5 text-muted-foreground" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">{tests.length}</div>
+          <div className="text-foreground text-xl tabular-nums">
+            {activeTab === 'tests' ? tests.length : packages.length}
+          </div>
           <div className="text-[10px] text-muted-foreground mt-0.5">Configured</div>
         </div>
 
@@ -368,8 +480,12 @@ export function TestManagement() {
             <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Categories</span>
             <Activity className="w-3.5 h-3.5 text-muted-foreground" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">{categories.length}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Test types</div>
+          <div className="text-foreground text-xl tabular-nums">
+            {activeTab === 'tests' ? categories.length : packageCategories.length}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">
+            {activeTab === 'tests' ? 'Test types' : 'Package categories'}
+          </div>
         </div>
       </div>
 
@@ -379,7 +495,7 @@ export function TestManagement() {
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
           <input 
             type="text"
-            placeholder="Search by test name or code..."
+            placeholder={activeTab === 'tests' ? "Search by test name or code..." : "Search by package name or code..."}
             className="w-full h-8 pl-8 pr-8 bg-secondary border-0 rounded text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -406,7 +522,7 @@ export function TestManagement() {
             onChange={(e) => setCategoryFilter(e.target.value)}
           >
             <option value="all">All Categories</option>
-            {categories.map(cat => (
+            {(activeTab === 'tests' ? categories : packageCategories).map(cat => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
@@ -425,7 +541,7 @@ export function TestManagement() {
             <option value="name-desc">Alphabetical (Z to A)</option>
             <option value="price-asc">Price (Low to High)</option>
             <option value="price-desc">Price (High to Low)</option>
-            <option value="category-asc">Category</option>
+            {activeTab === 'tests' && <option value="category-asc">Category</option>}
           </select>
         </div>
       </div>
@@ -439,20 +555,25 @@ export function TestManagement() {
       )}
 
       {/* Loading State */}
-      {isLoading && (
+      {((activeTab === 'tests' && isLoading) || (activeTab === 'packages' && packagesLoading)) && (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-primary" />
-          <span className="ml-2 text-muted-foreground text-sm">Loading tests...</span>
+          <span className="ml-2 text-muted-foreground text-sm">
+            {activeTab === 'tests' ? 'Loading tests...' : 'Loading packages...'}
+          </span>
         </div>
       )}
 
       {/* Empty State */}
-      {!isLoading && !error && filteredTests.length === 0 && (
+      {!isLoading && !packagesLoading && !error && (activeTab === 'tests' ? filteredTests.length === 0 : filteredPackages.length === 0) && (
         <div className="text-center py-12 bg-card border border-border rounded">
           <div className="text-muted-foreground text-sm">
-            {tests.length === 0 ? 'No tests found. Add your first test to get started.' : 'No tests match your search criteria.'}
+            {activeTab === 'tests' 
+              ? (tests.length === 0 ? 'No tests found. Add your first test to get started.' : 'No tests match your search criteria.')
+              : (packages.length === 0 ? 'No packages found. Add your first package to get started.' : 'No packages match your search criteria.')
+            }
           </div>
-          {tests.length === 0 && canEditTest && (
+          {activeTab === 'tests' && tests.length === 0 && canEditTest && (
             <button
               onClick={handleAdd}
               className="mt-4 h-8 px-3 bg-primary text-white rounded text-sm hover:opacity-90 transition-opacity"
@@ -460,11 +581,19 @@ export function TestManagement() {
               Add Test
             </button>
           )}
+          {activeTab === 'packages' && packages.length === 0 && canEditTest && (
+            <button
+              onClick={handleAddPackage}
+              className="mt-4 h-8 px-3 bg-primary text-white rounded text-sm hover:opacity-90 transition-opacity"
+            >
+              Add Package
+            </button>
+          )}
         </div>
       )}
 
       {/* Test Table */}
-      {!isLoading && filteredTests.length > 0 && (
+      {!isLoading && activeTab === 'tests' && filteredTests.length > 0 && (
         <div className="bg-card border border-border rounded overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -548,20 +677,6 @@ export function TestManagement() {
                             <Eye className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {canEditTest && test.has_branch_override && (
-                          <button 
-                            onClick={() => handleReset(test.id)}
-                            disabled={isResetting === test.id}
-                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-blue-500 disabled:opacity-50"
-                            title="Reset to Default"
-                          >
-                            {isResetting === test.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <RotateCcw className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-                        )}
                         {canDeleteTest && (
                           <button 
                             onClick={() => handleDelete(test.id)}
@@ -593,12 +708,109 @@ export function TestManagement() {
         </div>
       )}
 
+      {/* Packages Table */}
+      {!packagesLoading && activeTab === 'packages' && filteredPackages.length > 0 && (
+        <div className="bg-card border border-border rounded overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-secondary/30 sticky top-0 z-10">
+                <tr className="border-b border-border">
+                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Package Name</th>
+                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Code</th>
+                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Category</th>
+                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Tests Included</th>
+                  <th className="px-3 py-2 text-right text-muted-foreground text-[10px] uppercase tracking-wider">Price</th>
+                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-24">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredPackages.map((pkg) => (
+                  <tr key={pkg.id} className="hover:bg-accent/30 transition-colors">
+                    <td className="px-3 py-2">
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-foreground font-medium">{pkg.package_name}</span>
+                          {pkg.has_branch_override && (
+                            <span className="inline-flex items-center px-1 py-0.5 rounded text-[9px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 leading-none">
+                              Customized
+                            </span>
+                          )}
+                        </div>
+                        {pkg.description && (
+                          <span className="text-[10px] text-muted-foreground truncate max-w-[300px]">{pkg.description}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <span className="text-xs text-muted-foreground tabular-nums">{pkg.package_code}</span>
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {getCategoryBadge(pkg.category)}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground max-w-xs truncate">
+                      {getTestNamesForPackage(pkg.test_ids)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <span className="text-xs text-foreground tabular-nums">
+                        {pkg.price ? `₹${pkg.price}` : '₹0'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center justify-center gap-1">
+                        {canEditTest ? (
+                          <button 
+                            onClick={() => handleEditPackage(pkg)}
+                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
+                            title="Edit"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={() => handleEditPackage(pkg)}
+                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
+                            title="View Details"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {/* If it's a branch-specific package, or if user is admin, allow delete */}
+                        {canDeleteTest && (pkg.branch_id || user?.role === 'admin') && (
+                          <button 
+                            onClick={() => handleDeletePackage(pkg.id)}
+                            disabled={isDeletingPackage === pkg.id}
+                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-destructive disabled:opacity-50"
+                            title={pkg.branch_id && !pkg.has_branch_override ? "Delete Custom Package" : "Reset / Delete Override"}
+                          >
+                            {isDeletingPackage === pkg.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="border-t border-border bg-secondary/30 px-3 py-2 flex justify-between items-center">
+            <div className="text-xs text-muted-foreground">
+              Showing <span className="text-foreground">{filteredPackages.length}</span> of <span className="text-foreground">{packages.length}</span> packages
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add/Edit Test Modal */}
       {showTestModal && (
         <TestModal
           test={selectedTest}
           categories={categories}
           readOnly={!canEditTest}
+          branchId={currentBranchId || undefined}
           onClose={() => {
             setShowTestModal(false);
             setSelectedTest(null);
@@ -614,6 +826,21 @@ export function TestManagement() {
             setSelectedTest(null);
             return result;
           }}
+          onReset={selectedTest ? () => handleReset(selectedTest.id) : undefined}
+        />
+      )}
+
+      {/* Add/Edit Package Modal */}
+      {showPackageModal && (
+        <PackageModal
+          pkg={selectedPackage}
+          tests={tests}
+          readOnly={!canEditTest}
+          onClose={() => {
+            setShowPackageModal(false);
+            setSelectedPackage(null);
+          }}
+          onSave={handleSavePackage}
         />
       )}
     </div>
@@ -625,11 +852,13 @@ interface TestModalProps {
   test: Test | null;
   categories: (string | undefined)[];
   readOnly?: boolean;
+  branchId?: string;
   onClose: () => void;
   onSave: (data: CreateTestData) => Promise<Test | null | void>;
+  onReset?: () => Promise<void>;
 }
 
-function TestModal({ test, categories, readOnly = false, onClose, onSave }: TestModalProps) {
+function TestModal({ test, categories, readOnly = false, branchId, onClose, onSave, onReset }: TestModalProps) {
   const [formData, setFormData] = useState<CreateTestData>({
     test_name: test?.test_name || '',
     test_code: test?.test_code || '',
@@ -651,10 +880,11 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
   useEffect(() => {
     if (test?.id) {
       setLoadingFields(true);
-      testApi.getFields(test.id)
+      testApi.getFields(test.id, branchId)
         .then(res => {
           setFields(res.data.map((f: TestField) => {
             return {
+              test_field_id: f.id,
               field_name: f.field_name,
               unit: f.unit || '',
               min_value: f.min_value ?? undefined,
@@ -674,7 +904,7 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
         .catch(() => {})
         .finally(() => setLoadingFields(false));
     }
-  }, [test?.id]);
+  }, [test?.id, branchId]);
 
   // Detect existing custom units when fields are loaded
   useEffect(() => {
@@ -806,6 +1036,7 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
             }
 
             return {
+              test_field_id: f.test_field_id,
               field_name: f.field_name,
               unit: f.unit,
               min_value: f.min_value,
@@ -821,7 +1052,7 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
               critical_rules: critRules,
             };
           });
-          await testApi.setFields(targetId, fieldsToSave);
+          await testApi.setFields(targetId, fieldsToSave, branchId);
         }
       }
     } finally {
@@ -829,7 +1060,19 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
     }
   };
 
-  const sampleTypes = ['Blood', 'Urine', 'Stool', 'Saliva', 'Swab', 'CSF', 'Other'];
+  const defaultSampleTypes = [
+    'Blood', 'Serum', 'Plasma', 'Urine', 'Stool', 'Saliva', 'Swab', 
+    'CSF', 'Semen', 'Sputum', 'Biopsy', 'Pleural Fluid', 
+    'Ascitic Fluid', 'Joint Fluid', 'Fluoride Blood', 'EDTA Blood', 
+    'Citrated Plasma (Blue Top)', 'Other'
+  ];
+  const sampleTypes = useMemo(() => {
+    const list = [...defaultSampleTypes];
+    if (test?.sample_type && !list.includes(test.sample_type)) {
+      list.push(test.sample_type);
+    }
+    return list;
+  }, [test?.sample_type]);
   const defaultCategories = ['CBC', 'Biochemistry', 'Hormone', 'Immunology', 'Microbiology', 'Serology'];
   const allCategories = [...new Set([...defaultCategories, ...categories.filter(Boolean)])];
 
@@ -1004,49 +1247,51 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
                           />
                         </td>
                         <td className="px-2 py-1.5">
-                            {customUnitMode.has(index) ? (
-                              <div className="flex gap-0.5">
-                                <input
-                                  type="text"
-                                  value={field.unit || ''}
-                                  onChange={e => updateField(index, { unit: e.target.value })}
-                                  className="w-full h-7 px-2 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                                  placeholder="Custom unit"
-                                  autoFocus
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setCustomUnitMode(prev => { const s = new Set(prev); s.delete(index); return s; });
-                                    updateField(index, { unit: '' });
-                                  }}
-                                  className="w-7 h-7 flex-shrink-0 flex items-center justify-center bg-secondary border border-border rounded hover:bg-accent transition-colors"
-                                  title="Switch to dropdown"
-                                >
-                                  <ChevronDown className="w-3 h-3" />
-                                </button>
-                              </div>
-                            ) : (
-                              <select
+                          {customUnitMode.has(index) ? (
+                            <div className="flex gap-0.5">
+                              <input
+                                type="text"
                                 value={field.unit || ''}
-                                onChange={e => {
-                                  if (e.target.value === '__custom__') {
-                                    setCustomUnitMode(prev => new Set([...prev, index]));
-                                  } else {
-                                    updateField(index, { unit: e.target.value });
-                                  }
+                                onChange={e => updateField(index, { unit: e.target.value })}
+                                className="w-full h-7 px-2 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                placeholder="Custom unit"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCustomUnitMode(prev => { const s = new Set(prev); s.delete(index); return s; });
                                 }}
-                                className="w-full h-7 px-1 bg-secondary border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary"
+                                className="w-7 h-7 flex-shrink-0 flex items-center justify-center bg-secondary border border-border rounded hover:bg-accent transition-colors"
+                                title="Switch to dropdown"
                               >
-                                <option value="">Select unit</option>
-                                {Object.entries(LAB_UNITS).map(([group, units]) => (
-                                  <optgroup key={group} label={group}>
-                                    {units.map(u => <option key={u} value={u}>{u}</option>)}
-                                  </optgroup>
-                                ))}
-                                <option value="__custom__">Other (custom)...</option>
-                              </select>
-                            )}
+                                <ChevronDown className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <select
+                              value={field.unit || ''}
+                              onChange={e => {
+                                if (e.target.value === '__custom__') {
+                                  setCustomUnitMode(prev => new Set([...prev, index]));
+                                } else {
+                                  updateField(index, { unit: e.target.value });
+                                }
+                              }}
+                              className="w-full h-7 px-1 bg-secondary border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary"
+                            >
+                              <option value="">Select unit</option>
+                              {field.unit && !Object.values(LAB_UNITS).flat().includes(field.unit) && (
+                                <option value={field.unit}>{field.unit}</option>
+                              )}
+                              {Object.entries(LAB_UNITS).map(([group, units]) => (
+                                <optgroup key={group} label={group}>
+                                  {units.map(u => <option key={u} value={u}>{u}</option>)}
+                                </optgroup>
+                              ))}
+                              <option value="__custom__">Other (custom)...</option>
+                            </select>
+                          )}
                         </td>
                         <td className="px-2 py-1.5">
                           <select
@@ -1186,6 +1431,25 @@ function TestModal({ test, categories, readOnly = false, onClose, onSave }: Test
 
           {/* Modal Footer */}
           <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
+            {test?.has_branch_override && onReset && !readOnly && (
+              <button 
+                type="button"
+                onClick={async () => {
+                  if (confirm("Are you sure you want to reset this test to default? All branch-specific price and field overrides will be deleted.")) {
+                    setIsSubmitting(true);
+                    await onReset();
+                    setIsSubmitting(false);
+                    onClose();
+                  }
+                }}
+                disabled={isSubmitting}
+                className="h-9 px-3 mr-auto flex items-center gap-1.5 bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 dark:bg-yellow-950/20 dark:border-yellow-800/40 text-yellow-700 dark:text-yellow-400 rounded text-sm transition-colors"
+                title="Reset to default settings"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset to Default
+              </button>
+            )}
             <button 
               type="button"
               onClick={onClose}
@@ -1391,6 +1655,251 @@ function ReferenceRangeEditor({
             Values outside this range trigger immediate alerts
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// Package Modal Component
+// ============================================
+interface PackageModalProps {
+  pkg: any | null;
+  tests: Test[];
+  onClose: () => void;
+  onSave: (data: any) => Promise<void>;
+  readOnly?: boolean;
+}
+
+function PackageModal({ pkg, tests, onClose, onSave, readOnly = false }: PackageModalProps) {
+  const [packageName, setPackageName] = useState(pkg?.package_name || '');
+  const [packageCode, setPackageCode] = useState(pkg?.package_code || '');
+  const [category, setCategory] = useState(pkg?.category || '');
+  const [description, setDescription] = useState(pkg?.description || '');
+  const [price, setPrice] = useState<number | string>(pkg?.price != null ? Number(pkg.price) : '');
+  const [isActive, setIsActive] = useState(pkg?.is_active !== false);
+  const [selectedTestIds, setSelectedTestIds] = useState<string[]>(pkg?.test_ids || []);
+
+  const [testSearch, setTestSearch] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const filteredTests = useMemo(() => {
+    return tests.filter(
+      t => !selectedTestIds.includes(t.id) &&
+      (t.test_name.toLowerCase().includes(testSearch.toLowerCase()) ||
+       t.test_code.toLowerCase().includes(testSearch.toLowerCase()))
+    ).slice(0, 10);
+  }, [tests, selectedTestIds, testSearch]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!packageName.trim() || !packageCode.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      await onSave({
+        package_name: packageName,
+        package_code: packageCode,
+        category,
+        description,
+        price: price ? Number(price) : 0,
+        is_active: isActive,
+        test_ids: selectedTestIds
+      });
+      onClose();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-lg w-full max-w-xl max-h-[90vh] overflow-auto">
+        <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between z-20">
+          <h2 className="text-foreground text-sm font-medium">
+            {readOnly ? 'View Package Details' : pkg ? 'Edit Package' : 'Add New Package'}
+          </h2>
+          <button type="button" onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+          <fieldset disabled={readOnly} className={readOnly ? 'opacity-80' : ''}>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">Package Name *</label>
+                <input 
+                  type="text"
+                  value={packageName}
+                  onChange={e => setPackageName(e.target.value)}
+                  className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="e.g., General Wellness Profile"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Package Code *</label>
+                <input 
+                  type="text"
+                  value={packageCode}
+                  onChange={e => setPackageCode(e.target.value)}
+                  disabled={!!pkg}
+                  className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+                  placeholder="e.g., PKG-WELL-01"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Category</label>
+                <input 
+                  type="text"
+                  value={category}
+                  onChange={e => setCategory(e.target.value)}
+                  className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="e.g., Wellness"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Price (₹) *</label>
+                <input 
+                  type="number"
+                  value={price}
+                  onChange={e => setPrice(e.target.value)}
+                  className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="0"
+                  min="0"
+                  required
+                />
+              </div>
+              <div className="flex items-center mt-6">
+                <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
+                  <input 
+                    type="checkbox"
+                    checked={isActive}
+                    onChange={e => setIsActive(e.target.checked)}
+                    className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                  />
+                  Active & Available
+                </label>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <label className="text-xs text-muted-foreground block mb-1">Description</label>
+              <textarea 
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                className="w-full h-16 px-3 py-2 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                placeholder="Details about what health checkup this package offers..."
+              />
+            </div>
+
+            {/* Test Selection */}
+            <div className="mt-4">
+              <label className="text-xs text-muted-foreground block mb-1">Include Lab Tests ({selectedTestIds.length})</label>
+              {!readOnly && (
+                <div className="relative mb-2" ref={dropdownRef}>
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
+                  <input 
+                    type="text"
+                    placeholder="Search tests by name or code to add..."
+                    className="w-full h-8 pl-8 pr-3 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                    value={testSearch}
+                    onChange={e => { setTestSearch(e.target.value); setShowDropdown(true); }}
+                    onFocus={() => setShowDropdown(true)}
+                  />
+                  {showDropdown && testSearch && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg max-h-48 overflow-auto z-30">
+                      {filteredTests.length > 0 ? (
+                        filteredTests.map(t => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedTestIds([...selectedTestIds, t.id]);
+                              setTestSearch('');
+                              setShowDropdown(false);
+                            }}
+                            className="w-full px-3 py-2 text-left hover:bg-accent text-xs border-b border-border last:border-0"
+                          >
+                            <span className="font-semibold text-foreground">{t.test_code}</span> — {t.test_name}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-3 text-center text-xs text-muted-foreground">
+                          No matching tests found
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Selected Tests Tags */}
+              <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1.5 border border-border bg-secondary/10 rounded">
+                {selectedTestIds.length === 0 ? (
+                  <span className="text-[11px] text-muted-foreground italic px-1">No tests selected yet.</span>
+                ) : (
+                  selectedTestIds.map(tid => {
+                    const test = tests.find(t => t.id === tid);
+                    if (!test) return null;
+                    return (
+                      <span key={tid} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-primary/10 text-primary border border-primary/20">
+                        <span>{test.test_code}</span>
+                        {!readOnly && (
+                          <button 
+                            type="button"
+                            onClick={() => setSelectedTestIds(selectedTestIds.filter(id => id !== tid))}
+                            className="p-0.5 hover:bg-primary/20 rounded-full transition-colors text-primary"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        )}
+                      </span>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </fieldset>
+
+          {/* Modal Footer */}
+          <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
+            <button 
+              type="button"
+              onClick={onClose}
+              className="h-9 px-4 bg-secondary border border-border rounded text-sm hover:bg-accent transition-colors"
+            >
+              {readOnly ? 'Close' : 'Cancel'}
+            </button>
+            {!readOnly && (
+              <button 
+                type="submit"
+                disabled={isSubmitting || !packageName.trim() || !packageCode.trim() || selectedTestIds.length === 0}
+                className="h-9 px-4 bg-primary text-white rounded text-sm hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+              >
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {pkg ? 'Save Changes' : 'Create Package'}
+              </button>
+            )}
+          </div>
+        </form>
       </div>
     </div>
   );

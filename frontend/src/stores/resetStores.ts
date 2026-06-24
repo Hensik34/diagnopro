@@ -69,7 +69,7 @@ export function offLogout(cb: LogoutCallback): void {
  * Keys that belong to a specific user session and must be
  * removed on logout so the next user starts with a clean slate.
  * 
- * Non-user keys (e.g. `visionlab_sidebar_state`, theming)
+ * Non-user keys (e.g. `diagnopro_sidebar_state`, theming)
  * are intentionally left alone — they are device preferences.
  */
 const USER_SCOPED_STORAGE_KEYS = [

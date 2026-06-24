@@ -24,6 +24,7 @@ import { useReportStore } from "../../stores/reportStore";
 import { useAuthStore } from "../../stores/authStore";
 import { useB2BStore } from "../../stores/b2bStore";
 import { sampleApi } from "../../api/samples";
+import { testApi } from "../../api/tests";
 import type { AgeUnit, Patient, Test, Doctor } from "../../types";
 import { DEFAULT_AGE_UNIT, formatAge, getAgeMax, normalizeAgeUnit } from "../../utils/age";
 
@@ -68,6 +69,12 @@ export function CreateReport() {
   const [showTestDropdown, setShowTestDropdown] = useState(false);
   const [activeTestIndex, setActiveTestIndex] = useState(0);
 
+  // Package selection states
+  const [packages, setPackages] = useState<any[]>([]);
+  const [packagesLoading, setPackagesLoading] = useState(false);
+  const [selectedPackages, setSelectedPackages] = useState<any[]>([]);
+  const [individuallySelectedTestIds, setIndividuallySelectedTestIds] = useState<Set<string>>(new Set());
+
   // Sample/Report information
   const [collectionDate, setCollectionDate] = useState(
     new Date().toISOString().split("T")[0]
@@ -98,6 +105,18 @@ export function CreateReport() {
     fetchPatients();
     if (currentBranchId) {
       fetchTests(currentBranchId);
+      // Fetch packages
+      setPackagesLoading(true);
+      testApi.getPackages(currentBranchId)
+        .then(res => {
+          setPackages(res.data || []);
+        })
+        .catch(err => {
+          console.error("Failed to fetch packages:", err);
+        })
+        .finally(() => {
+          setPackagesLoading(false);
+        });
     }
     fetchDoctors();
     fetchB2BLabs();
@@ -141,6 +160,17 @@ export function CreateReport() {
     setActivePatientIndex((currentIndex) => Math.min(currentIndex, filteredPatients.length - 1));
   }, [filteredPatients, showPatientDropdown]);
 
+  // Filter packages based on search
+  const filteredPackages = useMemo(() => {
+    return packages.filter(
+      (p) =>
+        !selectedPackages.find((sp) => sp.id === p.id) &&
+        ((p.package_name || '').toLowerCase().includes(testSearch.toLowerCase()) ||
+          (p.package_code || '').toLowerCase().includes(testSearch.toLowerCase()) ||
+          (p.category || '').toLowerCase().includes(testSearch.toLowerCase()))
+    ).slice(0, 10);
+  }, [packages, selectedPackages, testSearch]);
+
   // Filter tests based on search
   const filteredTests = useMemo(() => {
     return tests.filter(
@@ -151,19 +181,41 @@ export function CreateReport() {
     ).slice(0, 15);
   }, [tests, selectedTests, testSearch]);
 
+  // Combined search results for navigation
+  const searchResults = useMemo(() => {
+    const results: ({ type: 'test'; data: Test } | { type: 'package'; data: any })[] = [];
+    filteredPackages.forEach(p => results.push({ type: 'package', data: p }));
+    filteredTests.forEach(t => results.push({ type: 'test', data: t }));
+    return results;
+  }, [filteredPackages, filteredTests]);
+
   useEffect(() => {
-    if (!showTestDropdown || filteredTests.length === 0) {
+    if (!showTestDropdown || searchResults.length === 0) {
       setActiveTestIndex(0);
       return;
     }
 
-    setActiveTestIndex((currentIndex) => Math.min(currentIndex, filteredTests.length - 1));
-  }, [filteredTests, showTestDropdown]);
+    setActiveTestIndex((currentIndex) => Math.min(currentIndex, searchResults.length - 1));
+  }, [searchResults, showTestDropdown]);
 
   // Calculate total price
   const totalPrice = useMemo(() => {
-    return selectedTests.reduce((sum, test) => sum + (Number(test.price) || 0), 0);
-  }, [selectedTests]);
+    const packageTotal = selectedPackages.reduce((sum, pkg) => sum + (Number(pkg.price) || 0), 0);
+    
+    const individualTestsTotal = selectedTests.reduce((sum, test) => {
+      // Check if test is part of any selected package
+      const isPartOfePackage = selectedPackages.some(pkg => 
+        pkg.test_ids && Array.isArray(pkg.test_ids) && pkg.test_ids.includes(test.id)
+      );
+      
+      if (isPartOfePackage) {
+        return sum; // Handled by package price
+      }
+      return sum + (Number(test.price) || 0);
+    }, 0);
+    
+    return packageTotal + individualTestsTotal;
+  }, [selectedTests, selectedPackages]);
   const shouldScrollSelectedTests = selectedTests.length > 3;
 
   const patientAgeMax = getAgeMax(patientAgeUnit);
@@ -261,9 +313,58 @@ export function CreateReport() {
     }
   };
 
+  // Handle package selection
+  const handleSelectPackage = (pkg: any) => {
+    setSelectedPackages([...selectedPackages, pkg]);
+    
+    // Add all tests in the package's test_ids array to selectedTests (avoiding duplicates)
+    const newTests = [...selectedTests];
+    if (pkg.test_ids && Array.isArray(pkg.test_ids)) {
+      pkg.test_ids.forEach((testId: string) => {
+        const testObj = tests.find(t => t.id === testId);
+        if (testObj && !newTests.some(t => t.id === testId)) {
+          newTests.push(testObj);
+        }
+      });
+    }
+    setSelectedTests(newTests);
+    
+    setTestSearch("");
+    setShowTestDropdown(false);
+    setActiveTestIndex(0);
+    window.requestAnimationFrame(() => {
+      testSearchInputRef.current?.focus();
+    });
+  };
+
+  // Handle package removal
+  const handleRemovePackage = (pkgId: string) => {
+    const updatedPackages = selectedPackages.filter(p => p.id !== pkgId);
+    setSelectedPackages(updatedPackages);
+
+    // Filter out tests that belong to the package being removed,
+    // unless they are individually selected, or belong to another selected package.
+    const testsToKeep = selectedTests.filter(test => {
+      // Keep if individually selected
+      if (individuallySelectedTestIds.has(test.id)) return true;
+      // Keep if belongs to any of the remaining selected packages
+      const belongsToOtherPackage = updatedPackages.some(p => 
+        p.test_ids && Array.isArray(p.test_ids) && p.test_ids.includes(test.id)
+      );
+      return belongsToOtherPackage;
+    });
+    setSelectedTests(testsToKeep);
+  };
+
   // Handle test selection
   const handleSelectTest = (test: Test) => {
-    setSelectedTests([...selectedTests, test]);
+    if (!selectedTests.some(t => t.id === test.id)) {
+      setSelectedTests([...selectedTests, test]);
+    }
+    const updatedIndividual = new Set(individuallySelectedTestIds);
+    updatedIndividual.add(test.id);
+    setIndividuallySelectedTestIds(updatedIndividual);
+
     setTestSearch("");
     setShowTestDropdown(false);
     setActiveTestIndex(0);
@@ -279,8 +380,8 @@ export function CreateReport() {
         setShowTestDropdown(true);
         return;
       }
-      if (filteredTests.length > 0) {
-        setActiveTestIndex((currentIndex) => (currentIndex + 1) % filteredTests.length);
+      if (searchResults.length > 0) {
+        setActiveTestIndex((currentIndex) => (currentIndex + 1) % searchResults.length);
       }
       return;
     }
@@ -291,22 +392,26 @@ export function CreateReport() {
         setShowTestDropdown(true);
         return;
       }
-      if (filteredTests.length > 0) {
+      if (searchResults.length > 0) {
         setActiveTestIndex((currentIndex) =>
-          currentIndex === 0 ? filteredTests.length - 1 : currentIndex - 1
+          currentIndex === 0 ? searchResults.length - 1 : currentIndex - 1
         );
       }
       return;
     }
 
     if (event.key === 'Enter') {
-      if (filteredTests.length === 0) {
+      if (searchResults.length === 0) {
         return;
       }
       event.preventDefault();
-      const testToSelect = filteredTests[activeTestIndex] ?? filteredTests[0];
-      if (testToSelect) {
-        handleSelectTest(testToSelect);
+      const itemToSelect = searchResults[activeTestIndex] ?? searchResults[0];
+      if (itemToSelect) {
+        if (itemToSelect.type === 'package') {
+          handleSelectPackage(itemToSelect.data);
+        } else {
+          handleSelectTest(itemToSelect.data);
+        }
       }
       return;
     }
@@ -319,6 +424,10 @@ export function CreateReport() {
   // Handle test removal
   const handleRemoveTest = (testId: string) => {
     setSelectedTests(selectedTests.filter((t) => t.id !== testId));
+    // Also remove from individuallySelectedTestIds if it was there
+    const updatedIndividual = new Set(individuallySelectedTestIds);
+    updatedIndividual.delete(testId);
+    setIndividuallySelectedTestIds(updatedIndividual);
   };
 
   // Handle form submission
@@ -374,10 +483,17 @@ export function CreateReport() {
       }
 
       // Create report (in draft status) — sample with auto-ID created server-side
+      const reportTypeString = [
+        ...selectedPackages.map(p => p.package_name),
+        ...selectedTests
+          .filter(t => !selectedPackages.some(p => p.test_ids && Array.isArray(p.test_ids) && p.test_ids.includes(t.id)))
+          .map(t => t.test_name)
+      ].join(', ');
+
       const report = await createReport({
         patient_id: patientId,
         doctor_id: selectedDoctor?.id,
-        report_type: selectedTests.map(t => t.test_name).join(', '),
+        report_type: reportTypeString || selectedTests.map(t => t.test_name).join(', '),
         report_amount: totalPrice,
         is_self_report: !selectedDoctor,
         branch_id: currentBranchId,
@@ -406,7 +522,7 @@ export function CreateReport() {
         navigate('/reports/entry', {
           state: {
             patient: selectedPatient || undefined,
-            testName: selectedTests.map(t => t.test_name).join(', '),
+            testName: reportTypeString || selectedTests.map(t => t.test_name).join(', '),
             reportAmount: totalPrice,
           },
         });
@@ -835,48 +951,119 @@ export function CreateReport() {
                       setActiveTestIndex(0);
                     }}
                     onFocus={() => setShowTestDropdown(true)}
-                    onKeyDown={handleTestSearchKeyDown}
+                      onKeyDown={handleTestSearchKeyDown}
                   />
                   {testsLoading && (
                     <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
                   )}
                 </div>
 
-                {/* Test Dropdown */}
+                {/* Test & Package Dropdown */}
                 {showTestDropdown && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg max-h-64 overflow-auto z-10">
-                    {filteredTests.length > 0 ? (
-                      filteredTests.map((test, index) => (
-                        <button
-                          key={test.id}
-                          onClick={() => handleSelectTest(test)}
-                          onMouseEnter={() => setActiveTestIndex(index)}
-                          className={`w-full px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 ${index === activeTestIndex ? 'bg-accent' : 'hover:bg-accent'
-                            }`}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <div className="text-sm text-foreground font-medium">
-                                {test.test_name}
+                    {packagesLoading && (
+                      <div className="px-3 py-2 text-xs text-muted-foreground flex items-center gap-2 border-b border-border">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Loading packages...
+                      </div>
+                    )}
+                    {searchResults.length > 0 ? (
+                      searchResults.map((item, index) => {
+                        const showHeader = index === 0 || searchResults[index].type !== searchResults[index - 1].type;
+                        return (
+                          <div key={`${item.type}-${item.data.id}`}>
+                            {showHeader && (
+                              <div className="px-3 py-1 bg-secondary text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b border-border/50">
+                                {item.type === 'package' ? 'Packages' : 'Individual Tests'}
                               </div>
-                              <div className="text-xs text-muted-foreground mt-0.5">
-                                {test.category || 'General'} • {test.test_code}
-                              </div>
-                            </div>
-                            <div className="text-xs text-foreground font-medium">
-                              ₹{Number(test.price) || 0}
-                            </div>
+                            )}
+                            <button
+                              onClick={() => item.type === 'package' ? handleSelectPackage(item.data) : handleSelectTest(item.data)}
+                              onMouseEnter={() => setActiveTestIndex(index)}
+                              className={`w-full px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 ${
+                                index === activeTestIndex ? 'bg-accent font-medium' : 'hover:bg-accent'
+                              }`}
+                            >
+                              {item.type === 'package' ? (
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <div className="text-sm text-foreground font-semibold flex items-center gap-1.5">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                                      {item.data.package_name}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground mt-0.5 pl-3">
+                                      {item.data.category || 'General'} • {item.data.package_code} • {item.data.test_ids?.length || 0} tests included
+                                    </div>
+                                  </div>
+                                  <div className="text-xs text-foreground font-semibold">
+                                    ₹{Number(item.data.price) || 0}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <div className="text-sm text-foreground">
+                                      {item.data.test_name}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground mt-0.5">
+                                      {item.data.category || 'General'} • {item.data.test_code}
+                                    </div>
+                                  </div>
+                                  <div className="text-xs text-foreground">
+                                    ₹{Number(item.data.price) || 0}
+                                  </div>
+                                </div>
+                              )}
+                            </button>
                           </div>
-                        </button>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-                        {testSearch ? "No tests found" : "Type to search tests. Use arrow keys and Enter to add."}
+                        {testSearch ? "No tests or packages found" : "Type to search tests or packages. Use arrow keys and Enter to add."}
                       </div>
                     )}
                   </div>
                 )}
               </div>
+
+              {/* Selected Packages */}
+              {selectedPackages.length > 0 && (
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground block mb-0.5">
+                    Selected Packages ({selectedPackages.length})
+                  </label>
+                  <div className="space-y-1">
+                    {selectedPackages.map((pkg) => (
+                      <div
+                        key={pkg.id}
+                        className="flex items-center justify-between px-3 py-2 bg-primary/5 border border-primary/20 rounded"
+                      >
+                        <div className="flex-1">
+                          <div className="text-sm font-semibold text-primary">
+                            {pkg.package_name}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {pkg.package_code} • {pkg.test_ids?.length || 0} tests included
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm text-foreground font-medium">
+                            ₹{Number(pkg.price) || 0}
+                          </span>
+                          <button
+                            onClick={() => handleRemovePackage(pkg.id)}
+                            className="w-6 h-6 flex items-center justify-center rounded hover:bg-destructive/10 transition-colors text-destructive"
+                            title="Remove package"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Selected Tests */}
               {selectedTests.length > 0 && (
@@ -885,33 +1072,52 @@ export function CreateReport() {
                     Selected Tests ({selectedTests.length})
                   </label>
                   <div className={shouldScrollSelectedTests ? "space-y-1 max-h-56 overflow-y-auto pr-1" : "space-y-1"}>
-                    {selectedTests.map((test) => (
-                      <div
-                        key={test.id}
-                        className="flex items-center justify-between px-3 py-2 bg-secondary/50 border border-border rounded"
-                      >
-                        <div className="flex-1">
-                          <div className="text-sm text-foreground font-medium">
-                            {test.test_name}
+                    {selectedTests.map((test) => {
+                      const isTestInPackage = (testId: string) => {
+                        return selectedPackages.some(pkg => 
+                          pkg.test_ids && Array.isArray(pkg.test_ids) && pkg.test_ids.includes(testId)
+                        );
+                      };
+                      const inPackage = isTestInPackage(test.id);
+                      return (
+                        <div
+                          key={test.id}
+                          className="flex items-center justify-between px-3 py-2 bg-secondary/50 border border-border rounded"
+                        >
+                          <div className="flex-1">
+                            <div className="text-sm text-foreground font-medium">
+                              {test.test_name}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {test.category || 'General'}
+                            </div>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {test.category || 'General'}
+                          <div className="flex items-center gap-3">
+                            <div className="text-sm text-foreground font-medium flex items-center gap-1.5">
+                              {inPackage ? (
+                                <>
+                                  <span className="text-xs text-muted-foreground line-through">
+                                    ₹{Number(test.price) || 0}
+                                  </span>
+                                  <span className="text-[10px] text-primary font-medium bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded">
+                                    Package
+                                  </span>
+                                </>
+                              ) : (
+                                `₹${Number(test.price) || 0}`
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleRemoveTest(test.id)}
+                              className="w-6 h-6 flex items-center justify-center rounded hover:bg-destructive/10 transition-colors text-destructive"
+                              title="Remove test"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm text-foreground font-medium">
-                            ₹{Number(test.price) || 0}
-                          </span>
-                          <button
-                            onClick={() => handleRemoveTest(test.id)}
-                            className="w-6 h-6 flex items-center justify-center rounded hover:bg-destructive/10 transition-colors text-destructive"
-                            title="Remove test"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   {shouldScrollSelectedTests && (
                     <div className="text-[11px] text-muted-foreground">4 or more tests selected. Scroll to view all.</div>

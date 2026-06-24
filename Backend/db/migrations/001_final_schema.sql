@@ -583,16 +583,19 @@ CREATE INDEX IF NOT EXISTS idx_password_reset_otps_expires_at ON password_reset_
 CREATE TABLE IF NOT EXISTS test_packages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     package_name VARCHAR(255) NOT NULL,
-    package_code VARCHAR(100) NOT NULL UNIQUE,
+    package_code VARCHAR(100) NOT NULL,
     category VARCHAR(100),
     description TEXT,
     price DECIMAL(10, 2),
     is_active BOOLEAN DEFAULT TRUE,
+    branch_id UUID REFERENCES branches(id) ON DELETE CASCADE,
+    test_ids JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_test_packages_code ON test_packages(package_code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_test_packages_code_global ON test_packages (package_code) WHERE branch_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_test_packages_code_branch ON test_packages (package_code, branch_id) WHERE branch_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_test_packages_category ON test_packages(category);
 
 -- ============================================

@@ -319,7 +319,7 @@ async function connectBranch(branchId, options = {}) {
       fireInitQueries: false,
       generateHighQualityLinkPreview: false,
       // Disable browser detection to prevent blocking
-      browser: ["VisionLab", "Chrome", "4.0"],
+      browser: ["DiagnoPro", "Chrome", "4.0"],
       // Don't try to load history
       markOnlineOnConnect: true,
       // Reduce load

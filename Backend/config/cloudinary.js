@@ -10,7 +10,7 @@ cloudinary.config({
 /**
  * Upload a buffer to Cloudinary
  * @param {Buffer} buffer - File buffer
- * @param {string} folder - Cloudinary folder path (e.g., 'visionlab/branches/{branchId}/settings')
+ * @param {string} folder - Cloudinary folder path (e.g., 'diagnopro/branches/{branchId}/settings')
  * @param {string} publicId - Public ID for the file (without extension)
  * @returns {Promise<object>} Cloudinary upload result
  */

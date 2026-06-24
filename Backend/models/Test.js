@@ -32,6 +32,7 @@ exports.getAllTests = async (branchId = null) => {
       price: ov.price ?? t.price,
       turnaround_time: ov.turnaround_time ?? t.turnaround_time,
       description: ov.description ?? t.description,
+      clinical_significance: ov.clinical_significance ?? t.clinical_significance,
       has_branch_override: true,
     };
   });
@@ -57,6 +58,7 @@ exports.getTestById = async (id, branchId = null) => {
     price: ov.price ?? test.price,
     turnaround_time: ov.turnaround_time ?? test.turnaround_time,
     description: ov.description ?? test.description,
+    clinical_significance: ov.clinical_significance ?? test.clinical_significance,
     has_branch_override: true,
   };
 };
@@ -66,13 +68,14 @@ exports.createTest = async (testData) => {
   return await Test.create(testData);
 };
 
-// Update test - admin edits defaults, others edit branch override
+// Update test - admin without branchId edits defaults, otherwise create/update branch override
 exports.updateTest = async (id, testData, branchId = null, userRole = null) => {
-  const { test_name, category, sample_type, price, turnaround_time, description } = testData;
+  const { test_name, category, sample_type, price, turnaround_time, description, clinical_significance } = testData;
 
-  if (userRole === "admin") {
+  // Only modify the global test when admin AND no branch context
+  if (userRole === "admin" && !branchId) {
     const [count, [updated]] = await Test.update(
-      { test_name, category, sample_type, price, turnaround_time, description },
+      { test_name, category, sample_type, price, turnaround_time, description, clinical_significance },
       { where: { id }, returning: true }
     );
     return updated ? updated.toJSON() : null;
@@ -82,10 +85,32 @@ exports.updateTest = async (id, testData, branchId = null, userRole = null) => {
     throw new Error("branch_id is required for branch overrides");
   }
 
-  const [record] = await UserTest.upsert(
-    { branch_id: branchId, test_id: id, test_name, category, sample_type, price, turnaround_time, description },
-    { returning: true }
-  );
+  // Fetch existing branch-specific override to preserve fields like layout_config and clinical_significance
+  const existing = await UserTest.findOne({ where: { branch_id: branchId, test_id: id } });
+
+  const updateDataMerged = {
+    branch_id: branchId,
+    test_id: id,
+    test_name,
+    category,
+    sample_type,
+    price,
+    turnaround_time,
+    description,
+    clinical_significance: clinical_significance !== undefined ? clinical_significance : (existing ? existing.clinical_significance : null),
+    layout_config: existing ? existing.layout_config : null
+  };
+
+  // If creating override for first time, copy global default clinical significance
+  if (!existing) {
+    const defaultTest = await Test.findByPk(id);
+    if (defaultTest && updateDataMerged.clinical_significance === null) {
+      updateDataMerged.clinical_significance = defaultTest.clinical_significance;
+    }
+  }
+
+  // Create or update a branch-specific override (works for admins and non-admins)
+  const [record] = await UserTest.upsert(updateDataMerged, { returning: true });
   return record.toJSON();
 };
 
@@ -123,6 +148,11 @@ exports.getTestsByCategory = async (category, branchId = null) => {
       ...t,
       test_name: ov.test_name ?? t.test_name,
       category: ov.category ?? t.category,
+      sample_type: ov.sample_type ?? t.sample_type,
+      price: ov.price ?? t.price,
+      turnaround_time: ov.turnaround_time ?? t.turnaround_time,
+      description: ov.description ?? t.description,
+      clinical_significance: ov.clinical_significance ?? t.clinical_significance,
       has_branch_override: true,
     };
   });

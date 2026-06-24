@@ -9,7 +9,7 @@ import { useAuthStore, useBranchStore } from '../../stores';
 import { onLogout, offLogout } from '../../stores/resetStores';
 
 // Storage key for sidebar state
-const SIDEBAR_STATE_KEY = 'visionlab_sidebar_state';
+const SIDEBAR_STATE_KEY = 'diagnopro_sidebar_state';
 
 
 export function Root() {

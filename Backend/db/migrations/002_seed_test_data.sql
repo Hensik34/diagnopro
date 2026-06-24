@@ -23,7 +23,7 @@ WHERE NOT EXISTS (SELECT 1 FROM branches LIMIT 1);
 INSERT INTO users (id, firstname, lastname, email, password_hash, phone, role, is_active, created_at, updated_at)
 SELECT
   'a0000000-0000-0000-0000-000000000002'::UUID,
-  'Admin', 'User', 'admin@visionlab.com',
+  'Admin', 'User', 'admin@diagnopro.com',
   '$2b$10$dPGKh5FbGJNlByBh0WERtu8OFPGhHxR7XPYfMzL.MjZuBmYfXKm6C',
   '+1234567890', 'admin', TRUE, NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE role = 'admin' LIMIT 1);
@@ -52,38 +52,38 @@ WHERE NOT EXISTS (
 
 
 INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turnaround_time, description, created_at, updated_at) VALUES
-  (gen_random_uuid(), 'Complete Blood Count (CBC)', 'CBC-01', 'Hematology', 'Blood', 250, 4, 'Comprehensive blood cell count including RBC, WBC, platelets', NOW(), NOW()),
-  (gen_random_uuid(), 'ESR (Erythrocyte Sedimentation Rate)', 'ESR-01', 'Hematology', 'Blood', 100, 2, 'Measures inflammatory response', NOW(), NOW()),
-  (gen_random_uuid(), 'Blood Group & Rh Typing', 'BG-01', 'Hematology', 'Blood', 150, 1, 'ABO blood group and Rh factor determination', NOW(), NOW()),
-  (gen_random_uuid(), 'Peripheral Blood Smear', 'PBS-01', 'Hematology', 'Blood', 200, 6, 'Microscopic examination of blood cells', NOW(), NOW()),
+  (gen_random_uuid(), 'Complete Blood Count (CBC)', 'CBC-01', 'Hematology', 'Blood', 180, 4, 'Comprehensive blood cell count including RBC, WBC, platelets', NOW(), NOW()),
+  (gen_random_uuid(), 'ESR (Erythrocyte Sedimentation Rate)', 'ESR-01', 'Hematology', 'Blood', 120, 2, 'Measures inflammatory response', NOW(), NOW()),
+  (gen_random_uuid(), 'Blood Group & Rh Typing', 'BG-01', 'Hematology', 'Blood', 120, 1, 'ABO blood group and Rh factor determination', NOW(), NOW()),
+  (gen_random_uuid(), 'Peripheral Blood Smear', 'PBS-01', 'Hematology', 'Blood', 250, 6, 'Microscopic examination of blood cells', NOW(), NOW()),
   (gen_random_uuid(), 'Prothrombin Time (PT/INR)', 'PT', 'Coagulation', 'Citrated Plasma (Blue Top)', 300.00, 4, 'Measures the time taken for blood to clot via the extrinsic pathway; includes INR for monitoring anticoagulant (warfarin) therapy.', NOW(), NOW()),
-  (gen_random_uuid(), 'Activated Partial Thromboplastin Time (APTT)', 'APTT', 'Coagulation', 'Citrated Plasma (Blue Top)', 300.00, 4, 'Measures the time taken for blood to clot via the intrinsic pathway; used to monitor heparin therapy and screen for clotting factor deficiencies.', NOW(), NOW()),
-  (gen_random_uuid(), 'Bleeding Time', 'BT-01', 'Hematology', 'Blood', 150, 2, 'Platelet function screening test', NOW(), NOW()),
-  (gen_random_uuid(), 'Clotting Time', 'CT-01', 'Hematology', 'Blood', 150, 2, 'Extrinsic coagulation pathway test', NOW(), NOW()),
+  (gen_random_uuid(), 'Activated Partial Thromboplastin Time (APTT)', 'APTT', 'Coagulation', 'Citrated Plasma (Blue Top)', 400.00, 4, 'Measures the time taken for blood to clot via the intrinsic pathway; used to monitor heparin therapy and screen for clotting factor deficiencies.', NOW(), NOW()),
+  (gen_random_uuid(), 'Bleeding Time', 'BT-01', 'Hematology', 'Blood', 75, 2, 'Platelet function screening test', NOW(), NOW()),
+  (gen_random_uuid(), 'Clotting Time', 'CT-01', 'Hematology', 'Blood', 75, 2, 'Extrinsic coagulation pathway test', NOW(), NOW()),
   (gen_random_uuid(), 'Fibrinogen', 'FIBR-01', 'Hematology', 'Blood', 300, 4, 'Blood clotting factor measurement', NOW(), NOW()),
   (gen_random_uuid(), 'D-Dimer', 'DD-01', 'Hematology', 'Blood', 400, 4, 'Thrombosis and fibrinolysis marker', NOW(), NOW()),
-  (gen_random_uuid(), 'Lipid Profile', 'LIPID-01', 'Biochemistry', 'Blood', 350, 6, 'Cholesterol, HDL, LDL, VLDL, Triglycerides', NOW(), NOW()),
-  (gen_random_uuid(), 'Liver Function Test (LFT)', 'LFT-01', 'Biochemistry', 'Blood', 400, 6, 'Bilirubin, SGOT, SGPT, ALP, Proteins', NOW(), NOW()),
-  (gen_random_uuid(), 'Kidney Function Test (KFT)', 'KFT-01', 'Biochemistry', 'Blood', 450, 6, 'Urea, Creatinine, Electrolytes, eGFR', NOW(), NOW()),
-  (gen_random_uuid(), 'Serum Electrolytes (Na/K/Cl)', 'ELEC-01', 'Biochemistry', 'Blood', 300, 4, 'Sodium, Potassium, Chloride, CO2', NOW(), NOW()),
+  (gen_random_uuid(), 'Lipid Profile', 'LIPID-01', 'Biochemistry', 'Blood', 500, 6, 'Cholesterol, HDL, LDL, VLDL, Triglycerides', NOW(), NOW()),
+  (gen_random_uuid(), 'Liver Function Test (LFT)', 'LFT-01', 'Biochemistry', 'Blood', 650, 6, 'Bilirubin, SGOT, SGPT, ALP, Proteins', NOW(), NOW()),
+  (gen_random_uuid(), 'Kidney Function Test (KFT)', 'KFT-01', 'Biochemistry', 'Blood', 500, 6, 'Urea, Creatinine, Electrolytes, eGFR', NOW(), NOW()),
+  (gen_random_uuid(), 'Serum Electrolytes (Na/K/Cl)', 'ELEC-01', 'Biochemistry', 'Blood', 400, 4, 'Sodium, Potassium, Chloride, CO2', NOW(), NOW()),
   (gen_random_uuid(), 'Serum Calcium', 'CALC-01', 'Biochemistry', 'Blood', 150, 4, 'Total and ionized calcium measurement', NOW(), NOW()),
   (gen_random_uuid(), 'Serum Phosphorus', 'PHOS-01', 'Biochemistry', 'Blood', 150, 4, 'Inorganic phosphorus level', NOW(), NOW()),
   (gen_random_uuid(), 'Serum Magnesium', 'MAG-01', 'Biochemistry', 'Blood', 150, 4, 'Magnesium level measurement', NOW(), NOW()),
-  (gen_random_uuid(), 'CRP (C-Reactive Protein)', 'CRP-01', 'Biochemistry', 'Blood', 250, 4, 'Inflammation marker', NOW(), NOW()),
+  (gen_random_uuid(), 'CRP (C-Reactive Protein)', 'CRP-01', 'Biochemistry', 'Blood', 270, 4, 'Inflammation marker', NOW(), NOW()),
   (gen_random_uuid(), 'Serum Amylase', 'AMYL-01', 'Biochemistry', 'Blood', 250, 4, 'Pancreatic enzyme measurement', NOW(), NOW()),
   (gen_random_uuid(), 'Serum Lipase', 'LIPAS-01', 'Biochemistry', 'Blood', 300, 4, 'Pancreatic lipase measurement', NOW(), NOW()),
-  (gen_random_uuid(), 'Blood Sugar Fasting (FBS)', 'FBS-01', 'Biochemistry', 'Blood', 80, 2, 'Fasting glucose level', NOW(), NOW()),
-  (gen_random_uuid(), 'Blood Sugar PP (Post Prandial)', 'PPBS-01', 'Biochemistry', 'Blood', 80, 2, 'Post-meal glucose measurement', NOW(), NOW()),
-  (gen_random_uuid(), 'Random Blood Sugar (RBS)', 'RBS-01', 'Biochemistry', 'Blood', 80, 1, 'Random glucose level', NOW(), NOW()),
-  (gen_random_uuid(), 'HbA1c (Glycated Hemoglobin)', 'HBA1C-01', 'Biochemistry', 'Blood', 350, 4, 'Average blood sugar over 3 months', NOW(), NOW()),
-  (gen_random_uuid(), 'GTT (2-hour)', 'GTT-01', 'Biochemistry', 'Blood', 350, 4, '2-hour glucose tolerance test', NOW(), NOW()),
+  (gen_random_uuid(), 'Blood Sugar Fasting (FBS)', 'FBS-01', 'Biochemistry', 'Blood', 50, 2, 'Fasting glucose level', NOW(), NOW()),
+  (gen_random_uuid(), 'Blood Sugar PP (Post Prandial)', 'PPBS-01', 'Biochemistry', 'Blood', 50, 2, 'Post-meal glucose measurement', NOW(), NOW()),
+  (gen_random_uuid(), 'Random Blood Sugar (RBS)', 'RBS-01', 'Biochemistry', 'Blood', 50, 1, 'Random glucose level', NOW(), NOW()),
+  (gen_random_uuid(), 'HbA1c (Glycated Hemoglobin)', 'HBA1C-01', 'Biochemistry', 'Blood', 400, 4, 'Average blood sugar over 3 months', NOW(), NOW()),
+  (gen_random_uuid(), 'GTT (2-hour)', 'GTT-01', 'Biochemistry', 'Blood', 150, 4, '2-hour glucose tolerance test', NOW(), NOW()),
   (gen_random_uuid(), 'Fasting Insulin', 'INS-F-01', 'Biochemistry', 'Blood', 300, 4, 'Fasting insulin level', NOW(), NOW()),
   (gen_random_uuid(), 'C-Peptide', 'CPEP-01', 'Biochemistry', 'Blood', 350, 4, 'Beta cell function assessment', NOW(), NOW()),
   (gen_random_uuid(), 'Microalbumin (Urine)', 'MALB-01', 'Biochemistry', 'Urine', 200, 4, 'Urine microalbumin for diabetes screening', NOW(), NOW()),
-  (gen_random_uuid(), 'TSH (Thyroid Stimulating Hormone)', 'TSH-01', 'Hormone', 'Blood', 200, 4, 'Thyroid function screening', NOW(), NOW()),
+  (gen_random_uuid(), 'TSH (Thyroid Stimulating Hormone)', 'TSH-01', 'Hormone', 'Blood', 250, 4, 'Thyroid function screening', NOW(), NOW()),
   (gen_random_uuid(), 'Free T3', 'FT3-01', 'Hormone', 'Blood', 300, 4, 'Free triiodothyronine level', NOW(), NOW()),
   (gen_random_uuid(), 'Free T4', 'FT4-01', 'Hormone', 'Blood', 300, 4, 'Free thyroxine level', NOW(), NOW()),
-  (gen_random_uuid(), 'Thyroid Profile (Comprehensive)', 'THYPRO-01', 'Hormone', 'Blood', 900, 6, 'TSH, T3, T4, FT3, FT4, anti-TPO, anti-thyroglobulin and interpretation', NOW(), NOW()),
+  (gen_random_uuid(), 'Thyroid Profile (Total T3, Total T4, TSH)', 'THYPRO-01', 'Hormone', 'Blood', 500, 6, 'TSH, Total T3, Total T4', NOW(), NOW()),
   (gen_random_uuid(), 'Total T3', 'T3-01', 'Hormone', 'Blood', 250, 4, 'Total triiodothyronine level', NOW(), NOW()),
   (gen_random_uuid(), 'Total T4', 'T4-01', 'Hormone', 'Blood', 250, 4, 'Total thyroxine level', NOW(), NOW()),
   (gen_random_uuid(), 'Anti-TPO (Thyroid Peroxidase Antibodies)', 'ATPO-01', 'Immunology', 'Blood', 400, 4, 'Autoimmune thyroid marker', NOW(), NOW()),
@@ -132,13 +132,13 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'S100 Protein', 'S100-01', 'Biochemistry', 'Blood', 400, 4, 'Melanoma marker', NOW(), NOW()),
   (gen_random_uuid(), 'Calcitonin', 'CALC-TM-01', 'Hormone', 'Blood', 500, 4, 'Thyroid medullary cancer marker', NOW(), NOW()),
   (gen_random_uuid(), 'Beta-HCG (Tumor Marker)', 'BHCG-TM-01', 'Biochemistry', 'Blood', 300, 4, 'Germ cell tumor marker', NOW(), NOW()),
-  (gen_random_uuid(), 'Widal Test', 'WIDAL-01', 'Serology', 'Blood', 200, 4, 'Typhoid fever antibodies', NOW(), NOW()),
+  (gen_random_uuid(), 'Widal Test', 'WIDAL-01', 'Serology', 'Blood', 150, 4, 'Typhoid fever antibodies', NOW(), NOW()),
   (gen_random_uuid(), 'VDRL (Syphilis Screening)', 'VDRL-01', 'Serology', 'Blood', 200, 4, 'Syphilis screening test', NOW(), NOW()),
   (gen_random_uuid(), 'RPR (Rapid Plasma Reagin)', 'RPR-01', 'Serology', 'Serum', 200, 4, 'Syphilis detection test', NOW(), NOW()),
   (gen_random_uuid(), 'FTA-ABS (Syphilis Confirmation)', 'FTAABS-01', 'Serology', 'Blood', 300, 4, 'Syphilis confirmation test', NOW(), NOW()),
   (gen_random_uuid(), 'HIV I & II (ELISA)', 'HIV-01', 'Serology', 'Serum', 300, 6, 'HIV antibody screening', NOW(), NOW()),
   (gen_random_uuid(), 'HIV Rapid Test', 'HIV-RAPID-01', 'Serology', 'Serum', 150, 1, 'Rapid HIV screening', NOW(), NOW()),
-  (gen_random_uuid(), 'HBsAg (ELISA)', 'HBSAG-01', 'Serology', 'Serum', 250, 4, 'Hepatitis B screening', NOW(), NOW()),
+  (gen_random_uuid(), 'HBsAg (ELISA)', 'HBSAG-01', 'Serology', 'Serum', 200, 4, 'Hepatitis B screening', NOW(), NOW()),
   (gen_random_uuid(), 'HBsAg Rapid Test', 'HBSAG-RAPID-01', 'Serology', 'Serum', 150, 1, 'Rapid Hepatitis B screening', NOW(), NOW()),
   (gen_random_uuid(), 'Anti-HBc (Hepatitis B Core Antibodies)', 'AHBC-01', 'Serology', 'Blood', 250, 4, 'Hepatitis B exposure', NOW(), NOW()),
   (gen_random_uuid(), 'Anti-HBs (Hepatitis B Surface Antibodies)', 'AHBS-01', 'Serology', 'Blood', 250, 4, 'Hepatitis B immunity', NOW(), NOW()),
@@ -149,7 +149,7 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'Anti-HAV IgM (Hepatitis A)', 'AHAV-IGM-01', 'Serology', 'Blood', 250, 4, 'Acute Hepatitis A infection', NOW(), NOW()),
   (gen_random_uuid(), 'Anti-HAV IgG (Hepatitis A)', 'AHAV-IGG-01', 'Serology', 'Blood', 250, 4, 'Hepatitis A immunity', NOW(), NOW()),
   (gen_random_uuid(), 'Dengue NS1 rapid', 'DENGNS1-RAPID', 'Serology', 'Serum', 300, 4, 'Qualitative detection of Dengue NS1 Antigen', NOW(), NOW()),
-  (gen_random_uuid(), 'Dengue rapid', 'DENGUE-RAPID', 'Serology', 'Serum', 500, 4, 'Qualitative detection of Dengue IgM and IgG antibodies', NOW(), NOW()),
+  (gen_random_uuid(), 'Dengue rapid', 'DENGUE-RAPID', 'Serology', 'Serum', 650, 4, 'Qualitative detection of Dengue IgM and IgG antibodies', NOW(), NOW()),
   (gen_random_uuid(), 'Zika IgM', 'ZIKA-IGM-01', 'Serology', 'Blood', 400, 4, 'Zika virus antibodies', NOW(), NOW()),
   (gen_random_uuid(), 'CMV IgM', 'CMV-IGM-01', 'Serology', 'Blood', 350, 4, 'Acute CMV infection', NOW(), NOW()),
   (gen_random_uuid(), 'CMV IgG', 'CMV-IGG-01', 'Serology', 'Blood', 350, 4, 'CMV immunity status', NOW(), NOW()),
@@ -165,10 +165,10 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'Complement C3', 'C3-01', 'Immunology', 'Blood', 400, 4, 'Complement system component', NOW(), NOW()),
   (gen_random_uuid(), 'Complement C4', 'C4-01', 'Immunology', 'Blood', 400, 4, 'Complement system component', NOW(), NOW()),
   (gen_random_uuid(), 'Immunoglobulin A (IgA)', 'IGA-01', 'Immunology', 'Blood', 350, 4, 'Immune response antibody', NOW(), NOW()),
-  (gen_random_uuid(), 'Urine Routine & Microscopy', 'URINE-01', 'Clinical Pathology', 'Urine', 150, 3, 'Complete urine analysis', NOW(), NOW()),
+  (gen_random_uuid(), 'Urine Routine & Microscopy', 'URINE-01', 'Clinical Pathology', 'Urine', 100, 3, 'Complete urine analysis', NOW(), NOW()),
   (gen_random_uuid(), 'Urine Culture & Sensitivity', 'UCULT-01', 'Microbiology', 'Urine', 500, 48, 'UTI pathogen identification', NOW(), NOW()),
   (gen_random_uuid(), 'Blood Culture & Sensitivity', 'BCULT-01', 'Microbiology', 'Blood', 700, 72, 'Bloodstream infection detection', NOW(), NOW()),
-  (gen_random_uuid(), 'Stool Routine & Microscopy', 'STOOL-01', 'Clinical Pathology', 'Stool', 150, 3, 'Parasites and microbes', NOW(), NOW()),
+  (gen_random_uuid(), 'Stool Routine & Microscopy', 'STOOL-01', 'Clinical Pathology', 'Stool', 300, 3, 'Parasites and microbes', NOW(), NOW()),
   (gen_random_uuid(), 'Stool Culture & Sensitivity', 'SCULT-01', 'Microbiology', 'Stool', 600, 48, 'Bacterial pathogens', NOW(), NOW()),
   (gen_random_uuid(), 'Sputum Culture & Sensitivity', 'SPCULT-01', 'Microbiology', 'Sputum', 600, 48, 'Respiratory infection pathogens', NOW(), NOW()),
   (gen_random_uuid(), 'Pus Culture & Sensitivity', 'PCULT-01', 'Microbiology', 'Pus', 600, 48, 'Wound/abscess pathogens', NOW(), NOW()),
@@ -177,7 +177,7 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'KOH Preparation (Fungal)', 'KOH-01', 'Microbiology', 'Various', 200, 2, 'Fungal elements detection', NOW(), NOW()),
   (gen_random_uuid(), 'TB Culture (Sputum)', 'TBCULT-01', 'Microbiology', 'Sputum', 1000, 72, 'Tuberculosis detection', NOW(), NOW()),
   (gen_random_uuid(), 'TB GENE XPERT (Rapid TB)', 'TB-XPERT-01', 'Microbiology', 'Sputum', 800, 2, 'Rapid TB detection', NOW(), NOW()),
-  (gen_random_uuid(), 'Malaria Antigen (Rapid Card)', 'MAL-AG-01', 'Serology', 'Whole Blood (EDTA)', 250, 1, 'Rapid antigen detection of P. falciparum and P. vivax', NOW(), NOW()),
+  (gen_random_uuid(), 'Malaria Antigen (Rapid Card)', 'MAL-AG-01', 'Serology', 'Whole Blood (EDTA)', 300, 1, 'Rapid antigen detection of P. falciparum and P. vivax', NOW(), NOW()),
   (gen_random_uuid(), 'CSF Analysis', 'CSF-01', 'Clinical Pathology', 'CSF', 800, 4, 'Cerebrospinal fluid analysis', NOW(), NOW()),
   (gen_random_uuid(), 'Pleural Fluid Analysis', 'PLEURAL-01', 'Clinical Pathology', 'Pleural Fluid', 700, 4, 'Pleural fluid examination', NOW(), NOW()),
   (gen_random_uuid(), 'FNAC (Fine Needle Aspiration Cytology)', 'FNAC-01', 'Histopathology', 'Tissue', 1500, 5, 'Needle aspiration cytology', NOW(), NOW()),
@@ -186,7 +186,7 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'Bone Marrow Examination', 'BM-01', 'Histopathology', 'Bone Marrow', 2500, 5, 'Hematologic malignancy investigation', NOW(), NOW()),
   (gen_random_uuid(), 'Ascitic Fluid Analysis', 'ASCITIC-01', 'Clinical Pathology', 'Ascitic Fluid', 700, 4, 'Ascites analysis', NOW(), NOW()),
   (gen_random_uuid(), 'Joint Fluid Analysis', 'JOINT-01', 'Clinical Pathology', 'Joint Fluid', 700, 4, 'Synovial fluid examination', NOW(), NOW()),
-  (gen_random_uuid(), 'Semen Analysis', 'SEMEN-01', 'Andrology', 'Semen', 400, 4, 'Sperm count, motility, morphology', NOW(), NOW()),
+  (gen_random_uuid(), 'Semen Analysis', 'SEMEN-01', 'Andrology', 'Semen', 300, 4, 'Sperm count, motility, morphology', NOW(), NOW()),
   (gen_random_uuid(), 'Semen Culture', 'SEMEN-CULT-01', 'Microbiology', 'Semen', 600, 48, 'Bacterial contamination', NOW(), NOW()),
   (gen_random_uuid(), 'Pregnancy Test (Serum)', 'SPT-01', 'Hormone', 'Blood', 150, 2, 'Serum beta-HCG qualitative', NOW(), NOW()),
   (gen_random_uuid(), 'Pregnancy Test (Urine)', 'UPT-01', 'Hormone', 'Urine', 100, 1, 'Urine pregnancy test', NOW(), NOW()),
@@ -203,10 +203,30 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'Serum Uric Acid', 'URIC-01', 'Biochemistry', 'Blood', 150, 4, 'Uric acid for gout screening', NOW(), NOW()),
   (gen_random_uuid(), 'Immunoglobulin G (IgG)', 'IGG-01', 'Immunology', 'Blood', 350, 4, 'Primary immune antibody', NOW(), NOW()),
   (gen_random_uuid(), 'Immunoglobulin M (IgM)', 'IGM-01', 'Immunology', 'Blood', 350, 4, 'Acute immune response', NOW(), NOW()),
-  (gen_random_uuid(), 'Chikungunya IgM', 'CHIK-IGM-01', 'Serology', 'Serum', 600, 24, 'Detection of IgM antibodies to Chikungunya virus', NOW(), NOW()),
+  (gen_random_uuid(), 'Chikungunya IgM', 'CHIK-IGM-01', 'Serology', 'Serum', 650, 24, 'Detection of IgM antibodies to Chikungunya virus', NOW(), NOW()),
   (gen_random_uuid(), 'Urine Albumin/Creatinine Ratio (ACR)', 'UACR-01', 'Biochemistry', 'Urine', 400, 4, 'Spot urine albumin to creatinine ratio for early kidney damage / microalbuminuria', NOW(), NOW()),
-  (gen_random_uuid(), 'TORCH Evaluation', 'TORCH-01', 'Serology', 'Serum', 2500, 24, 'Panel for Toxoplasma, Rubella, CMV and Herpes (IgG & IgM antibodies)', NOW(), NOW())
-ON CONFLICT (test_code) DO NOTHING;
+  (gen_random_uuid(), 'TORCH Evaluation', 'TORCH-01', 'Serology', 'Serum', 2500, 24, 'Panel for Toxoplasma, Rubella, CMV and Herpes (IgG & IgM antibodies)', NOW(), NOW()),
+  
+  -- NEW STANDALONE TESTS FROM AUDIT LIST
+  (gen_random_uuid(), 'Hemoglobin (Hb)', 'HB-01', 'Hematology', 'Whole Blood (EDTA)', 120, 1, 'Measures concentration of hemoglobin in blood', NOW(), NOW()),
+  (gen_random_uuid(), 'Absolute Eosinophil Count (AEC)', 'AEC-01', 'Hematology', 'Whole Blood (EDTA)', 150, 2, 'Measures absolute number of eosinophils', NOW(), NOW()),
+  (gen_random_uuid(), 'Reticulocyte Count', 'RETIC-01', 'Hematology', 'Whole Blood (EDTA)', 250, 4, 'Measures the percentage of young red blood cells', NOW(), NOW()),
+  (gen_random_uuid(), 'Malaria Parasite Smear (MP)', 'MP-01', 'Hematology', 'Whole Blood (EDTA)', 120, 2, 'Microscopic examination for malaria parasite detection', NOW(), NOW()),
+  (gen_random_uuid(), 'Platelet Count', 'PLT-01', 'Hematology', 'Whole Blood (EDTA)', 150, 2, 'Measures absolute number of blood platelets', NOW(), NOW()),
+  (gen_random_uuid(), 'Post Glucose Blood Sugar (PGBS)', 'PGBS-01', 'Biochemistry', 'Fluoride Plasma', 50, 2, 'Measures blood sugar level 2 hours after 75g glucose load', NOW(), NOW()),
+  (gen_random_uuid(), 'Serum Urea', 'UREA-01', 'Biochemistry', 'Serum', 150, 4, 'Measures urea concentration in serum', NOW(), NOW()),
+  (gen_random_uuid(), 'Serum Creatinine', 'CREAT-01', 'Biochemistry', 'Serum', 150, 4, 'Measures creatinine concentration in serum', NOW(), NOW()),
+  (gen_random_uuid(), 'Serum Bilirubin (Total, Direct & Indirect)', 'BIL-01', 'Biochemistry', 'Serum', 200, 4, 'Measures total, direct and indirect bilirubin in serum', NOW(), NOW()),
+  (gen_random_uuid(), 'SGPT (ALT)', 'SGPT-01', 'Biochemistry', 'Serum', 150, 4, 'Alanine Aminotransferase enzyme activity measurement', NOW(), NOW()),
+  (gen_random_uuid(), 'SGOT (AST)', 'SGOT-01', 'Biochemistry', 'Serum', 150, 4, 'Aspartate Aminotransferase enzyme activity measurement', NOW(), NOW()),
+  (gen_random_uuid(), 'Alkaline Phosphatase (ALP)', 'ALP-01', 'Biochemistry', 'Serum', 150, 4, 'Alkaline Phosphatase enzyme activity measurement', NOW(), NOW()),
+  (gen_random_uuid(), 'Serum Cholesterol', 'CHOL-01', 'Biochemistry', 'Serum', 150, 4, 'Measures total cholesterol level in serum', NOW(), NOW()),
+  (gen_random_uuid(), 'Serum Triglycerides', 'TRIG-01', 'Biochemistry', 'Serum', 150, 4, 'Measures triglycerides level in serum', NOW(), NOW()),
+  (gen_random_uuid(), 'HDL Cholesterol', 'HDL-01', 'Biochemistry', 'Serum', 150, 4, 'Measures High-Density Lipoprotein cholesterol in serum', NOW(), NOW()),
+  (gen_random_uuid(), 'Sputum Routine & Microscopy', 'SPUTUM-RM', 'Clinical Pathology', 'Sputum', 350, 6, 'Routine macroscopic and microscopic analysis of sputum', NOW(), NOW()),
+  (gen_random_uuid(), 'Mantoux Test', 'MANTOUX-01', 'Immunology', 'Intradermal Injection', 200, 48, 'Tuberculin skin test for exposure to Tuberculosis', NOW(), NOW()),
+  (gen_random_uuid(), 'Typhidot (IgM & IgG)', 'TYPHIDOT-01', 'Serology', 'Serum', 300, 4, 'Qualitative rapid test for Salmonella typhi IgM and IgG', NOW(), NOW())
+ON CONFLICT (test_code) DO UPDATE SET price = EXCLUDED.price, updated_at = NOW();
 
 -- ==========================================
 -- INSERT NEW CBC, KFT, LIPID FIELDS
@@ -963,7 +983,102 @@ NULL,NULL,
 'GeneXpert',3,
 NULL,
 NULL,
-false,NOW(),NOW())
+false,NOW(),NOW()),
+
+-- WIDAL TEST (WIDAL-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='WIDAL-01'), 'Salmonella typhi ''O'' (TO)', NULL, 'select', 'Negative,1:20,1:40,1:80,1:160,1:320,1:640', 'input', NULL, NULL, 'Widal Titers', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='WIDAL-01'), 'Salmonella typhi ''H'' (TH)', NULL, 'select', 'Negative,1:20,1:40,1:80,1:160,1:320,1:640', 'input', NULL, NULL, 'Widal Titers', 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='WIDAL-01'), 'Salmonella paratyphi ''AH'' (AH)', NULL, 'select', 'Negative,1:20,1:40,1:80,1:160,1:320,1:640', 'input', NULL, NULL, 'Widal Titers', 3, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='WIDAL-01'), 'Salmonella paratyphi ''BH'' (BH)', NULL, 'select', 'Negative,1:20,1:40,1:80,1:160,1:320,1:640', 'input', NULL, NULL, 'Widal Titers', 4, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='WIDAL-01'), 'Method', NULL, 'select', 'Slide Agglutination,Tube Agglutination', 'input', NULL, NULL, 'Method', 5, NULL, NULL, true, NOW(), NOW()),
+
+-- PERIPHERAL BLOOD SMEAR (PBS-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PBS-01'), 'RBC Morphology', NULL, 'text', NULL, 'input', NULL, NULL, 'Microscopic Findings', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PBS-01'), 'WBC Morphology', NULL, 'text', NULL, 'input', NULL, NULL, 'Microscopic Findings', 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PBS-01'), 'Platelets', NULL, 'text', NULL, 'input', NULL, NULL, 'Microscopic Findings', 3, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PBS-01'), 'Hemoparasites', NULL, 'text', NULL, 'input', NULL, NULL, 'Microscopic Findings', 4, NULL, NULL, false, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PBS-01'), 'Impression', NULL, 'textarea', NULL, 'input', NULL, NULL, 'Impression', 5, NULL, NULL, true, NOW(), NOW()),
+
+-- SERUM ELECTROLYTES (ELEC-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ELEC-01'), 'Serum Sodium (Na+)', 'mmol/L', 'number', NULL, 'input', NULL, NULL, 'Electrolytes', 1, '{"min":135,"max":145}'::jsonb, '{"low":120,"high":160}'::jsonb, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ELEC-01'), 'Serum Potassium (K+)', 'mmol/L', 'number', NULL, 'input', NULL, NULL, 'Electrolytes', 2, '{"min":3.5,"max":5.1}'::jsonb, '{"low":2.8,"high":6.2}'::jsonb, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ELEC-01'), 'Serum Chloride (Cl-)', 'mmol/L', 'number', NULL, 'input', NULL, NULL, 'Electrolytes', 3, '{"min":96,"max":106}'::jsonb, '{"low":80,"high":120}'::jsonb, true, NOW(), NOW()),
+
+-- STOOL ROUTINE & MICROSCOPY (STOOL-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Color', NULL, 'select', 'Brown,Yellow,Clay,Black,Red', 'input', NULL, NULL, 'Physical Examination', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Consistency', NULL, 'select', 'Formed,Semi-formed,Loose,Watery', 'input', NULL, NULL, 'Physical Examination', 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Mucus', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Chemical Examination', 3, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Blood', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Chemical Examination', 4, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Pus Cells', '/HPF', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 5, '{"min":0,"max":5}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'RBCs', '/HPF', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 6, '{"min":0,"max":2}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Ova', NULL, 'select', 'Not seen,Roundworm,Hookworm,Whipworm', 'input', NULL, NULL, 'Microscopic Examination', 7, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Cysts', NULL, 'select', 'Not seen,E. histolytica,E. coli,Giardia', 'input', NULL, NULL, 'Microscopic Examination', 8, NULL, NULL, true, NOW(), NOW()),
+
+-- HEMOGLOBIN (HB-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HB-01'), 'Hemoglobin', 'g/dL', 'number', NULL, 'input', NULL, NULL, 'Hemoglobin', 1, '{"male":{"min":13.0,"max":17.0},"female":{"min":12.0,"max":15.0}}'::jsonb, '{"low":7.0,"high":20.0}'::jsonb, true, NOW(), NOW()),
+
+-- ABSOLUTE EOSINOPHIL COUNT (AEC-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='AEC-01'), 'Absolute Eosinophil Count (AEC)', '/uL', 'number', NULL, 'input', NULL, NULL, 'AEC', 1, '{"min":40,"max":440}'::jsonb, '{"high":1500}'::jsonb, true, NOW(), NOW()),
+
+-- RETICULOCYTE COUNT (RETIC-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='RETIC-01'), 'Reticulocyte Count', '%', 'number', NULL, 'input', NULL, NULL, 'Reticulocyte Count', 1, '{"min":0.5,"max":2.5}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- MALARIA PARASITE SMEAR (MP-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='MP-01'), 'Malaria Parasite', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Microscopic Findings', 1, NULL, '{"positive":"Positive"}'::jsonb, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='MP-01'), 'Microscopic Findings', NULL, 'text', NULL, 'input', NULL, NULL, 'Microscopic Findings', 2, NULL, NULL, false, NOW(), NOW()),
+
+-- PLATELET COUNT (PLT-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PLT-01'), 'Platelet Count', '/uL', 'number', NULL, 'input', NULL, NULL, 'Platelet Count', 1, '{"min":150000,"max":450000}'::jsonb, '{"low":20000,"high":1000000}'::jsonb, true, NOW(), NOW()),
+
+-- POST GLUCOSE BLOOD SUGAR (PGBS-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PGBS-01'), 'Post Glucose Blood Sugar', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Blood Glucose', 1, '{"max":140}'::jsonb, '{"low":50,"high":400}'::jsonb, true, NOW(), NOW()),
+
+-- SERUM UREA (UREA-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='UREA-01'), 'Serum Urea', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Renal Function', 1, '{"min":10.0,"max":40.0}'::jsonb, '{"high":100.0}'::jsonb, true, NOW(), NOW()),
+
+-- SERUM CREATININE (CREAT-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CREAT-01'), 'Serum Creatinine', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Renal Function', 1, '{"min":0.5,"max":1.3}'::jsonb, '{"high":5.0}'::jsonb, true, NOW(), NOW()),
+
+-- SERUM BILIRUBIN (BIL-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BIL-01'), 'Total Bilirubin', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Serum Bilirubin', 1, '{"min":0.2,"max":1.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BIL-01'), 'Direct Bilirubin', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Serum Bilirubin', 2, '{"min":0.0,"max":0.8}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BIL-01'), 'Indirect Bilirubin', 'mg/dL', 'number', NULL, 'calculated', 'Total Bilirubin - Direct Bilirubin', 'Total Bilirubin,Direct Bilirubin', 'Serum Bilirubin', 3, '{"min":0.0,"max":0.4}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- SGPT (ALT) (SGPT-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='SGPT-01'), 'SGPT (ALT)', 'U/L', 'number', NULL, 'input', NULL, NULL, 'Enzymes', 1, '{"min":5.0,"max":40.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- SGOT (AST) (SGOT-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='SGOT-01'), 'SGOT (AST)', 'U/L', 'number', NULL, 'input', NULL, NULL, 'Enzymes', 1, '{"min":5.0,"max":35.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- ALKALINE PHOSPHATASE (ALP-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ALP-01'), 'Alkaline Phosphatase (ALP)', 'U/L', 'number', NULL, 'input', NULL, NULL, 'Enzymes', 1, '{"min":25.0,"max":100.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- SERUM CHOLESTEROL (CHOL-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CHOL-01'), 'Serum Cholesterol', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Lipids', 1, '{"max":200.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- SERUM TRIGLYCERIDES (TRIG-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TRIG-01'), 'Serum Triglycerides', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Lipids', 1, '{"max":150.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- HDL CHOLESTEROL (HDL-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HDL-01'), 'HDL Cholesterol', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Lipids', 1, '{"min":40.0,"max":60.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- SPUTUM ROUTINE & MICROSCOPY (SPUTUM-RM)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='SPUTUM-RM'), 'Color', NULL, 'select', 'Purulent,Mucoid,Bloody,Watery', 'input', NULL, NULL, 'Macroscopic Examination', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='SPUTUM-RM'), 'Appearance', NULL, 'select', 'Thick,Viscid,Thin', 'input', NULL, NULL, 'Macroscopic Examination', 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='SPUTUM-RM'), 'Pus Cells', '/HPF', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 3, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='SPUTUM-RM'), 'RBCs', '/HPF', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 4, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='SPUTUM-RM'), 'Gram Stain', NULL, 'text', NULL, 'input', NULL, NULL, 'Microscopic Examination', 5, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='SPUTUM-RM'), 'AFB Stain', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Microscopic Examination', 6, NULL, '{"positive":"Positive"}'::jsonb, true, NOW(), NOW()),
+
+-- MANTOUX TEST (MANTOUX-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='MANTOUX-01'), 'Date & Time of Injection', NULL, 'text', NULL, 'input', NULL, NULL, 'Procedure Details', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='MANTOUX-01'), 'Date & Time of Reading', NULL, 'text', NULL, 'input', NULL, NULL, 'Procedure Details', 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='MANTOUX-01'), 'Induration', 'mm', 'number', NULL, 'input', NULL, NULL, 'Result', 3, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='MANTOUX-01'), 'Interpretation', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Result', 4, NULL, '{"positive":"Positive"}'::jsonb, true, NOW(), NOW()),
+
+-- TYPHIDOT (TYPHIDOT-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TYPHIDOT-01'), 'Typhidot IgM', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Serology Findings', 1, NULL, '{"positive":"Positive"}'::jsonb, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TYPHIDOT-01'), 'Typhidot IgG', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Serology Findings', 2, NULL, NULL, true, NOW(), NOW())
 
 ON CONFLICT (test_id, field_name)
 DO UPDATE SET
@@ -1004,17 +1119,8 @@ WITH template_fields (
   -- Old template entries (CBC_EXTENDED, KFT_COMPREHENSIVE, LIPID_ADVANCED) removed per migration 003
 
   ('THYROID_COMPREHENSIVE', 'TSH', 'uIU/mL', 0.40, 4.50, 'number', NULL, 1, 'input', NULL, NULL, 'Thyroid | Hormones', NULL, '{"high":100,"low":0.01}'::jsonb, NULL, true),
-  ('THYROID_COMPREHENSIVE', 'Free T3', 'pg/mL', 2.00, 4.40, 'number', NULL, 2, 'input', NULL, NULL, 'Thyroid | Hormones', NULL, NULL, NULL, true),
-  ('THYROID_COMPREHENSIVE', 'Free T4', 'ng/dL', 0.80, 1.80, 'number', NULL, 3, 'input', NULL, NULL, 'Thyroid | Hormones', NULL, NULL, NULL, true),
-  ('THYROID_COMPREHENSIVE', 'Total T3', 'ng/dL', 80.00, 200.00, 'number', NULL, 4, 'input', NULL, NULL, 'Thyroid | Hormones', NULL, NULL, NULL, true),
-  ('THYROID_COMPREHENSIVE', 'Total T4', 'ug/dL', 4.60, 12.00, 'number', NULL, 5, 'input', NULL, NULL, 'Thyroid | Hormones', NULL, NULL, NULL, true),
-  ('THYROID_COMPREHENSIVE', 'Anti-TPO Antibody', 'IU/mL', 0.00, 34.00, 'number', NULL, 6, 'input', NULL, NULL, 'Thyroid | Autoantibodies', NULL, NULL, NULL, true),
-  ('THYROID_COMPREHENSIVE', 'Anti-Thyroglobulin Antibody', 'IU/mL', 0.00, 115.00, 'number', NULL, 7, 'input', NULL, NULL, 'Thyroid | Autoantibodies', NULL, NULL, NULL, true),
-  ('THYROID_COMPREHENSIVE', 'TSI/TRAb', 'IU/L', 0.00, 1.75, 'number', NULL, 8, 'input', NULL, NULL, 'Thyroid | Autoantibodies', NULL, NULL, NULL, false),
-  ('THYROID_COMPREHENSIVE', 'Method', NULL, NULL, NULL, 'text', NULL, 9, 'input', NULL, NULL, 'Thyroid | Method', NULL, NULL, NULL, true),
-  ('THYROID_COMPREHENSIVE', 'Pregnancy Trimester', NULL, NULL, NULL, 'select', 'Non-pregnant,First trimester,Second trimester,Third trimester', 10, 'input', NULL, NULL, 'Thyroid | Clinical Context', NULL, NULL, NULL, false),
-  ('THYROID_COMPREHENSIVE', 'Interpretation', NULL, NULL, NULL, 'textarea', NULL, 11, 'input', NULL, NULL, 'Thyroid | Interpretation', NULL, NULL, '{"rule":"Correlate TSH with FT4 and antibodies for thyroiditis, hypo/hyperthyroid states"}'::jsonb, true),
-  ('THYROID_COMPREHENSIVE', 'Recommended Follow-up', NULL, NULL, NULL, 'textarea', NULL, 12, 'input', NULL, NULL, 'Thyroid | Recommendations', NULL, NULL, NULL, false),
+  ('THYROID_COMPREHENSIVE', 'Total T3', 'ng/dL', 80.00, 200.00, 'number', NULL, 2, 'input', NULL, NULL, 'Thyroid | Hormones', NULL, NULL, NULL, true),
+  ('THYROID_COMPREHENSIVE', 'Total T4', 'ug/dL', 4.60, 12.00, 'number', NULL, 3, 'input', NULL, NULL, 'Thyroid | Hormones', NULL, NULL, NULL, true),
 
   ('URINE_ROUTINE_COMPLETE', 'Color', NULL, NULL, NULL, 'select', 'Straw,Light yellow,Yellow,Dark yellow,Amber,Red,Brown,Black,Green', 1, 'input', NULL, NULL, 'Urine | Physical', NULL, NULL, NULL, true),
   ('URINE_ROUTINE_COMPLETE', 'Appearance', NULL, NULL, NULL, 'select', 'Clear,Slightly hazy,Turbid,Milky', 2, 'input', NULL, NULL, 'Urine | Physical', NULL, NULL, NULL, true),
@@ -1237,7 +1343,7 @@ test_panel_map AS (
       ELSE 'SINGLE_ANALYTE_NUMERIC'
     END AS template_code
   FROM tests t
-  WHERE t.test_code NOT IN ('CBC-01', 'LFT-01', 'KFT-01', 'LIPID-01', 'PT', 'APTT', 'HBA1C-01', 'MAL-AG-01', 'TP-01', 'HIV-01', 'HBSAG-01', 'HCV-01', 'CHIK-IGM-01', 'UACR-01', 'TORCH-01', 'HIV-RAPID-01', 'RPR-01', 'TB-XPERT-01', 'DENGUE-01', 'DENGUE-RAPID', 'DENGNS1-RAPID', 'DENGNS1-01', 'DENGIGG-01', 'HBSAG-RAPID-01', 'HCV-RAPID-01')
+  WHERE t.test_code NOT IN ('CBC-01', 'LFT-01', 'KFT-01', 'LIPID-01', 'PT', 'APTT', 'HBA1C-01', 'MAL-AG-01', 'TP-01', 'HIV-01', 'HBSAG-01', 'HCV-01', 'CHIK-IGM-01', 'UACR-01', 'TORCH-01', 'HIV-RAPID-01', 'RPR-01', 'TB-XPERT-01', 'DENGUE-01', 'DENGUE-RAPID', 'DENGNS1-RAPID', 'DENGNS1-01', 'DENGIGG-01', 'HBSAG-RAPID-01', 'HCV-RAPID-01', 'HB-01', 'AEC-01', 'RETIC-01', 'MP-01', 'PLT-01', 'PGBS-01', 'UREA-01', 'CREAT-01', 'BIL-01', 'SGPT-01', 'SGOT-01', 'ALP-01', 'CHOL-01', 'TRIG-01', 'HDL-01', 'SPUTUM-RM', 'MANTOUX-01', 'TYPHIDOT-01', 'WIDAL-01', 'PBS-01', 'ELEC-01', 'STOOL-01')
 ),
 seed_rows AS (
   SELECT
@@ -1386,11 +1492,52 @@ VALUES
   (gen_random_uuid(), 'Infertility', 'PKG-INFER-01', 'Reproductive', 'FSH, LH, Prolactin, Semen', 4000, true),
   (gen_random_uuid(), 'Liver Advanced', 'PKG-LIVER-ADV-01', 'Hepatic', 'LFT, Viral Hepatitis, PT/INR', 2500, true),
   (gen_random_uuid(), 'Kidney Advanced', 'PKG-KIDNEY-ADV-01', 'Renal', 'KFT, Urine, Culture, Protein', 2200, true)
-ON CONFLICT (package_code) DO NOTHING;
+ON CONFLICT (package_code) WHERE branch_id IS NULL DO NOTHING;
+
+-- Populate test_ids for seeded default packages
+UPDATE test_packages SET test_ids = (SELECT jsonb_agg(id) FROM tests WHERE test_code IN ('CBC-01', 'MP-01', 'BCULT-01')) WHERE package_code = 'PKG-FEVER-01' AND branch_id IS NULL;
+UPDATE test_packages SET test_ids = (SELECT jsonb_agg(id) FROM tests WHERE test_code IN ('FBS-01', 'PPBS-01', 'HBA1C-01', 'CHOL-01', 'TRIG-01', 'HDL-01')) WHERE package_code = 'PKG-DIA-01' AND branch_id IS NULL;
+UPDATE test_packages SET test_ids = (SELECT jsonb_agg(id) FROM tests WHERE test_code IN ('TSH-01', 'THYPRO-01')) WHERE package_code = 'PKG-THY-ADV-01' AND branch_id IS NULL;
+UPDATE test_packages SET test_ids = (SELECT jsonb_agg(id) FROM tests WHERE test_code IN ('CBC-01', 'LFT-01', 'KFT-01', 'LIPID-01', 'URINE-01')) WHERE package_code = 'PKG-EXEC-01' AND branch_id IS NULL;
+UPDATE test_packages SET test_ids = (SELECT jsonb_agg(id) FROM tests WHERE test_code IN ('CBC-01', 'PAP-01', 'URINE-01')) WHERE package_code = 'PKG-WOMEN-01' AND branch_id IS NULL;
+UPDATE test_packages SET test_ids = (SELECT jsonb_agg(id) FROM tests WHERE test_code IN ('SEMEN-01', 'CBC-01', 'LIPID-01')) WHERE package_code = 'PKG-MEN-01' AND branch_id IS NULL;
+UPDATE test_packages SET test_ids = (SELECT jsonb_agg(id) FROM tests WHERE test_code IN ('LIPID-01', 'ELEC-01')) WHERE package_code = 'PKG-CARD-01' AND branch_id IS NULL;
+UPDATE test_packages SET test_ids = (SELECT jsonb_agg(id) FROM tests WHERE test_code IN ('ESR-01', 'CBC-01')) WHERE package_code = 'PKG-ARTH-01' AND branch_id IS NULL;
+UPDATE test_packages SET test_ids = (SELECT jsonb_agg(id) FROM tests WHERE test_code IN ('HB-01', 'CBC-01', 'AEC-01', 'RETIC-01')) WHERE package_code = 'PKG-ANEM-01' AND branch_id IS NULL;
+UPDATE test_packages SET test_ids = (SELECT jsonb_agg(id) FROM tests WHERE test_code IN ('BG-01', 'CBC-01', 'HIV-01', 'RPR-01')) WHERE package_code = 'PKG-ANTE-01' AND branch_id IS NULL;
+UPDATE test_packages SET test_ids = (SELECT jsonb_agg(id) FROM tests WHERE test_code IN ('SEMEN-01', 'TSH-01')) WHERE package_code = 'PKG-INFER-01' AND branch_id IS NULL;
+UPDATE test_packages SET test_ids = (SELECT jsonb_agg(id) FROM tests WHERE test_code IN ('LFT-01', 'PT', 'APTT')) WHERE package_code = 'PKG-LIVER-ADV-01' AND branch_id IS NULL;
+UPDATE test_packages SET test_ids = (SELECT jsonb_agg(id) FROM tests WHERE test_code IN ('KFT-01', 'URINE-01', 'UCULT-01')) WHERE package_code = 'PKG-KIDNEY-ADV-01' AND branch_id IS NULL;
+
 
  
 
--- Update default clinical significance for key panel tests
+-- Category-level default clinical significance updates
+UPDATE tests SET clinical_significance = 'Hematology tests, including evaluation of red blood cells, white blood cells, platelets, and hemoglobin, are critical for screening, diagnosing, and monitoring hematologic disorders. They evaluate oxygen-carrying capacity, cellular production, immune responses, and inflammatory processes. These assessments assist in diagnosing anemias, leukemias, myeloproliferative disorders, thrombocytopenia, and systemic responses to bacterial or viral infections. Clinical interpretation must integrate patient age, sex, clinical history, and other diagnostic findings.' WHERE category = 'Hematology';
+
+UPDATE tests SET clinical_significance = 'Biochemistry panels measure essential metabolic markers, organ enzymes, proteins, and electrolytes to evaluate physiological function and homeostatic balance. These tests assess liver function, renal excretory capacity, blood glucose regulation, and lipid metabolism. Anomalous levels assist in diagnosing metabolic syndrome, diabetes mellitus, hepatobiliary diseases, acute or chronic kidney injury, myocardial injury, pancreatitis, and severe electrolyte imbalances. Results must be interpreted in context with clinical presentation.' WHERE category = 'Biochemistry';
+
+UPDATE tests SET clinical_significance = 'Endocrine and hormone assays measure circulating chemical messengers to evaluate endocrine gland function, including the thyroid, pituitary, adrenal, and reproductive glands. These evaluations are critical in assessing thyroid disorders (hypo- and hyperthyroidism), pituitary adenomas, adrenal insufficiency, growth abnormalities, fertility issues, menstrual irregularities, and gestational endocrinopathy. Hormonal levels vary based on age, biological sex, menstrual cycle phase, circadian rhythms, and medication use; therefore, clinical correlation is mandatory.' WHERE category = 'Hormone';
+
+UPDATE tests SET clinical_significance = 'Serological testing detects specific humoral antibodies (IgM/IgG) or microbial antigens in serum to diagnose active, acute, or chronic infections, and assess immunity. These assays aid in identifying exposure to viral pathogens (hepatitis, HIV, dengue), bacterial infections (syphilis, typhoid), and parasites. They differentiate between active, primary, or past exposure and track antibody titer progression. Results must be interpreted with caution, factoring in serological windows, potential cross-reactivity, vaccination status, and clinical timeline.' WHERE category = 'Serology';
+
+UPDATE tests SET clinical_significance = 'Immunology assays evaluate components of the immune system, including immunoglobulins, complement proteins, autoimmune autoantibodies, and inflammatory cytokines. These markers are diagnostic of systemic autoimmune diseases (rheumatoid arthritis, systemic lupus erythematosus), chronic inflammatory states, immunodeficiencies, and allergy-mediated hypersensitivity. Positive results suggest immune dysregulation or hypersensitivity and must be interpreted in conjunction with tissue-specific markers, clinical history, and symptoms.' WHERE category = 'Immunology';
+
+UPDATE tests SET clinical_significance = 'Clinical pathology analyses of urine, stool, or other body fluids involve physical, chemical, and microscopic examinations to screen for local or systemic pathologies. Urinalysis evaluates renal health, urinary tract infections, metabolic diseases (e.g., glucosuria), and hydration status. Stool routine and microscopic exams screen for occult bleeding, gastrointestinal inflammation, and parasitic ova or protozoan cysts. Findings must be correlated with clinical symptoms and culture results where infection is suspected.' WHERE category = 'Clinical Pathology';
+
+UPDATE tests SET clinical_significance = 'Microbiological culture, microscopic staining, and antimicrobial susceptibility testing (AST) isolate and identify pathogenic bacteria or fungi from clinical specimens. These panels guide targeted antimicrobial therapy by determining the minimum inhibitory concentration (MIC) or zone of inhibition for various antibiotics. Gram stains and specialized stains (e.g., AFB) provide rapid presumptive evidence of infection, while culture serves as the gold standard. Results must differentiate true pathogens from normal flora or contaminants.' WHERE category = 'Microbiology';
+
+UPDATE tests SET clinical_significance = 'Cytopathology evaluations analyze cellular morphology in liquid-based preparations, smears, or fine-needle aspirates (FNA) to screen for dysplasia, precancerous changes, or malignancy. The Bethesda system and other standardized cytological frameworks are used to categorize specimens (e.g., PAP smears, thyroid aspirates). Cytological findings provide rapid screening but should be clinically correlated with clinical imaging and confirmed by histopathological biopsy where atypical or malignant cells are identified.' WHERE category = 'Cytology';
+
+UPDATE tests SET clinical_significance = 'Histopathology tissue examinations provide definitive microscopic diagnosis of biopsy and surgical resection specimens. Microscopic analysis of tissue architecture, cellular features, and specific immunohistochemical (IHC) markers determines the benign or malignant nature of lesions, tumor histotype, grade, depth of invasion, surgical margin status, and pathological stage (pTNM). These findings are crucial for oncological staging, determining prognosis, and planning patient-specific surgical, chemotherapeutic, or radiation therapies.' WHERE category = 'Histopathology';
+
+UPDATE tests SET clinical_significance = 'Coagulation assays assess the clotting pathways (intrinsic, extrinsic, and common pathways) and platelet function. These tests are essential for preoperative screening, evaluating bleeding disorders (e.g., hemophilia, von Willebrand disease), assessing hypercoagulable states, and monitoring anticoagulant therapies (such as Heparin, Warfarin, or Direct Oral Anticoagulants). Abnormal results suggest factor deficiencies, circulating inhibitors, or consumption coagulopathies (DIC) and require immediate clinical assessment.' WHERE category = 'Coagulation';
+
+UPDATE tests SET clinical_significance = 'Andology assessments (such as semen analysis) evaluate male reproductive health, sperm parameters, and factors affecting fertility per WHO clinical standards. Semen parameters are highly variable; thus, multiple samples collected after appropriate abstinence are recommended for clinical diagnosis.' WHERE category = 'Andology';
+
+UPDATE tests SET clinical_significance = 'Toxicology testing screen for and quantify therapeutic drug levels, drugs of abuse, or environmental toxins in physiological fluids. These assays are used to ensure therapeutic drug monitoring (TDM) compliance, prevent toxicity of narrow therapeutic index drugs (e.g., digoxin, antiepileptics), and detect substance use. Positive screens are presumptive and require confirmation using highly specific methods (e.g., GC-MS or LC-MS) in forensic or clinical management contexts.' WHERE category = 'Toxicology';
+
+-- Specific key individual test updates
 UPDATE tests SET clinical_significance = 'Complete Blood Count (CBC) is a routine screening test used to evaluate overall health and detect a wide range of disorders, including anemia, infection, and leukemia. Hemoglobin levels evaluate oxygen-carrying capacity. White Blood Cell (WBC) count and differentials assess immune status and inflammatory response. Platelet counts are crucial for blood clotting assessment. Clinical correlation is recommended.' WHERE test_code = 'CBC-01';
 
 UPDATE tests SET clinical_significance = 'Liver Function Tests (LFTs) assess hepatic synthetic, metabolic, and excretory function. Elevations in transaminases (SGOT/SGPT) suggest hepatocellular injury, while increases in alkaline phosphatase (ALP) and bilirubin indicate cholestasis or biliary tract pathology. Total protein and albumin levels reflect synthetic function.' WHERE test_code = 'LFT-01';
@@ -1398,6 +1545,85 @@ UPDATE tests SET clinical_significance = 'Liver Function Tests (LFTs) assess hep
 UPDATE tests SET clinical_significance = 'Kidney Function Tests (KFTs) are used to evaluate renal function. Serum creatinine and urea are excretory waste products; elevations suggest reduced glomerular filtration rate (GFR). Electrolyte levels (sodium, potassium, chloride) are critical for maintaining fluid and acid-base balance.' WHERE test_code = 'KFT-01';
 
 UPDATE tests SET clinical_significance = 'Lipid Profile is used to assess cardiovascular risk. Elevated levels of Total Cholesterol, LDL ("bad") Cholesterol, and Triglycerides, combined with low levels of HDL ("good") Cholesterol, are associated with an increased risk of atherosclerosis and coronary heart disease.' WHERE test_code = 'LIPID-01';
+
+UPDATE tests SET clinical_significance = 'Erythrocyte Sedimentation Rate (ESR) measures the rate at which red blood cells settle in a tube over one hour. It is a highly sensitive but non-specific indicator of systemic inflammation. Elevated ESR is associated with acute or chronic infections, autoimmune disorders (such as temporal artetitis, polymyalgia rheumatica, rheumatoid arthritis, and lupus), and certain tissue injuries or malignancies. It is used as a screening tool and to monitor disease activity and treatment response.' WHERE test_code = 'ESR-01';
+
+UPDATE tests SET clinical_significance = 'Blood Group & Rh Typing determines the specific ABO antigens and Rh(D) factor present on the surface of red blood cells. This typing is critically mandatory prior to any blood transfusion, surgical procedure, organ transplantation, or during prenatal care to prevent life-threatening hemolytic transfusion reactions or hemolytic disease of the newborn (HDN) caused by maternal-fetal Rh incompatibility.' WHERE test_code = 'BG-01';
+
+UPDATE tests SET clinical_significance = 'Prothrombin Time (PT) and International Normalized Ratio (INR) measure the extrinsic and common coagulation pathways. It is primarily used to monitor oral anticoagulant therapy (e.g., warfarin), evaluate liver synthetic function (as clotting factors are produced in the liver), and screen for bleeding disorders, Vitamin K deficiency, or disseminated intravascular coagulation (DIC).' WHERE test_code = 'PT';
+
+UPDATE tests SET clinical_significance = 'Activated Partial Thromboplastin Time (APTT) evaluates the intrinsic and common coagulation pathways. It is used to monitor unfractionated heparin therapy, detect factor deficiencies (such as Hemophilia A, B, or C), screen for lupus anticoagulants or other circulating inhibitors, and investigate unexplained bleeding or thrombotic episodes.' WHERE test_code = 'APTT';
+
+UPDATE tests SET clinical_significance = 'Glycated Hemoglobin (HbA1c) represents the percentage of hemoglobin that is chemically linked to glucose. It reflects the average blood glucose concentration over the preceding 2 to 3 months (the lifespan of a red blood cell). It is the gold standard for diagnosing diabetes mellitus, monitoring glycemic control, and assessing the risk of microvascular and macrovascular complications.' WHERE test_code = 'HBA1C-01';
+
+UPDATE tests SET clinical_significance = 'Blood sugar measurements (Fasting, Post-Prandial, or Random) assess circulating glucose levels. Fasting blood sugar (FBS) reflects basal glucose control, Post-Prandial (PPBS) measures glucose clearance after a carbohydrate load, and Random (RBS) is a rapid screen. These are critical in diagnosing diabetes mellitus, prediabetes, insulin resistance, and evaluating hypoglycemic or hyperglycemic emergencies.' WHERE test_code IN ('FBS-01', 'PPBS-01', 'RBS-01');
+
+UPDATE tests SET clinical_significance = 'Urine Routine & Microscopy evaluates physical, chemical, and microscopic parameters of urine. It is an essential diagnostic screen to detect renal diseases (e.g., glomerulonephritis), urinary tract infections (UTIs), systemic metabolic disorders (such as diabetes mellitus, marked by glucosuria and ketonuria), and monitor fluid balance and drug-induced nephrotoxicity.' WHERE test_code = 'URINE-01';
+
+UPDATE tests SET clinical_significance = 'Semen analysis evaluates sperm volume, pH, concentration, total count, progressive motility, vitality, and strict morphological characteristics in accordance with WHO clinical standards. It is the primary tool used to investigate male factor infertility, evaluate testicular function, and verify the success of vasectomy procedures.' WHERE test_code = 'SEMEN-01';
+
+UPDATE tests SET clinical_significance = 'The Widal test detects serum agglutinins against Salmonella enterica serovars Typhi and Paratyphi (O, H, AH, BH antigens). While widely used to support the diagnosis of enteric (typhoid and paratyphoid) fevers in endemic regions, results must be interpreted with caution. Cross-reactivity, subclinical exposure, anamnesis, and prior vaccinations can cause elevated titers; hence, paired sera showing a four-fold rise are clinically significant.' WHERE test_code = 'WIDAL-01';
+
+UPDATE tests SET clinical_significance = 'Peripheral Blood Smear (PBS) provides a detailed microscopic evaluation of red blood cell, white blood cell, and platelet size, shape, and structure. It is vital for diagnosing anemias (e.g., sickle cell, megaloblastic, microcytic), detecting leukemias, myelodysplastic syndromes, reactive blood disorders, and identifying blood-borne parasites such as Plasmodium (malaria), Babesia, or microfilariae.' WHERE test_code = 'PBS-01';
+
+UPDATE tests SET clinical_significance = 'Serum Electrolytes measures circulating levels of Sodium (Na+), Potassium (K+), and Chloride (Cl-). These ions are essential for maintaining osmotic pressure, fluid volume, acid-base homeostasis, and proper neuromuscular, cardiac, and renal functions. Imbalances can lead to severe complications, including arrhythmias, seizures, muscle weakness, and altered mental status.' WHERE test_code = 'ELEC-01';
+
+UPDATE tests SET clinical_significance = 'Stool Routine & Microscopy evaluates physical characteristics (color, consistency) and microscopic components (pus cells, RBCs, ova, parasites, yeast cells). It is crucial for identifying gastrointestinal infections, malabsorption syndromes, inflammatory bowel diseases, and parasitic infestations (such as Entamoeba histolytica or Giardia lamblia).' WHERE test_code = 'STOOL-01';
+
+UPDATE tests SET clinical_significance = 'C-Reactive Protein (CRP) is an acute-phase reactant synthesized by the liver. Its levels rise rapidly in response to acute inflammation, tissue necrosis, or bacterial infection. It is used clinically to screen for infections, monitor inflammatory disease activity (e.g., rheumatoid arthritis, Crohn''s disease), and assess the efficacy of anti-inflammatory therapies.' WHERE test_code = 'CRP-01';
+
+UPDATE tests SET clinical_significance = 'Thyroid Stimulating Hormone (TSH) is synthesized by the anterior pituitary gland to regulate thyroid hormone production. TSH is the most sensitive screening marker for primary hypo- and hyperthyroidism. Elevated TSH indicates thyroid gland failure (hypothyroidism), whereas suppressed TSH indicates thyroid hormone excess (hyperthyroidism).' WHERE test_code = 'TSH-01';
+
+UPDATE tests SET clinical_significance = 'HIV screening detects antibodies against HIV-1 and HIV-2, and/or the p24 antigen. A reactive screen indicates potential infection and requires mandatory confirmatory testing (such as western blot or nucleic acid testing) before diagnosis. Results must be correlated with clinical history, exposure timeline, and patient counseling.' WHERE test_code IN ('HIV-01', 'HIV-RAPID-01');
+
+UPDATE tests SET clinical_significance = 'Hepatitis B Surface Antigen (HBsAg) is the earliest serological marker of acute or chronic Hepatitis B infection. Its persistence for more than six months indicates chronic carrier status and increased risk for liver cirrhosis and hepatocellular carcinoma. Negative results indicate absence of active infection but do not rule out acute window phase.' WHERE test_code IN ('HBSAG-01', 'HBSAG-RAPID-01');
+
+UPDATE tests SET clinical_significance = 'Anti-HCV detects antibodies against the Hepatitis C Virus. A positive test indicates exposure to the virus, which could represent acute, chronic, or resolved infection. Confirmatory HCV RNA testing is required to verify active replication and guide antiviral therapy.' WHERE test_code IN ('HCV-01', 'HCV-RAPID-01');
+
+UPDATE tests SET clinical_significance = 'Dengue Rapid tests detect NS1 antigen alongside IgM and IgG antibodies to diagnose Dengue virus infection. NS1 is detectable from day 1 of fever, IgM indicates acute/recent infection (appearing on days 3-5), and IgG indicates past exposure or secondary infection. Secondary infection is associated with an increased risk of Dengue Hemorrhagic Fever (DHF).' WHERE test_code = 'DENGUE-RAPID';
+
+UPDATE tests SET clinical_significance = 'Chikungunya IgM antibodies indicate recent infection with the Chikungunya virus. IgM antibodies become detectable 3 to 5 days after onset of symptoms and persist for up to 3 to 4 months. Differentiating Chikungunya from Dengue is crucial due to overlapping clinical presentations (fever, severe arthralgia) and geographical distribution.' WHERE test_code = 'CHIK-IGM-01';
+
+UPDATE tests SET clinical_significance = 'TB GeneXpert (MTB/RIF) is a rapid molecular assay that detects Mycobacterium tuberculosis DNA and genetic mutations conferring resistance to Rifampicin. It provides highly sensitive detection in sputum or fluid samples within hours, enabling early diagnosis of tuberculosis and drug-resistant strains to optimize treatment protocols.' WHERE test_code = 'TB-XPERT-01';
+
+UPDATE tests SET clinical_significance = 'The Mantoux (Tuberculin Skin Test) evaluates delayed-type hypersensitivity reaction to Purified Protein Derivative (PPD). An induration measured 48 to 72 hours post-injection indicates exposure to Mycobacterium tuberculosis. False-positives can occur due to prior BCG vaccination, and false-negatives can occur in immunocompromised states (anergy).' WHERE test_code = 'MANTOUX-01';
+
+UPDATE tests SET clinical_significance = 'Typhidot is a rapid dot-ELISA that detects specific IgM and IgG antibodies against the outer membrane protein of Salmonella typhi. IgM indicates acute typhoid fever, while IgG indicates past exposure or relapse. It offers a faster diagnostic alternative to blood cultures, but clinical correlation is essential.' WHERE test_code = 'TYPHIDOT-01';
+
+UPDATE tests SET clinical_significance = 'Standalone Hemoglobin (Hb) test measures the total oxygen-carrying protein in red blood cells. It is the primary marker used to diagnose, classify, and monitor anemia (decreased Hb) or polycythemia (increased Hb), which can result from nutritional deficiencies, chronic disease, hemolysis, or bone marrow disorders.' WHERE test_code = 'HB-01';
+
+UPDATE tests SET clinical_significance = 'Absolute Eosinophil Count (AEC) measures the absolute number of circulating eosinophils. Eosinophils are granulocytes involved in allergic reactions, asthma, parasitic infections, and drug hypersensitivity. Elevated AEC (eosinophilia) assists in diagnosing these conditions, while depressed levels can occur in acute infections or steroid therapy.' WHERE test_code = 'AEC-01';
+
+UPDATE tests SET clinical_significance = 'Reticulocyte Count measures young, immature red blood cells in circulation, reflecting bone marrow erythropoietic activity. It is crucial in classifying anemias: elevated levels indicate active marrow response to hemorrhage or hemolysis, whereas low levels suggest bone marrow suppression, nutritional deficiency, or renal disease.' WHERE test_code = 'RETIC-01';
+
+UPDATE tests SET clinical_significance = 'Malaria Parasite Smear involves microscopic evaluation of thick and thin blood smears. Thick smears offer high sensitivity for detecting Plasmodium parasites, while thin smears are used for species identification (P. falciparum, P. vivax, P. malariae, P. ovale) and determining parasite density (parasitemia), which guides clinical management.' WHERE test_code = 'MP-01';
+
+UPDATE tests SET clinical_significance = 'Platelet Count measures the absolute concentration of blood platelets, which are essential for primary hemostasis and clot formation. Thrombocytopenia (low platelets) increases bleeding risk (e.g., in dengue, autoimmune states), while thrombocytosis (high platelets) increases thrombotic risk and can occur in chronic inflammation or myeloproliferative disorders.' WHERE test_code = 'PLT-01';
+
+UPDATE tests SET clinical_significance = 'Post Glucose Blood Sugar (PGBS) measures glucose clearance two hours after consuming a standardized oral glucose load (typically 75g). It is used to diagnose impaired glucose tolerance, prediabetes, gestational diabetes mellitus (GDM), or overt diabetes, reflecting postprandial metabolic capacity.' WHERE test_code = 'PGBS-01';
+
+UPDATE tests SET clinical_significance = 'Serum Urea measures urea nitrogen, a nitrogenous waste product of protein catabolism excreted by the kidneys. Elevated levels (uremia/azotemia) occur in renal impairment, dehydration, high-protein diets, or gastrointestinal hemorrhage, while low levels can indicate severe liver disease or malnutrition.' WHERE test_code = 'UREA-01';
+
+UPDATE tests SET clinical_significance = 'Serum Creatinine is a waste product of muscle creatine metabolism excreted at a constant rate by the kidneys. It is a highly specific marker of glomerular filtration rate (GFR). Elevated levels indicate renal dysfunction, kidney injury, or chronic kidney disease (CKD), requiring medical evaluation.' WHERE test_code = 'CREAT-01';
+
+UPDATE tests SET clinical_significance = 'Serum Bilirubin measures Total, Direct (conjugated), and Indirect (unconjugated) bilirubin levels, which are clinical markers of hemoglobin catabolism. Elevated levels cause jaundice. Differentiating conjugated from unconjugated fractions is crucial for distinguishing pre-hepatic (hemolytic), hepatic (hepatitis/cirrhosis), and post-hepatic (biliary obstruction) conditions.' WHERE test_code = 'BIL-01';
+
+UPDATE tests SET clinical_significance = 'SGPT (ALT) is an enzyme found primarily in hepatocytes. Hepatic injury or inflammation causes ALT leakage into the bloodstream, making it a highly sensitive marker for liver damage (e.g., from viral hepatitis, non-alcoholic fatty liver disease (NAFLD), alcohol, or hepatotoxic medications).' WHERE test_code = 'SGPT-01';
+
+UPDATE tests SET clinical_significance = 'SGOT (AST) is an enzyme found in the liver, heart, skeletal muscle, and kidneys. Elevated levels suggest tissue injury, and in combination with ALT, AST helps differentiate hepatic conditions (e.g., AST/ALT ratio > 2 suggests alcoholic liver disease) and evaluate skeletal muscle or myocardial damage.' WHERE test_code = 'SGOT-01';
+
+UPDATE tests SET clinical_significance = 'Alkaline Phosphatase (ALP) is an enzyme present in high concentrations in bile canaliculi, bone, and placenta. Elevated ALP occurs in cholestatic liver diseases (biliary obstruction, primary biliary cholangitis) and bone disorders involving osteoblast activity (Paget''s disease, rickets, bone metastases).' WHERE test_code = 'ALP-01';
+
+UPDATE tests SET clinical_significance = 'Serum Total Cholesterol measures all circulating lipoproteins. It is a key biomarker for assessing cardiovascular health, estimating atherosclerotic cardiovascular disease (ASCVD) risk, and managing dyslipidemia. High levels contribute to plaque formation, increasing risk of coronary artery disease.' WHERE test_code = 'CHOL-01';
+
+UPDATE tests SET clinical_significance = 'Serum Triglycerides measure the chemical form in which fat exists in the body. Elevated levels (hypertriglyceridemia) are an independent risk factor for cardiovascular disease and, in severe cases (typically > 500-1000 mg/dL), can trigger acute pancreatitis.' WHERE test_code = 'TRIG-01';
+
+UPDATE tests SET clinical_significance = 'HDL Cholesterol measures "good" cholesterol, which facilitates reverse cholesterol transport from peripheral tissues back to the liver. High HDL levels are cardioprotective, while low levels (men < 40 mg/dL, women < 50 mg/dL) are associated with an increased risk of atherosclerosis and coronary heart disease.' WHERE test_code = 'HDL-01';
+
+UPDATE tests SET clinical_significance = 'Sputum Routine & Microscopy evaluates macroscopic properties and microscopic features of respiratory secretions. Used to detect inflammatory cells, alveolar macrophages, elastic fibers, and pathogenic organisms (via Gram and AFB staining) to diagnose pulmonary infections like pneumonia, bronchitis, or tuberculosis.' WHERE test_code = 'SPUTUM-RM';
+
+-- Generic fallback to ensure no test has empty clinical significance
+UPDATE tests SET clinical_significance = 'Clinical significance provides diagnostic context. Results should be interpreted by a qualified clinician in correlation with clinical history, other diagnostic findings, and physical symptoms.' WHERE clinical_significance IS NULL OR clinical_significance = '';
 
 -- ============================================
 -- WHATSAPP SYSTEM TEMPLATES (from old migration 003)

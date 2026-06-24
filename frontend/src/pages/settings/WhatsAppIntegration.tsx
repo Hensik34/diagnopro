@@ -29,7 +29,7 @@ export function WhatsAppIntegration() {
   const [error, setError] = useState<string | null>(null);
 
   const [recipient, setRecipient] = useState('');
-  const [messageText, setMessageText] = useState('Hello from VisionLab WhatsApp integration.');
+  const [messageText, setMessageText] = useState('Hello from DiagnoPro WhatsApp integration.');
   const [sending, setSending] = useState(false);
 
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
