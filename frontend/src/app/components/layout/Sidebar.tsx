@@ -8,6 +8,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   BarChart3,
   Package,
   UserCog,
@@ -23,6 +25,13 @@ import {
   GitBranch,
 } from 'lucide-react';
 import { useAuthStore, PERMISSIONS } from '../../../stores';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+} from '../ui/dropdown-menu';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -87,6 +96,16 @@ const menuItems = [
     icon: Beaker,
     permission: PERMISSIONS.TEST_READ,
     hideForDoctor: true,
+    submenus: [
+      {
+        path: '/tests',
+        label: 'Tests',
+      },
+      {
+        path: '/tests?tab=packages',
+        label: 'Packages',
+      },
+    ],
   },
   {
     path: '/doctors',
@@ -154,6 +173,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const currentRole = getBranchRole();
   const isDoctor = currentRole === 'doctor';
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
 
   // Handle window resize to detect mobile
   useEffect(() => {
@@ -188,6 +208,144 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     }
   });
 
+  // Automatically expand submenus when their main path is active
+  useEffect(() => {
+    visibleMenuItems.forEach((item: any) => {
+      if (item.submenus && (location.pathname === item.path || location.pathname.startsWith(`${item.path}/`))) {
+        setExpandedMenus(prev => {
+          if (prev[item.path]) return prev;
+          return { ...prev, [item.path]: true };
+        });
+      }
+    });
+  }, [location.pathname, visibleMenuItems]);
+
+  const isSubmenuActive = (subPath: string) => {
+    const [path, query] = subPath.split('?');
+    if (location.pathname !== path) return false;
+    if (!query) {
+      return !location.search.includes('tab=packages');
+    }
+    return location.search.includes(query);
+  };
+
+  const renderMenuItem = (item: any, isMobileView: boolean) => {
+    const Icon = item.icon;
+    const isActive = item.path === longestMatch;
+    const hasSubmenus = !!item.submenus;
+    const isExpanded = expandedMenus[item.path];
+    const isCurrentlyCollapsed = !isMobileView && collapsed;
+
+    const triggerEl = (
+      <Link
+        to={item.path}
+        onClick={(e) => {
+          if (isMobileView && !hasSubmenus) {
+            onToggle(); // Close drawer
+          } else if (isCurrentlyCollapsed && hasSubmenus) {
+            e.preventDefault(); // Prevent navigation, just open dropdown
+          } else if (!isCurrentlyCollapsed && hasSubmenus) {
+            setExpandedMenus(prev => ({ ...prev, [item.path]: !prev[item.path] }));
+          }
+        }}
+        title={isCurrentlyCollapsed ? item.label : undefined}
+        className={`flex items-center justify-between transition-all duration-200 rounded-lg ${
+          isCurrentlyCollapsed ? 'justify-center px-4 py-2' : 'px-3 py-2'
+        } ${isActive
+          ? 'bg-blue-600 text-white shadow-md dark:bg-blue-600 dark:text-white'
+          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+        }`}
+      >
+        <div className="flex items-center">
+          <Icon className="w-5 h-5 flex-shrink-0" />
+          {!isCurrentlyCollapsed && (
+            <span className="ml-3 text-sm font-medium">{item.label}</span>
+          )}
+        </div>
+        {!isCurrentlyCollapsed && hasSubmenus && (
+          <div
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setExpandedMenus(prev => ({ ...prev, [item.path]: !prev[item.path] }));
+            }}
+            className="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10"
+          >
+            {isExpanded ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+          </div>
+        )}
+      </Link>
+    );
+
+    if (isCurrentlyCollapsed && hasSubmenus) {
+      return (
+        <DropdownMenu key={item.path}>
+          <DropdownMenuTrigger asChild>
+            {triggerEl}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="start" className="w-40 ml-2 bg-white dark:bg-gray-900 border border-border shadow-lg">
+            <DropdownMenuLabel className="text-xs text-muted-foreground font-semibold px-2 py-1">
+              {item.label}
+            </DropdownMenuLabel>
+            {item.submenus.map((sub: any) => {
+              const subActive = isSubmenuActive(sub.path);
+              return (
+                <DropdownMenuItem key={sub.path} asChild>
+                  <Link
+                    to={sub.path}
+                    className={`block w-full px-2 py-1.5 text-xs font-medium rounded-sm transition-all duration-200 ${
+                      subActive
+                        ? 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20 font-semibold'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800/50'
+                    }`}
+                  >
+                    {sub.label}
+                  </Link>
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    }
+
+    return (
+      <div key={item.path} className="space-y-1">
+        {triggerEl}
+
+        {!isCurrentlyCollapsed && hasSubmenus && isExpanded && (
+          <div className="pl-8 pr-2 py-1 space-y-1 border-l border-gray-200 dark:border-gray-800 ml-5">
+            {item.submenus.map((sub: any) => {
+              const subActive = isSubmenuActive(sub.path);
+              return (
+                <Link
+                  key={sub.path}
+                  to={sub.path}
+                  onClick={() => {
+                    if (isMobileView) {
+                      onToggle(); // Close drawer
+                    }
+                  }}
+                  className={`block px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+                    subActive
+                      ? 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20 font-semibold'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800/50'
+                  }`}
+                >
+                  {sub.label}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       {/* Desktop Sidebar */}
@@ -214,27 +372,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           {/* Menu Items */}
           <nav className={`flex-1 space-y-2 overflow-y-auto scrollbar-hide ${collapsed ? 'p-2' : 'p-4'
             }`}>
-            {visibleMenuItems.map((item: any) => {
-              const Icon = item.icon;
-              const isActive = item.path === longestMatch;
-
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center transition-all duration-200 rounded-lg ${collapsed ? 'justify-center px-4 py-2' : 'px-3 py-2'
-                    } ${isActive
-                      ? 'bg-blue-600 text-white shadow-md dark:bg-blue-600 dark:text-white'
-                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
-                    }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  {!collapsed && (
-                    <span className="ml-3 text-sm font-medium">{item.label}</span>
-                  )}
-                </Link>
-              );
-            })}
+            {visibleMenuItems.map((item: any) => renderMenuItem(item, false))}
           </nav>
         </div>
       </div>
@@ -263,25 +401,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
               {/* Menu Items */}
               <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-                {visibleMenuItems.map((item: any) => {
-                  const Icon = item.icon;
-                  const isActive = item.path === longestMatch;
-
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      onClick={onToggle}
-                      className={`flex items-center transition-all duration-200 rounded-lg px-3 py-2 ${isActive
-                          ? 'bg-blue-600 text-white shadow-md dark:bg-blue-600 dark:text-white'
-                          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
-                        }`}
-                    >
-                      <Icon className="w-5 h-5 flex-shrink-0" />
-                      <span className="ml-3 text-sm font-medium">{item.label}</span>
-                    </Link>
-                  );
-                })}
+                {visibleMenuItems.map((item: any) => renderMenuItem(item, true))}
               </nav>
             </div>
           </div>

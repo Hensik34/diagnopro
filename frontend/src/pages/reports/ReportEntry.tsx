@@ -311,6 +311,7 @@ export function ReportEntry() {
         section_group: field.section_group || '',
         reference_rules: field.reference_rules,
         critical_rules: field.critical_rules,
+        is_mandatory: field.is_mandatory !== false,
       })),
     [testFields]
   );
@@ -457,8 +458,9 @@ export function ReportEntry() {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [showNotesSection, setShowNotesSection] = useState(false);
   const [showAiSection, setShowAiSection] = useState(false);
+  const [activeTextareaId, setActiveTextareaId] = useState<string | null>(null);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const inputRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | null>>({});
+  const inputRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>>({});
 
   // Fetch report data when reportId is provided
   useEffect(() => {
@@ -515,6 +517,7 @@ export function ReportEntry() {
     setLastSaved(null);
     setReportStatus('draft');
     resetBilling();
+    useTestStore.setState({ testFields: [] }); // Clear stale fields in the store to avoid race conditions
   }, [reportId]);
 
   // Populate form data when selectedReport changes
@@ -569,22 +572,31 @@ export function ReportEntry() {
   // Populate test values from report's test_data ONCE when dynamic params arrive
   useEffect(() => {
     if (hasPopulatedValues.current) return;
-    if (!selectedReport?.test_data || dynamicParams.length === 0) return;
+    if (!selectedReport || dynamicParams.length === 0) return;
     // Guard: only populate when selectedReport matches the current URL reportId
     if (selectedReport.id !== reportId) return;
 
     const existingValues: Record<string, string> = {};
 
+    // Initialize select fields with default values first
+    dynamicParams.forEach((param) => {
+      if (param.input_type === 'select') {
+        const defaultValue = param.options ? param.options.split(',')[0].trim() : "Negative";
+        existingValues[param.id] = defaultValue;
+      }
+    });
+
     // Collect all saved parameters — support both grouped (tests[]) and legacy flat (parameters[])
     const allSavedParams: { name: string; value: string | number | null }[] = [];
-    if (selectedReport.test_data.tests?.length) {
-      for (const group of selectedReport.test_data.tests) {
+    const testData = parsedTestData;
+    if (testData?.tests?.length) {
+      for (const group of testData.tests) {
         for (const p of group.parameters) {
           allSavedParams.push(p);
         }
       }
-    } else if (selectedReport.test_data.parameters?.length) {
-      for (const p of selectedReport.test_data.parameters) {
+    } else if (testData?.parameters?.length) {
+      for (const p of testData.parameters) {
         allSavedParams.push(p);
       }
     }
@@ -597,11 +609,10 @@ export function ReportEntry() {
       }
     });
 
-    if (Object.keys(existingValues).length > 0) {
-      setValues(existingValues);
-    }
+    // Set values (this includes the initialized select fields, so status computation runs correctly)
+    setValues(existingValues);
     hasPopulatedValues.current = true;
-  }, [selectedReport, dynamicParams, reportId]);
+  }, [selectedReport, parsedTestData, dynamicParams, reportId]);
 
   // Fetch doctors on mount
   useEffect(() => {
@@ -920,23 +931,17 @@ export function ReportEntry() {
   ).length;
 
   const requiredParams = useMemo(() => {
-    const nonCalculated = dynamicParams.filter((param) => param.field_type !== 'calculated');
+    const nonCalculated = dynamicParams.filter((param) => param.field_type !== 'calculated' && param.is_mandatory !== false);
     return nonCalculated.length > 0 ? nonCalculated : dynamicParams;
   }, [dynamicParams]);
 
-  const allRequiredFilled = useMemo(() => {
-    if (requiredParams.length === 0) return false;
-    return requiredParams.every((param) => {
-      const val = values[param.id];
-      return val !== undefined && val !== null && String(val).trim() !== '';
-    });
-  }, [requiredParams, values]);
+  const allRequiredFilled = true;
 
   const sectionCompletion = useMemo(() => {
     const progress: Record<string, { filled: number; total: number; done: boolean }> = {};
 
     for (const section of testSections) {
-      const completableParams = section.params.filter((param) => param.field_type !== 'calculated');
+      const completableParams = section.params.filter((param) => param.field_type !== 'calculated' && param.is_mandatory !== false);
       const sourceParams = completableParams.length > 0 ? completableParams : section.params;
       const filled = sourceParams.filter((param) => {
         const value = values[param.id];
@@ -1018,7 +1023,9 @@ export function ReportEntry() {
         requestAnimationFrame(() => {
           const input = inputRefs.current[fieldId];
           input?.focus();
-          input?.select?.();
+          if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
+            input.select();
+          }
           input?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         });
       });
@@ -1027,7 +1034,9 @@ export function ReportEntry() {
 
     const input = inputRefs.current[fieldId];
     input?.focus();
-    input?.select?.();
+    if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
+      input.select();
+    }
     input?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [expandedSections, fieldSectionMap]);
 
@@ -1041,7 +1050,10 @@ export function ReportEntry() {
     focusParameterField(nextFieldId);
   }, [editableFieldOrder, focusParameterField]);
 
-  const handleParameterKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>, fieldId: string, inputType: string) => {
+  const handleParameterKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>, fieldId: string, inputType: string) => {
+    if (inputType === 'textarea') {
+      return;
+    }
     if (event.key === 'Enter') {
       event.preventDefault();
       moveParameterFocus(fieldId, event.shiftKey ? -1 : 1);
@@ -1103,7 +1115,7 @@ export function ReportEntry() {
         // If select type, default to first option if not entered
         // If select type, default to Negative if not entered
         const finalRawValue = (rawValue === undefined || rawValue === '') && param.input_type === 'select'
-          ? 'Negative'
+          ? (param.options ? param.options.split(',')[0].trim() : 'Negative')
           : rawValue;
 
         const value = finalRawValue !== undefined && finalRawValue !== ''
@@ -1754,7 +1766,7 @@ export function ReportEntry() {
                             <div className="text-[10px] text-muted-foreground">{test.category || 'General'}</div>
                           </div>
                           <div className="text-xs text-primary font-semibold">
-                            ${test.price}
+                            ₹{test.price}
                           </div>
                         </button>
                       ))}
@@ -1869,16 +1881,92 @@ export function ReportEntry() {
                                             ref={(node) => {
                                               inputRefs.current[param.id] = node;
                                             }}
-                                            className={`${getInputClass(statuses[param.id])} h-7 text-[11px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''} !text-left bg-background`}
-                                            value={values[param.id] || "Negative"}
+                                            className={`${getInputClass(statuses[param.id])} h-7 text-[11px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''} !text-left bg-background !py-0`}
+                                            value={values[param.id] || (param.options ? param.options.split(',')[0] : "Negative")}
                                             onChange={(e) => handleValueChange(param.id, e.target.value)}
                                             onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
                                             tabIndex={param.field_type === 'calculated' ? -1 : fieldTabOrder[param.id]}
                                             disabled={!isEditable}
                                           >
-                                            <option value="Negative">Negative</option>
-                                            <option value="Positive">Positive</option>
+                                            {param.options ? (
+                                              param.options.split(',').map((opt: string) => (
+                                                <option key={opt} value={opt}>{opt}</option>
+                                              ))
+                                            ) : (
+                                              <>
+                                                <option value="Negative">Negative</option>
+                                                <option value="Positive">Positive</option>
+                                              </>
+                                            )}
                                           </select>
+                                        ) : param.input_type === 'textarea' ? (
+                                          <div className="relative py-1">
+                                            <textarea
+                                              ref={(node) => {
+                                                inputRefs.current[param.id] = node;
+                                              }}
+                                              className={`${getInputClass(statuses[param.id])} min-h-[4rem] py-1 px-2 text-[11px] w-full resize-y font-normal bg-background`}
+                                              placeholder="Enter description..."
+                                              value={values[param.id] || ""}
+                                              onChange={(e) => handleValueChange(param.id, e.target.value)}
+                                              onFocus={() => setActiveTextareaId(param.id)}
+                                              onBlur={() => {
+                                                setTimeout(() => {
+                                                  setActiveTextareaId(null);
+                                                }, 150);
+                                              }}
+                                              tabIndex={fieldTabOrder[param.id]}
+                                              disabled={!isEditable}
+                                            />
+                                            {param.options && activeTextareaId === param.id && (
+                                              (() => {
+                                                const currentVal = values[param.id] || '';
+                                                const lastPart = currentVal.split(/,\s*/).pop()?.trim() || '';
+                                                const filteredOpts = param.options.split(',').filter(opt =>
+                                                  !lastPart || opt.toLowerCase().includes(lastPart.toLowerCase())
+                                                );
+
+                                                if (filteredOpts.length === 0) return null;
+
+                                                return (
+                                                  <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border rounded shadow-lg max-h-48 overflow-y-auto p-1 divide-y divide-border/30 flex flex-col">
+                                                    {filteredOpts.map((opt: string) => (
+                                                      <button
+                                                        key={opt}
+                                                        type="button"
+                                                        onMouseDown={(e) => {
+                                                          e.preventDefault();
+                                                          const trimmed = currentVal.trim();
+                                                          if (!trimmed) {
+                                                            handleValueChange(param.id, opt + ', ');
+                                                          } else {
+                                                            const parts = currentVal.split(/,\s*/);
+                                                            const last = parts[parts.length - 1] || '';
+                                                            if (last && opt.toLowerCase().includes(last.toLowerCase())) {
+                                                              parts.pop();
+                                                              parts.push(opt);
+                                                              handleValueChange(param.id, parts.join(', ') + ', ');
+                                                            } else {
+                                                              if (currentVal.endsWith(', ')) {
+                                                                handleValueChange(param.id, currentVal + opt + ', ');
+                                                              } else if (currentVal.endsWith(',')) {
+                                                                handleValueChange(param.id, currentVal + ' ' + opt + ', ');
+                                                              } else {
+                                                                handleValueChange(param.id, currentVal + ', ' + opt + ', ');
+                                                              }
+                                                            }
+                                                          }
+                                                        }}
+                                                        className="w-full text-left px-2.5 py-1.5 hover:bg-accent text-[11px] font-normal text-foreground transition-colors rounded whitespace-normal"
+                                                      >
+                                                        {opt}
+                                                      </button>
+                                                    ))}
+                                                  </div>
+                                                );
+                                              })()
+                                            )}
+                                          </div>
                                         ) : (
                                           <input
                                             ref={(node) => {
@@ -1887,7 +1975,7 @@ export function ReportEntry() {
                                             type={param.input_type === 'text' ? 'text' : 'number'}
                                             step={param.step}
                                             className={`${getInputClass(statuses[param.id])} h-7 text-[11px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}`}
-                                            placeholder={param.field_type === 'calculated' ? 'Auto' : '0.0'}
+                                            placeholder={param.field_type === 'calculated' ? 'Auto' : ''}
                                             value={values[param.id] || ""}
                                             onChange={(e) => handleValueChange(param.id, e.target.value)}
                                             onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}

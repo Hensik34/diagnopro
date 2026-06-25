@@ -271,4 +271,21 @@ exports.upsertNotificationSetting = async (req, res) => {
   }
 };
 
+exports.checkConnection = async (req, res) => {
+  try {
+    const branchId = getBranchId(req);
+    await assertBranchAccess(req.user, branchId);
+
+    const status = await whatsappService.getBranchStatus(branchId);
+    const connected = status?.session?.status === 'connected';
+
+    res.json({
+      message: "Connection status fetched successfully",
+      data: { connected },
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message });
+  }
+};
+
 

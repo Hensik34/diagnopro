@@ -201,4 +201,10 @@ export const whatsappApi = {
     return response.data;
   },
 
+  checkConnectionStatus: async (branchId: string): Promise<ApiResponse<{ connected: boolean }>> => {
+    const response = await api.get<ApiResponse<{ connected: boolean }>>('/whatsapp/connection-check', {
+      params: { branch_id: branchId },
+    });
+    return response.data;
+  },
 };

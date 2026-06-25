@@ -15,6 +15,7 @@ import {
   Hash,
   ArrowLeft,
   Building2,
+  MessageSquare,
 } from "lucide-react";
 import { usePatientStore } from "../../stores/patientStore";
 import { useTestStore } from "../../stores/testStore";
@@ -93,6 +94,26 @@ export function CreateReport() {
 
   // Patient email (saved to patient record)
   const [patientEmail, setPatientEmail] = useState("");
+
+  // WhatsApp Delivery Preferences
+  const [sendWhatsAppPatient, setSendWhatsAppPatient] = useState(true);
+  const [sendWhatsAppDoctor, setSendWhatsAppDoctor] = useState(false);
+
+  useEffect(() => {
+    if (patientPhone) {
+      setSendWhatsAppPatient(true);
+    } else {
+      setSendWhatsAppPatient(false);
+    }
+  }, [patientPhone]);
+
+  useEffect(() => {
+    if (selectedDoctor) {
+      setSendWhatsAppDoctor(!!selectedDoctor.phone);
+    } else {
+      setSendWhatsAppDoctor(false);
+    }
+  }, [selectedDoctor]);
 
   const patientSearchRef = useRef<HTMLDivElement>(null);
   const patientSearchInputRef = useRef<HTMLInputElement>(null);
@@ -506,6 +527,10 @@ export function CreateReport() {
         },
         b2b_lab_id: isB2B && selectedB2BLabId ? selectedB2BLabId : undefined,
         b2b_charge: isB2B && b2bCharge ? parseFloat(b2bCharge) : undefined,
+        delivery_preferences: {
+          patient_whatsapp: sendWhatsAppPatient && !!patientPhone,
+          doctor_whatsapp: sendWhatsAppDoctor && !!selectedDoctor?.phone,
+        },
       });
 
       if (!report) {
@@ -899,6 +924,50 @@ export function CreateReport() {
                       disabled={!isNewPatient && !!selectedPatient}
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* WhatsApp Auto-Send Preferences */}
+              <div className="border border-border rounded p-2.5 space-y-2 bg-secondary/10">
+                <div className="text-[11px] uppercase tracking-wide font-medium text-foreground flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-primary" />
+                  <span>WhatsApp Delivery Preferences</span>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className={`flex items-start gap-2.5 text-xs ${!patientPhone ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                    <input
+                      type="checkbox"
+                      checked={sendWhatsAppPatient && !!patientPhone}
+                      onChange={(e) => setSendWhatsAppPatient(e.target.checked)}
+                      disabled={!patientPhone}
+                      className="mt-0.5 rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                    />
+                    <div>
+                      <span className="font-medium text-foreground">Send to Patient via WhatsApp on Approval</span>
+                      <span className="block text-[10px] text-muted-foreground">
+                        {patientPhone ? `Sends PDF to ${patientPhone}` : 'Please enter a mobile number to enable'}
+                      </span>
+                    </div>
+                  </label>
+
+                  {selectedDoctor && (
+                    <label className={`flex items-start gap-2.5 text-xs ${!selectedDoctor.phone ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                      <input
+                        type="checkbox"
+                        checked={sendWhatsAppDoctor && !!selectedDoctor.phone}
+                        onChange={(e) => setSendWhatsAppDoctor(e.target.checked)}
+                        disabled={!selectedDoctor.phone}
+                        className="mt-0.5 rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                      />
+                      <div>
+                        <span className="font-medium text-foreground">Send to Referring Doctor via WhatsApp on Approval</span>
+                        <span className="block text-[10px] text-muted-foreground">
+                          {selectedDoctor.phone ? `Sends PDF to Dr. ${selectedDoctor.name} (${selectedDoctor.phone})` : 'Doctor does not have a phone number registered'}
+                        </span>
+                      </div>
+                    </label>
+                  )}
                 </div>
               </div>
 
