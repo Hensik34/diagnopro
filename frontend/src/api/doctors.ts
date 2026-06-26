@@ -4,6 +4,8 @@ import type {
   CreateDoctorData,
   ApiResponse,
   DoctorStatement,
+  DoctorPriceAssignment,
+  DoctorTestPriceOverride,
 } from '../types';
 
 // ==========================================
@@ -53,6 +55,46 @@ export const doctorApi = {
    */
   delete: async (id: string): Promise<{ message: string }> => {
     const response = await api.delete<{ message: string }>(`/doctors/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Get pricing details (assignments + overrides) for a doctor at a branch
+   */
+  getPricing: async (id: string, branchId: string): Promise<{ assignment: DoctorPriceAssignment | null; overrides: DoctorTestPriceOverride[] }> => {
+    const response = await api.get<{ assignment: DoctorPriceAssignment | null; overrides: DoctorTestPriceOverride[] }>(
+      `/doctors/${id}/pricing?branch_id=${branchId}`
+    );
+    return response.data;
+  },
+
+  /**
+   * Assign a price list to a doctor for a branch
+   */
+  assignPriceList: async (id: string, branchId: string, priceListId: string | null): Promise<any> => {
+    const response = await api.put<any>(`/doctors/${id}/pricing/assignment`, {
+      branch_id: branchId,
+      price_list_id: priceListId,
+    });
+    return response.data;
+  },
+
+  /**
+   * Bulk upsert overrides exceptions for a doctor at a branch
+   */
+  upsertOverrides: async (id: string, branchId: string, overrides: { test_id: string; price: number }[]): Promise<any> => {
+    const response = await api.put<any>(`/doctors/${id}/pricing/overrides`, {
+      branch_id: branchId,
+      overrides,
+    });
+    return response.data;
+  },
+
+  /**
+   * Delete override exception
+   */
+  deleteOverride: async (id: string, testId: string, branchId: string): Promise<any> => {
+    const response = await api.delete<any>(`/doctors/${id}/pricing/overrides/${testId}?branch_id=${branchId}`);
     return response.data;
   },
 

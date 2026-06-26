@@ -138,12 +138,14 @@ exports.getReportById = async (req, res) => {
     }
 
     const downloadToken = jwt.sign({ reportId: report.id }, process.env.JWT_SECRET);
+    const reportTestPrices = await require("../models/ReportTestPrice").getPricesForReport(id);
 
     res.json({
       message: "Report retrieved successfully",
       data: {
         ...report,
-        download_token: downloadToken
+        download_token: downloadToken,
+        pricing_snapshot: reportTestPrices || []
       }
     });
   } catch (err) {
@@ -171,6 +173,13 @@ exports.createReport = async (req, res) => {
       delivery_preferences,
       b2b_lab_id,
       b2b_charge,
+      price_list_id,
+      base_amount,
+      lab_discount_type,
+      lab_discount_value,
+      doctor_discount,
+      final_amount,
+      pricing_items,
     } = req.body;
 
     // Validation
@@ -239,9 +248,37 @@ exports.createReport = async (req, res) => {
       b2b_lab_id: b2b_lab_id || null,
       b2b_charge: b2b_charge || 0,
       branch_id: resolvedBranchId,
+      // Multi-tier pricing fields
+      price_list_id: price_list_id || null,
+      base_amount: base_amount || 0,
+      lab_discount_type: lab_discount_type || "percent",
+      lab_discount_value: lab_discount_value || 0,
+      doctor_discount: doctor_discount || 0,
+      final_amount: final_amount || 0,
     });
 
     const reportJson = report && typeof report.toJSON === 'function' ? report.toJSON() : report;
+
+    // Snapshot pricing items if provided
+    if (pricing_items && Array.isArray(pricing_items)) {
+      const pricingService = require("../services/pricing.service");
+      await pricingService.snapshotPrices(report.id, pricing_items);
+
+      // Audit log overrides
+      for (const item of pricing_items) {
+        if (item.is_manual_override) {
+          await pricingService.logPriceChange({
+            reportId: report.id,
+            testId: item.test_id || null,
+            oldPrice: Number(item.default_price),
+            newPrice: Number(item.applied_price),
+            source: "manual",
+            changedBy: req.user.id,
+            reason: `Manual price override at report creation (source: ${item.source || 'default'})`,
+          });
+        }
+      }
+    }
 
     // Trigger registration confirmation notification here with tests!
     try {
@@ -286,6 +323,13 @@ exports.updateReport = async (req, res) => {
       is_self_report,
       b2b_lab_id,
       b2b_charge,
+      price_list_id,
+      base_amount,
+      lab_discount_type,
+      lab_discount_value,
+      doctor_discount,
+      final_amount,
+      pricing_items,
     } = req.body;
 
     // Get current report to check status
@@ -336,10 +380,46 @@ exports.updateReport = async (req, res) => {
       is_self_report,
       b2b_lab_id,
       b2b_charge,
+      price_list_id,
+      base_amount,
+      lab_discount_type,
+      lab_discount_value,
+      doctor_discount,
+      final_amount,
     });
 
     if (!report) {
       return res.status(404).json({ error: "Report not found" });
+    }
+
+    // Snapshot pricing items if provided
+    if (pricing_items && Array.isArray(pricing_items)) {
+      const pricingService = require("../services/pricing.service");
+      
+      // Get old snapshots to compare
+      const oldSnapshots = await require("../models/ReportTestPrice").getPricesForReport(id);
+      const oldSnapshotMap = new Map(oldSnapshots.map(s => [s.test_id || s.package_id, s]));
+
+      await pricingService.snapshotPrices(id, pricing_items);
+
+      // Audit log overrides and auto-recalculation pricing changes
+      for (const item of pricing_items) {
+        const key = item.test_id || item.package_id;
+        const oldVal = oldSnapshotMap.get(key);
+        if (!oldVal || Number(oldVal.applied_price) !== Number(item.applied_price)) {
+          await pricingService.logPriceChange({
+            reportId: id,
+            testId: item.test_id || null,
+            oldPrice: oldVal ? Number(oldVal.applied_price) : Number(item.default_price),
+            newPrice: Number(item.applied_price),
+            source: item.is_manual_override ? "manual" : (item.source || "default"),
+            changedBy: req.user.id,
+            reason: item.is_manual_override 
+              ? `Manual price override from ${oldVal ? oldVal.applied_price : item.default_price} to ${item.applied_price}`
+              : `Price recalculated automatically (source: ${item.source || 'default'})`,
+          });
+        }
+      }
     }
 
     res.json({

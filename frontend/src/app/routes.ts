@@ -15,7 +15,7 @@ import { Patients } from '../pages/patients';
 // Samples
 import { SampleCollection } from '../pages/samples';
 // Tests
-import { TestManagement } from '../pages/tests';
+import { TestManagement, TemplateEditor, PriceListManagement } from '../pages/tests';
 // Doctors
 import { DoctorManagement, DoctorDetail } from '../pages/doctors';
 // Branches
@@ -35,7 +35,7 @@ import { Onboarding } from '../pages/onboarding';
 // Doctor Portal
 import { DoctorDashboard, DoctorReports, DoctorProfile } from '../pages/doctor-portal';
 // Settings
-import { Settings, TemplateEditor } from '../pages/settings';
+import { Settings } from '../pages/settings';
 // B2B
 import { B2BLabManagement, B2BLabDetail } from '../pages/b2b';
 
@@ -141,7 +141,8 @@ export const router = createBrowserRouter([
       { path: 'working-hours', Component: withPermission(WorkingHours, PERMISSIONS.TIMELOG_VIEW_ALL) },
       { path: 'analytics', Component: withPermission(Analytics, PERMISSIONS.ANALYTICS_VIEW) },
       { path: 'settings', Component: withPermission(Settings, PERMISSIONS.SETTINGS_VIEW) },
-      { path: 'settings/templates/:testId', Component: withPermission(TemplateEditor, PERMISSIONS.TEST_UPDATE) },
+      { path: 'tests/pricing', Component: withPermission(PriceListManagement, PERMISSIONS.SETTINGS_VIEW) },
+      { path: 'tests/templates/:testId', Component: withPermission(TemplateEditor, PERMISSIONS.TEST_UPDATE) },
       { path: 'doctor-dashboard', Component: DoctorDashboard },
       { path: 'doctor-reports', Component: DoctorReports },
       { path: 'profile', Component: DoctorProfile },

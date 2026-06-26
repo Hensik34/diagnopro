@@ -13,10 +13,15 @@ import {
   AlertCircle,
   Printer,
   Calendar,
+  Check,
+  X,
+  Search,
 } from 'lucide-react';
 import { doctorApi } from '../../api/doctors';
+import { priceListApi } from '../../api/priceLists';
+import { testApi } from '../../api/tests';
 import { useBranchStore } from '../../stores/branchStore';
-import type { Doctor, DoctorStatement, DoctorStatementReport } from '../../types';
+import type { Doctor, DoctorStatement, DoctorStatementReport, PriceList, DoctorPriceAssignment, DoctorTestPriceOverride, Test } from '../../types';
 
 // Helper: format date to YYYY-MM-DD
 const toDateStr = (d: Date) => d.toISOString().split('T')[0];
@@ -73,6 +78,115 @@ export function DoctorDetail() {
       setStatement(null);
     } finally {
       setIsLoadingStatement(false);
+    }
+  };
+
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'statement' | 'pricing'>('statement');
+  
+  // Pricing states
+  const [priceLists, setPriceLists] = useState<PriceList[]>([]);
+  const [assignedPriceListId, setAssignedPriceListId] = useState<string | null>(null);
+  const [pricingOverrides, setPricingOverrides] = useState<DoctorTestPriceOverride[]>([]);
+  const [allTests, setAllTests] = useState<Test[]>([]);
+  const [isSavingPricing, setIsSavingPricing] = useState(false);
+  const [isLoadingPricing, setIsLoadingPricing] = useState(false);
+  const [pricingSearch, setPricingSearch] = useState('');
+  
+  // Load pricing data when tab switches to 'pricing'
+  useEffect(() => {
+    if (activeTab === 'pricing' && doctor?.branch_id && id) {
+      loadPricingData();
+    }
+  }, [activeTab, doctor?.branch_id, id]);
+
+  const loadPricingData = async () => {
+    if (!id || !doctor?.branch_id) return;
+    setIsLoadingPricing(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const plRes = await priceListApi.getAll({ branch_id: doctor.branch_id, is_active: true });
+      setPriceLists(plRes.data || []);
+      
+      const prRes = await doctorApi.getPricing(id, doctor.branch_id);
+      setAssignedPriceListId(prRes.assignment?.price_list_id || '');
+      setPricingOverrides(prRes.overrides || []);
+
+      const testRes = await testApi.getAll(doctor.branch_id);
+      setAllTests(testRes.data || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load pricing configurations');
+    } finally {
+      setIsLoadingPricing(false);
+    }
+  };
+
+  const handleSavePriceListAssignment = async () => {
+    if (!id || !doctor?.branch_id) return;
+    setIsSavingPricing(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const plId = assignedPriceListId || null;
+      await doctorApi.assignPriceList(id, doctor.branch_id, plId);
+      setSuccessMessage('Assigned price list updated successfully');
+      fetchStatement();
+    } catch (err: any) {
+      setError(err.message || 'Failed to assign price list');
+    } finally {
+      setIsSavingPricing(false);
+    }
+  };
+
+  const handleUpdateOverridePrice = (testId: string, price: number | null) => {
+    const existing = pricingOverrides.find(o => o.test_id === testId);
+    if (existing) {
+      if (price === null) {
+        setPricingOverrides(pricingOverrides.filter(o => o.test_id !== testId));
+      } else {
+        setPricingOverrides(pricingOverrides.map(o => o.test_id === testId ? { ...o, price } : o));
+      }
+    } else if (price !== null) {
+      setPricingOverrides([...pricingOverrides, {
+        doctor_id: id!,
+        test_id: testId,
+        price,
+        branch_id: doctor!.branch_id
+      }]);
+    }
+  };
+
+  const handleSaveOverrides = async () => {
+    if (!id || !doctor?.branch_id) return;
+    setIsSavingPricing(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const payload = pricingOverrides.map(o => ({
+        test_id: o.test_id,
+        price: Number(o.price)
+      }));
+      await doctorApi.upsertOverrides(id, doctor.branch_id, payload);
+      setSuccessMessage('Individual overrides exceptions saved successfully');
+      loadPricingData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update overrides');
+    } finally {
+      setIsSavingPricing(false);
+    }
+  };
+
+  const handleDeleteOverride = async (testId: string) => {
+    if (!id || !doctor?.branch_id) return;
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      await doctorApi.deleteOverride(id, testId, doctor.branch_id);
+      setPricingOverrides(pricingOverrides.filter(o => o.test_id !== testId));
+      setSuccessMessage('Individual exception deleted successfully');
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete override exception');
     }
   };
 
@@ -298,150 +412,344 @@ export function DoctorDetail() {
         </div>
       </div>
 
-      {/* Contact Information */}
-      <div className="bg-card border border-border rounded">
-        <div className="px-4 py-2.5 border-b border-border bg-secondary/30">
-          <h2 className="text-sm text-foreground">Contact Information</h2>
+      {/* Contact & Referred Reports Tabbed Section */}
+      {successMessage && (
+        <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded flex items-center gap-2 text-green-700 dark:text-green-300 text-xs">
+          <Check className="w-4 h-4 shrink-0" />
+          <span>{successMessage}</span>
+          <button className="ml-auto" onClick={() => setSuccessMessage(null)}>
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
-        <div className="p-4">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="flex items-center gap-2">
-              <Phone className="w-4 h-4 text-muted-foreground" />
-              <div>
-                <div className="text-[10px] text-muted-foreground uppercase">Phone</div>
-                <div className="text-xs text-foreground">{doctorPhone}</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Mail className="w-4 h-4 text-muted-foreground" />
-              <div>
-                <div className="text-[10px] text-muted-foreground uppercase">Email</div>
-                <div className="text-xs text-foreground">{doctorEmail}</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Stethoscope className="w-4 h-4 text-muted-foreground" />
-              <div>
-                <div className="text-[10px] text-muted-foreground uppercase">Specialization</div>
-                <div className="text-xs text-foreground">{doctorSpecialization || '—'}</div>
-              </div>
-            </div>
-          </div>
-        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex border-b border-border">
+        <button
+          onClick={() => {
+            setActiveTab('statement');
+            setError(null);
+            setSuccessMessage(null);
+          }}
+          className={`px-4 py-2 border-b-2 font-medium text-xs transition-colors ${
+            activeTab === 'statement'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Statement & Referral Info
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('pricing');
+            setError(null);
+            setSuccessMessage(null);
+          }}
+          className={`px-4 py-2 border-b-2 font-medium text-xs transition-colors ${
+            activeTab === 'pricing'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Pricing Configuration
+        </button>
       </div>
 
-      {/* Date Filter + Reports Table */}
-      <div className="bg-card border border-border rounded" ref={printRef}>
-        <div className="px-4 py-2.5 border-b border-border bg-secondary/30 flex items-center justify-between">
-          <h2 className="text-sm text-foreground">Referred Reports</h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handlePrint}
-              disabled={reports.length === 0}
-              className="h-7 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded text-xs hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              <Printer className="w-3 h-3" />
-              Print
-            </button>
-            <span className="w-px h-5 bg-border"></span>
-            <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="h-7 px-2 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            <span className="text-xs text-muted-foreground">to</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="h-7 px-2 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-            />
+      {activeTab === 'statement' ? (
+        <>
+          {/* Contact Information */}
+          <div className="bg-card border border-border rounded">
+            <div className="px-4 py-2.5 border-b border-border bg-secondary/30">
+              <h2 className="text-sm text-foreground">Contact Information</h2>
+            </div>
+            <div className="p-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase">Phone</div>
+                    <div className="text-xs text-foreground">{doctorPhone}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase">Email</div>
+                    <div className="text-xs text-foreground">{doctorEmail}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Stethoscope className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase">Specialization</div>
+                    <div className="text-xs text-foreground">{doctorSpecialization || '—'}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {isLoadingStatement ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-5 h-5 animate-spin text-primary" />
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-secondary/30 sticky top-0 z-10">
-                <tr className="border-b border-border">
-                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider w-10">#</th>
-                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Date</th>
-                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Patient</th>
-                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Test Type</th>
-                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Status</th>
-                  <th className="px-3 py-2 text-right text-muted-foreground text-[10px] uppercase tracking-wider">Amount</th>
-                  <th className="px-3 py-2 text-right text-muted-foreground text-[10px] uppercase tracking-wider">B2B</th>
-                  <th className="px-3 py-2 text-right text-muted-foreground text-[10px] uppercase tracking-wider">Sharing</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {reports.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-3 py-8 text-center text-sm text-muted-foreground">
-                      No reports found for this period
-                    </td>
-                  </tr>
-                ) : (
-                  <>
-                    {reports.map((r, i) => (
-                      <tr key={r.report_id} className="hover:bg-accent/30 transition-colors">
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{i + 1}</td>
-                        <td className="px-3 py-2 text-xs text-foreground">{new Date(r.report_date).toLocaleDateString()}</td>
-                        <td className="px-3 py-2">
-                          <div className="flex flex-col">
-                            <span className="text-xs text-foreground">{r.patient_name || '—'}</span>
-                            <span className="text-[10px] text-muted-foreground">{r.patient_phone || ''}</span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-xs text-foreground">{r.report_type || '—'}</td>
-                        <td className="px-3 py-2 text-center">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wide ${getStatusBadge(r.status)}`}>
-                            {r.status}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-xs text-foreground text-right tabular-nums">₹{Number(r.report_amount || 0).toFixed(2)}</td>
-                        <td className="px-3 py-2 text-xs text-right tabular-nums">
-                          {Number(r.b2b_charge || 0) > 0 ? (
-                            <span className="text-destructive">₹{Number(r.b2b_charge).toFixed(2)}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-xs text-primary font-medium text-right tabular-nums">₹{Number(r.doctor_commission || 0).toFixed(2)}</td>
-                      </tr>
-                    ))}
-                    {/* Totals Row */}
-                    <tr className="bg-secondary/50 font-medium">
-                      <td colSpan={5} className="px-3 py-2 text-xs text-foreground">
-                        Total ({reports.length} reports)
-                      </td>
-                      <td className="px-3 py-2 text-xs text-foreground text-right tabular-nums">₹{summary.total_amount.toFixed(2)}</td>
-                      <td className="px-3 py-2 text-xs text-destructive text-right tabular-nums">
-                        {summary.total_b2b_charge > 0 ? `₹${summary.total_b2b_charge.toFixed(2)}` : '—'}
-                      </td>
-                      <td className="px-3 py-2 text-xs text-primary font-semibold text-right tabular-nums">₹{summary.total_commission.toFixed(2)}</td>
+          {/* Date Filter + Reports Table */}
+          <div className="bg-card border border-border rounded" ref={printRef}>
+            <div className="px-4 py-2.5 border-b border-border bg-secondary/30 flex items-center justify-between">
+              <h2 className="text-sm text-foreground">Referred Reports</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePrint}
+                  disabled={reports.length === 0}
+                  className="h-7 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded text-xs hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  <Printer className="w-3 h-3" />
+                  Print
+                </button>
+                <span className="w-px h-5 bg-border"></span>
+                <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="h-7 px-2 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <span className="text-xs text-muted-foreground">to</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="h-7 px-2 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            {isLoadingStatement ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-secondary/30 sticky top-0 z-10">
+                    <tr className="border-b border-border">
+                      <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider w-10">#</th>
+                      <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Date</th>
+                      <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Patient</th>
+                      <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Test Type</th>
+                      <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Status</th>
+                      <th className="px-3 py-2 text-right text-muted-foreground text-[10px] uppercase tracking-wider">Amount</th>
+                      <th className="px-3 py-2 text-right text-muted-foreground text-[10px] uppercase tracking-wider">B2B</th>
+                      <th className="px-3 py-2 text-right text-muted-foreground text-[10px] uppercase tracking-wider">Sharing</th>
                     </tr>
-                  </>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {reports.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                          No reports found for this period
+                        </td>
+                      </tr>
+                    ) : (
+                      <>
+                        {reports.map((r, i) => (
+                          <tr key={r.report_id} className="hover:bg-accent/30 transition-colors">
+                            <td className="px-3 py-2 text-xs text-muted-foreground">{i + 1}</td>
+                            <td className="px-3 py-2 text-xs text-foreground">{new Date(r.report_date).toLocaleDateString()}</td>
+                            <td className="px-3 py-2">
+                              <div className="flex flex-col">
+                                <span className="text-xs text-foreground">{r.patient_name || '—'}</span>
+                                <span className="text-[10px] text-muted-foreground">{r.patient_phone || ''}</span>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 text-xs text-foreground">{r.report_type || '—'}</td>
+                            <td className="px-3 py-2 text-center">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wide ${getStatusBadge(r.status)}`}>
+                                {r.status}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-xs text-foreground text-right tabular-nums">₹{Number(r.report_amount || 0).toFixed(2)}</td>
+                            <td className="px-3 py-2 text-xs text-right tabular-nums">
+                              {Number(r.b2b_charge || 0) > 0 ? (
+                                <span className="text-destructive">₹{Number(r.b2b_charge).toFixed(2)}</span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-xs text-primary font-medium text-right tabular-nums">₹{Number(r.doctor_commission || 0).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                        {/* Totals Row */}
+                        <tr className="bg-secondary/50 font-medium">
+                          <td colSpan={5} className="px-3 py-2 text-xs text-foreground">
+                            Total ({reports.length} reports)
+                          </td>
+                          <td className="px-3 py-2 text-xs text-foreground text-right tabular-nums">₹{summary.total_amount.toFixed(2)}</td>
+                          <td className="px-3 py-2 text-xs text-destructive text-right tabular-nums">
+                            {summary.total_b2b_charge > 0 ? `₹${summary.total_b2b_charge.toFixed(2)}` : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-xs text-primary font-semibold text-right tabular-nums">₹{summary.total_commission.toFixed(2)}</td>
+                        </tr>
+                      </>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
-        {/* Footer */}
-        <div className="border-t border-border bg-secondary/30 px-3 py-2 flex justify-between items-center">
-          <div className="text-xs text-muted-foreground">
-            {reports.length} reports • {new Date(startDate).toLocaleDateString()} — {new Date(endDate).toLocaleDateString()}
+            {/* Footer */}
+            <div className="border-t border-border bg-secondary/30 px-3 py-2 flex justify-between items-center">
+              <div className="text-xs text-muted-foreground">
+                {reports.length} reports • {new Date(startDate).toLocaleDateString()} — {new Date(endDate).toLocaleDateString()}
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="space-y-6">
+          {/* Assigned Price List Card */}
+          <div className="bg-card border border-border rounded p-4 text-left">
+            <h3 className="font-semibold text-sm mb-1 text-foreground">Assigned Price List</h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              Assign a branch-level price list to Dr. {doctorName}. This list will apply to all reports referred by this doctor.
+            </p>
+            <div className="flex items-center gap-3">
+              <select
+                value={assignedPriceListId || ''}
+                onChange={(e) => setAssignedPriceListId(e.target.value || null)}
+                className="max-w-xs h-9 px-3 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">No Price List Assigned (Use Branch Defaults)</option>
+                {priceLists.map((pl) => (
+                  <option key={pl.id} value={pl.id}>
+                    {pl.name} (v{pl.version})
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={handleSavePriceListAssignment}
+                disabled={isSavingPricing || isLoadingPricing}
+                className="h-9 px-4 bg-primary text-white rounded-lg text-xs hover:opacity-90 transition-opacity font-semibold disabled:opacity-50"
+              >
+                {isSavingPricing ? 'Saving...' : 'Update Assignment'}
+              </button>
+            </div>
           </div>
 
+          {/* Exceptions Table */}
+          <div className="bg-card border border-border rounded p-4 text-left">
+            <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
+              <div>
+                <h3 className="font-semibold text-sm text-foreground">Individual Test Exceptions</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Set specific rates for Dr. {doctorName} on particular tests. Exceptions override the assigned price list rates.
+                </p>
+              </div>
+              <button
+                onClick={handleSaveOverrides}
+                disabled={isSavingPricing || isLoadingPricing}
+                className="h-9 px-4 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition-colors font-semibold disabled:opacity-50 animate-pulse-subtle"
+              >
+                {isSavingPricing ? 'Saving...' : 'Save Exceptions'}
+              </button>
+            </div>
+
+            {/* Search exception */}
+            <div className="relative mb-4 max-w-sm">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
+              <input
+                type="text"
+                value={pricingSearch}
+                onChange={(e) => setPricingSearch(e.target.value)}
+                placeholder="Search tests by name or code..."
+                className="w-full pl-9 pr-3 py-1.5 bg-background border border-border rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            {isLoadingPricing ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-border rounded">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-secondary/30">
+                    <tr className="border-b border-border">
+                      <th className="p-3">Test</th>
+                      <th className="p-3">Base Price</th>
+                      <th className="p-3" style={{ width: '150px' }}>Exception Price</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {allTests
+                      .filter(t => 
+                        t.test_name.toLowerCase().includes(pricingSearch.toLowerCase()) ||
+                        t.test_code.toLowerCase().includes(pricingSearch.toLowerCase())
+                      )
+                      .map((test) => {
+                        const override = pricingOverrides.find(o => o.test_id === test.id);
+                        const hasOverride = !!override;
+                        return (
+                          <tr key={test.id} className={hasOverride ? 'bg-primary/5' : ''}>
+                            <td className="p-3">
+                              <div className="font-semibold text-foreground">{test.test_name}</div>
+                              <div className="text-[10px] text-muted-foreground">{test.test_code}</div>
+                            </td>
+                            <td className="p-3 text-muted-foreground">₹{Number(test.price).toFixed(2)}</td>
+                            <td className="p-3">
+                              <div className="relative w-28">
+                                <span className="absolute left-2 top-2 text-muted-foreground">₹</span>
+                                <input
+                                  type="number"
+                                  value={override ? override.price : ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value === '' ? null : Number(e.target.value);
+                                    handleUpdateOverridePrice(test.id, val);
+                                  }}
+                                  placeholder="Auto"
+                                  className="w-full pl-5 pr-2 py-1 bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-xs"
+                                />
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              {hasOverride ? (
+                                Number(override.price) > Number(test.price) ? (
+                                  <span className="text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900 px-1.5 py-0.5 rounded font-medium">
+                                    Increase (+₹{(Number(override.price) - Number(test.price)).toFixed(2)})
+                                  </span>
+                                ) : Number(override.price) < Number(test.price) ? (
+                                  <span className="text-[10px] bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900 px-1.5 py-0.5 rounded font-medium">
+                                    Decrease (-₹{(Number(test.price) - Number(override.price)).toFixed(2)})
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded font-medium">
+                                    Custom (No Change)
+                                  </span>
+                                )
+                              ) : (
+                                <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded">
+                                  Default
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 text-right">
+                              {hasOverride && (
+                                <button
+                                  onClick={() => handleDeleteOverride(test.id)}
+                                  className="text-red-600 hover:text-red-700 font-semibold hover:underline"
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
