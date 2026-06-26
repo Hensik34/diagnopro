@@ -8,6 +8,8 @@ const Doctor = require("../models/Doctor");
 const aiService = require("../services/ai.service");
 const workflowNotificationService = require("../services/workflowNotification.service");
 const { Patient, UserTest, Test } = require("../models");
+const pdfGenerator = require("../services/pdfGenerator.service");
+const whatsappService = require("../services/whatsapp.service");
 
 // Use the new status from service
 const { REPORT_STATUS, STATUS_TRANSITIONS, isEditable } = reportService;
@@ -546,9 +548,115 @@ exports.approveReport = async (req, res) => {
       });
     }
 
+    const prefs = fullReport?.delivery_preferences || {};
+    let whatsappDelivery = {
+      patient: { sent: false, skipped: true, reason: "Not requested" },
+      doctor: { sent: false, skipped: true, reason: "Not requested" }
+    };
+
+    if (prefs.patient_whatsapp || prefs.doctor_whatsapp) {
+      try {
+        const branchId = fullReport.branch_id;
+        let pdfBuffer = null;
+        let pdfError = null;
+
+        // Check if WhatsApp is connected first before generating PDF to avoid unnecessary Puppeteer spins
+        const status = await whatsappService.getBranchStatus(branchId);
+        const isConnected = status?.session?.status === 'connected';
+
+        if (!isConnected) {
+          if (prefs.patient_whatsapp) {
+            whatsappDelivery.patient = { sent: false, reason: "WhatsApp is not connected for this branch" };
+          }
+          if (prefs.doctor_whatsapp) {
+            whatsappDelivery.doctor = { sent: false, reason: "WhatsApp is not connected for this branch" };
+          }
+        } else {
+          // Generate PDF buffer (once)
+          try {
+            const downloadToken = jwt.sign({ reportId: fullReport.id }, process.env.JWT_SECRET);
+            pdfBuffer = await pdfGenerator.generateReportPdf(fullReport.id, downloadToken);
+          } catch (err) {
+            console.error("Auto-PDF generation failed during approval:", err);
+            pdfError = err.message || "Failed to generate PDF";
+          }
+
+          // Process Patient WhatsApp
+          if (prefs.patient_whatsapp) {
+            if (!fullReport.patient_phone) {
+              whatsappDelivery.patient = { sent: false, reason: "No phone number registered" };
+            } else if (pdfError) {
+              whatsappDelivery.patient = { sent: false, reason: `PDF Error: ${pdfError}` };
+            } else {
+              try {
+                const sampleId = fullReport.sample_id_code || 'N/A';
+                const message = `Hello ${fullReport.patient_name || 'Patient'},\n\nYour laboratory test report (${sampleId}) is ready. Please find the report PDF attached.\n\nBest regards,\nDiagnoPro`;
+                const fileName = `Report-${(fullReport.patient_name || 'Patient').replace(/\s+/g, '_')}-${fullReport.id}.pdf`;
+                
+                await whatsappService.sendMessage({
+                  branchId,
+                  to: fullReport.patient_phone,
+                  message,
+                  fileBuffer: pdfBuffer,
+                  fileName,
+                  mimeType: 'application/pdf',
+                  metadata: { source: "auto_approve_patient", report_id: fullReport.id }
+                });
+                
+                whatsappDelivery.patient = { sent: true };
+              } catch (err) {
+                console.error("Auto WhatsApp patient send error:", err);
+                whatsappDelivery.patient = { sent: false, reason: err.message };
+              }
+            }
+          }
+
+          // Process Doctor WhatsApp
+          if (prefs.doctor_whatsapp) {
+            if (fullReport.is_self_report || !fullReport.doctor_id) {
+              whatsappDelivery.doctor = { sent: false, reason: "Self-report (No doctor referenced)" };
+            } else {
+              const doctor = await Doctor.getDoctorById(fullReport.doctor_id);
+              if (!doctor || !doctor.phone) {
+                whatsappDelivery.doctor = { sent: false, reason: "Referring doctor has no registered phone number" };
+              } else if (pdfError) {
+                whatsappDelivery.doctor = { sent: false, reason: `PDF Error: ${pdfError}` };
+              } else {
+                try {
+                  const sampleId = fullReport.sample_id_code || 'N/A';
+                  const docTitle = doctor.title || 'Dr';
+                  const docName = `${docTitle}. ${doctor.name}`;
+                  const message = `Hello ${docName},\n\nLaboratory test report (${sampleId}) for patient ${fullReport.patient_name || 'Patient'} is ready. Please find the report PDF attached.\n\nBest regards,\nDiagnoPro`;
+                  const fileName = `Report-${(fullReport.patient_name || 'Patient').replace(/\s+/g, '_')}-${fullReport.id}.pdf`;
+                  
+                  await whatsappService.sendMessage({
+                    branchId,
+                    to: doctor.phone,
+                    message,
+                    fileBuffer: pdfBuffer,
+                    fileName,
+                    mimeType: 'application/pdf',
+                    metadata: { source: "auto_approve_doctor", report_id: fullReport.id }
+                  });
+                  
+                  whatsappDelivery.doctor = { sent: true };
+                } catch (err) {
+                  console.error("Auto WhatsApp doctor send error:", err);
+                  whatsappDelivery.doctor = { sent: false, reason: err.message };
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Auto WhatsApp processing failed:", err);
+      }
+    }
+
     res.json({
       message: "Report approved successfully",
-      data: report
+      data: report,
+      whatsapp_delivery: whatsappDelivery
     });
   } catch (err) {
     console.error("Approve report error:", err);

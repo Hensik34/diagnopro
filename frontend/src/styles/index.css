@@ -2,6 +2,10 @@
 @import './tailwind.css';
 @import './theme.css';
 
+body {
+  font-family: 'Inter', sans-serif;
+}
+
 /* Professional scrollbar styling for medical dashboard */
 * {
   scrollbar-width: thin;

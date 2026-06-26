@@ -25,6 +25,7 @@ router.get("/connections", authorize(PERMISSIONS.SETTINGS_READ), whatsappControl
 router.post("/connect", authorize(PERMISSIONS.SETTINGS_UPDATE), whatsappController.connect);
 router.get("/qr", authorize(PERMISSIONS.SETTINGS_READ), whatsappController.getQr);
 router.get("/status", authorize(PERMISSIONS.SETTINGS_READ), whatsappController.getStatus);
+router.get("/connection-check", authorize(PERMISSIONS.SETTINGS_READ), whatsappController.checkConnection);
 router.post("/disconnect", authorize(PERMISSIONS.SETTINGS_UPDATE), whatsappController.disconnect);
 router.post("/send", authorize(PERMISSIONS.SETTINGS_UPDATE), whatsappController.sendMessage);
 // NOTE: multer.single('file') must come AFTER authorize but processes multipart data

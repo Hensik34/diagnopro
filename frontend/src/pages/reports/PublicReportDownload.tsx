@@ -55,6 +55,7 @@ type Parameter = {
 
 type TestSection = {
   id: string;
+  testId?: string;
   testName: string;
   parameters: Parameter[];
 };
@@ -101,7 +102,8 @@ type ReportData = {
 type PageItem =
   | { type: 'patient' }
   | { type: 'test'; chunk: { sectionId: string; title: string; continuation: boolean; parameters: Parameter[] } }
-  | { type: 'interpretation'; text: string }
+  | { type: 'interpretation'; testId?: string; text: string }
+  | { type: 'generalNotes'; text: string }
   | { type: 'endMarker' }
   | { type: 'signature' };
 
@@ -240,6 +242,7 @@ export function PublicReportDownload() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
+  const printMode = searchParams.get('print') === 'true';
 
   const [report, setReport] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -332,6 +335,12 @@ export function PublicReportDownload() {
       group: p.group || undefined,
     });
 
+    const filterBlankParams = (pList: Parameter[]) => {
+      return pList.filter((p) => {
+        return p.result !== undefined && p.result !== null && p.result.trim() !== '';
+      });
+    };
+
     const testSections: TestSection[] = [];
     const allParams: Parameter[] = [];
 
@@ -354,29 +363,35 @@ export function PublicReportDownload() {
             return posA - posB;
           });
 
+          filteredParams = filterBlankParams(filteredParams);
+
           testSections.push({
             id: `${group.testId || group.testName || 'test'}-${i}`,
+            testId: group.testId,
             testName: group.testName,
             parameters: filteredParams,
           });
           allParams.push(...filteredParams);
         } else {
+          const filteredParams = filterBlankParams(sectionParams);
           testSections.push({
             id: `${group.testId || group.testName || 'test'}-${i}`,
+            testId: group.testId,
             testName: group.testName,
-            parameters: sectionParams,
+            parameters: filteredParams,
           });
-          allParams.push(...sectionParams);
+          allParams.push(...filteredParams);
         }
       }
     } else if (testData?.parameters?.length) {
       const sectionParams = testData.parameters.map((p: any) => mapParam(p));
+      const filteredParams = filterBlankParams(sectionParams);
       testSections.push({
         id: 'legacy-0',
         testName: testData.testName || report.report_type || 'General Test',
-        parameters: sectionParams,
+        parameters: filteredParams,
       });
-      allParams.push(...sectionParams);
+      allParams.push(...filteredParams);
     }
 
     return { testSections, allParams };
@@ -418,14 +433,27 @@ export function PublicReportDownload() {
     const maxChunkHeight = Math.max(160, contentHeight - 50);
     const chunks = testSections.flatMap(section => splitSection(section, maxChunkHeight, isDense));
 
+    const testData = typeof report.test_data === 'string' ? JSON.parse(report.test_data) : report.test_data;
+    const layoutSnapshots = testData?.layout_snapshots || {};
+
     // First pass: calculate total height to detect overflow
     let totalNeeded = patientHeight;
     for (const chunk of chunks) {
       const section = testSections.find(s => s.id === chunk.sectionId);
-      if (section) totalNeeded += estimateSectionHeight(section, chunk.parameters, isDense);
+      if (section) {
+        totalNeeded += estimateSectionHeight(section, chunk.parameters, isDense);
+        // Include interpretation if it is the last chunk of the section and has significance
+        const isLastChunk = chunks.filter(c => c.sectionId === chunk.sectionId).pop() === chunk;
+        if (isLastChunk && section.testId) {
+          const sig = layoutSnapshots[section.testId]?.clinical_significance;
+          if (sig?.trim()) {
+            totalNeeded += estimateInterpretationHeight(sig.trim(), isDense);
+          }
+        }
+      }
     }
-    const remarkText = report.clinical_notes?.trim();
-    if (remarkText) totalNeeded += estimateInterpretationHeight(remarkText, isDense);
+    const notes = report.clinical_notes?.trim();
+    if (notes) totalNeeded += estimateInterpretationHeight(notes, isDense);
     totalNeeded += signatureHeight + endMarkerHeight;
 
     const overflow = totalNeeded - contentHeight;
@@ -457,13 +485,25 @@ export function PublicReportDownload() {
       const section = testSections.find(s => s.id === chunk.sectionId);
       if (!section) continue;
       place({ type: 'test', chunk }, estimateHeight(section, chunk.parameters));
+
+      // Place interpretation if it is the last chunk of the section and has significance
+      const isLastChunk = chunks.filter(c => c.sectionId === chunk.sectionId).pop() === chunk;
+      if (isLastChunk && section.testId) {
+        const sig = layoutSnapshots[section.testId]?.clinical_significance;
+        if (sig?.trim()) {
+          const sigH = needsCompact
+            ? Math.floor(estimateInterpretationHeight(sig.trim(), isDense) * compactScale)
+            : estimateInterpretationHeight(sig.trim(), isDense);
+          place({ type: 'interpretation', testId: section.testId, text: sig.trim() }, sigH);
+        }
+      }
     }
 
-    if (remarkText) {
-      const remarkH = needsCompact
-        ? Math.floor(estimateInterpretationHeight(remarkText, isDense) * compactScale)
-        : estimateInterpretationHeight(remarkText, isDense);
-      place({ type: 'interpretation', text: remarkText }, remarkH);
+    if (notes) {
+      const notesH = needsCompact
+        ? Math.floor(estimateInterpretationHeight(notes, isDense) * compactScale)
+        : estimateInterpretationHeight(notes, isDense);
+      place({ type: 'generalNotes', text: notes }, notesH);
     }
 
     const tailHeight = signatureHeight + endMarkerHeight;
@@ -484,12 +524,21 @@ export function PublicReportDownload() {
     const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom;
     const isDense = density !== 'comfortable';
 
+    const testData = typeof report.test_data === 'string' ? JSON.parse(report.test_data) : report.test_data;
+    const layoutSnapshots = testData?.layout_snapshots || {};
+
     let totalNeeded = 100; // patient info
     for (const section of testSections) {
       totalNeeded += estimateSectionHeight(section, section.parameters, isDense);
+      if (section.testId) {
+        const sig = layoutSnapshots[section.testId]?.clinical_significance;
+        if (sig?.trim()) {
+          totalNeeded += estimateInterpretationHeight(sig.trim(), isDense);
+        }
+      }
     }
-    const remarkText = report.clinical_notes?.trim();
-    if (remarkText) totalNeeded += estimateInterpretationHeight(remarkText, isDense);
+    const notes = report.clinical_notes?.trim();
+    if (notes) totalNeeded += estimateInterpretationHeight(notes, isDense);
     totalNeeded += 92; // signature + end marker
 
     const overflow = totalNeeded - contentHeight;
@@ -719,6 +768,303 @@ export function PublicReportDownload() {
   const letterheadActive = !!report.letterhead_url;
   const headerActive = !!report.header_url && !report.letterhead_url;
   const footerActive = !!report.footer_url && !report.letterhead_url;
+
+  if (printMode) {
+    return (
+      <div className="bg-white flex flex-col items-center" style={{ width: '100%' }}>
+        <style>{`
+          @media print {
+            body { background: white; margin: 0; padding: 0; }
+            .report-page { page-break-after: always; break-after: page; margin: 0 !important; box-shadow: none !important; border: none !important; }
+          }
+          body { background: #f0f2f5; margin: 0; padding: 0; }
+          .report-page { margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        `}</style>
+        <div ref={previewContainerRef}>
+          {reportPages.map((page, pageIndex) => (
+            <div
+              key={pageIndex}
+              className="report-page bg-white"
+              style={{
+                width: A4_WIDTH_PX,
+                height: A4_HEIGHT_PX,
+                position: 'relative',
+                overflow: 'hidden',
+                fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
+                color: '#222',
+              }}
+            >
+              {/* Optional letterhead */}
+              {letterheadActive && report.letterhead_url && (
+                <img
+                  src={getImageUrl(report.letterhead_url) || ''}
+                  alt="Letterhead"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    zIndex: 0,
+                  }}
+                />
+              )}
+
+              {/* Optional Header artwork */}
+              {headerActive && report.header_url && (
+                <img
+                  src={getImageUrl(report.header_url) || ''}
+                  alt="Header"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    objectFit: 'contain',
+                    zIndex: 0,
+                  }}
+                />
+              )}
+
+              {/* Optional Footer artwork */}
+              {footerActive && report.footer_url && (
+                <img
+                  src={getImageUrl(report.footer_url) || ''}
+                  alt="Footer"
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    width: '100%',
+                    objectFit: 'contain',
+                    zIndex: 0,
+                  }}
+                />
+              )}
+
+              {/* Page Contents */}
+              <div
+                data-content-area="true"
+                style={{
+                  position: 'absolute',
+                  top: safeZones.top,
+                  bottom: safeZones.bottom,
+                  left: safeZones.left,
+                  right: safeZones.right,
+                  zIndex: 1,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: compactAdjustment > 0 ? 1 : 3,
+                  fontSize: compactAdjustment > 60 ? 10.5 : 11,
+                  lineHeight: compactAdjustment > 60 ? 1.35 : 1.45,
+                }}
+              >
+                {page.map((item: any, idx: number) => {
+                  if (item.type === 'patient') {
+                    return (
+                      <div key={`p-${idx}`} className="patient-info-box">
+                        <ImprovedPatientBox
+                          patientName={report.patient_name}
+                          age={report.patient_age as any}
+                          gender={report.patient_gender}
+                          patientId={`PT-${report.patient_id.slice(0, 8)}`}
+                          sampleId={report.sample_id_code}
+                          referringDoctor={referringDoctorName}
+                          reportDate={format(new Date(report.created_at), 'dd MMM yyyy')}
+                          reportTime={format(new Date(report.created_at), 'hh:mm aa')}
+                          collectionDate={format(new Date(report.created_at), 'dd MMM yyyy, hh:mm aa')}
+                          reportedDate={report.approved_at ? format(new Date(report.approved_at), 'dd MMM yyyy, hh:mm aa') : 'N/A'}
+                          collectionAddress={`${report.branch?.location || ''}${report.branch?.city ? `, ${report.branch.city}` : ''}`}
+                          qrCode={
+                            <QRCodeSVG
+                              value={token ? `${window.location.origin}/public/report/${id}/download?token=${token}` : ''}
+                              size={68}
+                              level="Q"
+                              bgColor="#ffffff"
+                              fgColor="#000000"
+                            />
+                          }
+                          barcode={<Barcode value={report.sample_id_code} />}
+                          colorTokens={C}
+                        />
+                      </div>
+                    );
+                  }
+
+                  if (item.type === 'test') {
+                    let lastGroup: string | undefined;
+                    return (
+                      <TestSectionBlock
+                        key={`t-${idx}`}
+                        testName={item.chunk.continuation ? `${item.chunk.title} (cont.)` : item.chunk.title}
+                        isFirstSection={false}
+                        colorTokens={C}
+                      >
+                        <table style={{
+                          width: '100%',
+                          borderCollapse: 'collapse',
+                          tableLayout: 'fixed',
+                          marginTop: compactAdjustment > 0 ? '1px' : '2px'
+                        }}>
+                          <InvestigationTableHeader colorTokens={C} />
+                          <tbody>
+                            {item.chunk.parameters.map((param: any, rowIdx: number) => {
+                              const status = (param.status || '').toLowerCase();
+                              const isCritical = status === 'critical';
+                              const isHigh = status === 'high';
+                              const isLow = status === 'low';
+                              const isAbnormal = isCritical || isHigh || isLow;
+                              const statusColor = isCritical ? C.high : isHigh ? C.high : isLow ? C.low : C.text;
+                              const showGroupHeader = !!param.group && param.group !== lastGroup;
+                              if (param.group) lastGroup = param.group;
+
+                              return (
+                                <React.Fragment key={`${param.name}-${rowIdx}`}>
+                                  {showGroupHeader && (
+                                    <SectionGroupHeader
+                                      title={param.group || ''}
+                                      colorTokens={C}
+                                      compact={compactAdjustment > 0}
+                                    />
+                                  )}
+                                  <InvestigationTableRow
+                                    investigation={param.name}
+                                    result={param.result}
+                                    status={isCritical ? 'Critical' : isHigh ? 'High' : isLow ? 'Low' : ''}
+                                    refRange={param.refRange}
+                                    unit={param.unit}
+                                    isAbnormal={isAbnormal}
+                                    statusColor={statusColor}
+                                    rowIndex={rowIdx}
+                                    indented={!!param.group}
+                                    colorTokens={C}
+                                    compact={compactAdjustment > 0}
+                                  />
+                                </React.Fragment>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </TestSectionBlock>
+                    );
+                  }
+
+                   // Render inline clinical significance box
+                   if (item.type === 'interpretation') {
+                     return (
+                       <div
+                         key={`i-${idx}`}
+                         style={{
+                           marginTop: '24px',
+                           border: `1px solid ${C.borderLight}`,
+                           borderRadius: '4px',
+                           padding: '8px 10px',
+                           backgroundColor: '#FFFDE7',
+                           fontSize: '9px',
+                           color: '#546E7A',
+                           lineHeight: 1.5,
+                           textAlign: 'left'
+                         }}
+                       >
+                         <span style={{ fontWeight: 800, color: '#37474F', textTransform: 'uppercase' }}>
+                           Clinical Significance
+                         </span>
+                         <p style={{ margin: '3px 0 0 0', whiteSpace: 'pre-line' }}>
+                           {item.text}
+                         </p>
+                       </div>
+                     );
+                   }
+
+                   // Render inline general/technician notes box
+                   if (item.type === 'generalNotes') {
+                     return (
+                       <div
+                         key={`gnotes-${idx}`}
+                         style={{
+                           marginTop: '24px',
+                           border: `1px solid ${C.borderLight}`,
+                           borderRadius: '4px',
+                           padding: '8px 10px',
+                           backgroundColor: '#FFFDE7',
+                           fontSize: '9px',
+                           color: '#546E7A',
+                           lineHeight: 1.5,
+                           textAlign: 'left'
+                         }}
+                       >
+                         <span style={{ fontWeight: 800, color: '#37474F', textTransform: 'uppercase' }}>
+                           Technician Notes / Interpretation
+                         </span>
+                         <p style={{ margin: '3px 0 0 0', whiteSpace: 'pre-line' }}>
+                           {item.text}
+                         </p>
+                       </div>
+                     );
+                   }
+
+                  if (item.type === 'endMarker') {
+                    return (
+                      <div key={`e-${idx}`} style={{ textAlign: 'center', fontSize: '9px', color: '#999', letterSpacing: '2px', margin: '6px 0' }}>
+                        *** End of Report ***
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <section key={`s-${idx}`} style={{ marginTop: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: report.is_self_report ? 'flex-start' : 'space-between' }}>
+                        <div>
+                          <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
+                            {report.owner_signature_url && (
+                              <img
+                                src={getImageUrl(report.owner_signature_url) || ''}
+                                alt="Owner Signature"
+                                style={{ maxHeight: 40, objectFit: 'contain' }}
+                              />
+                            )}
+                          </div>
+                          <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
+                            <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
+                              {report.technician_firstname ? `${report.technician_firstname} ${report.technician_lastname || ''}` : 'Lab Technician'}
+                            </p>
+                            <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>Lab Owner / Incharge</p>
+                          </div>
+                        </div>
+
+                        {!report.is_self_report && (
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
+                              {report.doctor_signature_url && (
+                                <img
+                                  src={getImageUrl(report.doctor_signature_url) || ''}
+                                  alt="Doctor Signature"
+                                  style={{ maxHeight: 40, objectFit: 'contain' }}
+                                />
+                              )}
+                            </div>
+                            <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
+                              <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
+                                {referringDoctorName}
+                              </p>
+                              <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>
+                                Referring Physician
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center px-4 py-8 relative overflow-hidden">
@@ -980,18 +1326,59 @@ export function PublicReportDownload() {
                     );
                   }
 
-                  if (item.type === 'interpretation') {
-                    return (
-                      <section key={`i-${idx}`} style={{ marginTop: '4px' }}>
-                        <p style={{ margin: '0 0 3px 0', fontSize: '10.5px', fontWeight: 700, color: '#222', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                          Clinical Significance
-                        </p>
-                        <p style={{ margin: 0, fontSize: '10.5px', color: '#444', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
-                          {item.text}
-                        </p>
-                      </section>
-                    );
-                  }
+                   // Render inline clinical significance box
+                   if (item.type === 'interpretation') {
+                     return (
+                       <div
+                         key={`i-${idx}`}
+                         style={{
+                           marginTop: '24px',
+                           border: `1px solid ${C.borderLight}`,
+                           borderRadius: '4px',
+                           padding: '8px 10px',
+                           backgroundColor: '#FFFDE7',
+                           fontSize: '9px',
+                           color: '#546E7A',
+                           lineHeight: 1.5,
+                           textAlign: 'left'
+                         }}
+                       >
+                         <span style={{ fontWeight: 800, color: '#37474F', textTransform: 'uppercase' }}>
+                           Clinical Significance
+                         </span>
+                         <p style={{ margin: '3px 0 0 0', whiteSpace: 'pre-line' }}>
+                           {item.text}
+                         </p>
+                       </div>
+                     );
+                   }
+
+                   // Render inline general/technician notes box
+                   if (item.type === 'generalNotes') {
+                     return (
+                       <div
+                         key={`gnotes-${idx}`}
+                         style={{
+                           marginTop: '24px',
+                           border: `1px solid ${C.borderLight}`,
+                           borderRadius: '4px',
+                           padding: '8px 10px',
+                           backgroundColor: '#FFFDE7',
+                           fontSize: '9px',
+                           color: '#546E7A',
+                           lineHeight: 1.5,
+                           textAlign: 'left'
+                         }}
+                       >
+                         <span style={{ fontWeight: 800, color: '#37474F', textTransform: 'uppercase' }}>
+                           Technician Notes / Interpretation
+                         </span>
+                         <p style={{ margin: '3px 0 0 0', whiteSpace: 'pre-line' }}>
+                           {item.text}
+                         </p>
+                       </div>
+                     );
+                   }
 
                   if (item.type === 'endMarker') {
                     return (

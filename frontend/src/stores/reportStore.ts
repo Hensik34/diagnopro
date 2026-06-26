@@ -36,7 +36,7 @@ interface ReportState {
   
   // Workflow Actions
   submitReport: (id: string) => Promise<Report | null>;
-  approveReport: (id: string) => Promise<Report | null>;
+  approveReport: (id: string) => Promise<{ report: Report; whatsapp_delivery?: any } | null>;
   rejectReport: (id: string, reason: string) => Promise<Report | null>;
   reviseReport: (id: string) => Promise<Report | null>;
   
@@ -294,7 +294,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
   /**
    * Approve report (under_review → approved)
    */
-  approveReport: async (id: string): Promise<Report | null> => {
+  approveReport: async (id: string): Promise<{ report: Report; whatsapp_delivery?: any } | null> => {
     set({ isActionLoading: true, actionId: id, error: null });
     
     try {
@@ -313,7 +313,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
         actionId: null,
       }));
       
-      return updatedReport;
+      return { report: updatedReport, whatsapp_delivery: (response as any).whatsapp_delivery };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to approve report';
       set({ error: errorMessage, isActionLoading: false, actionId: null });
