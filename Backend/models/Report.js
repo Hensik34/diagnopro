@@ -140,6 +140,7 @@ exports.createReport = async (reportData) => {
     delivery_preferences = {}, base_amount, lab_discount_type = "percent",
     lab_discount_value = 0, doctor_discount = 0, final_amount,
     b2b_lab_id = null, b2b_charge = 0,
+    price_list_id = null,
   } = reportData;
 
   const parsedB2bCharge = parseFloat(b2b_charge) || 0;
@@ -168,6 +169,8 @@ exports.createReport = async (reportData) => {
     base_amount: computedBase, lab_discount_type, lab_discount_value,
     doctor_discount, final_amount: computedFinal, payment_status: "pending",
     b2b_lab_id: b2b_lab_id || null, b2b_charge: parsedB2bCharge, branch_id,
+    price_list_id,
+    price_locked: ["under_review", "approved"].includes(status),
   });
 };
 
@@ -180,7 +183,7 @@ exports.updateReport = async (id, reportData) => {
     "rejection_reason", "doctor_id", "report_type", "report_amount", "is_self_report",
     "delivery_preferences", "base_amount", "lab_discount_type", "lab_discount_value",
     "doctor_discount", "final_amount", "payment_status", "doctor_commission",
-    "b2b_lab_id", "b2b_charge",
+    "b2b_lab_id", "b2b_charge", "price_list_id", "price_locked",
   ];
 
   const updateObj = {};
@@ -190,17 +193,36 @@ exports.updateReport = async (id, reportData) => {
     }
   }
 
-  // Keep doctor commission consistent when billing/B2B/doctor fields change.
-  const affectsCommission = ["doctor_id", "is_self_report", "report_amount", "b2b_charge", "doctor_discount"]
-    .some((k) => Object.prototype.hasOwnProperty.call(updateObj, k));
+  // Get current report to perform lock check & commission calculations
+  const current = await Report.findByPk(id, {
+    attributes: ["price_locked", "status", "doctor_id", "is_self_report", "report_amount", "b2b_charge", "doctor_discount"],
+    raw: true,
+  });
 
-  if (affectsCommission) {
-    const current = await Report.findByPk(id, {
-      attributes: ["doctor_id", "is_self_report", "report_amount", "b2b_charge", "doctor_discount"],
-      raw: true,
-    });
+  if (current) {
+    // If report is locked, prevent modifying any pricing-related fields
+    if (current.price_locked) {
+      const pricingFields = ["report_amount", "base_amount", "lab_discount_type", "lab_discount_value", "doctor_discount", "final_amount", "price_list_id"];
+      const changingPricingFields = Object.keys(updateObj).filter(key => pricingFields.includes(key));
+      if (changingPricingFields.length > 0) {
+        throw new Error(`Cannot modify prices — report is locked (status: ${current.status})`);
+      }
+    }
 
-    if (current) {
+    // Automatically manage price_locked when status is changing
+    if (updateObj.status !== undefined) {
+      if (["under_review", "approved"].includes(updateObj.status)) {
+        updateObj.price_locked = true;
+      } else if (["draft", "rejected"].includes(updateObj.status)) {
+        updateObj.price_locked = false;
+      }
+    }
+
+    // Keep doctor commission consistent when billing/B2B/doctor fields change.
+    const affectsCommission = ["doctor_id", "is_self_report", "report_amount", "b2b_charge", "doctor_discount"]
+      .some((k) => Object.prototype.hasOwnProperty.call(updateObj, k));
+
+    if (affectsCommission) {
       const doctorId = updateObj.doctor_id !== undefined ? updateObj.doctor_id : current.doctor_id;
       const isSelf = updateObj.is_self_report !== undefined ? updateObj.is_self_report : current.is_self_report;
       const reportAmount = parseFloat(updateObj.report_amount ?? current.report_amount ?? 0) || 0;
@@ -236,6 +258,12 @@ exports.updateReportStatus = async (id, status, userId) => {
   const updateObj = { status };
   if (["processing", "completed"].includes(status)) updateObj.reviewed_by = userId;
 
+  if (["under_review", "approved"].includes(status)) {
+    updateObj.price_locked = true;
+  } else if (["draft", "rejected"].includes(status)) {
+    updateObj.price_locked = false;
+  }
+
   const [count, [updated]] = await Report.update(updateObj, {
     where: { id },
     returning: true,
@@ -255,7 +283,7 @@ exports.assignTechnician = async (id, technicianId) => {
 // Approve report
 exports.approveReport = async (id, approvedBy) => {
   const [count, [updated]] = await Report.update(
-    { status: "approved", approved_by: approvedBy },
+    { status: "approved", approved_by: approvedBy, price_locked: true },
     { where: { id }, returning: true }
   );
   return updated ? updated.toJSON() : null;

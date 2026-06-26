@@ -40,6 +40,9 @@ const Report = sequelize.define("Report", {
   // B2B
   b2b_lab_id: { type: DataTypes.UUID },
   b2b_charge: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+  // Multi-tier pricing
+  price_list_id: { type: DataTypes.UUID },
+  price_locked: { type: DataTypes.BOOLEAN, defaultValue: false },
 }, {
   tableName: "reports",
 });

@@ -105,6 +105,11 @@ const menuItems = [
         path: '/tests?tab=packages',
         label: 'Packages',
       },
+      {
+        path: '/tests/pricing',
+        label: 'Test Pricing',
+        permission: PERMISSIONS.SETTINGS_VIEW,
+      },
     ],
   },
   {
@@ -151,7 +156,6 @@ const menuItems = [
     icon: BarChart3,
     permission: PERMISSIONS.ANALYTICS_VIEW,
   },
-  // B2B Reference Lab section
   {
     path: '/b2b',
     label: 'B2B Lab',
@@ -159,6 +163,7 @@ const menuItems = [
     permission: PERMISSIONS.B2B_LAB_READ,
     hideForDoctor: true,
   },
+
   {
     path: '/settings',
     label: 'Settings',
@@ -198,20 +203,43 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   });
 
   let longestMatch = '';
-  visibleMenuItems.forEach((item: any) => {
-    if (item.path === '/' && location.pathname === '/') {
-      longestMatch = '/';
-    } else if (item.path !== '/' && (location.pathname === item.path || location.pathname.startsWith(`${item.path}/`))) {
-      if (item.path.length > longestMatch.length) {
-        longestMatch = item.path;
-      }
-    }
-  });
+  const matchingSubmenuParent = visibleMenuItems.find((item: any) => 
+    item.submenus?.some((sub: any) => {
+      const subPath = sub.path.split('?')[0];
+      return location.pathname === subPath || location.pathname.startsWith(`${subPath}/`);
+    })
+  );
 
-  // Automatically expand submenus when their main path is active
+  if (matchingSubmenuParent) {
+    longestMatch = matchingSubmenuParent.path;
+  } else {
+    visibleMenuItems.forEach((item: any) => {
+      if (item.path === '/' && location.pathname === '/') {
+        longestMatch = '/';
+      } else if (item.path !== '/' && (location.pathname === item.path || location.pathname.startsWith(`${item.path}/`))) {
+        if (item.path.length > longestMatch.length) {
+          longestMatch = item.path;
+        }
+      }
+    });
+  }
+
+  // Automatically expand submenus when their main path or submenu path is active
   useEffect(() => {
     visibleMenuItems.forEach((item: any) => {
-      if (item.submenus && (location.pathname === item.path || location.pathname.startsWith(`${item.path}/`))) {
+      let shouldExpand = false;
+      if (item.submenus) {
+        if (location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)) {
+          shouldExpand = true;
+        } else {
+          shouldExpand = item.submenus.some((sub: any) => {
+            const subPath = sub.path.split('?')[0];
+            return location.pathname === subPath || location.pathname.startsWith(`${subPath}/`);
+          });
+        }
+      }
+
+      if (shouldExpand) {
         setExpandedMenus(prev => {
           if (prev[item.path]) return prev;
           return { ...prev, [item.path]: true };
@@ -291,7 +319,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <DropdownMenuLabel className="text-xs text-muted-foreground font-semibold px-2 py-1">
               {item.label}
             </DropdownMenuLabel>
-            {item.submenus.map((sub: any) => {
+            {item.submenus.filter((sub: any) => !sub.permission || can(sub.permission)).map((sub: any) => {
               const subActive = isSubmenuActive(sub.path);
               return (
                 <DropdownMenuItem key={sub.path} asChild>
@@ -319,7 +347,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
         {!isCurrentlyCollapsed && hasSubmenus && isExpanded && (
           <div className="pl-8 pr-2 py-1 space-y-1 border-l border-gray-200 dark:border-gray-800 ml-5">
-            {item.submenus.map((sub: any) => {
+            {item.submenus.filter((sub: any) => !sub.permission || can(sub.permission)).map((sub: any) => {
               const subActive = isSubmenuActive(sub.path);
               return (
                 <Link

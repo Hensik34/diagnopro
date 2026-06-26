@@ -664,7 +664,7 @@ export function TestManagement() {
                               <Edit className="w-3.5 h-3.5" />
                             </button>
                             <button 
-                              onClick={() => navigate(`/settings/templates/${test.id}`)}
+                              onClick={() => navigate(`/tests/templates/${test.id}`)}
                               className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-cyan-600"
                               title="Configure Layout"
                             >
