@@ -400,7 +400,27 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           {/* Menu Items */}
           <nav className={`flex-1 space-y-2 overflow-y-auto scrollbar-hide ${collapsed ? 'p-2' : 'p-4'
             }`}>
-            {visibleMenuItems.map((item: any) => renderMenuItem(item, false))}
+            {visibleMenuItems.map((item: any) => {
+              const Icon = item.icon;
+              const isActive = item.path === longestMatch;
+
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center transition-all duration-200 rounded-lg ${collapsed ? 'justify-center px-4 py-2' : 'px-3 py-2'
+                    } ${isActive
+                      ? 'bg-primary/10 text-primary border border-primary/20 font-medium'
+                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 border border-transparent'
+                    }`}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  {!collapsed && (
+                    <span className="ml-3 text-sm font-medium">{item.label}</span>
+                  )}
+                </Link>
+              );
+            })}
           </nav>
         </div>
       </div>
@@ -429,7 +449,25 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
               {/* Menu Items */}
               <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-                {visibleMenuItems.map((item: any) => renderMenuItem(item, true))}
+                {visibleMenuItems.map((item: any) => {
+                  const Icon = item.icon;
+                  const isActive = item.path === longestMatch;
+
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={onToggle}
+                      className={`flex items-center transition-all duration-200 rounded-lg px-3 py-2 ${isActive
+                          ? 'bg-primary/10 text-primary border border-primary/20 font-medium'
+                          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 border border-transparent'
+                        }`}
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0" />
+                      <span className="ml-3 text-sm font-medium">{item.label}</span>
+                    </Link>
+                  );
+                })}
               </nav>
             </div>
           </div>
