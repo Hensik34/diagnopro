@@ -224,8 +224,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   to={item.path}
                   className={`flex items-center transition-all duration-200 rounded-lg ${collapsed ? 'justify-center px-4 py-2' : 'px-3 py-2'
                     } ${isActive
-                      ? 'bg-blue-600 text-white shadow-md dark:bg-blue-600 dark:text-white'
-                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                      ? 'bg-primary/10 text-primary border border-primary/20 font-medium'
+                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 border border-transparent'
                     }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
@@ -273,8 +273,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                       to={item.path}
                       onClick={onToggle}
                       className={`flex items-center transition-all duration-200 rounded-lg px-3 py-2 ${isActive
-                          ? 'bg-blue-600 text-white shadow-md dark:bg-blue-600 dark:text-white'
-                          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                          ? 'bg-primary/10 text-primary border border-primary/20 font-medium'
+                          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 border border-transparent'
                         }`}
                     >
                       <Icon className="w-5 h-5 flex-shrink-0" />
