@@ -35,6 +35,10 @@ const PriceList = sequelize.define("PriceList", {
   created_by: {
     type: DataTypes.UUID,
   },
+  is_default: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
 }, {
   tableName: "price_lists",
   indexes: [

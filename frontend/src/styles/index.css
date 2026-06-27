@@ -3,7 +3,7 @@
 @import './theme.css';
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 /* Professional scrollbar styling for medical dashboard */

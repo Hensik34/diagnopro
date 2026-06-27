@@ -14,16 +14,21 @@ import {
   Calendar,
   Save,
   CheckSquare,
-  Square
+  Square,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
-import { useBranchStore } from '../../stores';
+import { useBranchStore, useDoctorStore } from '../../stores';
 import { testApi } from '../../api/tests';
 import { priceListApi } from '../../api/priceLists';
-import type { PriceList, PriceListItem, Test } from '../../types';
+import type { PriceList, PriceListItem, Test, Doctor } from '../../types';
 
 export function PriceListManagement() {
   const { currentBranchId } = useBranchStore();
   const activeBranchId = currentBranchId || '';
+  const { doctors, fetchDoctors } = useDoctorStore();
 
   // Lists
   const [priceLists, setPriceLists] = useState<PriceList[]>([]);
@@ -54,6 +59,12 @@ export function PriceListManagement() {
   const [formEffectiveFrom, setFormEffectiveFrom] = useState('');
   const [formEffectiveTo, setFormEffectiveTo] = useState('');
   const [formIsActive, setFormIsActive] = useState(true);
+  const [formDoctorId, setFormDoctorId] = useState<string>('');
+  const [formIsDefault, setFormIsDefault] = useState<boolean>(false);
+
+  // Pagination State for Price List Overrides
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
 
   // Bulk Discount Form State
   const [bulkDiscountType, setBulkDiscountType] = useState<'percent' | 'amount'>('percent');
@@ -69,8 +80,14 @@ export function PriceListManagement() {
     if (activeBranchId) {
       fetchPriceLists();
       fetchTests();
+      fetchDoctors({ branch_id: activeBranchId });
     }
   }, [activeBranchId]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedList?.id, searchQuery, categoryFilter, onlyOverridden]);
 
   const fetchPriceLists = async () => {
     setIsLoadingLists(true);
@@ -102,28 +119,51 @@ export function PriceListManagement() {
     setIsLoadingItems(true);
     setErrorMessage(null);
     setSuccessMessage(null);
+    
+    // Reset bulk pricing modifier states
+    setBulkDiscountVal(0);
+    setBulkDiscountType('percent');
+    setBulkCategory('All');
+    setBulkAction('decrease');
+
     try {
-      const res = await priceListApi.getById(list.id);
-      const itemsMap: Record<string, Partial<PriceListItem>> = {};
-      const newMarkupRows: Record<string, boolean> = {};
-      
-      // Populate items map
-      if (res.data?.items) {
-        res.data.items.forEach((item) => {
-          const discountVal = Number(item.discount_value || 0);
-          itemsMap[item.test_id] = {
-            test_id: item.test_id,
-            price: item.price !== null ? Number(item.price) : null,
-            discount_type: item.discount_type,
-            discount_value: discountVal,
+      if (list.id === 'default-lab-price') {
+        const itemsMap: Record<string, Partial<PriceListItem>> = {};
+        const newMarkupRows: Record<string, boolean> = {};
+        
+        tests.forEach((test) => {
+          itemsMap[test.id] = {
+            test_id: test.id,
+            price: test.has_branch_override ? Number(test.price) : null,
+            discount_type: 'none',
+            discount_value: 0,
           };
-          if (discountVal < 0) {
-            newMarkupRows[item.test_id] = true;
-          }
         });
+        setListItems(itemsMap);
+        setMarkupRows(newMarkupRows);
+      } else {
+        const res = await priceListApi.getById(list.id);
+        const itemsMap: Record<string, Partial<PriceListItem>> = {};
+        const newMarkupRows: Record<string, boolean> = {};
+        
+        // Populate items map
+        if (res.data?.items) {
+          res.data.items.forEach((item) => {
+            const discountVal = Number(item.discount_value || 0);
+            itemsMap[item.test_id] = {
+              test_id: item.test_id,
+              price: item.price !== null ? Number(item.price) : null,
+              discount_type: item.discount_type,
+              discount_value: discountVal,
+            };
+            if (discountVal < 0) {
+              newMarkupRows[item.test_id] = true;
+            }
+          });
+        }
+        setListItems(itemsMap);
+        setMarkupRows(newMarkupRows);
       }
-      setListItems(itemsMap);
-      setMarkupRows(newMarkupRows);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to load price list items');
     } finally {
@@ -141,6 +181,8 @@ export function PriceListManagement() {
     setFormEffectiveFrom('');
     setFormEffectiveTo('');
     setFormIsActive(true);
+    setFormDoctorId('');
+    setFormIsDefault(false);
     setShowModal(true);
   };
 
@@ -153,6 +195,8 @@ export function PriceListManagement() {
     setFormEffectiveFrom(list.effective_from ? list.effective_from.split('T')[0] : '');
     setFormEffectiveTo(list.effective_to ? list.effective_to.split('T')[0] : '');
     setFormIsActive(list.is_active);
+    setFormDoctorId(list.doctor?.id || '');
+    setFormIsDefault(!!list.is_default);
     setShowModal(true);
   };
 
@@ -161,7 +205,7 @@ export function PriceListManagement() {
     if (!formName.trim()) return;
 
     try {
-      const payload: Partial<PriceList> = {
+      const payload = {
         name: formName,
         description: formDescription,
         version: formVersion,
@@ -169,17 +213,18 @@ export function PriceListManagement() {
         effective_to: formEffectiveTo || null,
         is_active: formIsActive,
         branch_id: activeBranchId,
+        doctor_id: formDoctorId || null,
+        is_default: formIsDefault,
       };
 
       if (modalMode === 'create') {
-        const res = await priceListApi.create(payload);
+        await priceListApi.create(payload as any);
         setSuccessMessage('Price list created successfully');
-        setPriceLists([...priceLists, res.data]);
-        handleSelectList(res.data);
+        await fetchPriceLists();
       } else if (modalMode === 'edit' && editingListId) {
-        const res = await priceListApi.update(editingListId, payload);
+        const res = await priceListApi.update(editingListId, payload as any);
         setSuccessMessage('Price list updated successfully');
-        setPriceLists(priceLists.map(l => l.id === editingListId ? res.data : l));
+        await fetchPriceLists();
         if (selectedList?.id === editingListId) {
           setSelectedList(res.data);
         }
@@ -263,15 +308,27 @@ export function PriceListManagement() {
     setSuccessMessage(null);
 
     try {
-      // Map listItems map to array payload
-      const itemsPayload = Object.values(listItems).filter(item => {
-        // Only save if it has a flat price override OR a discount override
-        return item.price !== null || item.discount_type !== 'none';
-      });
+      if (selectedList.id === 'default-lab-price') {
+        const updates = Object.values(listItems).map((item) => ({
+          test_id: item.test_id!,
+          price: item.price !== null && item.price !== undefined ? Number(item.price) : null,
+        }));
+        
+        await testApi.bulkUpdateBranchPrices(activeBranchId, updates);
+        setSuccessMessage('Branch default base prices saved successfully');
+        await fetchTests();
+        handleSelectList(selectedList);
+      } else {
+        // Map listItems map to array payload
+        const itemsPayload = Object.values(listItems).filter(item => {
+          // Only save if it has a flat price override OR a discount override
+          return item.price !== null || item.discount_type !== 'none';
+        });
 
-      await priceListApi.bulkUpdateItems(selectedList.id, itemsPayload as PriceListItem[]);
-      setSuccessMessage('Price list overrides saved successfully');
-      handleSelectList(selectedList);
+        await priceListApi.bulkUpdateItems(selectedList.id, itemsPayload as PriceListItem[]);
+        setSuccessMessage('Price list overrides saved successfully');
+        handleSelectList(selectedList);
+      }
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to save overrides');
     } finally {
@@ -363,94 +420,126 @@ export function PriceListManagement() {
             <div className="text-center p-8 text-muted-foreground text-sm">
               No price lists created for this branch.
             </div>
-          ) : (
-            <div className="space-y-2">
-              {priceLists.map((list) => {
-                const isSelected = selectedList?.id === list.id;
-                return (
-                  <div
-                    key={list.id}
-                    onClick={() => handleSelectList(list)}
-                    className={`p-3 rounded-lg border text-left cursor-pointer transition-all ${
-                      isSelected
-                        ? 'bg-primary/10 border-primary'
-                        : 'bg-background hover:bg-muted border-border'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-sm">{list.name}</h3>
-                          <span className="text-xs px-1.5 py-0.5 bg-muted rounded border text-muted-foreground">
-                            v{list.version}
-                          </span>
-                          {!list.is_active && (
-                            <span className="text-xs px-1.5 py-0.5 bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-200 rounded">
-                              Inactive
-                            </span>
+          ) : (() => {
+            const displayedPriceLists = [
+              {
+                id: 'default-lab-price',
+                name: 'Default Lab Price',
+                description: 'Standard base prices of this laboratory branch.',
+                branch_id: activeBranchId,
+                is_active: true,
+                version: 1,
+                effective_from: null,
+                effective_to: null,
+                created_at: '',
+                updated_at: '',
+              },
+              ...priceLists
+            ];
+            
+            return (
+              <div className="space-y-2">
+                {displayedPriceLists.map((list) => {
+                  const isSelected = selectedList?.id === list.id;
+                  return (
+                    <div
+                      key={list.id}
+                      onClick={() => handleSelectList(list as any)}
+                      className={`p-3 rounded-lg border text-left cursor-pointer transition-all ${
+                        isSelected
+                          ? 'bg-primary/10 border-primary'
+                          : 'bg-background hover:bg-muted border-border'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex flex-col gap-1">
+                            <h3 className="font-semibold text-sm">{list.name}</h3>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[10px] px-1 py-0.2 bg-muted rounded border text-muted-foreground">
+                                v{list.version}
+                              </span>
+                              {!list.is_active && (
+                                <span className="text-[10px] px-1 py-0.2 bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-200 rounded font-medium">
+                                  Inactive
+                                </span>
+                              )}
+                              {list.is_default && (
+                                <span className="text-[10px] px-1 py-0.2 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 rounded font-semibold">
+                                  Default
+                                </span>
+                              )}
+                              {list.doctor && (
+                                <span className="text-[10px] px-1 py-0.2 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 rounded font-semibold line-clamp-1">
+                                  {list.doctor.title || 'Dr'}. {list.doctor.name}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {list.description && (
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                              {list.description}
+                            </p>
+                          )}
+                          {(list.effective_from || list.effective_to) && (
+                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-2">
+                              <Calendar className="w-3 h-3" />
+                              <span>
+                                {list.effective_from
+                                  ? new Date(list.effective_from).toLocaleDateString()
+                                  : 'Immediate'}{' '}
+                                -{' '}
+                                {list.effective_to
+                                  ? new Date(list.effective_to).toLocaleDateString()
+                                  : 'No Expiry'}
+                              </span>
+                            </div>
                           )}
                         </div>
-                        {list.description && (
-                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                            {list.description}
-                          </p>
-                        )}
-                        {(list.effective_from || list.effective_to) && (
-                          <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-2">
-                            <Calendar className="w-3 h-3" />
-                            <span>
-                              {list.effective_from
-                                ? new Date(list.effective_from).toLocaleDateString()
-                                : 'Immediate'}{' '}
-                              -{' '}
-                              {list.effective_to
-                                ? new Date(list.effective_to).toLocaleDateString()
-                                : 'No Expiry'}
-                            </span>
+                        {list.id !== 'default-lab-price' && (
+                          <div className="flex gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEditModal(list as any);
+                              }}
+                              className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
+                              title="Edit Price List Properties"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeletePriceList(list.id, list.name);
+                              }}
+                              className="p-1 hover:bg-red-50 dark:hover:bg-red-950 rounded text-muted-foreground hover:text-red-600"
+                              title="Delete Price List"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         )}
                       </div>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenEditModal(list);
-                          }}
-                          className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
-                          title="Edit Price List Properties"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeletePriceList(list.id, list.name);
-                          }}
-                          className="p-1 hover:bg-red-50 dark:hover:bg-red-950 rounded text-muted-foreground hover:text-red-600"
-                          title="Delete Price List"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
 
-        {/* Right Side: Price Overrides */}
+        {/* Right Side: Custom Branch Prices */}
         <div className="lg:col-span-2 bg-card border border-border rounded-xl shadow-sm p-4 flex flex-col min-h-[500px]">
           {selectedList ? (
             <>
               <div className="flex flex-wrap items-center justify-between border-b border-border pb-3 mb-4 gap-4">
                 <div>
                   <h2 className="font-semibold text-lg">
-                    Manage Overrides: <span className="text-primary">{selectedList.name}</span>
+                    Customize Prices: <span className="text-primary">{selectedList.name}</span>
                   </h2>
                   <p className="text-xs text-muted-foreground">
-                    Set flat test overrides or discount percentages/flat amounts on default test rates.
+                    Customize branch test rates with flat custom prices or discount adjustments.
                   </p>
                 </div>
                 <button
@@ -459,59 +548,61 @@ export function PriceListManagement() {
                   className="flex items-center gap-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors px-4 py-2 font-medium disabled:opacity-50 text-sm shadow-sm"
                 >
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Save Overrides
+                  Save Custom Prices
                 </button>
               </div>
 
-              {/* Bulk discount settings */}
-              <div className="bg-muted/40 border border-border rounded-lg p-3 mb-4 flex flex-wrap items-center justify-between gap-3 text-sm">
-                <div className="flex items-center gap-2">
-                  <TrendingDown className="w-4 h-4 text-primary" />
-                  <span className="font-medium text-xs">Bulk Adjustments Tool:</span>
+              {/* Bulk pricing modifier settings */}
+              {selectedList.id !== 'default-lab-price' && (
+                <div className="bg-muted/40 border border-border rounded-lg p-3 mb-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <TrendingDown className="w-4 h-4 text-primary" />
+                    <span className="font-medium text-xs">Bulk Price Updates:</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={bulkCategory}
+                      onChange={(e) => setBulkCategory(e.target.value)}
+                      className="p-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      {categories.map((c) => (
+                        <option key={c} value={c}>
+                          {c === 'All' ? 'All Categories' : c}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={bulkAction}
+                      onChange={(e) => setBulkAction(e.target.value as any)}
+                      className="p-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary font-medium"
+                    >
+                      <option value="decrease">Reduce Price (-)</option>
+                      <option value="increase">Increase Price (+)</option>
+                    </select>
+                    <select
+                      value={bulkDiscountType}
+                      onChange={(e) => setBulkDiscountType(e.target.value as any)}
+                      className="p-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="percent">Percent (%)</option>
+                      <option value="amount">Amount (Flat)</option>
+                    </select>
+                    <input
+                      type="number"
+                      value={bulkDiscountVal || ''}
+                      onChange={(e) => setBulkDiscountVal(Math.max(0, Number(e.target.value)))}
+                      placeholder="Val"
+                      className="w-16 p-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-center"
+                    />
+                    <button
+                      onClick={handleApplyBulkDiscount}
+                      className="bg-primary text-primary-foreground hover:bg-primary/95 px-3 py-1.5 rounded-md text-xs font-semibold"
+                    >
+                      Apply Bulk
+                    </button>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={bulkCategory}
-                    onChange={(e) => setBulkCategory(e.target.value)}
-                    className="p-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    {categories.map((c) => (
-                      <option key={c} value={c}>
-                        {c === 'All' ? 'All Categories' : c}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={bulkAction}
-                    onChange={(e) => setBulkAction(e.target.value as any)}
-                    className="p-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary font-medium"
-                  >
-                    <option value="decrease">Discount (Reduce Price)</option>
-                    <option value="increase">Markup (Increase Price)</option>
-                  </select>
-                  <select
-                    value={bulkDiscountType}
-                    onChange={(e) => setBulkDiscountType(e.target.value as any)}
-                    className="p-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    <option value="percent">Percent (%)</option>
-                    <option value="amount">Amount (Flat)</option>
-                  </select>
-                  <input
-                    type="number"
-                    value={bulkDiscountVal || ''}
-                    onChange={(e) => setBulkDiscountVal(Math.max(0, Number(e.target.value)))}
-                    placeholder="Val"
-                    className="w-16 p-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-center"
-                  />
-                  <button
-                    onClick={handleApplyBulkDiscount}
-                    className="bg-primary text-primary-foreground hover:bg-primary/95 px-3 py-1.5 rounded-md text-xs font-semibold"
-                  >
-                    Apply Bulk
-                  </button>
-                </div>
-              </div>
+              )}
 
               {/* Filters / Search */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
@@ -545,7 +636,7 @@ export function PriceListManagement() {
                   ) : (
                     <Square className="w-4 h-4 text-muted-foreground" />
                   )}
-                  <span className="text-xs">Show overridden only</span>
+                  <span className="text-xs">Show customized only</span>
                 </div>
               </div>
 
@@ -559,153 +650,233 @@ export function PriceListManagement() {
                   <div className="text-center p-12 text-muted-foreground text-sm">
                     No tests match your filter settings.
                   </div>
-                ) : (
-                  <table className="w-full text-left text-sm border-collapse">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/30 text-muted-foreground font-medium text-xs">
-                        <th className="p-3">Test Details</th>
-                        <th className="p-3">Base Price</th>
-                        <th className="p-3">Flat Override</th>
-                        <th className="p-3 text-center" style={{ width: '130px' }}>Discount Type</th>
-                        <th className="p-3" style={{ width: '100px' }}>Discount</th>
-                        <th className="p-3">Final Price</th>
-                        <th className="p-3 text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {filteredTests.map((test) => {
-                        const basePrice = Number(test.price || 0);
-                        const override = listItems[test.id];
+                ) : (() => {
+                  const totalPages = Math.ceil(filteredTests.length / itemsPerPage);
+                  const paginatedTests = filteredTests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-                        let calculatedPrice = basePrice;
-                        if (override) {
-                          if (override.price !== null && override.price !== undefined) {
-                            calculatedPrice = Number(override.price);
-                          } else if (override.discount_type === 'percent') {
-                            calculatedPrice = basePrice * (1 - (override.discount_value || 0) / 100);
-                          } else if (override.discount_type === 'amount') {
-                            calculatedPrice = basePrice - (override.discount_value || 0);
-                          }
-                        }
-                        calculatedPrice = Math.max(0, Math.round(calculatedPrice * 100) / 100);
-
-                        const hasOverride = override && (override.price !== null || override.discount_type !== 'none');
-
-                        return (
-                          <tr
-                            key={test.id}
-                            className={`hover:bg-muted/10 transition-colors ${
-                              hasOverride ? 'bg-primary/5' : ''
-                            }`}
-                          >
-                            <td className="p-3">
-                              <div className="font-semibold text-xs text-foreground line-clamp-1">
-                                {test.test_name}
-                              </div>
-                              <div className="text-[10px] text-muted-foreground flex items-center gap-2">
-                                <span>{test.test_code}</span>
-                                <span>•</span>
-                                <span className="bg-muted px-1.5 py-0.2 border rounded">{test.category}</span>
-                              </div>
-                            </td>
-                            <td className="p-3 text-xs font-medium text-muted-foreground">
-                              ₹{basePrice}
-                            </td>
-                            <td className="p-3">
-                              <div className="relative">
-                                ₹
-                                <input
-                                  type="number"
-                                  value={override?.price ?? ''}
-                                  onChange={(e) => {
-                                    const val = e.target.value === '' ? null : Number(e.target.value);
-                                    handleItemOverrideChange(test.id, 'price', val);
-                                  }}
-                                  placeholder="Auto"
-                                  className="pl-5 pr-1.5 py-1 text-xs w-20 bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
-                                />
-                              </div>
-                            </td>
-                            <td className="p-3 text-center">
-                              <select
-                                value={override?.discount_type || 'none'}
-                                onChange={(e) =>
-                                  handleItemOverrideChange(test.id, 'discount_type', e.target.value)
-                                }
-                                className="p-1 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
-                              >
-                                <option value="none">None</option>
-                                <option value="percent">Percent (%)</option>
-                                <option value="amount">Amount (₹)</option>
-                              </select>
-                            </td>
-                            <td className="p-3">
-                              {override?.discount_type && override.discount_type !== 'none' ? (
-                                <div className="flex items-center gap-1.5 justify-center">
-                                  <input
-                                    type="number"
-                                    value={override.discount_value !== undefined ? Math.abs(override.discount_value) : ''}
-                                    onChange={(e) => {
-                                      const rawVal = Math.abs(Number(e.target.value));
-                                      const isMarkup = markupRows[test.id] || (override.discount_value || 0) < 0;
-                                      const finalVal = isMarkup ? -rawVal : rawVal;
-                                      handleItemOverrideChange(
-                                        test.id,
-                                        'discount_value',
-                                        finalVal
-                                      );
-                                    }}
-                                    placeholder="0"
-                                    className="p-1 text-xs w-14 bg-background border border-border rounded text-center focus:outline-none focus:ring-1 focus:ring-primary"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const wasMarkup = markupRows[test.id] || (override.discount_value || 0) < 0;
-                                      const nextMarkup = !wasMarkup;
-                                      setMarkupRows(prev => ({ ...prev, [test.id]: nextMarkup }));
-                                      const currentVal = Math.abs(override.discount_value || 0);
-                                      handleItemOverrideChange(
-                                        test.id,
-                                        'discount_value',
-                                        nextMarkup ? -currentVal : currentVal
-                                      );
-                                    }}
-                                    className={`px-1.5 py-0.5 text-[9px] font-bold rounded border shrink-0 transition-colors ${
-                                      (markupRows[test.id] || (override.discount_value || 0) < 0)
-                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900'
-                                        : 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900'
-                                    }`}
-                                    title={(markupRows[test.id] || (override.discount_value || 0) < 0) ? "Click to change to Discount (reduces price)" : "Click to change to Markup (increases price)"}
-                                  >
-                                    {(markupRows[test.id] || (override.discount_value || 0) < 0) ? 'Markup (+)' : 'Discount (-)'}
-                                  </button>
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">-</span>
-                              )}
-                            </td>
-                            <td className="p-3 font-semibold text-xs">
-                              <span className={hasOverride ? 'text-primary' : 'text-foreground'}>
-                                ₹{calculatedPrice}
-                              </span>
-                            </td>
-                            <td className="p-3 text-right">
-                              {hasOverride && (
-                                <button
-                                  onClick={() => handleClearItemOverride(test.id)}
-                                  className="text-xs text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 border border-red-200 dark:border-red-900 rounded"
-                                >
-                                  Reset
-                                </button>
-                              )}
-                            </td>
+                  return (
+                    <>
+                      <table className="w-full text-left text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b border-border bg-muted/30 text-muted-foreground font-medium text-xs">
+                            <th className="p-3">Test Details</th>
+                            <th className="p-3">Base Price</th>
+                            <th className="p-3">Custom Price</th>
+                            <th className="p-3 text-center" style={{ width: '130px' }}>Discount Mode</th>
+                            <th className="p-3" style={{ width: '100px' }}>Discount Value</th>
+                            <th className="p-3">Final Price (₹)</th>
+                            <th className="p-3 text-right">Action</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {paginatedTests.map((test) => {
+                            const isDefaultLabPrice = selectedList?.id === 'default-lab-price';
+                            const basePrice = isDefaultLabPrice ? Number(test.base_price || test.price || 0) : Number(test.price || 0);
+                            const override = listItems[test.id];
+
+                            let calculatedPrice = basePrice;
+                            if (override) {
+                              if (override.price !== null && override.price !== undefined) {
+                                calculatedPrice = Number(override.price);
+                              } else if (override.discount_type === 'percent') {
+                                calculatedPrice = basePrice * (1 - (override.discount_value || 0) / 100);
+                              } else if (override.discount_type === 'amount') {
+                                calculatedPrice = basePrice - (override.discount_value || 0);
+                              }
+                            }
+                            calculatedPrice = Math.max(0, Math.round(calculatedPrice * 100) / 100);
+
+                            const hasOverride = isDefaultLabPrice 
+                              ? (override && override.price !== null)
+                              : (override && (override.price !== null || override.discount_type !== 'none'));
+
+                            return (
+                              <tr
+                                key={test.id}
+                                className={`hover:bg-muted/10 transition-colors ${
+                                  hasOverride ? 'bg-primary/5' : ''
+                                }`}
+                              >
+                                <td className="p-3">
+                                  <div className="font-semibold text-xs text-foreground line-clamp-1">
+                                    {test.test_name}
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground flex items-center gap-2">
+                                    <span>{test.test_code}</span>
+                                    <span>•</span>
+                                    <span className="bg-muted px-1.5 py-0.2 border rounded">{test.category}</span>
+                                  </div>
+                                </td>
+                                <td className="p-3 text-xs font-medium text-muted-foreground">
+                                  ₹{basePrice}
+                                </td>
+                                <td className="p-3">
+                                  <div className="relative flex items-center w-22">
+                                    <span className="absolute left-2 text-xs text-muted-foreground pointer-events-none select-none">
+                                      ₹
+                                    </span>
+                                    <input
+                                      type="number"
+                                      value={override?.price ?? ''}
+                                      onChange={(e) => {
+                                        const val = e.target.value === '' ? null : Number(e.target.value);
+                                        handleItemOverrideChange(test.id, 'price', val);
+                                      }}
+                                      placeholder="Auto"
+                                      className="pl-5 pr-1.5 py-1 text-xs w-full bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                                    />
+                                  </div>
+                                </td>
+                                <td className="p-3 text-center">
+                                  <select
+                                    disabled={isDefaultLabPrice}
+                                    value={isDefaultLabPrice ? 'none' : (override?.discount_type || 'none')}
+                                    onChange={(e) =>
+                                      handleItemOverrideChange(test.id, 'discount_type', e.target.value)
+                                    }
+                                    className="p-1 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+                                  >
+                                    <option value="none">None</option>
+                                    <option value="percent">Percent (%)</option>
+                                    <option value="amount">Amount (₹)</option>
+                                  </select>
+                                </td>
+                                <td className="p-3">
+                                  {!isDefaultLabPrice && override?.discount_type && override.discount_type !== 'none' ? (
+                                    <div className="flex items-center gap-1.5 justify-center">
+                                      <input
+                                        type="number"
+                                        value={override.discount_value !== undefined ? Math.abs(override.discount_value) : ''}
+                                        onChange={(e) => {
+                                          const rawVal = Math.abs(Number(e.target.value));
+                                          const isMarkup = markupRows[test.id] || (override.discount_value || 0) < 0;
+                                          const finalVal = isMarkup ? -rawVal : rawVal;
+                                          handleItemOverrideChange(
+                                            test.id,
+                                            'discount_value',
+                                            finalVal
+                                          );
+                                        }}
+                                        placeholder="0"
+                                        className="p-1 text-xs w-14 bg-background border border-border rounded text-center focus:outline-none focus:ring-1 focus:ring-primary"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const wasMarkup = markupRows[test.id] || (override.discount_value || 0) < 0;
+                                          const nextMarkup = !wasMarkup;
+                                          setMarkupRows(prev => ({ ...prev, [test.id]: nextMarkup }));
+                                          const currentVal = Math.abs(override.discount_value || 0);
+                                          handleItemOverrideChange(
+                                            test.id,
+                                            'discount_value',
+                                            nextMarkup ? -currentVal : currentVal
+                                          );
+                                        }}
+                                        className={`px-1.5 py-0.5 text-[9px] font-bold rounded border shrink-0 transition-colors ${
+                                          (markupRows[test.id] || (override.discount_value || 0) < 0)
+                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900'
+                                            : 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900'
+                                        }`}
+                                        title={(markupRows[test.id] || (override.discount_value || 0) < 0) ? "Click to change to Discount (reduces price)" : "Click to change to Markup (increases price)"}
+                                      >
+                                        {(markupRows[test.id] || (override.discount_value || 0) < 0) ? 'Markup (+)' : 'Discount (-)'}
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">-</span>
+                                  )}
+                                </td>
+                                <td className="p-3 font-semibold text-xs">
+                                  <span className={hasOverride ? 'text-primary' : 'text-foreground'}>
+                                    ₹{calculatedPrice}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-right">
+                                  {hasOverride && (
+                                    <button
+                                      onClick={() => handleClearItemOverride(test.id)}
+                                      className="text-xs text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 border border-red-200 dark:border-red-900 rounded"
+                                    >
+                                      Reset
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+
+                      {/* Pagination Controls */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between border-t border-border px-4 py-3 bg-muted/10 mt-4 select-none rounded-b-xl">
+                          <div className="text-xs text-muted-foreground">
+                            Showing <span className="font-semibold text-foreground">{Math.min(filteredTests.length, (currentPage - 1) * itemsPerPage + 1)}</span> to{' '}
+                            <span className="font-semibold text-foreground">{Math.min(filteredTests.length, currentPage * itemsPerPage)}</span> of{' '}
+                            <span className="font-semibold text-foreground">{filteredTests.length}</span> tests
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              disabled={currentPage === 1}
+                              onClick={() => setCurrentPage(1)}
+                              className="p-1 border border-border rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                              title="First Page"
+                            >
+                              <ChevronsLeft className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              disabled={currentPage === 1}
+                              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                              className="p-1 border border-border rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                              title="Previous Page"
+                            >
+                              <ChevronLeft className="w-3.5 h-3.5" />
+                            </button>
+                            
+                            {Array.from({ length: totalPages }, (_, i) => i + 1)
+                              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                              .map((p, idx, arr) => {
+                                const showEllipsis = idx > 0 && p - arr[idx - 1] > 1;
+                                return (
+                                  <div key={p} className="flex items-center">
+                                    {showEllipsis && <span className="text-xs text-muted-foreground px-1.5 font-medium">...</span>}
+                                    <button
+                                      onClick={() => setCurrentPage(p)}
+                                      className={`px-2 py-0.5 text-xs font-semibold rounded border min-w-[24px] text-center transition-colors ${
+                                        currentPage === p
+                                          ? 'bg-primary border-primary text-primary-foreground'
+                                          : 'border-border bg-background hover:bg-muted text-foreground'
+                                      }`}
+                                    >
+                                      {p}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+
+                            <button
+                              disabled={currentPage === totalPages || totalPages === 0}
+                              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                              className="p-1 border border-border rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                              title="Next Page"
+                            >
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              disabled={currentPage === totalPages || totalPages === 0}
+                              onClick={() => setCurrentPage(totalPages)}
+                              className="p-1 border border-border rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                              title="Last Page"
+                            >
+                              <ChevronsRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </>
           ) : (
@@ -801,6 +972,38 @@ export function PriceListManagement() {
                     className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1">Assigned Referring Doctor (Optional)</label>
+                <select
+                  value={formDoctorId}
+                  onChange={(e) => setFormDoctorId(e.target.value)}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">None (General price list)</option>
+                  {doctors.map((doc) => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.title || 'Dr'}. {doc.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Assigning a doctor automatically switches to this price list when creating a report for them.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 py-1">
+                <input
+                  type="checkbox"
+                  id="formIsDefault"
+                  checked={formIsDefault}
+                  onChange={(e) => setFormIsDefault(e.target.checked)}
+                  className="rounded border-border text-primary focus:ring-primary h-4 w-4"
+                />
+                <label htmlFor="formIsDefault" className="text-xs font-semibold cursor-pointer select-none">
+                  Set as Branch Default Price List
+                </label>
               </div>
 
               <div className="flex items-center justify-end gap-3 border-t border-border pt-4 mt-6">

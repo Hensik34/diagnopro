@@ -414,3 +414,20 @@ exports.deletePackage = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// BULK UPDATE BRANCH PRICES
+exports.bulkUpdateBranchPrices = async (req, res) => {
+  try {
+    const { branch_id, updates } = req.body;
+    if (!branch_id || !Array.isArray(updates)) {
+      return res.status(400).json({ error: "branch_id and updates array are required" });
+    }
+    await Test.bulkUpdateBranchPrices(branch_id, updates);
+    res.json({
+      message: "Branch default prices updated successfully"
+    });
+  } catch (err) {
+    console.error("Bulk update branch prices error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};

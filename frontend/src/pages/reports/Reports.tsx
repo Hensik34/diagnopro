@@ -134,6 +134,26 @@ export function Reports() {
       return null;
     };
 
+    // Check if there are snapshotted packages first
+    if (report.pricing_snapshot && report.pricing_snapshot.length > 0) {
+      const packageNames = report.pricing_snapshot
+        .filter(item => item.package_id)
+        .map(item => item.package_name)
+        .filter(Boolean) as string[];
+
+      const standaloneTests = report.pricing_snapshot
+        .filter(item => !item.package_id && item.test_id)
+        .map(item => item.test_code)
+        .filter(Boolean) as string[];
+
+      if (packageNames.length > 0) {
+        if (standaloneTests.length > 0) {
+          return `${packageNames.join(', ')} + ${standaloneTests.join(', ')}`;
+        }
+        return packageNames.join(', ');
+      }
+    }
+
     // 1. Grouped structure
     if (report.test_data?.tests && report.test_data.tests.length > 0) {
       const codes = report.test_data.tests.map(t => {

@@ -157,7 +157,10 @@ export function CreateReport() {
       // Fetch active price lists
       priceListApi.getAll({ branch_id: currentBranchId, is_active: true })
         .then(res => {
-          setPriceLists(res.data || []);
+          const lists = res.data || [];
+          setPriceLists(lists);
+          const defaultList = lists.find(l => l.is_default);
+          setPriceListId(defaultList ? defaultList.id : null);
         })
         .catch(err => {
           console.error("Failed to fetch price lists:", err);
@@ -262,6 +265,9 @@ export function CreateReport() {
   useEffect(() => {
     if (!selectedDoctor?.id || !currentBranchId) {
       setDoctorPricing(null);
+      // Revert to default branch price list
+      const defaultList = priceLists.find(l => l.is_default);
+      setPriceListId(defaultList ? defaultList.id : null);
       return;
     }
     
@@ -272,6 +278,12 @@ export function CreateReport() {
         if (prRes.assignment?.price_list_id) {
           const plRes = await priceListApi.getById(prRes.assignment.price_list_id);
           priceListDetails = plRes.data || null;
+          // Auto switch to doctor's custom price list
+          setPriceListId(prRes.assignment.price_list_id);
+        } else {
+          // Revert to default branch price list
+          const defaultList = priceLists.find(l => l.is_default);
+          setPriceListId(defaultList ? defaultList.id : null);
         }
         setDoctorPricing({
           assignment: prRes.assignment,
@@ -281,9 +293,12 @@ export function CreateReport() {
       } catch (err) {
         console.error("Failed to load doctor pricing for search resolution:", err);
         setDoctorPricing(null);
+        // Fallback to branch default
+        const defaultList = priceLists.find(l => l.is_default);
+        setPriceListId(defaultList ? defaultList.id : null);
       }
     })();
-  }, [selectedDoctor?.id, currentBranchId]);
+  }, [selectedDoctor?.id, currentBranchId, priceLists]);
 
   // Fetch pricing resolution from backend engine when selections or modifiers change
   useEffect(() => {
@@ -349,6 +364,8 @@ export function CreateReport() {
       } else if (enginePrice) {
         items[testId] = {
           ...enginePrice,
+          test_id: testId,
+          package_id: null,
           default_price: Number(enginePrice.default_price),
           applied_price: Number(enginePrice.applied_price),
           test_name: test.test_name,
@@ -818,6 +835,8 @@ export function CreateReport() {
         report_amount: totalPrice,
         is_self_report: !selectedDoctor,
         branch_id: currentBranchId,
+        base_amount: Object.values(resolvedPricingItems).reduce((sum, item) => sum + (Number(item.default_price) || 0), 0),
+        final_amount: totalPrice,
         test_data: {
           testType: selectedTests.map(t => t.category || 'General').join(', '),
           testName: selectedTests.map(t => t.test_name).join(', '),
@@ -1197,9 +1216,9 @@ export function CreateReport() {
                       <option value="">Self (No Doctor)</option>
                       {doctors.map((doctor) => (
                         <option key={doctor.id} value={doctor.id}>
-                          {doctor.title || 'Dr'}. {doctor.name} {doctor.phone ? ` - ${doctor.phone}` : ''} {doctor.address ? ` - ${doctor.address}` : ''}
+                          {doctor.title || 'Dr'}. {doctor.name} {doctor.phone ? ` - ${doctor.phone}` : ''}
                         </option>
-                      ))}
+                      ))} 
                     </select>
                   </div>
                 </div>

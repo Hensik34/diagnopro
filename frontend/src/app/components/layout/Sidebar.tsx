@@ -270,24 +270,25 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         onClick={(e) => {
           if (isMobileView && !hasSubmenus) {
             onToggle(); // Close drawer
-          } else if (isCurrentlyCollapsed && hasSubmenus) {
-            e.preventDefault(); // Prevent navigation, just open dropdown
-          } else if (!isCurrentlyCollapsed && hasSubmenus) {
-            setExpandedMenus(prev => ({ ...prev, [item.path]: !prev[item.path] }));
+          } else if (hasSubmenus) {
+            e.preventDefault(); // Prevent navigation for parents with submenus
+            if (!isCurrentlyCollapsed) {
+              setExpandedMenus(prev => ({ ...prev, [item.path]: !prev[item.path] }));
+            }
           }
         }}
         title={isCurrentlyCollapsed ? item.label : undefined}
         className={`flex items-center justify-between transition-all duration-200 rounded-lg ${
-          isCurrentlyCollapsed ? 'justify-center px-4 py-2' : 'px-3 py-2'
+          isCurrentlyCollapsed ? 'justify-center px-4 py-2' : 'px-2 py-2'
         } ${isActive
-          ? 'bg-blue-600 text-white shadow-md dark:bg-blue-600 dark:text-white'
-          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+          ? 'bg-primary/10 text-primary border border-primary/20 font-medium'
+          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 border border-transparent'
         }`}
       >
         <div className="flex items-center">
           <Icon className="w-5 h-5 flex-shrink-0" />
           {!isCurrentlyCollapsed && (
-            <span className="ml-3 text-sm font-medium">{item.label}</span>
+            <span className="ml-2 text-sm font-medium whitespace-nowrap">{item.label}</span>
           )}
         </div>
         {!isCurrentlyCollapsed && hasSubmenus && (
@@ -299,11 +300,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             }}
             className="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10"
           >
-            {isExpanded ? (
-              <ChevronUp className="w-4 h-4" />
-            ) : (
-              <ChevronDown className="w-4 h-4" />
-            )}
+            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
           </div>
         )}
       </Link>
@@ -327,7 +324,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     to={sub.path}
                     className={`block w-full px-2 py-1.5 text-xs font-medium rounded-sm transition-all duration-200 ${
                       subActive
-                        ? 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20 font-semibold'
+                        ? 'text-primary bg-primary/10 dark:text-primary dark:bg-primary/20 font-semibold'
                         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800/50'
                     }`}
                   >
@@ -346,7 +343,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {triggerEl}
 
         {!isCurrentlyCollapsed && hasSubmenus && isExpanded && (
-          <div className="pl-8 pr-2 py-1 space-y-1 border-l border-gray-200 dark:border-gray-800 ml-5">
+          <div className="pl-6 pr-2 py-1 space-y-1 border-l border-gray-200 dark:border-gray-800 ml-4">
             {item.submenus.filter((sub: any) => !sub.permission || can(sub.permission)).map((sub: any) => {
               const subActive = isSubmenuActive(sub.path);
               return (
@@ -358,9 +355,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                       onToggle(); // Close drawer
                     }
                   }}
-                  className={`block px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+                  className={`block px-2 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
                     subActive
-                      ? 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20 font-semibold'
+                      ? 'text-primary bg-primary/10 dark:text-primary dark:bg-primary/20 font-semibold'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800/50'
                   }`}
                 >
@@ -398,29 +395,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </div>
 
           {/* Menu Items */}
-          <nav className={`flex-1 space-y-2 overflow-y-auto scrollbar-hide ${collapsed ? 'p-2' : 'p-4'
+          <nav className={`flex-1 space-y-2 overflow-y-auto scrollbar-hide ${collapsed ? 'p-2' : 'px-2 py-4'
             }`}>
-            {visibleMenuItems.map((item: any) => {
-              const Icon = item.icon;
-              const isActive = item.path === longestMatch;
-
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center transition-all duration-200 rounded-lg ${collapsed ? 'justify-center px-4 py-2' : 'px-3 py-2'
-                    } ${isActive
-                      ? 'bg-primary/10 text-primary border border-primary/20 font-medium'
-                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 border border-transparent'
-                    }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  {!collapsed && (
-                    <span className="ml-3 text-sm font-medium">{item.label}</span>
-                  )}
-                </Link>
-              );
-            })}
+            {visibleMenuItems.map((item: any) => renderMenuItem(item, false))}
           </nav>
         </div>
       </div>
@@ -448,26 +425,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               </div>
 
               {/* Menu Items */}
-              <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-                {visibleMenuItems.map((item: any) => {
-                  const Icon = item.icon;
-                  const isActive = item.path === longestMatch;
-
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      onClick={onToggle}
-                      className={`flex items-center transition-all duration-200 rounded-lg px-3 py-2 ${isActive
-                          ? 'bg-primary/10 text-primary border border-primary/20 font-medium'
-                          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 border border-transparent'
-                        }`}
-                    >
-                      <Icon className="w-5 h-5 flex-shrink-0" />
-                      <span className="ml-3 text-sm font-medium">{item.label}</span>
-                    </Link>
-                  );
-                })}
+              <nav className="flex-1 px-2 py-4 space-y-2 overflow-y-auto">
+                {visibleMenuItems.map((item: any) => renderMenuItem(item, true))}
               </nav>
             </div>
           </div>

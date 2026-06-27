@@ -222,6 +222,7 @@ export interface Test {
   description?: string;
   clinical_significance?: string;
   has_branch_override?: boolean;
+  base_price?: number;
   created_at: string;
   updated_at: string;
 }
@@ -392,6 +393,7 @@ export interface DeliveryPreferences {
 export interface Report {
   id: string;
   patient_id: string;
+  branch_id: string;
   doctor_id?: string;
   technician_id?: string;
   report_type?: string;
@@ -424,6 +426,7 @@ export interface Report {
   doctor_discount?: number;
   final_amount?: number;
   payment_status?: 'paid' | 'partial' | 'pending';
+  total_paid?: number;
   // B2B Partner Lab
   b2b_lab_id?: string;
   b2b_charge?: number;
@@ -535,6 +538,8 @@ export interface PriceList {
   created_at: string;
   updated_at: string;
   items?: PriceListItem[];
+  is_default?: boolean;
+  doctor?: { id: string; name: string; title?: string } | null;
 }
 
 export interface DoctorPriceAssignment {
@@ -633,6 +638,7 @@ export interface BillingData {
   lab_discount_value: number;
   doctor_discount: number;
   final_amount: number;
+  pricing_items?: Partial<ReportTestPriceSnapshot>[];
 }
 
 export interface PaymentsResponse {

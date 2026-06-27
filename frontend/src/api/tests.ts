@@ -53,6 +53,14 @@ export const testApi = {
   },
 
   /**
+   * Bulk update branch overrides (base prices)
+   */
+  bulkUpdateBranchPrices: async (branchId: string, updates: { test_id: string; price: number | null }[]): Promise<ApiResponse<any>> => {
+    const response = await api.put<ApiResponse<any>>('/tests/bulk/prices', { branch_id: branchId, updates });
+    return response.data;
+  },
+
+  /**
    * Delete test
    */
   delete: async (id: string): Promise<{ message: string }> => {

@@ -22,6 +22,9 @@ router.post("/packages", authorize(PERMISSIONS.TEST_CREATE), testController.crea
 router.put("/packages/:id", authorize(PERMISSIONS.TEST_UPDATE), testController.updatePackage);
 router.delete("/packages/:id", authorize(PERMISSIONS.TEST_DELETE), testController.deletePackage);
 
+// Bulk update branch default prices
+router.put("/bulk/prices", authorize(PERMISSIONS.TEST_UPDATE), testController.bulkUpdateBranchPrices);
+
 // Get test by ID
 router.get("/:id", authorize(PERMISSIONS.TEST_READ), testController.getTestById);
 

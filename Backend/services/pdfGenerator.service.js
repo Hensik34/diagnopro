@@ -1,20 +1,42 @@
 const puppeteer = require("puppeteer");
+const fs = require("fs");
+const path = require("path");
+
+function logPdfDebug(message, data = null) {
+  const timestamp = new Date().toISOString();
+  const dataStr = data ? ` | Data: ${JSON.stringify(data, null, 2)}` : "";
+  const logLine = `[${timestamp}] [PDF Generator] ${message}${dataStr}\n`;
+  console.log(`[PDF Generator] ${message}`, data || "");
+  try {
+    const logFilePath = path.join(__dirname, "..", "whatsapp-debug.log");
+    fs.appendFileSync(logFilePath, logLine, "utf8");
+  } catch (e) {
+    // Ignore log errors
+  }
+}
 
 /**
- * Generates a PDF buffer for a report by rendering the public report download page in headless Chrome.
- * 
+ * Generates a PDF buffer for a report by rendering the public report download
+ * page in headless Chrome. Uses the LOCAL frontend dev server for rendering so
+ * reports created in the local database are always available.
+ *
  * @param {string} reportId The UUID of the report
  * @param {string} downloadToken The JWT token authorizing public view of the report
  * @returns {Promise<Buffer>} The PDF file buffer
  */
 async function generateReportPdf(reportId, downloadToken) {
-  const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
-  const url = `${clientUrl}/public/report/${reportId}/download?token=${downloadToken}&print=true`;
-  
-  console.log(`[PDF Generator] Launching Puppeteer to render: ${url}`);
-  
+  // Always render from the local frontend so the report data is fetched from
+  // the same database this backend is connected to. CLIENT_URL may point to
+  // production (used for shareable links) but Puppeteer must hit the local
+  // frontend to render the current report correctly.
+  const localFrontendUrl = process.env.PDF_RENDER_URL || "http://localhost:5173";
+  const url = `${localFrontendUrl}/public/report/${reportId}/download?token=${downloadToken}&print=true`;
+
+  logPdfDebug("generateReportPdf started", { reportId, url });
+
   let browser;
   try {
+    logPdfDebug("Launching Puppeteer...");
     browser = await puppeteer.launch({
       headless: "new",
       args: [
@@ -24,26 +46,31 @@ async function generateReportPdf(reportId, downloadToken) {
         "--disable-web-security"
       ]
     });
-    
+
+    logPdfDebug("Opening new page...");
     const page = await browser.newPage();
-    
+
     // Set viewport to A4 aspect ratio at higher resolution for quality
     await page.setViewport({
       width: 794,
       height: 1123,
       deviceScaleFactor: 2
     });
-    
-    // Navigate to public report print page, waiting for network idle to ensure image/barcode loading
+
+    // Navigate to local frontend public report print page,
+    // waiting for network idle to ensure image/barcode loading
+    logPdfDebug(`Navigating to URL: ${url}`);
     await page.goto(url, {
       waitUntil: "networkidle0",
       timeout: 30000
     });
-    
+
+    logPdfDebug("Navigation completed. Waiting short delay for final render (500ms)...");
     // Additional short delay to let layout compute/fonts render completely
     await new Promise((resolve) => setTimeout(resolve, 500));
-    
+
     // Print to PDF with exact A4 sizing and zero margins
+    logPdfDebug("Printing to PDF...");
     const pdfBuffer = await page.pdf({
       format: "A4",
       printBackground: true,
@@ -55,14 +82,16 @@ async function generateReportPdf(reportId, downloadToken) {
       },
       preferCSSPageSize: true
     });
-    
-    console.log(`[PDF Generator] PDF successfully generated for report ${reportId}`);
-    return pdfBuffer;
+
+    logPdfDebug(`PDF generated successfully. Size: ${pdfBuffer ? pdfBuffer.length : 0} bytes`);
+    return Buffer.from(pdfBuffer);
   } catch (error) {
+    logPdfDebug("PDF generation failed with error", { error: error.message, stack: error.stack });
     console.error(`[PDF Generator] Generation failed for report ${reportId}:`, error);
     throw error;
   } finally {
     if (browser) {
+      logPdfDebug("Closing Puppeteer browser.");
       await browser.close();
     }
   }

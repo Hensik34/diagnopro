@@ -9,7 +9,7 @@ exports.getAllTests = async (branchId = null) => {
   });
 
   if (!branchId) {
-    return tests.map((t) => ({ ...t, has_branch_override: false }));
+    return tests.map((t) => ({ ...t, has_branch_override: false, base_price: t.price }));
   }
 
   const testIds = tests.map((t) => t.id);
@@ -23,7 +23,7 @@ exports.getAllTests = async (branchId = null) => {
 
   return tests.map((t) => {
     const ov = overrideMap.get(t.id);
-    if (!ov) return { ...t, has_branch_override: false };
+    if (!ov) return { ...t, has_branch_override: false, base_price: t.price };
     return {
       ...t,
       test_name: ov.test_name ?? t.test_name,
@@ -34,6 +34,7 @@ exports.getAllTests = async (branchId = null) => {
       description: ov.description ?? t.description,
       clinical_significance: ov.clinical_significance ?? t.clinical_significance,
       has_branch_override: true,
+      base_price: t.price,
     };
   });
 };
@@ -42,13 +43,13 @@ exports.getAllTests = async (branchId = null) => {
 exports.getTestById = async (id, branchId = null) => {
   const test = await Test.findByPk(id, { raw: true });
   if (!test) return null;
-  if (!branchId) return { ...test, has_branch_override: false };
+  if (!branchId) return { ...test, has_branch_override: false, base_price: test.price };
 
   const ov = await UserTest.findOne({
     where: { branch_id: branchId, test_id: id },
     raw: true,
   });
-  if (!ov) return { ...test, has_branch_override: false };
+  if (!ov) return { ...test, has_branch_override: false, base_price: test.price };
 
   return {
     ...test,
@@ -60,6 +61,7 @@ exports.getTestById = async (id, branchId = null) => {
     description: ov.description ?? test.description,
     clinical_significance: ov.clinical_significance ?? test.clinical_significance,
     has_branch_override: true,
+    base_price: test.price,
   };
 };
 
@@ -201,5 +203,47 @@ exports.resetBranchOverride = async (testId, branchId) => {
   } catch (err) {
     await t.rollback();
     throw err;
+  }
+};
+
+// Bulk update branch overrides (base prices)
+exports.bulkUpdateBranchPrices = async (branchId, updates) => {
+  const t = await sequelize.transaction();
+  try {
+    for (const item of updates) {
+      const { test_id, price } = item;
+      const existing = await UserTest.findOne({ where: { branch_id: branchId, test_id } });
+      if (existing) {
+        if (price === null) {
+          // Revert to global default by deleting override
+          await UserTest.destroy({ where: { branch_id: branchId, test_id }, transaction: t });
+        } else {
+          await UserTest.update(
+            { price: Number(price) },
+            { where: { branch_id: branchId, test_id }, transaction: t }
+          );
+        }
+      } else if (price !== null) {
+        // Create branch override by fetching global test details first
+        const globalTest = await Test.findByPk(test_id);
+        if (globalTest) {
+          await UserTest.create({
+            branch_id: branchId,
+            test_id,
+            test_name: globalTest.test_name,
+            category: globalTest.category,
+            sample_type: globalTest.sample_type,
+            price: Number(price),
+            turnaround_time: globalTest.turnaround_time,
+            description: globalTest.description,
+            clinical_significance: globalTest.clinical_significance,
+          }, { transaction: t });
+        }
+      }
+    }
+    await t.commit();
+  } catch (error) {
+    await t.rollback();
+    throw error;
   }
 };

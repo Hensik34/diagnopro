@@ -16,6 +16,9 @@ import {
   RotateCcw,
   RefreshCw,
   ChevronRight,
+  ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight,
   AlertTriangle,
   SlidersHorizontal
 } from 'lucide-react';
@@ -199,6 +202,10 @@ export function TestManagement() {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState<string | null>(null);
 
+  // Pagination State for Tests Catalog
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
+
   // Package states
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') === 'packages') ? 'packages' : 'tests';
@@ -226,6 +233,11 @@ export function TestManagement() {
       prevTabRef.current = activeTab;
     }
   }, [activeTab]);
+
+  // Reset page when search or tab settings change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter, sortBy, activeTab]);
 
   const [packages, setPackages] = useState<any[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(false);
@@ -339,6 +351,9 @@ export function TestManagement() {
       }
       return 0;
     });
+
+  const totalPages = Math.ceil(filteredTests.length / itemsPerPage);
+  const paginatedTests = filteredTests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const getCategoryBadge = (category?: string) => {
     const styles: Record<string, { bg: string; text: string }> = {
@@ -597,7 +612,7 @@ export function TestManagement() {
 
       {/* Test Table */}
       {!isLoading && activeTab === 'tests' && filteredTests.length > 0 && (
-        <div className="bg-card border border-border rounded overflow-hidden">
+        <div className="bg-card border border-border rounded overflow-hidden flex flex-col">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-secondary/30 sticky top-0 z-10">
@@ -612,7 +627,7 @@ export function TestManagement() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredTests.map((test) => (
+                {paginatedTests.map((test) => (
                   <tr 
                     key={test.id} 
                     className="hover:bg-accent/30 transition-colors"
@@ -702,12 +717,72 @@ export function TestManagement() {
             </table>
           </div>
 
-          {/* Footer */}
-          <div className="border-t border-border bg-secondary/30 px-3 py-2 flex justify-between items-center">
-            <div className="text-xs text-muted-foreground">
-              Showing <span className="text-foreground">{filteredTests.length}</span> of <span className="text-foreground">{tests.length}</span> tests
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-border px-3 py-2 bg-secondary/10 select-none">
+              <div className="text-xs text-muted-foreground">
+                Showing <span className="font-semibold text-foreground">{Math.min(filteredTests.length, (currentPage - 1) * itemsPerPage + 1)}</span> to{' '}
+                <span className="font-semibold text-foreground">{Math.min(filteredTests.length, currentPage * itemsPerPage)}</span> of{' '}
+                <span className="font-semibold text-foreground">{filteredTests.length}</span> tests
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(1)}
+                  className="p-1 border border-border rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title="First Page"
+                >
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  className="p-1 border border-border rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title="Previous Page"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                  .map((p, idx, arr) => {
+                    const showEllipsis = idx > 0 && p - arr[idx - 1] > 1;
+                    return (
+                      <div key={p} className="flex items-center">
+                        {showEllipsis && <span className="text-xs text-muted-foreground px-1.5 font-medium">...</span>}
+                        <button
+                          onClick={() => setCurrentPage(p)}
+                          className={`px-2 py-0.5 text-xs font-semibold rounded border min-w-[24px] text-center transition-colors ${
+                            currentPage === p
+                              ? 'bg-primary border-primary text-primary-foreground'
+                              : 'border-border bg-background hover:bg-muted text-foreground'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                <button
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  className="p-1 border border-border rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title="Next Page"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  onClick={() => setCurrentPage(totalPages)}
+                  className="p-1 border border-border rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title="Last Page"
+                >
+                  <ChevronsRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 

@@ -125,7 +125,7 @@ exports.deletePayment = async (req, res) => {
 exports.updateBilling = async (req, res) => {
   try {
     const { id } = req.params;
-    const { base_amount, lab_discount_type, lab_discount_value, doctor_discount } = req.body;
+    const { base_amount, lab_discount_type, lab_discount_value, doctor_discount, pricing_items } = req.body;
 
     // Verify report exists
     const report = await Report.getReportById(id);
@@ -175,6 +175,38 @@ exports.updateBilling = async (req, res) => {
       doctor_commission: doctor_commission,
     });
 
+    // Snapshot pricing items if provided
+    let pricingSnapshot = [];
+    if (pricing_items && Array.isArray(pricing_items)) {
+      const pricingService = require("../services/pricing.service");
+      
+      // Get old snapshots to compare for audit logs
+      const oldSnapshots = await require("../models/ReportTestPrice").getPricesForReport(id);
+      const oldSnapshotMap = new Map(oldSnapshots.map(s => [s.test_id || s.package_id, s]));
+
+      await pricingService.snapshotPrices(id, pricing_items);
+
+      // Audit log overrides
+      for (const item of pricing_items) {
+        const key = item.test_id || item.package_id;
+        const oldVal = oldSnapshotMap.get(key);
+        if (item.is_manual_override) {
+          if (!oldVal || Number(oldVal.applied_price) !== Number(item.applied_price)) {
+            await pricingService.logPriceChange({
+              reportId: id,
+              testId: item.test_id || null,
+              oldPrice: oldVal ? Number(oldVal.applied_price) : Number(item.default_price),
+              newPrice: Number(item.applied_price),
+              source: "manual",
+              changedBy: req.user?.id || null,
+              reason: `Manual price override from billing details modal`,
+            });
+          }
+        }
+      }
+    }
+    pricingSnapshot = await require("../models/ReportTestPrice").getPricesForReport(id);
+
     // Recalculate payment status with new final amount
     const statusInfo = await Payment.recalcPaymentStatus(id);
 
@@ -184,6 +216,7 @@ exports.updateBilling = async (req, res) => {
         ...updatedReport,
         payment_status: statusInfo?.paymentStatus || updatedReport.payment_status,
         total_paid: statusInfo?.totalPaid || 0,
+        pricing_snapshot: pricingSnapshot || []
       },
     });
   } catch (err) {

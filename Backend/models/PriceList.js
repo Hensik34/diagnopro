@@ -11,6 +11,9 @@ exports.getAllPriceLists = async (filters = {}) => {
   if (filters.is_active !== undefined) {
     where.is_active = filters.is_active;
   }
+  if (filters.is_default !== undefined) {
+    where.is_default = filters.is_default;
+  }
 
   return await PriceList.findAll({
     where,
@@ -63,7 +66,7 @@ exports.getPriceListById = async (id) => {
  * Create a new price list.
  */
 exports.createPriceList = async (data) => {
-  const { name, description, branch_id, is_active, version, effective_from, effective_to, created_by } = data;
+  const { name, description, branch_id, is_active, version, effective_from, effective_to, created_by, is_default } = data;
   return await PriceList.create({
     name,
     description,
@@ -73,6 +76,7 @@ exports.createPriceList = async (data) => {
     effective_from: effective_from || null,
     effective_to: effective_to || null,
     created_by,
+    is_default: !!is_default,
   });
 };
 
@@ -80,7 +84,7 @@ exports.createPriceList = async (data) => {
  * Update a price list.
  */
 exports.updatePriceList = async (id, data) => {
-  const allowedFields = ["name", "description", "is_active", "version", "effective_from", "effective_to"];
+  const allowedFields = ["name", "description", "is_active", "version", "effective_from", "effective_to", "is_default"];
   const updateObj = {};
   for (const [key, value] of Object.entries(data)) {
     if (allowedFields.includes(key) && value !== undefined) {
