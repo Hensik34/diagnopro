@@ -15,7 +15,10 @@ import {
   Hash,
   ArrowLeft,
   Building2,
+  MessageSquare,
+  Info,
 } from "lucide-react";
+import { toast } from "sonner";
 import { usePatientStore } from "../../stores/patientStore";
 import { useTestStore } from "../../stores/testStore";
 import { useDoctorStore } from "../../stores/doctorStore";
@@ -25,7 +28,9 @@ import { useAuthStore } from "../../stores/authStore";
 import { useB2BStore } from "../../stores/b2bStore";
 import { sampleApi } from "../../api/samples";
 import { testApi } from "../../api/tests";
-import type { AgeUnit, Patient, Test, Doctor } from "../../types";
+import { priceListApi, pricingEngineApi } from "../../api/priceLists";
+import { doctorApi } from "../../api/doctors";
+import type { AgeUnit, Patient, Test, Doctor, PriceList, ReportTestPriceSnapshot, DoctorPriceAssignment, DoctorTestPriceOverride } from "../../types";
 import { DEFAULT_AGE_UNIT, formatAge, getAgeMax, normalizeAgeUnit } from "../../utils/age";
 
 /**
@@ -86,6 +91,17 @@ export function CreateReport() {
   const [selectedB2BLabId, setSelectedB2BLabId] = useState("");
   const [b2bCharge, setB2bCharge] = useState<string>("");
 
+  // Multi-tier pricing states
+  const [priceLists, setPriceLists] = useState<PriceList[]>([]);
+  const [priceListId, setPriceListId] = useState<string | null>(null);
+  const [manualOverrides, setManualOverrides] = useState<Record<string, number>>({});
+  const [resolvedPricesFromEngine, setResolvedPricesFromEngine] = useState<Record<string, ReportTestPriceSnapshot>>({});
+  const [selectedPriceListDetails, setSelectedPriceListDetails] = useState<PriceList | null>(null);
+  const [doctorPricing, setDoctorPricing] = useState<{
+    assignment: DoctorPriceAssignment | null;
+    overrides: DoctorTestPriceOverride[];
+    priceListDetails: PriceList | null;
+  } | null>(null);
 
   // Form state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -93,6 +109,26 @@ export function CreateReport() {
 
   // Patient email (saved to patient record)
   const [patientEmail, setPatientEmail] = useState("");
+
+  // WhatsApp Delivery Preferences
+  const [sendWhatsAppPatient, setSendWhatsAppPatient] = useState(true);
+  const [sendWhatsAppDoctor, setSendWhatsAppDoctor] = useState(false);
+
+  useEffect(() => {
+    if (patientPhone) {
+      setSendWhatsAppPatient(true);
+    } else {
+      setSendWhatsAppPatient(false);
+    }
+  }, [patientPhone]);
+
+  useEffect(() => {
+    if (selectedDoctor) {
+      setSendWhatsAppDoctor(!!selectedDoctor.phone);
+    } else {
+      setSendWhatsAppDoctor(false);
+    }
+  }, [selectedDoctor]);
 
   const patientSearchRef = useRef<HTMLDivElement>(null);
   const patientSearchInputRef = useRef<HTMLInputElement>(null);
@@ -116,6 +152,15 @@ export function CreateReport() {
         })
         .finally(() => {
           setPackagesLoading(false);
+        });
+
+      // Fetch active price lists
+      priceListApi.getAll({ branch_id: currentBranchId, is_active: true })
+        .then(res => {
+          setPriceLists(res.data || []);
+        })
+        .catch(err => {
+          console.error("Failed to fetch price lists:", err);
         });
     }
     fetchDoctors();
@@ -198,24 +243,265 @@ export function CreateReport() {
     setActiveTestIndex((currentIndex) => Math.min(currentIndex, searchResults.length - 1));
   }, [searchResults, showTestDropdown]);
 
-  // Calculate total price
-  const totalPrice = useMemo(() => {
-    const packageTotal = selectedPackages.reduce((sum, pkg) => sum + (Number(pkg.price) || 0), 0);
+  // Fetch detailed list items of the selected report price list for search-dropdown resolution
+  useEffect(() => {
+    if (!priceListId) {
+      setSelectedPriceListDetails(null);
+      return;
+    }
+    priceListApi.getById(priceListId)
+      .then(res => {
+        setSelectedPriceListDetails(res.data);
+      })
+      .catch(err => {
+        console.error("Failed to fetch selected price list details:", err);
+      });
+  }, [priceListId]);
+
+  // Fetch doctor pricing rules for search-dropdown resolution
+  useEffect(() => {
+    if (!selectedDoctor?.id || !currentBranchId) {
+      setDoctorPricing(null);
+      return;
+    }
     
-    const individualTestsTotal = selectedTests.reduce((sum, test) => {
-      // Check if test is part of any selected package
+    (async () => {
+      try {
+        const prRes = await doctorApi.getPricing(selectedDoctor.id, currentBranchId);
+        let priceListDetails: PriceList | null = null;
+        if (prRes.assignment?.price_list_id) {
+          const plRes = await priceListApi.getById(prRes.assignment.price_list_id);
+          priceListDetails = plRes.data || null;
+        }
+        setDoctorPricing({
+          assignment: prRes.assignment,
+          overrides: prRes.overrides || [],
+          priceListDetails,
+        });
+      } catch (err) {
+        console.error("Failed to load doctor pricing for search resolution:", err);
+        setDoctorPricing(null);
+      }
+    })();
+  }, [selectedDoctor?.id, currentBranchId]);
+
+  // Fetch pricing resolution from backend engine when selections or modifiers change
+  useEffect(() => {
+    if (!currentBranchId) {
+      setResolvedPricesFromEngine({});
+      return;
+    }
+
+    const individualTestIds = selectedTests
+      .filter(t => !selectedPackages.some(pkg => pkg.test_ids && Array.isArray(pkg.test_ids) && pkg.test_ids.includes(t.id)))
+      .map(t => t.id);
+
+    if (individualTestIds.length === 0) {
+      setResolvedPricesFromEngine({});
+      return;
+    }
+
+    pricingEngineApi.resolve({
+      testIds: individualTestIds,
+      branchId: currentBranchId,
+      doctorId: selectedDoctor?.id || null,
+      reportPriceListId: priceListId || null,
+    })
+    .then(res => {
+      setResolvedPricesFromEngine(res);
+    })
+    .catch(err => {
+      console.error("Failed to resolve prices:", err);
+    });
+  }, [selectedTests, selectedPackages, selectedDoctor?.id, priceListId, currentBranchId]);
+
+  // Map final pricing snapshot items for the report payload and UI display
+  const resolvedPricingItems = useMemo(() => {
+    const items: Record<string, ReportTestPriceSnapshot> = {};
+
+    // Process individual tests
+    selectedTests.forEach(test => {
       const isPartOfePackage = selectedPackages.some(pkg => 
         pkg.test_ids && Array.isArray(pkg.test_ids) && pkg.test_ids.includes(test.id)
       );
-      
-      if (isPartOfePackage) {
-        return sum; // Handled by package price
+      if (isPartOfePackage) return; // Handled by package price
+
+      const testId = test.id;
+      const enginePrice = resolvedPricesFromEngine[testId];
+      const hasOverride = manualOverrides[testId] !== undefined;
+      const overrideVal = manualOverrides[testId];
+
+      if (hasOverride) {
+        items[testId] = {
+          test_id: testId,
+          package_id: null,
+          default_price: Number(enginePrice ? enginePrice.default_price : (test.price || 0)),
+          applied_price: Number(overrideVal!),
+          source: 'manual',
+          source_id: null,
+          price_list_version: enginePrice ? enginePrice.price_list_version : null,
+          is_manual_override: true,
+          test_name: test.test_name,
+          test_code: test.test_code,
+          test_category: test.category,
+          calculation: enginePrice ? [...(enginePrice.calculation || []), `Manual Override: ₹${overrideVal}`] : [`Manual Override: ₹${overrideVal}`],
+        };
+      } else if (enginePrice) {
+        items[testId] = {
+          ...enginePrice,
+          default_price: Number(enginePrice.default_price),
+          applied_price: Number(enginePrice.applied_price),
+          test_name: test.test_name,
+          test_code: test.test_code,
+          test_category: test.category,
+        };
+      } else {
+        // Fallback default
+        items[testId] = {
+          test_id: testId,
+          package_id: null,
+          default_price: Number(test.price || 0),
+          applied_price: Number(test.price || 0),
+          source: 'default',
+          source_id: testId,
+          price_list_version: null,
+          is_manual_override: false,
+          test_name: test.test_name,
+          test_code: test.test_code,
+          test_category: test.category,
+          calculation: [`Default Price: ₹${test.price || 0}`],
+        };
       }
-      return sum + (Number(test.price) || 0);
-    }, 0);
-    
-    return packageTotal + individualTestsTotal;
-  }, [selectedTests, selectedPackages]);
+    });
+
+    // Process packages
+    selectedPackages.forEach(pkg => {
+      const pkgId = pkg.id;
+      const hasOverride = manualOverrides[pkgId] !== undefined;
+      const overrideVal = manualOverrides[pkgId];
+
+      if (hasOverride) {
+        items[pkgId] = {
+          test_id: null,
+          package_id: pkgId,
+          default_price: Number(pkg.price || 0),
+          applied_price: Number(overrideVal!),
+          source: 'manual',
+          source_id: pkgId,
+          price_list_version: null,
+          is_manual_override: true,
+          package_name: pkg.package_name,
+          package_code: pkg.package_code,
+          calculation: [`Package Price: ₹${pkg.price || 0}`, `Manual Override: ₹${overrideVal}`],
+        };
+      } else {
+        items[pkgId] = {
+          test_id: null,
+          package_id: pkgId,
+          default_price: Number(pkg.price || 0),
+          applied_price: Number(pkg.price || 0),
+          source: 'package',
+          source_id: pkgId,
+          price_list_version: null,
+          is_manual_override: false,
+          package_name: pkg.package_name,
+          package_code: pkg.package_code,
+          calculation: [`Package Price: ₹${pkg.price || 0}`],
+        };
+      }
+    });
+
+    return items;
+  }, [selectedTests, selectedPackages, resolvedPricesFromEngine, manualOverrides]);
+
+  // Calculate total price
+  const totalPrice = useMemo(() => {
+    const sum = Object.values(resolvedPricingItems).reduce((sum, item) => sum + (Number(item.applied_price) || 0), 0);
+    return Number(sum) || 0;
+  }, [resolvedPricingItems]);
+
+  // Dynamically resolve search result test prices based on selected price list or doctor overrides locally
+  const getSearchedTestPrice = (test: Test) => {
+    const basePrice = Number(test.price || 0);
+
+    // Step 1: Report-level complete replacement list
+    if (priceListId && selectedPriceListDetails) {
+      const itemOverride = selectedPriceListDetails.items?.find(it => it.test_id === test.id);
+      if (itemOverride) {
+        let resolved = basePrice;
+        if (itemOverride.price !== null && itemOverride.price !== undefined) {
+          resolved = Number(itemOverride.price);
+        } else if (itemOverride.discount_type === 'percent') {
+          resolved = basePrice * (1 - Number(itemOverride.discount_value || 0) / 100);
+        } else if (itemOverride.discount_type === 'amount') {
+          resolved = basePrice - Number(itemOverride.discount_value || 0);
+        }
+        return Math.max(0, Math.round(resolved * 100) / 100);
+      }
+      return basePrice;
+    }
+
+    // Step 2: Doctor pricing
+    if (selectedDoctor && doctorPricing) {
+      // 2a. Check doctor individual override first (takes priority)
+      const docOverride = doctorPricing.overrides.find(o => o.test_id === test.id);
+      if (docOverride) {
+        return Number(docOverride.price);
+      }
+
+      // 2b. Check doctor assigned price list
+      if (doctorPricing.priceListDetails) {
+        const itemOverride = doctorPricing.priceListDetails.items?.find(it => it.test_id === test.id);
+        if (itemOverride) {
+          let resolved = basePrice;
+          if (itemOverride.price !== null && itemOverride.price !== undefined) {
+            resolved = Number(itemOverride.price);
+          } else if (itemOverride.discount_type === 'percent') {
+            resolved = basePrice * (1 - Number(itemOverride.discount_value || 0) / 100);
+          } else if (itemOverride.discount_type === 'amount') {
+            resolved = basePrice - Number(itemOverride.discount_value || 0);
+          }
+          return Math.max(0, Math.round(resolved * 100) / 100);
+        }
+      }
+    }
+
+    return basePrice;
+  };
+
+  const getSourceBadge = (source: string) => {
+    switch (source) {
+      case 'default':
+        return { label: 'Default', classes: 'bg-muted text-muted-foreground border-border' };
+      case 'branch':
+        return { label: 'Branch', classes: 'bg-blue-500/10 text-blue-500 border-blue-500/20' };
+      case 'doctor_list':
+        return { label: 'Doctor List', classes: 'bg-purple-500/10 text-purple-500 border-purple-500/20' };
+      case 'doctor_override':
+        return { label: 'Doc Override', classes: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20' };
+      case 'price_list':
+        return { label: 'Price List', classes: 'bg-teal-500/10 text-teal-500 border-teal-500/20' };
+      case 'manual':
+        return { label: 'Manual', classes: 'bg-amber-500/10 text-amber-500 border-amber-500/20' };
+      case 'package':
+        return { label: 'Package', classes: 'bg-green-500/10 text-green-500 border-green-500/20' };
+      default:
+        return { label: source, classes: 'bg-muted text-muted-foreground border-border' };
+    }
+  };
+
+  const handlePriceOverride = (id: string, value: string) => {
+    const numericValue = value === '' ? undefined : Number(value);
+    setManualOverrides(prev => {
+      const next = { ...prev };
+      if (numericValue === undefined || isNaN(numericValue)) {
+        delete next[id];
+      } else {
+        next[id] = Math.max(0, numericValue);
+      }
+      return next;
+    });
+  };
   const shouldScrollSelectedTests = selectedTests.length > 3;
 
   const patientAgeMax = getAgeMax(patientAgeUnit);
@@ -319,15 +605,29 @@ export function CreateReport() {
     
     // Add all tests in the package's test_ids array to selectedTests (avoiding duplicates)
     const newTests = [...selectedTests];
+    const updatedIndividual = new Set(individuallySelectedTestIds);
+    
     if (pkg.test_ids && Array.isArray(pkg.test_ids)) {
       pkg.test_ids.forEach((testId: string) => {
         const testObj = tests.find(t => t.id === testId);
-        if (testObj && !newTests.some(t => t.id === testId)) {
-          newTests.push(testObj);
+        if (testObj) {
+          if (!newTests.some(t => t.id === testId)) {
+            newTests.push(testObj);
+          }
+          if (updatedIndividual.has(testId)) {
+            updatedIndividual.delete(testId);
+            toast.warning(`${testObj.test_name} moved to ${pkg.package_name}`);
+            setManualOverrides(prev => {
+              const next = { ...prev };
+              delete next[testId];
+              return next;
+            });
+          }
         }
       });
     }
     setSelectedTests(newTests);
+    setIndividuallySelectedTestIds(updatedIndividual);
     
     setTestSearch("");
     setShowTestDropdown(false);
@@ -341,6 +641,11 @@ export function CreateReport() {
   const handleRemovePackage = (pkgId: string) => {
     const updatedPackages = selectedPackages.filter(p => p.id !== pkgId);
     setSelectedPackages(updatedPackages);
+    setManualOverrides(prev => {
+      const next = { ...prev };
+      delete next[pkgId];
+      return next;
+    });
 
     // Filter out tests that belong to the package being removed,
     // unless they are individually selected, or belong to another selected package.
@@ -358,6 +663,15 @@ export function CreateReport() {
 
   // Handle test selection
   const handleSelectTest = (test: Test) => {
+    // Check if test is already inside any selected package
+    const containingPackage = selectedPackages.find(pkg => 
+      pkg.test_ids && Array.isArray(pkg.test_ids) && pkg.test_ids.includes(test.id)
+    );
+    if (containingPackage) {
+      toast.warning(`${test.test_name} is already included in ${containingPackage.package_name}`);
+      return;
+    }
+
     if (!selectedTests.some(t => t.id === test.id)) {
       setSelectedTests([...selectedTests, test]);
     }
@@ -428,6 +742,13 @@ export function CreateReport() {
     const updatedIndividual = new Set(individuallySelectedTestIds);
     updatedIndividual.delete(testId);
     setIndividuallySelectedTestIds(updatedIndividual);
+
+    // Clear manual override
+    setManualOverrides(prev => {
+      const next = { ...prev };
+      delete next[testId];
+      return next;
+    });
   };
 
   // Handle form submission
@@ -506,6 +827,12 @@ export function CreateReport() {
         },
         b2b_lab_id: isB2B && selectedB2BLabId ? selectedB2BLabId : undefined,
         b2b_charge: isB2B && b2bCharge ? parseFloat(b2bCharge) : undefined,
+        delivery_preferences: {
+          patient_whatsapp: sendWhatsAppPatient && !!patientPhone,
+          doctor_whatsapp: sendWhatsAppDoctor && !!selectedDoctor?.phone,
+        },
+        price_list_id: priceListId || undefined,
+        pricing_items: Object.values(resolvedPricingItems),
       });
 
       if (!report) {
@@ -623,7 +950,7 @@ export function CreateReport() {
             </h2>
           </div>
           <div className="p-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
               <div>
                 <label className="text-xs text-muted-foreground block mb-0.5">
                   Date <span className="text-destructive">*</span>
@@ -654,6 +981,24 @@ export function CreateReport() {
                     placeholder="Auto-generated"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-muted-foreground block mb-0.5">
+                  Report Price List <span className="text-[10px] text-muted-foreground">(Optional - overrides doctor)</span>
+                </label>
+                <select
+                  className="w-full h-9 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary text-xs"
+                  value={priceListId || ""}
+                  onChange={(e) => setPriceListId(e.target.value || null)}
+                >
+                  <option value="">No Price List (Use Doctor/Branch/Global)</option>
+                  {priceLists.map((list) => (
+                    <option key={list.id} value={list.id}>
+                      {list.name} (v{list.version})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -902,6 +1247,50 @@ export function CreateReport() {
                 </div>
               </div>
 
+              {/* WhatsApp Auto-Send Preferences */}
+              <div className="border border-border rounded p-2.5 space-y-2 bg-secondary/10">
+                <div className="text-[11px] uppercase tracking-wide font-medium text-foreground flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-primary" />
+                  <span>WhatsApp Delivery Preferences</span>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className={`flex items-start gap-2.5 text-xs ${!patientPhone ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                    <input
+                      type="checkbox"
+                      checked={sendWhatsAppPatient && !!patientPhone}
+                      onChange={(e) => setSendWhatsAppPatient(e.target.checked)}
+                      disabled={!patientPhone}
+                      className="mt-0.5 rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                    />
+                    <div>
+                      <span className="font-medium text-foreground">Send to Patient via WhatsApp on Approval</span>
+                      <span className="block text-[10px] text-muted-foreground">
+                        {patientPhone ? `Sends PDF to ${patientPhone}` : 'Please enter a mobile number to enable'}
+                      </span>
+                    </div>
+                  </label>
+
+                  {selectedDoctor && (
+                    <label className={`flex items-start gap-2.5 text-xs ${!selectedDoctor.phone ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                      <input
+                        type="checkbox"
+                        checked={sendWhatsAppDoctor && !!selectedDoctor.phone}
+                        onChange={(e) => setSendWhatsAppDoctor(e.target.checked)}
+                        disabled={!selectedDoctor.phone}
+                        className="mt-0.5 rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                      />
+                      <div>
+                        <span className="font-medium text-foreground">Send to Referring Doctor via WhatsApp on Approval</span>
+                        <span className="block text-[10px] text-muted-foreground">
+                          {selectedDoctor.phone ? `Sends PDF to Dr. ${selectedDoctor.name} (${selectedDoctor.phone})` : 'Doctor does not have a phone number registered'}
+                        </span>
+                      </div>
+                    </label>
+                  )}
+                </div>
+              </div>
+
               {/* Patient Status Indicator */}
               {isNewPatient && (
                 <div className="flex items-center gap-2 text-xs px-2.5 py-1.5 bg-primary/10 border border-primary/20 rounded">
@@ -1009,8 +1398,8 @@ export function CreateReport() {
                                       {item.data.category || 'General'} • {item.data.test_code}
                                     </div>
                                   </div>
-                                  <div className="text-xs text-foreground">
-                                    ₹{Number(item.data.price) || 0}
+                                  <div className="text-xs text-foreground font-semibold">
+                                    ₹{getSearchedTestPrice(item.data)}
                                   </div>
                                 </div>
                               )}
@@ -1034,33 +1423,78 @@ export function CreateReport() {
                     Selected Packages ({selectedPackages.length})
                   </label>
                   <div className="space-y-1">
-                    {selectedPackages.map((pkg) => (
-                      <div
-                        key={pkg.id}
-                        className="flex items-center justify-between px-3 py-2 bg-primary/5 border border-primary/20 rounded"
-                      >
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-primary">
-                            {pkg.package_name}
+                    {selectedPackages.map((pkg) => {
+                      const itemSnapshot = resolvedPricingItems[pkg.id];
+                      const resolvedPriceVal = itemSnapshot ? itemSnapshot.applied_price : (pkg.price || 0);
+                      const isOverridden = manualOverrides[pkg.id] !== undefined;
+                      const badgeInfo = getSourceBadge(itemSnapshot?.source || 'package');
+                      const trace = itemSnapshot?.calculation || [];
+
+                      return (
+                        <div
+                          key={pkg.id}
+                          className="flex items-center justify-between px-3 py-2 bg-primary/5 border border-primary/20 rounded gap-2"
+                        >
+                          <div className="flex-1">
+                            <div className="text-sm font-semibold text-primary">
+                              {pkg.package_name}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {pkg.package_code} • {pkg.test_ids?.length || 0} tests included
+                            </div>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {pkg.package_code} • {pkg.test_ids?.length || 0} tests included
+                          
+                          {/* Pricing Details */}
+                          <div className="flex items-center gap-2">
+                            {/* Source Badge with trace tooltip */}
+                            <div className="relative group flex items-center">
+                              <span className={`text-[10px] font-medium border px-1.5 py-0.5 rounded cursor-help flex items-center gap-1 ${badgeInfo.classes}`}>
+                                {badgeInfo.label}
+                                <Info className="w-3 h-3" />
+                              </span>
+                              
+                              {/* Hover Tooltip */}
+                              {trace.length > 0 && (
+                                <div className="absolute right-0 bottom-full mb-1.5 hidden group-hover:block z-50 bg-popover text-popover-foreground text-[10px] p-2 rounded shadow-md border border-border min-w-[200px] pointer-events-none">
+                                  <div className="font-semibold mb-1 border-b border-border/50 pb-0.5">Price Trace:</div>
+                                  <div className="space-y-0.5">
+                                    {trace.map((step, idx) => (
+                                      <div key={idx} className="flex items-center gap-1">
+                                        <span className="text-muted-foreground">{idx + 1}.</span>
+                                        <span>{step}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Applied price override input */}
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-muted-foreground">₹</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={isOverridden ? manualOverrides[pkg.id] : ""}
+                                placeholder={String(resolvedPriceVal)}
+                                onChange={(e) => handlePriceOverride(pkg.id, e.target.value)}
+                                className="w-16 h-7 px-1.5 text-right bg-background border border-primary/20 rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-medium text-primary"
+                                title="Enter custom price to override (clear to revert)"
+                              />
+                            </div>
+
+                            <button
+                              onClick={() => handleRemovePackage(pkg.id)}
+                              className="w-6 h-6 flex items-center justify-center rounded hover:bg-destructive/10 transition-colors text-destructive"
+                              title="Remove package"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm text-foreground font-medium">
-                            ₹{Number(pkg.price) || 0}
-                          </span>
-                          <button
-                            onClick={() => handleRemovePackage(pkg.id)}
-                            className="w-6 h-6 flex items-center justify-center rounded hover:bg-destructive/10 transition-colors text-destructive"
-                            title="Remove package"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1079,10 +1513,17 @@ export function CreateReport() {
                         );
                       };
                       const inPackage = isTestInPackage(test.id);
+                      
+                      const itemSnapshot = resolvedPricingItems[test.id];
+                      const resolvedPriceVal = itemSnapshot ? itemSnapshot.applied_price : (test.price || 0);
+                      const isOverridden = manualOverrides[test.id] !== undefined;
+                      const badgeInfo = getSourceBadge(itemSnapshot?.source || 'default');
+                      const trace = itemSnapshot?.calculation || [];
+
                       return (
                         <div
                           key={test.id}
-                          className="flex items-center justify-between px-3 py-2 bg-secondary/50 border border-border rounded"
+                          className="flex items-center justify-between px-3 py-2 bg-secondary/50 border border-border rounded gap-2"
                         >
                           <div className="flex-1">
                             <div className="text-sm text-foreground font-medium">
@@ -1092,21 +1533,59 @@ export function CreateReport() {
                               {test.category || 'General'}
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <div className="text-sm text-foreground font-medium flex items-center gap-1.5">
-                              {inPackage ? (
-                                <>
-                                  <span className="text-xs text-muted-foreground line-through">
-                                    ₹{Number(test.price) || 0}
+                          
+                          <div className="flex items-center gap-2">
+                            {inPackage ? (
+                              <>
+                                <span className="text-xs text-muted-foreground line-through">
+                                  ₹{Number(test.price) || 0}
+                                </span>
+                                <span className="text-[10px] text-primary font-medium bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded">
+                                  Package
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                {/* Source Badge with trace tooltip */}
+                                <div className="relative group flex items-center">
+                                  <span className={`text-[10px] font-medium border px-1.5 py-0.5 rounded cursor-help flex items-center gap-1 ${badgeInfo.classes}`}>
+                                    {badgeInfo.label}
+                                    <Info className="w-3 h-3" />
                                   </span>
-                                  <span className="text-[10px] text-primary font-medium bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded">
-                                    Package
-                                  </span>
-                                </>
-                              ) : (
-                                `₹${Number(test.price) || 0}`
-                              )}
-                            </div>
+                                  
+                                  {/* Hover Tooltip */}
+                                  {trace.length > 0 && (
+                                    <div className="absolute right-0 bottom-full mb-1.5 hidden group-hover:block z-50 bg-popover text-popover-foreground text-[10px] p-2 rounded shadow-md border border-border min-w-[200px] pointer-events-none">
+                                      <div className="font-semibold mb-1 border-b border-border/50 pb-0.5">Price Trace:</div>
+                                      <div className="space-y-0.5">
+                                        {trace.map((step, idx) => (
+                                          <div key={idx} className="flex items-center gap-1">
+                                            <span className="text-muted-foreground">{idx + 1}.</span>
+                                            <span>{step}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Applied price override input */}
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-muted-foreground">₹</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={isOverridden ? manualOverrides[test.id] : ""}
+                                    placeholder={String(resolvedPriceVal)}
+                                    onChange={(e) => handlePriceOverride(test.id, e.target.value)}
+                                    className="w-16 h-7 px-1.5 text-right bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-medium text-foreground"
+                                    title="Enter custom price to override (clear to revert)"
+                                  />
+                                </div>
+                              </>
+                            )}
+
                             <button
                               onClick={() => handleRemoveTest(test.id)}
                               className="w-6 h-6 flex items-center justify-center rounded hover:bg-destructive/10 transition-colors text-destructive"
@@ -1130,7 +1609,7 @@ export function CreateReport() {
                   Total Amount
                 </span>
                 <span className="text-sm text-foreground font-bold">
-                  ₹{totalPrice.toFixed(2)}
+                  ₹{Number(totalPrice).toFixed(2)}
                 </span>
               </div>
 
@@ -1198,11 +1677,11 @@ export function CreateReport() {
                         />
                       </div>
                     </div>
-                    {selectedB2BLabId && b2bCharge && totalPrice > 0 && (
+                    {selectedB2BLabId && b2bCharge && Number(totalPrice) > 0 && (
                       <div className="mt-1.5 px-3 py-2 bg-primary/5 border border-primary/20 rounded">
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-muted-foreground">Report Total</span>
-                          <span className="text-foreground tabular-nums">₹{totalPrice.toFixed(2)}</span>
+                          <span className="text-foreground tabular-nums">₹{Number(totalPrice).toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs mt-0.5">
                           <span className="text-muted-foreground">B2B Charge</span>
@@ -1211,7 +1690,7 @@ export function CreateReport() {
                         <div className="flex items-center justify-between text-xs mt-0.5 pt-1 border-t border-border">
                           <span className="text-foreground font-medium">Net Lab Income</span>
                           <span className="text-foreground font-medium tabular-nums">
-                            ₹{Math.max(0, totalPrice - parseFloat(b2bCharge)).toFixed(2)}
+                            ₹{Math.max(0, Number(totalPrice) - parseFloat(b2bCharge)).toFixed(2)}
                           </span>
                         </div>
                         {selectedDoctor && (
@@ -1220,7 +1699,7 @@ export function CreateReport() {
                               Commission ({selectedDoctor.commission_percentage || 0}% on net)
                             </span>
                             <span className="text-warning tabular-nums">
-                              ₹{(Math.max(0, totalPrice - parseFloat(b2bCharge)) * (selectedDoctor.commission_percentage || 0) / 100).toFixed(2)}
+                              ₹{(Math.max(0, Number(totalPrice) - parseFloat(b2bCharge)) * (selectedDoctor.commission_percentage || 0) / 100).toFixed(2)}
                             </span>
                           </div>
                         )}

@@ -18,6 +18,7 @@ import { format } from 'date-fns';
 import { useReportStore } from '../../stores/reportStore';
 import { useAuthStore } from '../../stores/authStore';
 import type { Report } from '../../types';
+import { toast } from 'sonner';
 
 /**
  * ReportReview Page - For authorized users to review and approve/reject reports
@@ -60,6 +61,32 @@ export function ReportReview() {
   const handleApprove = async (reportId: string) => {
     const result = await approveReport(reportId);
     if (result) {
+      toast.success('Report approved successfully!');
+      
+      // Check WhatsApp delivery details
+      const delivery = result.whatsapp_delivery;
+      if (delivery) {
+        const warnings: string[] = [];
+        
+        if (delivery.patient && !delivery.patient.sent && !delivery.patient.skipped) {
+          warnings.push(`Patient: ${delivery.patient.reason || 'Failed'}`);
+        }
+        if (delivery.doctor && !delivery.doctor.sent && !delivery.doctor.skipped) {
+          warnings.push(`Doctor: ${delivery.doctor.reason || 'Failed'}`);
+        }
+        
+        if (warnings.length > 0) {
+          toast.warning(`WhatsApp auto-send issues: ${warnings.join('; ')}`, {
+            duration: 6000
+          });
+        } else if (
+          (delivery.patient && delivery.patient.sent) ||
+          (delivery.doctor && delivery.doctor.sent)
+        ) {
+          toast.success('WhatsApp notifications sent successfully!');
+        }
+      }
+
       // Remove from list by refreshing
       fetchReports({ status: 'under_review' });
     }

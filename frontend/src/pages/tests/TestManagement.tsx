@@ -19,7 +19,7 @@ import {
   AlertTriangle,
   SlidersHorizontal
 } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useTestStore } from '../../stores';
 import { useAuthStore } from '../../stores';
 import { useBranchStore } from '../../stores';
@@ -200,7 +200,33 @@ export function TestManagement() {
   const [isResetting, setIsResetting] = useState<string | null>(null);
 
   // Package states
-  const [activeTab, setActiveTab] = useState<'tests' | 'packages'>('tests');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (searchParams.get('tab') === 'packages') ? 'packages' : 'tests';
+
+  const setActiveTab = (tab: 'tests' | 'packages') => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (tab === 'tests') {
+          next.delete('tab');
+        } else {
+          next.set('tab', tab);
+        }
+        return next;
+      },
+      { replace: true }
+    );
+  };
+
+  const prevTabRef = useRef<'tests' | 'packages'>(activeTab);
+  useEffect(() => {
+    if (prevTabRef.current !== activeTab) {
+      setCategoryFilter('all');
+      setSearchTerm('');
+      prevTabRef.current = activeTab;
+    }
+  }, [activeTab]);
+
   const [packages, setPackages] = useState<any[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<any | null>(null);
@@ -436,29 +462,6 @@ export function TestManagement() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-border">
-        <button
-          onClick={() => { setActiveTab('tests'); setCategoryFilter('all'); setSearchTerm(''); }}
-          className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors -mb-[2px] ${
-            activeTab === 'tests'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          Tests
-        </button>
-        <button
-          onClick={() => { setActiveTab('packages'); setCategoryFilter('all'); setSearchTerm(''); }}
-          className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors -mb-[2px] ${
-            activeTab === 'packages'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          Packages
-        </button>
-      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-3">
@@ -661,7 +664,7 @@ export function TestManagement() {
                               <Edit className="w-3.5 h-3.5" />
                             </button>
                             <button 
-                              onClick={() => navigate(`/settings/templates/${test.id}`)}
+                              onClick={() => navigate(`/tests/templates/${test.id}`)}
                               className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-cyan-600"
                               title="Configure Layout"
                             >

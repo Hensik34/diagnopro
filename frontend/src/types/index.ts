@@ -453,6 +453,10 @@ export interface Report {
   submitted_by_lastname?: string;
   rejected_by_firstname?: string;
   rejected_by_lastname?: string;
+  // Multi-tier pricing fields
+  price_list_id?: string;
+  price_locked?: boolean;
+  pricing_snapshot?: ReportTestPriceSnapshot[];
 }
 
 export interface CreateReportData {
@@ -476,6 +480,8 @@ export interface CreateReportData {
   final_amount?: number;
   b2b_lab_id?: string;
   b2b_charge?: number;
+  price_list_id?: string;
+  pricing_items?: Partial<ReportTestPriceSnapshot>[];
 }
 
 export interface UpdateReportData {
@@ -488,6 +494,92 @@ export interface UpdateReportData {
   report_type?: string;
   report_amount?: number;
   is_self_report?: boolean;
+  price_list_id?: string;
+  pricing_items?: Partial<ReportTestPriceSnapshot>[];
+  b2b_lab_id?: string;
+  b2b_charge?: number;
+  base_amount?: number;
+  lab_discount_type?: 'percent' | 'amount';
+  lab_discount_value?: number;
+  doctor_discount?: number;
+  final_amount?: number;
+}
+
+// ==========================================
+// Multi-Tier Test Pricing Types
+// ==========================================
+
+export interface PriceListItem {
+  id?: string;
+  price_list_id?: string;
+  test_id: string;
+  price: number | null;
+  discount_type: 'none' | 'percent' | 'amount';
+  discount_value: number;
+  test_name?: string;
+  test_code?: string;
+  test_category?: string;
+  base_price?: number;
+}
+
+export interface PriceList {
+  id: string;
+  name: string;
+  description?: string;
+  branch_id: string;
+  is_active: boolean;
+  version: number;
+  effective_from: string | null;
+  effective_to: string | null;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+  items?: PriceListItem[];
+}
+
+export interface DoctorPriceAssignment {
+  id: string;
+  doctor_id: string;
+  branch_id: string;
+  price_list_id: string;
+  priceList?: {
+    name: string;
+    version: number;
+    is_active: boolean;
+    effective_from?: string | null;
+    effective_to?: string | null;
+  };
+}
+
+export interface DoctorTestPriceOverride {
+  id?: string;
+  doctor_id: string;
+  test_id: string;
+  price: number;
+  branch_id: string;
+  test_name?: string;
+  test_code?: string;
+  test_category?: string;
+  base_price?: number;
+}
+
+export interface ReportTestPriceSnapshot {
+  id?: string;
+  report_id?: string;
+  test_id?: string | null;
+  package_id?: string | null;
+  default_price: number;
+  applied_price: number;
+  source: 'default' | 'branch' | 'doctor_list' | 'doctor_override' | 'price_list' | 'manual' | 'package';
+  source_id?: string | null;
+  price_list_version?: number | null;
+  is_manual_override: boolean;
+  test_name?: string;
+  test_code?: string;
+  test_category?: string;
+  package_name?: string;
+  package_code?: string;
+  calculation?: string[]; // step-by-step trace
 }
 
 // ==========================================

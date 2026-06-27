@@ -101,10 +101,12 @@ type Parameter = {
   status?: string;
   fieldType?: string;
   group?: string;
+  isMandatory?: boolean;
 };
 
 type TestSection = {
   id: string;
+  testId?: string;
   testName: string;
   parameters: Parameter[];
 };
@@ -154,7 +156,8 @@ type TestChunk = {
 type PageItem =
   | { type: 'patient' }
   | { type: 'test'; chunk: TestChunk }
-  | { type: 'interpretation'; text: string }
+  | { type: 'interpretation'; testId: string; text: string }
+  | { type: 'generalNotes'; text: string }
   | { type: 'endMarker' }
   | { type: 'signature' };
 
@@ -181,10 +184,10 @@ function parsePx(value: unknown, fallback: number) {
   return fallback;
 }
 function estimateInterpretationHeight(text: string, dense: boolean) {
-  const charsPerLine = dense ? 90 : 80;
-  const lineHeight = dense ? 16 : 18;
+  const charsPerLine = dense ? 100 : 90;
+  const lineHeight = dense ? 14 : 16;
   const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
-  return 22 + lines * lineHeight + 10; // title + lines + padding
+  return 24 + 16 + 14 + lines * lineHeight; // margin-top (24) + padding (16) + title (14) + lines
 }
 
 function estimateSectionHeight(section: TestSection, params: Parameter[], dense: boolean) {
@@ -337,6 +340,14 @@ export function ReportPreview() {
     return map;
   }, [testFields]);
 
+  const isMandatoryMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const f of testFields) {
+      map.set(`${f.test_id}::${f.field_name}`, f.is_mandatory !== false);
+    }
+    return map;
+  }, [testFields]);
+
   useEffect(() => {
     if (!rawReport) return;
 
@@ -360,7 +371,14 @@ export function ReportPreview() {
       status: p.status,
       fieldType: p.fieldType || undefined,
       group: p.group || (testId ? sectionGroupMap.get(`${testId}::${p.name}`) : undefined),
+      isMandatory: testId ? isMandatoryMap.get(`${testId}::${p.name}`) ?? true : true,
     });
+
+    const filterBlankOptionalParams = (pList: Parameter[]) => {
+      return pList.filter((p) => {
+        return p.result !== undefined && p.result !== null && p.result.trim() !== '';
+      });
+    };
 
     const testSections: TestSection[] = [];
     const params: Parameter[] = [];
@@ -395,29 +413,35 @@ export function ReportPreview() {
             return p;
           });
 
+          filteredParams = filterBlankOptionalParams(filteredParams);
+
           testSections.push({
             id: `${group.testId || group.testName || 'test'}-${i}`,
+            testId: group.testId,
             testName: group.testName,
             parameters: filteredParams,
           });
           params.push(...filteredParams);
         } else {
+          const filteredParams = filterBlankOptionalParams(sectionParams);
           testSections.push({
             id: `${group.testId || group.testName || 'test'}-${i}`,
+            testId: group.testId,
             testName: group.testName,
-            parameters: sectionParams,
+            parameters: filteredParams,
           });
-          params.push(...sectionParams);
+          params.push(...filteredParams);
         }
       }
     } else if (testData?.parameters?.length) {
       const sectionParams = testData.parameters.map((p: any) => mapParam(p));
+      const filteredParams = filterBlankOptionalParams(sectionParams);
       testSections.push({
         id: 'legacy-0',
         testName: testData.testName || rawReport.report_type || 'General Test',
-        parameters: sectionParams,
+        parameters: filteredParams,
       });
-      params.push(...sectionParams);
+      params.push(...filteredParams);
     }
 
     const collectionDate = (rawReport as any).collection_date || rawReport.created_at;
@@ -459,7 +483,7 @@ export function ReportPreview() {
     setSectionOrder(ids);
     setOriginalSectionOrder(ids);
     setVisibleSections(new Set(ids));
-  }, [rawReport, branches, sectionGroupMap]);
+  }, [rawReport, branches, sectionGroupMap, isMandatoryMap]);
 
   useEffect(() => {
     if (searchParams.get('share') === '1' && reportData && !shareAutoOpened.current) {
@@ -592,6 +616,10 @@ export function ReportPreview() {
     const signatureHeight = 72;
     const endMarkerHeight = 20;
 
+    const testData =
+      typeof rawReport?.test_data === 'string' ? JSON.parse(rawReport.test_data) : rawReport?.test_data;
+    const layoutSnapshots = testData?.layout_snapshots || {};
+
     const maxChunkHeight = Math.max(160, contentHeight - 50);
     const chunks = orderedSections.flatMap(section => splitSection(section, maxChunkHeight, isDense));
 
@@ -599,15 +627,29 @@ export function ReportPreview() {
     let totalNeeded = patientHeight;
     for (const chunk of chunks) {
       const section = orderedSections.find(s => s.id === chunk.sectionId);
-      if (section) totalNeeded += estimateSectionHeight(section, chunk.parameters, isDense);
+      if (section) {
+        totalNeeded += estimateSectionHeight(section, chunk.parameters, isDense);
+        // Add interpretation height if final chunk of section has significance
+        const isLastChunk = chunks.filter(c => c.sectionId === chunk.sectionId).pop() === chunk;
+        if (isLastChunk && section.testId) {
+          const sig = layoutSnapshots[section.testId]?.clinical_significance;
+          if (sig?.trim()) {
+            totalNeeded += estimateInterpretationHeight(sig.trim(), isDense);
+          }
+        }
+      }
     }
-    if (remarkText) totalNeeded += estimateInterpretationHeight(remarkText, isDense);
+    
+    // Add general clinical notes if present
+    if (rawReport?.clinical_notes?.trim()) {
+      totalNeeded += estimateInterpretationHeight(rawReport.clinical_notes.trim(), isDense);
+    }
+    
     totalNeeded += signatureHeight + endMarkerHeight;
 
     const overflow = totalNeeded - contentHeight;
 
     // If overflow is small (< 120px), apply micro-compaction to row heights
-    // This simulates tighter rendering without changing components
     const needsCompact = overflow > 0 && overflow <= 120;
     const compactScale = needsCompact ? Math.max(0.82, 1 - (overflow + 20) / totalNeeded) : 1;
 
@@ -633,14 +675,28 @@ export function ReportPreview() {
     for (const chunk of chunks) {
       const section = orderedSections.find(s => s.id === chunk.sectionId);
       if (!section) continue;
+      
       place({ type: 'test', chunk }, estimateHeight(section, chunk.parameters));
+      
+      // Place interpretation if it is the last chunk of the section and has significance
+      const isLastChunk = chunks.filter(c => c.sectionId === chunk.sectionId).pop() === chunk;
+      if (isLastChunk && section.testId) {
+        const sig = layoutSnapshots[section.testId]?.clinical_significance;
+        if (sig?.trim()) {
+          const sigH = needsCompact
+            ? Math.floor(estimateInterpretationHeight(sig.trim(), isDense) * compactScale)
+            : estimateInterpretationHeight(sig.trim(), isDense);
+          place({ type: 'interpretation', testId: section.testId, text: sig.trim() }, sigH);
+        }
+      }
     }
 
-    if (remarkText) {
-      const remarkH = needsCompact
-        ? Math.floor(estimateInterpretationHeight(remarkText, isDense) * compactScale)
-        : estimateInterpretationHeight(remarkText, isDense);
-      place({ type: 'interpretation', text: remarkText }, remarkH);
+    if (rawReport?.clinical_notes?.trim()) {
+      const notes = rawReport.clinical_notes.trim();
+      const notesH = needsCompact
+        ? Math.floor(estimateInterpretationHeight(notes, isDense) * compactScale)
+        : estimateInterpretationHeight(notes, isDense);
+      place({ type: 'generalNotes', text: notes }, notesH);
     }
 
     const tailHeight = signatureHeight + endMarkerHeight;
@@ -652,9 +708,7 @@ export function ReportPreview() {
     out[out.length - 1].push({ type: 'signature' });
 
     return out;
-  }, [reportData, orderedSections, safeZones, remarkText, density]);
-
-
+  }, [reportData, orderedSections, safeZones, rawReport, density]);
 
   // Derive compactAdjustment from pages for rendering
   const compactAdjustment = useMemo(() => {
@@ -662,17 +716,28 @@ export function ReportPreview() {
     const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom;
     const isDense = density !== 'comfortable';
 
+    const testData =
+      typeof rawReport?.test_data === 'string' ? JSON.parse(rawReport.test_data) : rawReport?.test_data;
+    const layoutSnapshots = testData?.layout_snapshots || {};
+
     let totalNeeded = 100; // patient
     for (const section of orderedSections) {
       totalNeeded += estimateSectionHeight(section, section.parameters, isDense);
+      if (section.testId) {
+        const sig = layoutSnapshots[section.testId]?.clinical_significance;
+        if (sig?.trim()) {
+          totalNeeded += estimateInterpretationHeight(sig.trim(), isDense);
+        }
+      }
     }
-    if (remarkText) totalNeeded += estimateInterpretationHeight(remarkText, isDense);
+    if (rawReport?.clinical_notes?.trim()) {
+      totalNeeded += estimateInterpretationHeight(rawReport.clinical_notes.trim(), isDense);
+    }
     totalNeeded += 92; // signature + end marker
 
     const overflow = totalNeeded - contentHeight;
     return (overflow > 0 && overflow <= 120) ? overflow : 0;
-  }, [reportData, orderedSections, safeZones, remarkText, density]);
-
+  }, [reportData, orderedSections, safeZones, rawReport, density]);
 
   const isSelfReport = reportData?.patient.referringDoctor === 'Self' || rawReport?.is_self_report;
   const refDoctor = doctors.find(d => d.id === rawReport?.doctor_id);
@@ -1157,28 +1222,59 @@ export function ReportPreview() {
                             );
                           }
 
-                          // Find item.type === 'interpretation' block, replace with:
-                          if (item.type === 'interpretation') {
-                            return (
-                              <section key={`i-${idx}`} style={{ marginTop: '4px' }}>
-                                <p
-                                  style={{
-                                    margin: '0 0 3px 0',
-                                    fontSize: '10.5px',
-                                    fontWeight: 700,
-                                    color: '#222',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.4px',
-                                  }}
-                                >
-                                  Clinical Significance
-                                </p>
-                                <p style={{ margin: 0, fontSize: '10.5px', color: '#444', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
-                                  {item.text}
-                                </p>
-                              </section>
-                            );
-                          }
+                           // Render inline clinical significance box
+                           if (item.type === 'interpretation') {
+                             return (
+                               <div
+                                 key={`i-${idx}`}
+                                 style={{
+                                   marginTop: '24px',
+                                   border: `1px solid ${C.borderLight}`,
+                                   borderRadius: '4px',
+                                   padding: '8px 10px',
+                                   backgroundColor: '#FFFDE7',
+                                   fontSize: '9px',
+                                   color: '#546E7A',
+                                   lineHeight: 1.5,
+                                   textAlign: 'left'
+                                 }}
+                               >
+                                 <span style={{ fontWeight: 800, color: '#37474F', textTransform: 'uppercase' }}>
+                                   Clinical Significance
+                                 </span>
+                                 <p style={{ margin: '3px 0 0 0', whiteSpace: 'pre-line' }}>
+                                   {item.text}
+                                 </p>
+                               </div>
+                             );
+                           }
+
+                           // Render inline general/technician notes box
+                           if (item.type === 'generalNotes') {
+                             return (
+                               <div
+                                 key={`gnotes-${idx}`}
+                                 style={{
+                                   marginTop: '24px',
+                                   border: `1px solid ${C.borderLight}`,
+                                   borderRadius: '4px',
+                                   padding: '8px 10px',
+                                   backgroundColor: '#FFFDE7',
+                                   fontSize: '9px',
+                                   color: '#546E7A',
+                                   lineHeight: 1.5,
+                                   textAlign: 'left'
+                                 }}
+                               >
+                                 <span style={{ fontWeight: 800, color: '#37474F', textTransform: 'uppercase' }}>
+                                   Technician Notes / Interpretation
+                                 </span>
+                                 <p style={{ margin: '3px 0 0 0', whiteSpace: 'pre-line' }}>
+                                   {item.text}
+                                 </p>
+                               </div>
+                             );
+                           }
 
 
                           // Find item.type === 'endMarker' block, replace with:

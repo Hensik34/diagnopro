@@ -28,6 +28,12 @@ const WhatsappSession = require("./definitions/WhatsappSession");
 const WhatsappTemplate = require("./definitions/WhatsappTemplate");
 const WhatsappNotificationSetting = require("./definitions/WhatsappNotificationSetting");
 const PasswordResetOtp = require("./definitions/PasswordResetOtp");
+const PriceList = require("./definitions/PriceList");
+const PriceListItem = require("./definitions/PriceListItem");
+const DoctorPriceListAssignment = require("./definitions/DoctorPriceListAssignment");
+const DoctorTestPrice = require("./definitions/DoctorTestPrice");
+const ReportTestPrice = require("./definitions/ReportTestPrice");
+const PriceAuditLog = require("./definitions/PriceAuditLog");
 
 // Associations
 User.belongsToMany(Branch, { through: UserBranch, foreignKey: "user_id", otherKey: "branch_id", as: "branches" });
@@ -71,6 +77,7 @@ Report.belongsTo(User, { foreignKey: "rejected_by", as: "rejectedByUser" });
 Report.belongsTo(Sample, { foreignKey: "sample_id", as: "sample" });
 Report.belongsTo(Branch, { foreignKey: "branch_id", as: "branch" });
 Report.belongsTo(B2BLab, { foreignKey: "b2b_lab_id", as: "b2bLab" });
+Report.belongsTo(PriceList, { foreignKey: "price_list_id", as: "priceList" });
 Patient.hasMany(Report, { foreignKey: "patient_id" });
 Doctor.hasMany(Report, { foreignKey: "doctor_id" });
 
@@ -112,6 +119,27 @@ Branch.hasMany(WhatsappTemplate, { foreignKey: "branch_id", as: "whatsappTemplat
 
 WhatsappNotificationSetting.belongsTo(Branch, { foreignKey: "branch_id", as: "branch" });
 Branch.hasMany(WhatsappNotificationSetting, { foreignKey: "branch_id", as: "whatsappNotificationSettings" });
+
+// Pricing model associations
+PriceList.belongsTo(Branch, { foreignKey: "branch_id", as: "branch" });
+PriceList.hasMany(PriceListItem, { foreignKey: "price_list_id", as: "items" });
+PriceListItem.belongsTo(PriceList, { foreignKey: "price_list_id", as: "priceList" });
+PriceListItem.belongsTo(Test, { foreignKey: "test_id", as: "test" });
+
+DoctorPriceListAssignment.belongsTo(Doctor, { foreignKey: "doctor_id", as: "doctor" });
+DoctorPriceListAssignment.belongsTo(Branch, { foreignKey: "branch_id", as: "branch" });
+DoctorPriceListAssignment.belongsTo(PriceList, { foreignKey: "price_list_id", as: "priceList" });
+
+DoctorTestPrice.belongsTo(Doctor, { foreignKey: "doctor_id", as: "doctor" });
+DoctorTestPrice.belongsTo(Test, { foreignKey: "test_id", as: "test" });
+DoctorTestPrice.belongsTo(Branch, { foreignKey: "branch_id", as: "branch" });
+
+ReportTestPrice.belongsTo(Report, { foreignKey: "report_id", as: "report" });
+ReportTestPrice.belongsTo(Test, { foreignKey: "test_id", as: "test" });
+
+PriceAuditLog.belongsTo(Report, { foreignKey: "report_id", as: "report" });
+PriceAuditLog.belongsTo(Test, { foreignKey: "test_id", as: "test" });
+PriceAuditLog.belongsTo(User, { foreignKey: "changed_by", as: "changedByUser" });
 
 async function syncDatabase() {
   try {
@@ -183,4 +211,10 @@ module.exports = {
   WhatsappTemplate,
   WhatsappNotificationSetting,
   PasswordResetOtp,
+  PriceList,
+  PriceListItem,
+  DoctorPriceListAssignment,
+  DoctorTestPrice,
+  ReportTestPrice,
+  PriceAuditLog,
 };
