@@ -225,7 +225,15 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'HDL Cholesterol', 'HDL-01', 'Biochemistry', 'Serum', 150, 4, 'Measures High-Density Lipoprotein cholesterol in serum', NOW(), NOW()),
   (gen_random_uuid(), 'Sputum Routine & Microscopy', 'SPUTUM-RM', 'Clinical Pathology', 'Sputum', 350, 6, 'Routine macroscopic and microscopic analysis of sputum', NOW(), NOW()),
   (gen_random_uuid(), 'Mantoux Test', 'MANTOUX-01', 'Immunology', 'Intradermal Injection', 200, 48, 'Tuberculin skin test for exposure to Tuberculosis', NOW(), NOW()),
-  (gen_random_uuid(), 'Typhidot (IgM & IgG)', 'TYPHIDOT-01', 'Serology', 'Serum', 300, 4, 'Qualitative rapid test for Salmonella typhi IgM and IgG', NOW(), NOW())
+  (gen_random_uuid(), 'Typhidot (IgM & IgG)', 'TYPHIDOT-01', 'Serology', 'Serum', 300, 4, 'Qualitative rapid test for Salmonella typhi IgM and IgG', NOW(), NOW()),
+  (gen_random_uuid(), 'Stool Analysis', 'STOOL-ANA', 'Clinical Pathology', 'Stool', 300, 3, 'Comprehensive macroscopic, chemical and microscopic analysis of stool specimen', NOW(), NOW()),
+  (gen_random_uuid(), 'Brucella IgM', 'BRUC-IGM', 'Serology', 'Serum', 350, 4, 'Qualitative detection of IgM antibodies against Brucella species for acute brucellosis diagnosis', NOW(), NOW()),
+  (gen_random_uuid(), 'Brucella IgG', 'BRUC-IGG', 'Serology', 'Serum', 350, 4, 'Qualitative detection of IgG antibodies against Brucella species for chronic or past exposure to brucellosis', NOW(), NOW()),
+  (gen_random_uuid(), 'Antiphospholipid Antibody (APLA/APLZ) Profile', 'APLA-PRO', 'Immunology', 'Serum/Plasma', 2800, 12, 'Comprehensive profile for Antiphospholipid Syndrome (APS) detecting Lupus Anticoagulant, Anti-Cardiolipin, and Beta-2 Glycoprotein I antibodies', NOW(), NOW()),
+  (gen_random_uuid(), 'Double Marker Test', 'DBLM-01', 'Hormone', 'Serum', 1500, 24, 'First trimester maternal screening for chromosomal abnormalities (Free Beta-hCG and PAPP-A)', NOW(), NOW()),
+  (gen_random_uuid(), 'Triple Marker Test', 'TRPM-01', 'Hormone', 'Serum', 2000, 24, 'Second trimester maternal screening for chromosomal abnormalities and neural tube defects (AFP, HCG, and uE3)', NOW(), NOW()),
+  (gen_random_uuid(), 'Rubella IgG', 'RUB-IGG', 'Serology', 'Serum', 400, 4, 'Quantitative determination of IgG antibodies against Rubella virus to evaluate immune status', NOW(), NOW()),
+  (gen_random_uuid(), 'Rubella IgM', 'RUB-IGM', 'Serology', 'Serum', 400, 4, 'Qualitative determination of IgM antibodies against Rubella virus to diagnose acute or recent infection', NOW(), NOW())
 ON CONFLICT (test_code) DO UPDATE SET price = EXCLUDED.price, updated_at = NOW();
 
 -- ==========================================
@@ -1110,7 +1118,60 @@ false,NOW(),NOW()),
 
 -- TYPHIDOT (TYPHIDOT-01)
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TYPHIDOT-01'), 'Typhidot IgM', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Serology Findings', 1, NULL, '{"positive":"Positive"}'::jsonb, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TYPHIDOT-01'), 'Typhidot IgG', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Serology Findings', 2, NULL, NULL, true, NOW(), NOW())
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TYPHIDOT-01'), 'Typhidot IgG', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Serology Findings', 2, NULL, NULL, true, NOW(), NOW()),
+
+-- STOOL ANALYSIS (STOOL-ANA)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Color', NULL, 'select', 'Brown,Yellow,Clay,Black,Red,Green', 'input', NULL, NULL, 'Physical Examination', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Consistency', NULL, 'select', 'Formed,Semi-formed,Loose,Watery', 'input', NULL, NULL, 'Physical Examination', 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'pH', NULL, 'number', NULL, 'input', NULL, NULL, 'Chemical Examination', 3, '{"min":6.0,"max":7.8}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Reducing Substances', NULL, 'select', 'Negative,Trace,1+,2+,3+', 'input', NULL, NULL, 'Chemical Examination', 4, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Occult Blood', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Chemical Examination', 5, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Pus Cells', '/HPF', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 6, '{"min":0,"max":5}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'RBCs', '/HPF', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 7, '{"min":0,"max":2}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Epithelial Cells', '/HPF', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 8, '{"min":0,"max":5}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Ova', NULL, 'select', 'Not seen,Roundworm,Hookworm,Whipworm', 'input', NULL, NULL, 'Microscopic Examination', 9, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Cysts', NULL, 'select', 'Not seen,E. histolytica,E. coli,Giardia', 'input', NULL, NULL, 'Microscopic Examination', 10, NULL, NULL, true, NOW(), NOW()),
+
+-- BRUCELLA IgM (BRUC-IGM)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BRUC-IGM'), 'Brucella IgM Antibody', 'Index', 'number', NULL, 'input', NULL, NULL, 'Brucella Serology', 1, '{"min":0.0,"max":0.9}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- BRUCELLA IgG (BRUC-IGG)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BRUC-IGG'), 'Brucella IgG Antibody', 'Index', 'number', NULL, 'input', NULL, NULL, 'Brucella Serology', 1, '{"min":0.0,"max":0.9}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- APLA / APLZ PROFILE (APLA-PRO)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='APLA-PRO'), 'Lupus Anticoagulant (LA1 - Screen)', 'seconds', 'number', NULL, 'input', NULL, NULL, 'Lupus Anticoagulant', 1, '{"min":30.0,"max":45.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='APLA-PRO'), 'Lupus Anticoagulant (LA2 - Confirm)', 'seconds', 'number', NULL, 'input', NULL, NULL, 'Lupus Anticoagulant', 2, '{"min":30.0,"max":40.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='APLA-PRO'), 'Lupus Anticoagulant Ratio (LA1/LA2)', 'ratio', 'number', NULL, 'calculated', '(Lupus Anticoagulant (LA1 - Screen) / Lupus Anticoagulant (LA2 - Confirm))', 'Lupus Anticoagulant (LA1 - Screen),Lupus Anticoagulant (LA2 - Confirm)', 'Lupus Anticoagulant', 3, '{"min":0.8,"max":1.2}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='APLA-PRO'), 'Anti-Cardiolipin IgG', 'GPL', 'number', NULL, 'input', NULL, NULL, 'Cardiolipin Antibodies', 4, '{"min":0.0,"max":10.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='APLA-PRO'), 'Anti-Cardiolipin IgM', 'MPL', 'number', NULL, 'input', NULL, NULL, 'Cardiolipin Antibodies', 5, '{"min":0.0,"max":10.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='APLA-PRO'), 'Anti-Beta-2 Glycoprotein I IgG', 'U/mL', 'number', NULL, 'input', NULL, NULL, 'Beta-2 Glycoprotein I Antibodies', 6, '{"min":0.0,"max":20.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='APLA-PRO'), 'Anti-Beta-2 Glycoprotein I IgM', 'U/mL', 'number', NULL, 'input', NULL, NULL, 'Beta-2 Glycoprotein I Antibodies', 7, '{"min":0.0,"max":20.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- DOUBLE MARKER TEST (DBLM-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DBLM-01'), 'Free Beta HCG', 'ng/mL', 'number', NULL, 'input', NULL, NULL, 'Biochemical Markers', 1, '{"min":20.0,"max":100.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DBLM-01'), 'Free Beta HCG MoM', 'MoM', 'number', NULL, 'input', NULL, NULL, 'Biochemical Markers', 2, '{"min":0.5,"max":2.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DBLM-01'), 'PAPP-A', 'mIU/L', 'number', NULL, 'input', NULL, NULL, 'Biochemical Markers', 3, '{"min":1000.0,"max":5000.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DBLM-01'), 'PAPP-A MoM', 'MoM', 'number', NULL, 'input', NULL, NULL, 'Biochemical Markers', 4, '{"min":0.5,"max":2.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DBLM-01'), 'Nuchal Translucency (NT) MoM', 'MoM', 'number', NULL, 'input', NULL, NULL, 'Biochemical Markers', 5, '{"min":0.5,"max":2.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DBLM-01'), 'Down Syndrome (Trisomy 21) Risk', 'ratio', 'text', NULL, 'input', NULL, NULL, 'Risk Calculation', 6, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DBLM-01'), 'Edwards/Patau Syndrome (Trisomy 18/13) Risk', 'ratio', 'text', NULL, 'input', NULL, NULL, 'Risk Calculation', 7, NULL, NULL, true, NOW(), NOW()),
+
+-- TRIPLE MARKER TEST (TRPM-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TRPM-01'), 'Maternal AFP', 'ng/mL', 'number', NULL, 'input', NULL, NULL, 'Biochemical Markers', 1, '{"min":10.0,"max":50.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TRPM-01'), 'Maternal AFP MoM', 'MoM', 'number', NULL, 'input', NULL, NULL, 'Biochemical Markers', 2, '{"min":0.5,"max":2.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TRPM-01'), 'Total HCG', 'mIU/mL', 'number', NULL, 'input', NULL, NULL, 'Biochemical Markers', 3, '{"min":5000.0,"max":50000.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TRPM-01'), 'Total HCG MoM', 'MoM', 'number', NULL, 'input', NULL, NULL, 'Biochemical Markers', 4, '{"min":0.5,"max":2.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TRPM-01'), 'Unconjugated Estriol (uE3)', 'ng/mL', 'number', NULL, 'input', NULL, NULL, 'Biochemical Markers', 5, '{"min":0.5,"max":4.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TRPM-01'), 'Unconjugated Estriol MoM', 'MoM', 'number', NULL, 'input', NULL, NULL, 'Biochemical Markers', 6, '{"min":0.5,"max":2.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TRPM-01'), 'Down Syndrome (Trisomy 21) Risk', 'ratio', 'text', NULL, 'input', NULL, NULL, 'Risk Calculation', 7, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TRPM-01'), 'Edwards/Patau Syndrome (Trisomy 18/13) Risk', 'ratio', 'text', NULL, 'input', NULL, NULL, 'Risk Calculation', 8, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TRPM-01'), 'Neural Tube Defects (NTD) Risk', 'ratio', 'text', NULL, 'input', NULL, NULL, 'Risk Calculation', 9, NULL, NULL, true, NOW(), NOW()),
+
+-- RUBELLA IgG (RUB-IGG)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='RUB-IGG'), 'Rubella IgG Antibody', 'IU/mL', 'number', NULL, 'input', NULL, NULL, 'Rubella Serology', 1, '{"min":10.0,"max":500.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- RUBELLA IgM (RUB-IGM)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='RUB-IGM'), 'Rubella IgM Antibody', 'Index', 'number', NULL, 'input', NULL, NULL, 'Rubella Serology', 1, '{"min":0.0,"max":0.9}'::jsonb, NULL, true, NOW(), NOW())
 
 ON CONFLICT (test_id, field_name)
 DO UPDATE SET
@@ -1375,7 +1436,7 @@ test_panel_map AS (
       ELSE 'SINGLE_ANALYTE_NUMERIC'
     END AS template_code
   FROM tests t
-  WHERE t.test_code NOT IN ('CBC-01', 'LFT-01', 'KFT-01', 'LIPID-01', 'PT', 'APTT', 'HBA1C-01', 'MAL-AG-01', 'TP-01', 'HIV-01', 'HBSAG-01', 'HCV-01', 'CHIK-IGM-01', 'UACR-01', 'TORCH-01', 'HIV-RAPID-01', 'RPR-01', 'TB-XPERT-01', 'DENGUE-01', 'DENGUE-RAPID', 'DENGNS1-RAPID', 'DENGNS1-01', 'DENGIGG-01', 'HBSAG-RAPID-01', 'HCV-RAPID-01', 'HB-01', 'AEC-01', 'RETIC-01', 'MP-01', 'PLT-01', 'PGBS-01', 'UREA-01', 'CREAT-01', 'BIL-01', 'SGPT-01', 'SGOT-01', 'ALP-01', 'CHOL-01', 'TRIG-01', 'HDL-01', 'SPUTUM-RM', 'MANTOUX-01', 'TYPHIDOT-01', 'WIDAL-01', 'PBS-01', 'ELEC-01', 'STOOL-01')
+  WHERE t.test_code NOT IN ('CBC-01', 'LFT-01', 'KFT-01', 'LIPID-01', 'PT', 'APTT', 'HBA1C-01', 'MAL-AG-01', 'TP-01', 'HIV-01', 'HBSAG-01', 'HCV-01', 'CHIK-IGM-01', 'UACR-01', 'TORCH-01', 'HIV-RAPID-01', 'RPR-01', 'TB-XPERT-01', 'DENGUE-01', 'DENGUE-RAPID', 'DENGNS1-RAPID', 'DENGNS1-01', 'DENGIGG-01', 'HBSAG-RAPID-01', 'HCV-RAPID-01', 'HB-01', 'AEC-01', 'RETIC-01', 'MP-01', 'PLT-01', 'PGBS-01', 'UREA-01', 'CREAT-01', 'BIL-01', 'SGPT-01', 'SGOT-01', 'ALP-01', 'CHOL-01', 'TRIG-01', 'HDL-01', 'SPUTUM-RM', 'MANTOUX-01', 'TYPHIDOT-01', 'WIDAL-01', 'PBS-01', 'ELEC-01', 'STOOL-01', 'STOOL-ANA', 'BRUC-IGM', 'BRUC-IGG', 'APLA-PRO', 'DBLM-01', 'TRPM-01', 'RUB-IGG', 'RUB-IGM')
 ),
 seed_rows AS (
   SELECT
