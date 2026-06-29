@@ -27,8 +27,9 @@ import { toast } from "sonner";
 import { useDoctorStore, useReportStore, usePatientStore, useTestStore, useBranchStore } from "../../stores";
 import { useAuthStore } from "../../stores/authStore";
 import { reportApi } from "../../api/reports";
+import { priceListApi, pricingEngineApi } from "../../api/priceLists";
 import { useBillingStore } from "../../stores/billingStore";
-import type { AgeUnit, Doctor, Patient, Report, Test, TestField, ReferenceRule, CriticalRules } from "../../types";
+import type { AgeUnit, Doctor, Patient, Report, Test, TestField, ReferenceRule, CriticalRules, ReportTestPriceSnapshot } from "../../types";
 import { BillingSection } from "../../app/components/reports/BillingSection";
 import { formatAge, getAgeMax, normalizeAgeUnit } from "../../utils/age";
 
@@ -276,7 +277,7 @@ export function ReportEntry() {
   const { can } = useAuthStore();
   const { tests, testFields, fetchTests, fetchTestFields, fetchTestFieldsMulti } = useTestStore();
   const canAutoApprove = can('report:approve');
-  const { loadFromReport, reset: resetBilling, saveBilling, setBaseAmount } = useBillingStore();
+  const { loadFromReport, reset: resetBilling, saveBilling, setBaseAmount, baseAmount } = useBillingStore();
   const reportId = rawReportId && rawReportId !== 'undefined' && rawReportId !== 'null' ? rawReportId : undefined;
 
   useEffect(() => {
@@ -505,11 +506,13 @@ export function ReportEntry() {
   const hasPopulatedValues = useRef(false);
   // Track whether billing has been loaded from the report (to avoid overwriting user's discount changes)
   const hasBillingLoaded = useRef(false);
+  const originalSnapshotRef = useRef<ReportTestPriceSnapshot[]>([]);
 
   // Reset the populated flag and form state when reportId changes (navigating to a different report)
   useEffect(() => {
     hasPopulatedValues.current = false;
     hasBillingLoaded.current = false;
+    originalSnapshotRef.current = [];
     setSelectedReport(null); // Clear stale report data before fetching new one
     setValues({});
     setStatuses({});
@@ -565,6 +568,7 @@ export function ReportEntry() {
       if (!hasBillingLoaded.current) {
         loadFromReport(selectedReport);
         hasBillingLoaded.current = true;
+        originalSnapshotRef.current = selectedReport.pricing_snapshot || [];
       }
     }
   }, [selectedReport, reportId, doctors, loadFromReport]);
@@ -641,12 +645,82 @@ export function ReportEntry() {
       d.specialization?.toLowerCase().includes(doctorSearch.toLowerCase());
   });
 
+  // Helper to re-resolve prices for standalone tests while preserving existing package pricing snapshots
+  const resolvePricingForTestIds = async (newTestIds: string[], overrideDoctorId?: string | null) => {
+    if (!selectedReport) return { amount: 0, snapshot: [] };
+
+    // Get original snapshot
+    const origSnapshot = originalSnapshotRef.current;
+
+    // Identify which test IDs are standalone (either not in original snapshot, or in original snapshot as standalone)
+    const standaloneTestIds = newTestIds.filter(tid => {
+      // Find if this test was standalone in the original snapshot
+      const wasInOrig = origSnapshot.some(item => item.test_id === tid);
+      const wasStandaloneInOrig = origSnapshot.some(item => item.test_id === tid && !item.package_id);
+      return !wasInOrig || wasStandaloneInOrig;
+    });
+
+    let resolvedSnapshot: ReportTestPriceSnapshot[] = [];
+    let standaloneAmount = 0;
+
+    const resolvedDoctorId = overrideDoctorId !== undefined ? overrideDoctorId : (selectedDoctor?.id || null);
+
+    if (standaloneTestIds.length > 0) {
+      try {
+        const res = await pricingEngineApi.resolve({
+          testIds: standaloneTestIds,
+          branchId: selectedReport.branch_id,
+          doctorId: resolvedDoctorId,
+          reportPriceListId: selectedReport.price_list_id || null,
+        });
+        if (res) {
+          resolvedSnapshot = Object.entries(res).map(([testId, item]) => {
+            const t = tests.find(x => x.id === testId);
+            return {
+              ...item,
+              test_id: testId,
+              package_id: null,
+              test_name: t?.test_name || item.test_name,
+              test_code: t?.test_code || item.test_code,
+              test_category: t?.category || item.test_category,
+            };
+          });
+          standaloneAmount = resolvedSnapshot.reduce((sum, item) => sum + (Number(item.applied_price) || 0), 0);
+        }
+      } catch (e) {
+        console.error("Failed to resolve pricing for standalone tests:", e);
+        // Fallback using master test prices
+        standaloneAmount = standaloneTestIds.reduce((sum, tid) => {
+          const t = tests.find(x => x.id === tid);
+          return sum + (Number(t?.price) || 0);
+        }, 0);
+      }
+    }
+
+    // Keep all package items from the original snapshot
+    const packageItems = origSnapshot.filter(item => item.package_id);
+    const packageAmount = packageItems.reduce((sum, item) => sum + (Number(item.applied_price) || 0), 0);
+
+    // Combine packages and standalone resolved tests
+    const finalSnapshot = [...packageItems, ...resolvedSnapshot];
+    const totalAmount = packageAmount + standaloneAmount;
+
+    return {
+      amount: totalAmount,
+      snapshot: finalSnapshot
+    };
+  };
+
   // Handle doctor selection
-  const handleSelectDoctor = (doctor: Doctor | null) => {
+  const handleSelectDoctor = async (doctor: Doctor | null) => {
+    if (!selectedReport) return;
+
+    let nextDoctorId: string | null = null;
     if (doctor) {
       setSelectedDoctor(doctor);
       setIsSelfReport(false);
       setDoctorSearch(`${doctor.title || 'Dr'}. ${doctor.name}`);
+      nextDoctorId = doctor.id;
     } else {
       // Self selected
       setSelectedDoctor(null);
@@ -654,6 +728,24 @@ export function ReportEntry() {
       setDoctorSearch("");
     }
     setShowDoctorDropdown(false);
+
+    // Re-resolve pricing for all tests based on new doctor selection
+    const currentTestIds = parsedTestData?.testIds || [];
+    if (currentTestIds.length > 0) {
+      const { amount: newAmount, snapshot: resolvedSnapshot } = await resolvePricingForTestIds(currentTestIds, nextDoctorId);
+      
+      if (resolvedSnapshot.length > 0) {
+        const updatedReport = {
+          ...selectedReport,
+          doctor_id: nextDoctorId || undefined,
+          report_amount: newAmount,
+          pricing_snapshot: resolvedSnapshot,
+        };
+        setSelectedReport(updatedReport);
+        setReportAmount(newAmount);
+        setBaseAmount(newAmount);
+      }
+    }
   };
 
   // Filter tests based on search
@@ -661,13 +753,13 @@ export function ReportEntry() {
     const selectedTestIds = parsedTestData?.testIds || [];
     return tests.filter(
       (t) =>
-        !selectedTestIds.includes(t.id) &&
-        ((t.test_name || '').toLowerCase().includes(testSearch.toLowerCase()) ||
-          (t.category || '').toLowerCase().includes(testSearch.toLowerCase()))
+         !selectedTestIds.includes(t.id) &&
+         ((t.test_name || '').toLowerCase().includes(testSearch.toLowerCase()) ||
+           (t.category || '').toLowerCase().includes(testSearch.toLowerCase()))
     ).slice(0, 15);
   }, [tests, parsedTestData, testSearch]);
 
-  const handleAddTest = (test: Test) => {
+  const handleAddTest = async (test: Test) => {
     if (!selectedReport) return;
 
     const currentTestIds = parsedTestData?.testIds || [];
@@ -678,7 +770,8 @@ export function ReportEntry() {
     // Find all test names for these testIds
     const matchedTests = newTestIds.map(id => tests.find(t => t.id === id)).filter(Boolean) as Test[];
     const newReportType = matchedTests.map(t => t.test_name).join(', ');
-    const newAmount = matchedTests.reduce((sum, t) => sum + (Number(t.price) || 0), 0);
+
+    const { amount: newAmount, snapshot: resolvedSnapshot } = await resolvePricingForTestIds(newTestIds);
 
     const updatedTestData = {
       ...parsedTestData,
@@ -692,6 +785,7 @@ export function ReportEntry() {
       report_type: newReportType,
       report_amount: newAmount,
       test_data: updatedTestData,
+      pricing_snapshot: resolvedSnapshot.length > 0 ? resolvedSnapshot : selectedReport.pricing_snapshot,
     };
 
     setSelectedReport(updatedReport);
@@ -704,7 +798,7 @@ export function ReportEntry() {
     setReportStatus("draft");
   };
 
-  const handleRemoveTest = (testId: string) => {
+  const handleRemoveTest = async (testId: string) => {
     if (!selectedReport) return;
 
     const currentTestIds = parsedTestData?.testIds || [];
@@ -716,7 +810,8 @@ export function ReportEntry() {
 
     const matchedTests = newTestIds.map(id => tests.find(t => t.id === id)).filter(Boolean) as Test[];
     const newReportType = matchedTests.map(t => t.test_name).join(', ');
-    const newAmount = matchedTests.reduce((sum, t) => sum + (Number(t.price) || 0), 0);
+
+    const { amount: newAmount, snapshot: resolvedSnapshot } = await resolvePricingForTestIds(newTestIds);
 
     const updatedTestData = {
       ...parsedTestData,
@@ -730,6 +825,7 @@ export function ReportEntry() {
       report_type: newReportType,
       report_amount: newAmount,
       test_data: updatedTestData,
+      pricing_snapshot: resolvedSnapshot.length > 0 ? resolvedSnapshot : selectedReport.pricing_snapshot,
     };
 
     setSelectedReport(updatedReport);
@@ -1174,6 +1270,9 @@ export function ReportEntry() {
       test_data: testData,
       report_type: testName,
       report_amount: reportAmount,
+      base_amount: baseAmount,
+      final_amount: reportAmount,
+      pricing_items: selectedReport?.pricing_snapshot || [],
     });
 
     if (!result) {

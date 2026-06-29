@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { billingApi } from '../api';
-import type { Payment, PaymentMode, PaymentStatus } from '../types';
+import type { Payment, PaymentMode, PaymentStatus, ReportTestPriceSnapshot } from '../types';
 
 // ==========================================
 // Billing Store State Interface
@@ -16,6 +16,7 @@ interface BillingState {
   payments: Payment[];
   paymentStatus: PaymentStatus;
   totalPaid: number;
+  pricingSnapshot: ReportTestPriceSnapshot[];
   isLoading: boolean;
   error: string | null;
 
@@ -23,6 +24,7 @@ interface BillingState {
   setBaseAmount: (amount: number) => void;
   setLabDiscount: (type: 'percent' | 'amount', value: number) => void;
   setDoctorDiscount: (amount: number) => void;
+  updateItemPrice: (itemId: string, price: number) => void;
   calculateFinalAmount: () => void;
   fetchPayments: (reportId: string) => Promise<void>;
   addPayment: (reportId: string, mode: PaymentMode, amount: number) => Promise<boolean>;
@@ -36,6 +38,7 @@ interface BillingState {
     final_amount?: number;
     payment_status?: PaymentStatus;
     report_amount?: number;
+    pricing_snapshot?: ReportTestPriceSnapshot[];
   }) => void;
   clearError: () => void;
   reset: () => void;
@@ -54,6 +57,7 @@ const initialState = {
   payments: [],
   paymentStatus: 'pending' as PaymentStatus,
   totalPaid: 0,
+  pricingSnapshot: [] as ReportTestPriceSnapshot[],
   isLoading: false,
   error: null,
 };
@@ -101,6 +105,24 @@ export const useBillingStore = create<BillingState>((set, get) => ({
 
   setDoctorDiscount: (amount: number) => {
     set({ doctorDiscount: amount });
+    get().calculateFinalAmount();
+  },
+
+  updateItemPrice: (itemId: string, price: number) => {
+    const updatedSnapshot = get().pricingSnapshot.map(item => {
+      const matchKey = item.test_id || item.package_id;
+      if (matchKey === itemId) {
+        return {
+          ...item,
+          applied_price: price,
+          is_manual_override: true,
+          source: 'manual' as const,
+        };
+      }
+      return item;
+    });
+    const newBaseAmount = updatedSnapshot.reduce((sum, item) => sum + (Number(item.applied_price) || 0), 0);
+    set({ pricingSnapshot: updatedSnapshot, baseAmount: newBaseAmount });
     get().calculateFinalAmount();
   },
 
@@ -179,21 +201,24 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   saveBilling: async (reportId: string): Promise<boolean> => {
     set({ isLoading: true, error: null });
     try {
-      const { baseAmount, labDiscountType, labDiscountValue, doctorDiscount } = get();
+      const { baseAmount, labDiscountType, labDiscountValue, doctorDiscount, pricingSnapshot } = get();
       const response = await billingApi.updateBilling(reportId, {
         base_amount: baseAmount,
         lab_discount_type: labDiscountType,
         lab_discount_value: labDiscountValue,
         doctor_discount: doctorDiscount,
+        pricing_items: pricingSnapshot,
       });
       if (response.data) {
-        const report = response.data as unknown as Record<string, unknown>;
+        const report = response.data;
         const newFinal = parseFloat(String(report.final_amount ?? 0));
         const newTotalPaid = parseFloat(String(report.total_paid ?? get().totalPaid ?? 0));
+        const newSnapshot = report.pricing_snapshot || [];
         set({
           finalAmount: newFinal,
           totalPaid: newTotalPaid,
           paymentStatus: derivePaymentStatus(newTotalPaid, newFinal),
+          pricingSnapshot: newSnapshot,
           isLoading: false,
         });
       }
@@ -211,6 +236,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
     const discValue = parseFloat(String(report.lab_discount_value ?? 0));
     const docDiscount = parseFloat(String(report.doctor_discount ?? 0));
     const final = parseFloat(String(report.final_amount ?? 0)) || computeFinal(base, discType, discValue, docDiscount);
+    const snapshot = report.pricing_snapshot || [];
 
     set({
       baseAmount: base,
@@ -219,6 +245,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       doctorDiscount: docDiscount,
       finalAmount: final,
       paymentStatus: (report.payment_status as PaymentStatus) || 'pending',
+      pricingSnapshot: snapshot,
     });
   },
 

@@ -13,17 +13,47 @@ exports.getPricesForReport = async (reportId) => {
         attributes: ["test_name", "test_code", "category"],
         required: false,
       }
-    ],
-    raw: true,
-    nest: true,
+    ]
   });
 
-  return records.map(r => ({
-    ...r,
-    test_name: r.test?.test_name,
-    test_code: r.test?.test_code,
-    test_category: r.test?.category,
-  }));
+  const resolved = [];
+  for (const r of records) {
+    const plain = r.get({ plain: true });
+    let name = plain.test?.test_name || null;
+    let code = plain.test?.test_code || null;
+    let category = plain.test?.category || null;
+
+    if (plain.package_id && !plain.test_id) {
+      const rows = await sequelize.query(
+        "SELECT package_name, package_code, category FROM test_packages WHERE id = :packageId",
+        {
+          replacements: { packageId: plain.package_id },
+          type: sequelize.QueryTypes.SELECT
+        }
+      );
+      const pkg = rows && rows.length > 0 ? rows[0] : null;
+      if (pkg) {
+        name = pkg.package_name;
+        code = pkg.package_code;
+        category = pkg.category || "Package";
+      } else {
+        name = "Unknown Package";
+        code = "PKG";
+        category = "Package";
+      }
+    }
+
+    resolved.push({
+      ...plain,
+      test_name: name,
+      test_code: code,
+      test_category: category,
+      package_name: plain.package_id ? name : null,
+      package_code: plain.package_id ? code : null,
+    });
+  }
+
+  return resolved;
 };
 
 /**

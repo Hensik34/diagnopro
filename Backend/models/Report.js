@@ -195,7 +195,7 @@ exports.updateReport = async (id, reportData) => {
 
   // Get current report to perform lock check & commission calculations
   const current = await Report.findByPk(id, {
-    attributes: ["price_locked", "status", "doctor_id", "is_self_report", "report_amount", "b2b_charge", "doctor_discount"],
+    attributes: ["price_locked", "status", "doctor_id", "is_self_report", "report_amount", "b2b_charge", "doctor_discount", "base_amount", "lab_discount_type", "lab_discount_value", "final_amount", "price_list_id"],
     raw: true,
   });
 
@@ -203,7 +203,20 @@ exports.updateReport = async (id, reportData) => {
     // If report is locked, prevent modifying any pricing-related fields
     if (current.price_locked) {
       const pricingFields = ["report_amount", "base_amount", "lab_discount_type", "lab_discount_value", "doctor_discount", "final_amount", "price_list_id"];
-      const changingPricingFields = Object.keys(updateObj).filter(key => pricingFields.includes(key));
+      const changingPricingFields = Object.keys(updateObj).filter(key => {
+        if (!pricingFields.includes(key)) return false;
+        const currentVal = current[key];
+        const newVal = updateObj[key];
+        if (currentVal === newVal) return false;
+        
+        // Handle numeric comparisons (strings vs numbers from database decimal/float types)
+        if (currentVal !== null && currentVal !== undefined && newVal !== null && newVal !== undefined) {
+          if (!isNaN(Number(currentVal)) && !isNaN(Number(newVal))) {
+            return Number(currentVal) !== Number(newVal);
+          }
+        }
+        return currentVal !== newVal;
+      });
       if (changingPricingFields.length > 0) {
         throw new Error(`Cannot modify prices — report is locked (status: ${current.status})`);
       }

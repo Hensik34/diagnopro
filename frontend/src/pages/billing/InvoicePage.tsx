@@ -25,11 +25,12 @@ const C = {
 
 const printStyles = `
 @media print {
-  @page { size: A4; margin: 10mm 14mm; }
-  html, body { margin: 0; padding: 0; }
+  @page { size: A4; margin: 0; }
+  html, body { margin: 0; padding: 0; background: #ffffff; }
   body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .no-print { display: none !important; }
-  .invoice-page { box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; }
+  .invoice-page { box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; padding: 16mm 20mm !important; width: 100% !important; max-width: none !important; }
+  .invoice-content { padding: 0 !important; }
 }
 `;
 
@@ -203,7 +204,7 @@ export function InvoicePage() {
           className="invoice-page bg-white mx-auto print:my-0"
           style={{ maxWidth: '794px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', fontFamily: "'Inter', 'Segoe UI', sans-serif", color: C.text }}
         >
-          <div style={{ padding: '28px 36px' }}>
+          <div className="invoice-content" style={{ padding: '28px 36px' }}>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, borderBottom: `2px solid ${C.brand}`, paddingBottom: 16 }}>
               <div>
@@ -256,46 +257,37 @@ export function InvoicePage() {
                   <th style={{ padding: '9px 12px', textAlign: 'right', fontSize: 10, fontWeight: 600 }}>Amount (₹)</th>
                 </tr>
               </thead>
-              <tbody>
-                {testNames.split(',').map((name, i) => (
-                  <tr key={i} style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: i % 2 === 0 ? '#fff' : C.tableBg }}>
-                    <td style={{ padding: '8px 12px', fontSize: 11 }}>{i + 1}</td>
-                    <td style={{ padding: '8px 12px', fontSize: 11 }}>{name.trim()}</td>
-                    <td style={{ padding: '8px 12px', fontSize: 11, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                      {i === 0 ? `₹${baseAmount.toFixed(2)}` : '-'}
-                    </td>
-                  </tr>
-                ))}
+               <tbody>
+                {report.pricing_snapshot && report.pricing_snapshot.length > 0 ? (
+                  report.pricing_snapshot.map((item, i) => (
+                    <tr key={item.id || i} style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: i % 2 === 0 ? '#fff' : C.tableBg }}>
+                      <td style={{ padding: '8px 12px', fontSize: 11 }}>{i + 1}</td>
+                      <td style={{ padding: '8px 12px', fontSize: 11 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: 500 }}>{item.test_name || 'Unnamed Item'}</span>
+                          <span style={{ fontSize: 9, color: C.secondary }}>
+                            {item.package_id ? 'Package' : 'Test'} • {item.test_code || 'N/A'}
+                          </span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '8px 12px', fontSize: 11, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        ₹{Number(item.applied_price || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  testNames.split(',').map((name, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: i % 2 === 0 ? '#fff' : C.tableBg }}>
+                      <td style={{ padding: '8px 12px', fontSize: 11 }}>{i + 1}</td>
+                      <td style={{ padding: '8px 12px', fontSize: 11 }}>{name.trim()}</td>
+                      <td style={{ padding: '8px 12px', fontSize: 11, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        {i === 0 ? `₹${baseAmount.toFixed(2)}` : '-'}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
-
-            {/* Totals */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-              <div style={{ width: 280 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 11 }}>
-                  <span style={{ color: C.secondary }}>Subtotal</span>
-                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>₹{baseAmount.toFixed(2)}</span>
-                </div>
-                {labDiscountAmount > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 11 }}>
-                    <span style={{ color: C.secondary }}>
-                      Lab Discount {labDiscountType === 'percent' ? `(${labDiscountValue}%)` : ''}
-                    </span>
-                    <span style={{ color: C.success, fontVariantNumeric: 'tabular-nums' }}>−₹{labDiscountAmount.toFixed(2)}</span>
-                  </div>
-                )}
-                {doctorDiscount > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 11 }}>
-                    <span style={{ color: C.secondary }}>Doctor Discount</span>
-                    <span style={{ color: C.success, fontVariantNumeric: 'tabular-nums' }}>−₹{doctorDiscount.toFixed(2)}</span>
-                  </div>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 13, fontWeight: 700, borderTop: `2px solid ${C.brand}`, borderBottom: `2px solid ${C.brand}`, marginTop: 2 }}>
-                  <span>Total Amount Due</span>
-                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>₹{finalAmount.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
 
             {/* Payments */}
             {payments.length > 0 && (
@@ -324,20 +316,46 @@ export function InvoicePage() {
               </div>
             )}
 
-            {/* Balance Summary */}
+            {/* Consolidated Receipt Summary */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 18 }}>
-              <div style={{ width: 280 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', fontSize: 11, backgroundColor: C.tableBg, borderTop: `1px solid ${C.border}` }}>
-                  <span style={{ color: C.secondary }}>Total Paid</span>
-                  <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>₹{totalPaid.toFixed(2)}</span>
+              <div style={{ width: 280, border: `1px solid ${C.border}`, borderRadius: '6px', overflow: 'hidden' }}>
+                <div style={{ padding: '12px 14px', backgroundColor: '#fff' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11 }}>
+                    <span style={{ color: C.secondary }}>Subtotal</span>
+                    <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>₹{baseAmount.toFixed(2)}</span>
+                  </div>
+                  {labDiscountAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11 }}>
+                      <span style={{ color: C.secondary }}>
+                        Lab Discount {labDiscountType === 'percent' ? `(${labDiscountValue}%)` : ''}
+                      </span>
+                      <span style={{ color: C.success, fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>−₹{labDiscountAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {doctorDiscount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11 }}>
+                      <span style={{ color: C.secondary }}>Doctor Discount</span>
+                      <span style={{ color: C.success, fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>−₹{doctorDiscount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div style={{ borderTop: `1px dashed ${C.border}`, margin: '8px 0' }}></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12, fontWeight: 700, color: C.brand }}>
+                    <span>Total Amount</span>
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>₹{finalAmount.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11 }}>
+                    <span style={{ color: C.secondary }}>Total Paid</span>
+                    <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>₹{totalPaid.toFixed(2)}</span>
+                  </div>
+                  <div style={{ borderTop: `1px dashed ${C.border}`, margin: '8px 0' }}></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12, fontWeight: 700 }}>
+                    <span>Balance Due</span>
+                    <span style={{ fontVariantNumeric: 'tabular-nums', color: balance > 0 ? C.danger : C.success }}>
+                      ₹{balance.toFixed(2)}
+                    </span>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', fontSize: 11 }}>
-                  <span style={{ color: C.secondary }}>Balance Due</span>
-                  <span style={{ fontWeight: 600, color: balance > 0 ? C.danger : C.success, fontVariantNumeric: 'tabular-nums' }}>
-                    ₹{balance.toFixed(2)}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 12px', fontSize: 11, fontWeight: 700, backgroundColor: STATUS_COLORS[paymentStatus], color: '#fff', letterSpacing: '0.06em', borderBottomLeftRadius: 4, borderBottomRightRadius: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 12px', fontSize: 11, fontWeight: 700, backgroundColor: STATUS_COLORS[paymentStatus], color: '#fff', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                   {STATUS_LABELS[paymentStatus]}
                 </div>
               </div>

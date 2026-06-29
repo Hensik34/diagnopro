@@ -78,92 +78,110 @@ exports.resolveTestPrice = async (testId, { branchId, doctorId, reportPriceListI
 
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   
-  // Step 3: Complete replacement report price list
-  if (reportPriceListId) {
-    calculation.push(`Report Price List Selected: Checking Price List ID ${reportPriceListId}`);
-    const item = await PriceListItem.findOne({
-      where: { price_list_id: reportPriceListId, test_id: testId },
-      raw: true,
-    });
-    
-    if (item) {
-      const resolvedFromList = applyListItem(item, basePrice);
-      const activeList = await PriceList.findByPk(reportPriceListId, { attributes: ["name", "version"], raw: true });
-      resolvedPrice = resolvedFromList;
-      source = "price_list";
-      sourceId = reportPriceListId;
-      priceListVersion = activeList ? activeList.version : null;
-      const listName = activeList ? activeList.name : "Report List";
-      calculation.push(`Report Price List '${listName}' v${priceListVersion || 1}: ₹${roundPrice(resolvedFromList)}`);
-    } else {
-      calculation.push(`Report Price List: No item override found (Falls back to Branch/Global: ₹${basePrice})`);
-    }
-  } else if (doctorId) {
-    calculation.push(`Doctor Selected: Checking pricing for Doctor ID ${doctorId}`);
-    
-    // Step 3a: Doctor's assigned price list for this branch
-    let docListResolved = false;
-    let docListPrice = resolvedPrice;
-    let docListSourceId = null;
-    let docListVersion = null;
-    let docListName = "";
-    
-    if (branchId) {
+  // Step 3: Resolve price list
+  let activePriceListId = reportPriceListId;
+  let priceListSource = "price_list";
+
+  // If no report price list is explicitly selected, check doctor assignment first
+  if (!activePriceListId) {
+    if (doctorId && branchId) {
       const assignment = await DoctorPriceListAssignment.findOne({
         where: { doctor_id: doctorId, branch_id: branchId },
         raw: true,
       });
       if (assignment) {
-        const priceList = await PriceList.findOne({
-          where: {
-            id: assignment.price_list_id,
-            is_active: true,
-            [Op.and]: [
-              {
-                [Op.or]: [
-                  { effective_from: null },
-                  { effective_from: { [Op.lte]: today } }
-                ]
-              },
-              {
-                [Op.or]: [
-                  { effective_to: null },
-                  { effective_to: { [Op.gte]: today } }
-                ]
-              }
-            ]
-          },
-          raw: true,
-        });
-        
-        if (priceList) {
-          const item = await PriceListItem.findOne({
-            where: { price_list_id: priceList.id, test_id: testId },
-            raw: true,
-          });
-          if (item) {
-            docListPrice = applyListItem(item, basePrice);
-            docListSourceId = priceList.id;
-            docListVersion = priceList.version;
-            docListName = priceList.name;
-            docListResolved = true;
-          }
-        }
+        activePriceListId = assignment.price_list_id;
+        priceListSource = "doctor_list";
+        calculation.push(`Resolved Doctor's assigned Price List ID: ${activePriceListId}`);
       }
     }
-    
-    if (docListResolved) {
-      resolvedPrice = docListPrice;
-      source = "doctor_list";
-      sourceId = docListSourceId;
-      priceListVersion = docListVersion;
-      calculation.push(`Doctor Assigned Price List '${docListName}' v${docListVersion}: ₹${roundPrice(docListPrice)}`);
-    } else {
-      calculation.push("Doctor Assigned Price List: None active or no test item override found");
+
+    // If still no price list, fall back to branch default price list
+    if (!activePriceListId && branchId) {
+      const defaultList = await PriceList.findOne({
+        where: { branch_id: branchId, is_default: true, is_active: true },
+        raw: true,
+      });
+      if (defaultList) {
+        activePriceListId = defaultList.id;
+        priceListSource = "price_list";
+        calculation.push(`Resolved Branch's default Price List '${defaultList.name}' ID: ${activePriceListId}`);
+      }
     }
+  } else {
+    calculation.push(`Explicit Price List ID selected: ${activePriceListId}`);
+  }
+
+  // If we have an active price list, apply its override/discount if it exists
+  if (activePriceListId) {
+    const activeList = await PriceList.findOne({
+      where: {
+        id: activePriceListId,
+        is_active: true,
+        [Op.and]: [
+          {
+            [Op.or]: [
+              { effective_from: null },
+              { effective_from: { [Op.lte]: today } }
+            ]
+          },
+          {
+            [Op.or]: [
+              { effective_to: null },
+              { effective_to: { [Op.gte]: today } }
+            ]
+          }
+        ]
+      },
+      raw: true,
+    });
+
+    if (activeList) {
+      const item = await PriceListItem.findOne({
+        where: { price_list_id: activeList.id, test_id: testId },
+        raw: true,
+      });
+      
+      if (item) {
+        const resolvedFromList = applyListItem(item, basePrice);
+        resolvedPrice = resolvedFromList;
+        source = priceListSource;
+        sourceId = activeList.id;
+        priceListVersion = activeList.version;
+        calculation.push(`Price List '${activeList.name}' v${priceListVersion}: ₹${roundPrice(resolvedFromList)}`);
+      } else {
+        calculation.push(`Price List '${activeList.name}' v${activeList.version}: No item override found (Falls back to Branch/Global: ₹${resolvedPrice})`);
+      }
+    } else {
+      calculation.push(`Price List (${activePriceListId}) is inactive or expired.`);
+    }
+  }
+
+  // Step 4: Doctor individual override (takes precedence over assigned/default list if doctor is selected)
+  if (doctorId && branchId) {
+    let shouldApplyDoctorOverride = true;
     
-    // Step 3b: Doctor individual override (wins over assigned list)
-    if (branchId) {
+    // If a price list was explicitly selected manually, check if it's different from doctor list and default list
+    if (reportPriceListId) {
+      const assignment = await DoctorPriceListAssignment.findOne({
+        where: { doctor_id: doctorId, branch_id: branchId },
+        raw: true,
+      });
+      const doctorAssignedId = assignment ? assignment.price_list_id : null;
+      
+      const defaultList = await PriceList.findOne({
+        where: { branch_id: branchId, is_default: true, is_active: true },
+        raw: true,
+      });
+      const defaultListId = defaultList ? defaultList.id : null;
+
+      if (reportPriceListId !== doctorAssignedId && reportPriceListId !== defaultListId) {
+        shouldApplyDoctorOverride = false;
+        calculation.push(`Explicit manual Price List override selected: Bypassing doctor overrides.`);
+      }
+    }
+
+    if (shouldApplyDoctorOverride) {
       const override = await DoctorTestPrice.findOne({
         where: { doctor_id: doctorId, test_id: testId, branch_id: branchId },
         raw: true,
@@ -182,6 +200,7 @@ exports.resolveTestPrice = async (testId, { branchId, doctorId, reportPriceListI
   const finalPrice = roundPrice(Math.max(0, resolvedPrice));
   
   return {
+    test_id: testId,
     default_price: basePrice,
     applied_price: finalPrice,
     source,
@@ -203,6 +222,7 @@ exports.resolveTestPrices = async (testIds, options) => {
         results[testId] = await exports.resolveTestPrice(testId, options);
       } catch (err) {
         results[testId] = {
+          test_id: testId,
           default_price: 0,
           applied_price: 0,
           source: "default",
