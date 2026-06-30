@@ -53,7 +53,7 @@ exports.getAllReports = async (filters = {}) => {
     patient_age_unit: r.patient?.age_unit,
     patient_email: r.patient?.email,
     doctor_title: r.doctor?.title,
-    doctor_name: r.doctor?.name,
+    doctor_name: r.doctor ? r.doctor.name : r.referring_doctor_name,
     doctor_firstname: r.doctor?.firstname,
     doctor_lastname: r.doctor?.lastname,
     technician_firstname: r.technician?.firstname,
@@ -100,7 +100,7 @@ exports.getReportById = async (id) => {
     patient_age: row.patient?.age,
     patient_age_unit: row.patient?.age_unit,
     doctor_title: row.doctor?.title,
-    doctor_name: row.doctor?.name,
+    doctor_name: row.doctor ? row.doctor.name : row.referring_doctor_name,
     doctor_firstname: row.doctor?.firstname,
     doctor_lastname: row.doctor?.lastname,
     doctor_phone: row.doctor?.phone,
@@ -134,7 +134,7 @@ exports.getReportById = async (id) => {
 // Create new report
 exports.createReport = async (reportData) => {
   const {
-    patient_id, doctor_id, report_type, sample_id, clinical_notes, technician_id,
+    patient_id, doctor_id, referring_doctor_name, report_type, sample_id, clinical_notes, technician_id,
     status = "draft", report_amount = 0, is_self_report = false,
     test_data = {}, findings = "", recommendations = "", branch_id,
     delivery_preferences = {}, base_amount, lab_discount_type = "percent",
@@ -163,7 +163,7 @@ exports.createReport = async (reportData) => {
   const computedFinal = final_amount != null ? final_amount : computedBase;
 
   return await Report.create({
-    patient_id, doctor_id, report_type, sample_id, clinical_notes,
+    patient_id, doctor_id, referring_doctor_name, report_type, sample_id, clinical_notes,
     technician_id, status, report_amount, doctor_commission, is_self_report,
     test_data, findings, recommendations, delivery_preferences,
     base_amount: computedBase, lab_discount_type, lab_discount_value,
@@ -180,7 +180,7 @@ exports.updateReport = async (id, reportData) => {
     "findings", "recommendations", "clinical_notes", "technician_id",
     "test_data", "status", "reviewed_by", "approved_by",
     "approved_at", "submitted_by", "submitted_at", "rejected_by", "rejected_at",
-    "rejection_reason", "doctor_id", "report_type", "report_amount", "is_self_report",
+    "rejection_reason", "doctor_id", "referring_doctor_name", "report_type", "report_amount", "is_self_report",
     "delivery_preferences", "base_amount", "lab_discount_type", "lab_discount_value",
     "doctor_discount", "final_amount", "payment_status", "doctor_commission",
     "b2b_lab_id", "b2b_charge", "price_list_id", "price_locked",

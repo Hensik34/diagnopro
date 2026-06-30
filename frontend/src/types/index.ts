@@ -124,6 +124,7 @@ export interface Doctor {
   commission_percentage?: number;
   signature_url?: string | null;
   user_id?: string | null;
+  has_login?: boolean;
   branch_id: string;
   created_at: string;
   updated_at: string;
@@ -395,6 +396,7 @@ export interface Report {
   patient_id: string;
   branch_id: string;
   doctor_id?: string;
+  referring_doctor_name?: string;
   technician_id?: string;
   report_type?: string;
   sample_id?: string;
@@ -465,6 +467,7 @@ export interface Report {
 export interface CreateReportData {
   patient_id: string;
   doctor_id?: string;
+  referring_doctor_name?: string;
   report_type?: string;
   sample_id?: string;
   clinical_notes?: string;
@@ -494,6 +497,7 @@ export interface UpdateReportData {
   technician_id?: string;
   test_data?: TestData;
   doctor_id?: string;
+  referring_doctor_name?: string;
   report_type?: string;
   report_amount?: number;
   is_self_report?: boolean;

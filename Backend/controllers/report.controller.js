@@ -176,6 +176,7 @@ exports.createReport = async (req, res) => {
     const { 
       patient_id, 
       doctor_id, 
+      referring_doctor_name, 
       report_type, 
       sample_id, 
       clinical_notes, 
@@ -204,7 +205,7 @@ exports.createReport = async (req, res) => {
     }
 
     // Determine if it's a self-report (no referring doctor)
-    const selfReport = is_self_report === true || !doctor_id;
+    const selfReport = is_self_report === true || (!doctor_id && !referring_doctor_name);
 
     // Auto-create sample with auto-generated ID if no sample_id provided
     let linkedSampleId = sample_id || null;
@@ -250,6 +251,7 @@ exports.createReport = async (req, res) => {
     const report = await Report.createReport({
       patient_id,
       doctor_id: selfReport ? null : doctor_id,
+      referring_doctor_name: selfReport ? null : referring_doctor_name,
       report_type,
       sample_id: linkedSampleId,
       clinical_notes,
@@ -334,6 +336,7 @@ exports.updateReport = async (req, res) => {
       technician_id,
       test_data,
       doctor_id,
+      referring_doctor_name,
       report_type,
       report_amount,
       is_self_report,
@@ -391,6 +394,7 @@ exports.updateReport = async (req, res) => {
       technician_id,
       test_data: enrichedTestData,
       doctor_id,
+      referring_doctor_name,
       report_type,
       report_amount,
       is_self_report,
@@ -438,9 +442,12 @@ exports.updateReport = async (req, res) => {
       }
     }
 
+    // Fetch refreshed report to ensure all nested/flattened details are up-to-date
+    const refreshedReport = await Report.getReportById(id);
+
     res.json({
       message: "Report updated successfully",
-      data: report
+      data: refreshedReport || report
     });
   } catch (err) {
     console.error("Update report error:", err);

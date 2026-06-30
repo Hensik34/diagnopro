@@ -1,5 +1,6 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { Search, Plus, Filter, MoreHorizontal, Edit, Eye, Trash2 } from 'lucide-react';
+import { CustomConfirmModal } from '../ui/CustomConfirmModal';
 import { usePatientStore, useBranchStore } from '../../../stores';
 import type { CreatePatientData, Patient } from '../../../types';
 
@@ -10,6 +11,19 @@ import type { CreatePatientData, Patient } from '../../../types';
 export function PatientList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'confirm' | 'danger' | 'warning' | 'alert';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'confirm',
+    onConfirm: () => {}
+  });
   
   // Get state and actions from stores
   const { 
@@ -41,10 +55,17 @@ export function PatientList() {
            patient.phone.includes(searchTerm);
   });
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this patient?')) {
-      await deletePatient(id);
-    }
+  const handleDelete = (id: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Patient',
+      message: 'Are you sure you want to delete this patient?',
+      type: 'danger',
+      onConfirm: async () => {
+        await deletePatient(id);
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   return (
@@ -165,6 +186,15 @@ export function PatientList() {
           }}
         />
       )}
+
+      <CustomConfirmModal
+        isOpen={confirmModal.isOpen}
+        type={confirmModal.type}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

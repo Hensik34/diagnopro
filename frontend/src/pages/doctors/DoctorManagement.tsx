@@ -204,7 +204,7 @@ export function DoctorManagement() {
                           <span className="text-xs text-foreground font-medium">
                             {doctor.title || 'Dr'}. {doctor.name}
                           </span>
-                          {doctor.user_id && (
+                          {(doctor.user_id || doctor.has_login) && (
                             <span className="text-[9px] px-1.5 py-0.5 bg-primary/10 text-primary rounded-full font-medium">
                               Portal
                             </span>
@@ -333,7 +333,7 @@ function DoctorModal({ doctor, branches, currentBranchId, onClose, onSave }: Doc
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [enableLogin, setEnableLogin] = useState(false);
 
-  const hasExistingLogin = !!doctor?.user_id;
+  const hasExistingLogin = !!(doctor?.user_id || doctor?.has_login);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -348,11 +348,17 @@ function DoctorModal({ doctor, branches, currentBranchId, onClose, onSave }: Doc
       return;
     }
 
+    // Validate new password if modifying an existing login
+    if (hasExistingLogin && formData.password && formData.password.length < 4) {
+      alert('Password must be at least 4 characters');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      // Only send password if login is being enabled
       const data = { ...formData };
-      if (!enableLogin) {
+      // Only delete password if we're not enabling login AND we're not updating password on an existing login
+      if (!enableLogin && (!hasExistingLogin || !data.password)) {
         delete data.password;
       }
       await onSave(data);

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { CustomConfirmModal } from '../../app/components/ui/CustomConfirmModal';
 import {
   Plus,
   Trash2,
@@ -6,6 +7,7 @@ import {
   Check,
   X,
   Search,
+  Star,
   Percent,
   TrendingDown,
   DollarSign,
@@ -72,6 +74,20 @@ export function PriceListManagement() {
   const [bulkCategory, setBulkCategory] = useState('All');
   const [bulkAction, setBulkAction] = useState<'decrease' | 'increase'>('decrease');
 
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'confirm' | 'danger' | 'warning' | 'alert';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'confirm',
+    onConfirm: () => {}
+  });
+
   // Categories list
   const categories = ['All', ...Array.from(new Set(tests.map(t => t.category).filter(Boolean)))];
 
@@ -93,10 +109,28 @@ export function PriceListManagement() {
     setIsLoadingLists(true);
     try {
       const res = await priceListApi.getAll({ branch_id: activeBranchId });
-      setPriceLists(res.data || []);
-      // Auto-select first list if nothing is selected
-      if (res.data && res.data.length > 0 && !selectedList) {
-        handleSelectList(res.data[0]);
+      const lists = res.data || [];
+      setPriceLists(lists);
+      
+      // Auto-select list if nothing is selected
+      if (!selectedList) {
+        if (lists.length > 0) {
+          handleSelectList(lists[0]);
+        } else {
+          // If no custom lists exist, select the virtual default price list
+          handleSelectList({
+            id: 'default-lab-price',
+            name: 'Default Lab Price',
+            description: 'Standard base prices of this laboratory branch.',
+            branch_id: activeBranchId,
+            is_active: true,
+            version: 1,
+            effective_from: null,
+            effective_to: null,
+            created_at: '',
+            updated_at: '',
+          } as any);
+        }
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to load price lists');
@@ -235,19 +269,55 @@ export function PriceListManagement() {
     }
   };
 
-  const handleDeletePriceList = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to delete the price list "${name}"?`)) return;
-
-    try {
-      await priceListApi.delete(id);
-      setSuccessMessage('Price list deleted successfully');
-      setPriceLists(priceLists.filter(l => l.id !== id));
-      if (selectedList?.id === id) {
-        setSelectedList(null);
-        setListItems({});
+  const handleDeletePriceList = (id: string, name: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Price List',
+      message: `Are you sure you want to delete the price list "${name}"?`,
+      type: 'danger',
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        try {
+          await priceListApi.delete(id);
+          setSuccessMessage('Price list deleted successfully');
+          setPriceLists(priceLists.filter(l => l.id !== id));
+          if (selectedList?.id === id) {
+            setSelectedList(null);
+            setListItems({});
+          }
+        } catch (err: any) {
+          setErrorMessage(err.message || 'Failed to delete price list');
+        }
       }
+    });
+  };
+
+  const handleSetAsDefault = async (listId: string) => {
+    try {
+      if (listId === 'default-lab-price') {
+        // Clear is_default from whichever custom list currently has it
+        const currentDefault = priceLists.find(l => l.is_default);
+        if (currentDefault) {
+          await priceListApi.update(currentDefault.id, {
+            name: currentDefault.name,
+            is_default: false
+          });
+        }
+        setSuccessMessage('Default Lab Price set as branch default.');
+      } else {
+        // Set this custom list as default
+        const listToSet = priceLists.find(l => l.id === listId);
+        if (listToSet) {
+          await priceListApi.update(listId, {
+            name: listToSet.name,
+            is_default: true
+          });
+          setSuccessMessage(`"${listToSet.name}" set as branch default.`);
+        }
+      }
+      await fetchPriceLists();
     } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to delete price list');
+      setErrorMessage(err.message || 'Failed to update default price list');
     }
   };
 
@@ -416,11 +486,8 @@ export function PriceListManagement() {
             <div className="flex justify-center p-8">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
-          ) : priceLists.length === 0 ? (
-            <div className="text-center p-8 text-muted-foreground text-sm">
-              No price lists created for this branch.
-            </div>
           ) : (() => {
+            const hasCustomDefault = priceLists.some(l => l.is_default);
             const displayedPriceLists = [
               {
                 id: 'default-lab-price',
@@ -433,6 +500,7 @@ export function PriceListManagement() {
                 effective_to: null,
                 created_at: '',
                 updated_at: '',
+                is_default: !hasCustomDefault,
               },
               ...priceLists
             ];
@@ -496,30 +564,57 @@ export function PriceListManagement() {
                             </div>
                           )}
                         </div>
-                        {list.id !== 'default-lab-price' && (
-                          <div className="flex gap-1">
+                        <div className="flex flex-col items-end gap-1.5 shrink-0 ml-2">
+                          {/* Render default status star or action */}
+                          {list.is_default ? (
                             <button
+                              type="button"
+                              className="p-1 text-amber-500 cursor-default shrink-0 focus:outline-none"
+                              title="Current Branch Default Price List"
+                            >
+                              <Star className="w-4 h-4 fill-amber-400 text-amber-500 drop-shadow-xs" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleOpenEditModal(list as any);
+                                handleSetAsDefault(list.id);
                               }}
-                              className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
-                              title="Edit Price List Properties"
+                              className="p-1 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded text-muted-foreground/45 hover:text-amber-500 cursor-pointer shrink-0 transition-colors focus:outline-none group/star"
+                              title="Set as Branch Default Price List"
                             >
-                              <Edit2 className="w-3.5 h-3.5" />
+                              <Star className="w-4 h-4 transition-transform group-hover/star:scale-110" />
                             </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeletePriceList(list.id, list.name);
-                              }}
-                              className="p-1 hover:bg-red-50 dark:hover:bg-red-950 rounded text-muted-foreground hover:text-red-600"
-                              title="Delete Price List"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
+                          )}
+
+                          {list.id !== 'default-lab-price' && (
+                            <div className="flex gap-0.5 mt-1 border-t border-border/50 pt-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEditModal(list as any);
+                                }}
+                                className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground cursor-pointer transition-colors focus:outline-none"
+                                title="Edit Price List Properties"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeletePriceList(list.id, list.name);
+                                }}
+                                className="p-1 hover:bg-red-50 dark:hover:bg-red-950/40 rounded text-muted-foreground hover:text-red-600 cursor-pointer transition-colors focus:outline-none"
+                                title="Delete Price List"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -545,7 +640,7 @@ export function PriceListManagement() {
                 <button
                   onClick={handleSaveItems}
                   disabled={isSaving || isLoadingItems}
-                  className="flex items-center gap-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors px-4 py-2 font-medium disabled:opacity-50 text-sm shadow-sm"
+                  className="flex items-center gap-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors px-4 py-2 font-medium disabled:opacity-50 text-sm shadow-sm flex-shrink-0 cursor-pointer"
                 >
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   Save Custom Prices
@@ -662,8 +757,6 @@ export function PriceListManagement() {
                             <th className="p-3">Test Details</th>
                             <th className="p-3">Base Price</th>
                             <th className="p-3">Custom Price</th>
-                            <th className="p-3 text-center" style={{ width: '130px' }}>Discount Mode</th>
-                            <th className="p-3" style={{ width: '100px' }}>Discount Value</th>
                             <th className="p-3">Final Price (₹)</th>
                             <th className="p-3 text-right">Action</th>
                           </tr>
@@ -726,66 +819,6 @@ export function PriceListManagement() {
                                       className="pl-5 pr-1.5 py-1 text-xs w-full bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
                                     />
                                   </div>
-                                </td>
-                                <td className="p-3 text-center">
-                                  <select
-                                    disabled={isDefaultLabPrice}
-                                    value={isDefaultLabPrice ? 'none' : (override?.discount_type || 'none')}
-                                    onChange={(e) =>
-                                      handleItemOverrideChange(test.id, 'discount_type', e.target.value)
-                                    }
-                                    className="p-1 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
-                                  >
-                                    <option value="none">None</option>
-                                    <option value="percent">Percent (%)</option>
-                                    <option value="amount">Amount (₹)</option>
-                                  </select>
-                                </td>
-                                <td className="p-3">
-                                  {!isDefaultLabPrice && override?.discount_type && override.discount_type !== 'none' ? (
-                                    <div className="flex items-center gap-1.5 justify-center">
-                                      <input
-                                        type="number"
-                                        value={override.discount_value !== undefined ? Math.abs(override.discount_value) : ''}
-                                        onChange={(e) => {
-                                          const rawVal = Math.abs(Number(e.target.value));
-                                          const isMarkup = markupRows[test.id] || (override.discount_value || 0) < 0;
-                                          const finalVal = isMarkup ? -rawVal : rawVal;
-                                          handleItemOverrideChange(
-                                            test.id,
-                                            'discount_value',
-                                            finalVal
-                                          );
-                                        }}
-                                        placeholder="0"
-                                        className="p-1 text-xs w-14 bg-background border border-border rounded text-center focus:outline-none focus:ring-1 focus:ring-primary"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const wasMarkup = markupRows[test.id] || (override.discount_value || 0) < 0;
-                                          const nextMarkup = !wasMarkup;
-                                          setMarkupRows(prev => ({ ...prev, [test.id]: nextMarkup }));
-                                          const currentVal = Math.abs(override.discount_value || 0);
-                                          handleItemOverrideChange(
-                                            test.id,
-                                            'discount_value',
-                                            nextMarkup ? -currentVal : currentVal
-                                          );
-                                        }}
-                                        className={`px-1.5 py-0.5 text-[9px] font-bold rounded border shrink-0 transition-colors ${
-                                          (markupRows[test.id] || (override.discount_value || 0) < 0)
-                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900'
-                                            : 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900'
-                                        }`}
-                                        title={(markupRows[test.id] || (override.discount_value || 0) < 0) ? "Click to change to Discount (reduces price)" : "Click to change to Markup (increases price)"}
-                                      >
-                                        {(markupRows[test.id] || (override.discount_value || 0) < 0) ? 'Markup (+)' : 'Discount (-)'}
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground">-</span>
-                                  )}
                                 </td>
                                 <td className="p-3 font-semibold text-xs">
                                   <span className={hasOverride ? 'text-primary' : 'text-foreground'}>
@@ -901,7 +934,7 @@ export function PriceListManagement() {
                 onClick={() => setShowModal(false)}
                 className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4 cursor-pointer" />
               </button>
             </div>
 
@@ -993,30 +1026,19 @@ export function PriceListManagement() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 py-1">
-                <input
-                  type="checkbox"
-                  id="formIsDefault"
-                  checked={formIsDefault}
-                  onChange={(e) => setFormIsDefault(e.target.checked)}
-                  className="rounded border-border text-primary focus:ring-primary h-4 w-4"
-                />
-                <label htmlFor="formIsDefault" className="text-xs font-semibold cursor-pointer select-none">
-                  Set as Branch Default Price List
-                </label>
-              </div>
+              {/* Default status is set via the Star icon directly on the Price Lists sidebar */}
 
               <div className="flex items-center justify-end gap-3 border-t border-border pt-4 mt-6">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border border-border rounded-lg hover:bg-muted text-sm font-semibold transition-colors"
+                  className="px-4 py-2 border border-border rounded-lg hover:bg-muted text-sm font-semibold transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/95 text-sm font-semibold transition-colors flex items-center gap-1.5"
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/95 text-sm font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   Save Properties
                 </button>
@@ -1025,6 +1047,15 @@ export function PriceListManagement() {
           </div>
         </div>
       )}
+
+      <CustomConfirmModal
+        isOpen={confirmModal.isOpen}
+        type={confirmModal.type}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }
