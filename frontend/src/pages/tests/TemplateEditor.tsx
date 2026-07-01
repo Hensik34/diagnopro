@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
+import { CustomConfirmModal } from '../../app/components/ui/CustomConfirmModal';
 import {
   GripVertical,
   Eye,
@@ -475,6 +476,20 @@ export function TemplateEditor() {
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'confirm' | 'danger' | 'warning' | 'alert';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'confirm',
+    onConfirm: () => {}
+  });
+
   // Setup sensors for dnd-kit
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -736,16 +751,24 @@ export function TemplateEditor() {
 
   // Reset Layout back to default fields order
   const handleResetLayout = () => {
-    if (!window.confirm('Are you sure you want to reset the layout config to default field definitions?')) return;
-    const defaultSettings = fields.map((field, idx) => ({
-      fieldId: field.id,
-      fieldName: field.field_name,
-      position: idx + 1,
-      visible: true,
-      group: field.section_group || ''
-    }));
-    setParameterSettings(reorderAndNormalize(defaultSettings));
-    setIsDirty(true);
+    setConfirmModal({
+      isOpen: true,
+      title: 'Reset Layout',
+      message: 'Are you sure you want to reset the layout config to default field definitions?',
+      type: 'warning',
+      onConfirm: () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        const defaultSettings = fields.map((field, idx) => ({
+          fieldId: field.id,
+          fieldName: field.field_name,
+          position: idx + 1,
+          visible: true,
+          group: field.section_group || ''
+        }));
+        setParameterSettings(reorderAndNormalize(defaultSettings));
+        setIsDirty(true);
+      }
+    });
   };
 
   // Save Layout
@@ -754,7 +777,13 @@ export function TemplateEditor() {
 
     const hasVisible = parameterSettings.some((s) => s.visible);
     if (!hasVisible) {
-      alert('Error: At least one parameter must be visible in the layout configuration.');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Validation Error',
+        message: 'Error: At least one parameter must be visible in the layout configuration.',
+        type: 'alert',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
       return;
     }
 
@@ -1211,6 +1240,15 @@ export function TemplateEditor() {
           </div>
         </div>
       </div>
+
+      <CustomConfirmModal
+        isOpen={confirmModal.isOpen}
+        type={confirmModal.type}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

@@ -312,7 +312,12 @@ export function PublicReportDownload() {
   const referringDoctorName = useMemo(() => {
     if (!report) return 'Self';
     if (report.is_self_report) return 'Self';
-    if (report.doctor_name) return `${report.doctor_title || 'Dr'}. ${report.doctor_name}`;
+    if (report.doctor_name) {
+      if (/^dr\.?/i.test(report.doctor_name)) {
+        return report.doctor_name;
+      }
+      return `${report.doctor_title || 'Dr'}. ${report.doctor_name}`;
+    }
     if (report.doctor_firstname) return `Dr. ${report.doctor_firstname} ${report.doctor_lastname || ''}`;
     return 'Self';
   }, [report]);

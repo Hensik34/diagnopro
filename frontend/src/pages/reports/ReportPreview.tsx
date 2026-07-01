@@ -353,11 +353,13 @@ export function ReportPreview() {
 
     const branch = branches.find(b => b.id === (rawReport as any).branch_id);
     const age = formatAge(rawReport.patient_age, rawReport.patient_age_unit) || 'N/A';
-    const doctorName = rawReport.doctor_name
-      ? `${rawReport.doctor_title || 'Dr'}. ${rawReport.doctor_name}`
-      : rawReport.doctor_firstname && rawReport.doctor_lastname
-        ? `Dr. ${rawReport.doctor_firstname} ${rawReport.doctor_lastname}`
-        : 'Self';
+    const doctorName = rawReport.is_self_report
+      ? 'Self'
+      : rawReport.doctor_name
+        ? (/^dr\.?/i.test(rawReport.doctor_name) ? rawReport.doctor_name : `${rawReport.doctor_title || 'Dr'}. ${rawReport.doctor_name}`)
+        : rawReport.doctor_firstname && rawReport.doctor_lastname
+          ? `Dr. ${rawReport.doctor_firstname} ${rawReport.doctor_lastname}`
+          : 'Self';
 
     const testData =
       typeof rawReport.test_data === 'string' ? JSON.parse(rawReport.test_data) : rawReport.test_data;
@@ -1381,7 +1383,7 @@ export function ReportPreview() {
           sampleIdCode={rawReport?.sample_id_code}
           patientName={rawReport?.patient_name}
           patientPhone={rawReport?.patient_phone}
-          doctorName={rawReport?.doctor_name ? `${rawReport.doctor_title || 'Dr'}. ${rawReport.doctor_name}` : undefined}
+          doctorName={rawReport?.doctor_name ? (/^dr\.?/i.test(rawReport.doctor_name) ? rawReport.doctor_name : `${rawReport.doctor_title || 'Dr'}. ${rawReport.doctor_name}`) : undefined}
           doctorPhone={rawReport?.doctor_phone}
           doctorEmail={rawReport?.doctor_email}
           hasDoctorRef={!!rawReport?.doctor_id}

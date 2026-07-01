@@ -25,4 +25,11 @@ const Doctor = sequelize.define("Doctor", {
   tableName: "doctors",
 });
 
+Doctor.prototype.toJSON = function () {
+  const values = Object.assign({}, this.get());
+  values.has_login = !!(values.password_hash || values.user_id);
+  delete values.password_hash;
+  return values;
+};
+
 module.exports = Doctor;

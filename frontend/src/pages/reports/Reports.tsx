@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { CustomConfirmModal } from '../../app/components/ui/CustomConfirmModal';
 import {
   Search,
   FileText,
@@ -70,6 +71,20 @@ export function Reports() {
 
   // Payment modal state
   const [invoiceReportId, setInvoiceReportId] = useState<string | null>(null);
+
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'confirm' | 'danger' | 'warning' | 'alert';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'confirm',
+    onConfirm: () => {}
+  });
 
 
   // Store state
@@ -296,6 +311,9 @@ export function Reports() {
   const getDoctorName = (report: Report) => {
     if (report.is_self_report) return 'Self';
     if (report.doctor_name) {
+      if (/^dr\.?/i.test(report.doctor_name)) {
+        return report.doctor_name;
+      }
       return `${report.doctor_title || 'Dr'}. ${report.doctor_name}`;
     }
     if (report.doctor_firstname || report.doctor_lastname) {
@@ -423,7 +441,13 @@ export function Reports() {
 
   const handleSubmitForReview = async (report: Report) => {
     if (!isReportReadyForSubmit(report)) {
-      alert('Please fill all required test values before submitting for review.');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Action Required',
+        message: 'Please fill all required test values before submitting for review.',
+        type: 'alert',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
       return;
     }
     await submitReport(report.id);
@@ -432,16 +456,21 @@ export function Reports() {
   /**
    * Handle delete report with confirmation
    */
-  const handleDeleteReport = async (report: Report) => {
+  const handleDeleteReport = (report: Report) => {
     const patientName = getPatientName(report);
-    const confirmed = window.confirm(
-      `Are you sure you want to delete the report for "${patientName}" (${report.sample_id_code})?\n\nThis action cannot be undone.`
-    );
-    if (!confirmed) return;
-    const success = await deleteReport(report.id);
-    if (success) {
-      fetchSummary();
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Report',
+      message: `Are you sure you want to delete the report for "${patientName}" (${report.sample_id_code})?\n\nThis action cannot be undone.`,
+      type: 'danger',
+      onConfirm: async () => {
+        const success = await deleteReport(report.id);
+        if (success) {
+          fetchSummary();
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   /**
@@ -898,6 +927,15 @@ export function Reports() {
           onBillingUpdated={refreshReportsData}
         />
       )}
+
+      <CustomConfirmModal
+        isOpen={confirmModal.isOpen}
+        type={confirmModal.type}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

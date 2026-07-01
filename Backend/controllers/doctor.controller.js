@@ -136,7 +136,7 @@ exports.createDoctor = async (req, res) => {
 exports.updateDoctor = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, name, firstname, lastname, email, phone, specialization, license_number, branch_id, commission_percentage } = req.body;
+    const { title, name, firstname, lastname, email, phone, specialization, license_number, branch_id, commission_percentage, password } = req.body;
 
     // Support both old and new formats
     const doctorName = name || (firstname && lastname ? `${firstname} ${lastname}`.trim() : undefined);
@@ -171,9 +171,21 @@ exports.updateDoctor = async (req, res) => {
       commission_percentage,
     });
 
+    // If password provided, update it
+    if (password && password.length >= 4) {
+      const targetEmail = email || currentDoctor.email;
+      if (!targetEmail) {
+        return res.status(400).json({ error: "Doctor must have an email before setting a password" });
+      }
+      await Doctor.updateDoctorPassword(id, password);
+    }
+
+    // Fetch refreshed doctor to ensure updated values (including has_login) are returned
+    const refreshedDoctor = await Doctor.getDoctorById(id);
+
     res.json({
       message: "Doctor updated successfully",
-      data: doctor
+      data: refreshedDoctor || doctor
     });
   } catch (err) {
     console.error("Update doctor error:", err);

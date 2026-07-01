@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { CustomConfirmModal } from '../../app/components/ui/CustomConfirmModal';
 import {
   Upload,
   Image as ImageIcon,
@@ -37,6 +38,20 @@ export function Settings() {
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [letterheadError, setLetterheadError] = useState<string | null>(null);
+
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'confirm' | 'danger' | 'warning' | 'alert';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'confirm',
+    onConfirm: () => {}
+  });
 
   const [pendingLetterheadFile, setPendingLetterheadFile] = useState<File | null>(null);
 
@@ -420,25 +435,32 @@ export function Settings() {
     }
   };
 
-  const handleDeleteLabSignature = async (index: number) => {
-    if (!window.confirm(`Are you sure you want to delete signature ${index}?`)) return;
-
-    setUploadingField(`delete_lab_sig_${index}`);
-    try {
-      const result = await removeSettingsImage(`signature_${index}_url`);
-      if (result) {
-        setLabSignaturePreviews({ ...labSignaturePreviews, [index]: null });
-        setSigLabels({ ...sigLabels, [index]: '' });
-        if (defaultSignatureIndex === index) {
-          setDefaultSignatureIndex(null);
+  const handleDeleteLabSignature = (index: number) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Signature',
+      message: `Are you sure you want to delete signature ${index}?`,
+      type: 'danger',
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setUploadingField(`delete_lab_sig_${index}`);
+        try {
+          const result = await removeSettingsImage(`signature_${index}_url`);
+          if (result) {
+            setLabSignaturePreviews({ ...labSignaturePreviews, [index]: null });
+            setSigLabels({ ...sigLabels, [index]: '' });
+            if (defaultSignatureIndex === index) {
+              setDefaultSignatureIndex(null);
+            }
+            showSuccess(`Signature ${index} deleted successfully`);
+          }
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setUploadingField(null);
         }
-        showSuccess(`Signature ${index} deleted successfully`);
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setUploadingField(null);
-    }
+    });
   };
 
   const handleUpdateSignatureLabel = async (index: number, newLabel: string) => {
@@ -471,7 +493,13 @@ export function Settings() {
 
   const confirmOwnerSignature = async () => {
     if (!activeBranchId) {
-      alert('Branch ID not found. Please select a branch.');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Branch Required',
+        message: 'Branch ID not found. Please select a branch.',
+        type: 'alert',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
       return;
     }
     if (!pendingOwnerSignatureFile) return;
@@ -518,23 +546,30 @@ export function Settings() {
     }
   };
 
-  const handleDeleteImage = async (field: 'letterhead_url' | 'header_url' | 'footer_url' | 'owner_signature_url') => {
-    if (!window.confirm(`Are you sure you want to delete the ${field.replace('_url', '').replace('_', ' ')}?`)) return;
-
-    setUploadingField(`delete_${field}`);
-    try {
-      const result = await useSettingsStore.getState().removeImage(field);
-      if (result) {
-        if (field === 'letterhead_url') setLetterheadPreview(null);
-        if (field === 'owner_signature_url') setOwnerSignaturePreview(null);
-        showSuccess('Image deleted successfully');
-        if (activeBranchId) fetchSettings(activeBranchId);
+  const handleDeleteImage = (field: 'letterhead_url' | 'header_url' | 'footer_url' | 'owner_signature_url') => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Image',
+      message: `Are you sure you want to delete the ${field.replace('_url', '').replace('_', ' ')}?`,
+      type: 'danger',
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setUploadingField(`delete_${field}`);
+        try {
+          const result = await useSettingsStore.getState().removeImage(field);
+          if (result) {
+            if (field === 'letterhead_url') setLetterheadPreview(null);
+            if (field === 'owner_signature_url') setOwnerSignaturePreview(null);
+            showSuccess('Image deleted successfully');
+            if (activeBranchId) fetchSettings(activeBranchId);
+          }
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setUploadingField(null);
+        }
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setUploadingField(null);
-    }
+    });
   };
 
   const handleSaveSampleIdSettings = async () => {
@@ -1559,6 +1594,15 @@ export function Settings() {
           {activeTab === 'whatsapp' && <WhatsAppIntegration />}
         </div>
       </div>
+
+      <CustomConfirmModal
+        isOpen={confirmModal.isOpen}
+        type={confirmModal.type}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

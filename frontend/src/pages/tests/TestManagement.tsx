@@ -258,6 +258,18 @@ export function TestManagement() {
     sessionStorage.setItem('test_mgmt_sort', sortBy);
   }, [sortBy]);
 
+  // Reset search and filter states when leaving the tests module
+  useEffect(() => {
+    return () => {
+      const currentPath = window.location.pathname;
+      if (!currentPath.startsWith('/tests')) {
+        sessionStorage.removeItem('test_mgmt_search');
+        sessionStorage.removeItem('test_mgmt_category');
+        sessionStorage.removeItem('test_mgmt_sort');
+      }
+    };
+  }, []);
+
   // Fetch tests on mount or branch change
   useEffect(() => {
     fetchTests(currentBranchId ?? undefined);
@@ -994,6 +1006,18 @@ function TestModal({ test, categories, readOnly = false, branchId, onClose, onSa
     setCustomUnitMode(custom);
   }, [fields.length]);
 
+  const isFieldReferenced = (fieldName: string) => {
+    if (!fieldName || !fieldName.trim()) return false;
+    const nameTrimmed = fieldName.trim();
+    return fields.some(f => {
+      if (f.field_type !== 'calculated') return false;
+      const deps = (f.depends_on || '').split(',').map(d => d.trim());
+      if (deps.includes(nameTrimmed)) return true;
+      if ((f.formula || '').includes(nameTrimmed)) return true;
+      return false;
+    });
+  };
+
   const addField = () => {
     setFields(prev => [...prev, {
       field_name: '',
@@ -1319,8 +1343,10 @@ function TestModal({ test, categories, readOnly = false, branchId, onClose, onSa
                             type="text"
                             value={field.field_name}
                             onChange={e => updateField(index, { field_name: e.target.value })}
-                            className="w-full h-7 px-2 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                            disabled={readOnly || isFieldReferenced(field.field_name)}
+                            className="w-full h-7 px-2 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
                             placeholder="e.g., Hemoglobin"
+                            title={isFieldReferenced(field.field_name) ? "This parameter is referenced in a calculation formula and cannot be renamed." : "Parameter Name"}
                             required
                           />
                         </td>
@@ -1425,7 +1451,9 @@ function TestModal({ test, categories, readOnly = false, branchId, onClose, onSa
                           <button
                             type="button"
                             onClick={() => removeField(index)}
-                            className="w-6 h-6 flex items-center justify-center rounded hover:bg-destructive/10 transition-colors text-destructive mx-auto"
+                            disabled={readOnly || isFieldReferenced(field.field_name)}
+                            className="w-6 h-6 flex items-center justify-center rounded hover:bg-destructive/10 transition-colors text-destructive mx-auto disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={isFieldReferenced(field.field_name) ? "This parameter is referenced in a calculation formula and cannot be deleted." : "Delete"}
                           >
                             <Trash2 className="w-3 h-3" />
                           </button>
