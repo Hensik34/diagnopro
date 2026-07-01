@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { CustomConfirmModal } from '../../app/components/ui/CustomConfirmModal';
 import {
   Plus,
@@ -26,6 +26,7 @@ import { useBranchStore, useDoctorStore } from '../../stores';
 import { testApi } from '../../api/tests';
 import { priceListApi } from '../../api/priceLists';
 import type { PriceList, PriceListItem, Test, Doctor } from '../../types';
+import { smartSearchFilter } from '../../utils';
 
 export function PriceListManagement() {
   const { currentBranchId } = useBranchStore();
@@ -429,21 +430,28 @@ export function PriceListManagement() {
   };
 
   // Filtering tests
-  const filteredTests = tests.filter((test) => {
-    const matchesSearch =
-      test.test_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      test.test_code.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredTests = useMemo(() => {
+    const categoryAndOverrideFiltered = tests.filter((test) => {
+      const matchesCategory = categoryFilter === 'All' || test.category === categoryFilter;
 
-    const matchesCategory = categoryFilter === 'All' || test.category === categoryFilter;
+      const hasOverride = listItems[test.id] && (
+        listItems[test.id].price !== null ||
+        listItems[test.id].discount_type !== 'none'
+      );
+      const matchesOverride = !onlyOverridden || hasOverride;
 
-    const hasOverride = listItems[test.id] && (
-      listItems[test.id].price !== null ||
-      listItems[test.id].discount_type !== 'none'
-    );
-    const matchesOverride = !onlyOverridden || hasOverride;
+      return matchesCategory && matchesOverride;
+    });
 
-    return matchesSearch && matchesCategory && matchesOverride;
-  });
+    if (!searchQuery.trim()) {
+      return categoryAndOverrideFiltered;
+    }
+
+    return smartSearchFilter(categoryAndOverrideFiltered, searchQuery, [
+      { field: t => t.test_name, weight: 1.0 },
+      { field: t => t.test_code, weight: 0.8 }
+    ]);
+  }, [tests, searchQuery, categoryFilter, onlyOverridden, listItems]);
 
   return (
     <div className="space-y-6">
