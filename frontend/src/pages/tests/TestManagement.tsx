@@ -28,6 +28,7 @@ import { useAuthStore } from '../../stores';
 import { useBranchStore } from '../../stores';
 import { testApi } from '../../api';
 import { PERMISSIONS } from '../../utils/permissions';
+import { getSearchScore } from '../../utils';
 import type { Test, CreateTestData, TestField, CreateTestFieldData, FieldType, ReferenceRule, CriticalRules, QualitativeBand } from '../../types';
 
 // Common lab measurement units organized by category
@@ -58,6 +59,36 @@ const QUALITATIVE_DEFAULTS: Record<string, string[]> = {
 // Age groups used for reference ranges
 const AGE_GROUPS = ['all', 'adult', 'pediatric', 'neonatal', 'infant', 'adolescent', 'elderly'];
 const SEX_OPTIONS = ['any', 'male', 'female'];
+
+/**
+ * Automatically standardizes test names to the format 'Short Name (Full Name)'
+ * if it currently is formatted as 'Full Name (Short Name)'.
+ * Retains qualifiers like (Urine), (Serum), (8 AM), etc. as-is.
+ */
+function formatTestName(name: string): string {
+  if (!name) return '';
+  const trimmed = name.trim();
+  const match = trimmed.match(/^([^(]+)\(([^)]+)\)$/);
+  if (!match) return trimmed;
+
+  const partA = match[1].trim();
+  const partB = match[2].trim();
+
+  const lowerB = partB.toLowerCase();
+  const detailKeywords = [
+    'urine', 'serum', 'plasma', 'blood', 'fluid', 'marker', 'screening', 
+    'confirmation', 'rapid', 'detection', 'analysis', 'test', 'am', 'pm', 
+    'hour', 'quant', 'qual', 'elisa', 'card', 'culture', 'smear', 'swab', 
+    'tissue', 'biopsy', 'normal', 'abnormal'
+  ];
+  const isDetail = detailKeywords.some(keyword => lowerB.includes(keyword));
+
+  if (!isDetail && partB.length < partA.length) {
+    return `${partB} (${partA})`;
+  }
+
+  return trimmed;
+}
 
 // ============================================
 // Reference Rules Utility Functions
@@ -334,35 +365,50 @@ export function TestManagement() {
     return names.length > 0 ? names.join(', ') : '—';
   };
 
-  const filteredTests = [...tests]
-    .filter(test => {
-      const matchesSearch = 
-        test.test_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        test.test_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        test.id.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = categoryFilter === 'all' || test.category === categoryFilter;
-      return matchesSearch && matchesCategory;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'name-asc') {
-        return a.test_name.localeCompare(b.test_name);
-      }
-      if (sortBy === 'name-desc') {
-        return b.test_name.localeCompare(a.test_name);
-      }
-      if (sortBy === 'price-asc') {
-        return (a.price || 0) - (b.price || 0);
-      }
-      if (sortBy === 'price-desc') {
-        return (b.price || 0) - (a.price || 0);
-      }
-      if (sortBy === 'category-asc') {
-        const catA = a.category || '';
-        const catB = b.category || '';
-        return catA.localeCompare(catB);
-      }
-      return 0;
-    });
+  const filteredTests = useMemo(() => {
+    const categoryFiltered = tests.filter(test => categoryFilter === 'all' || test.category === categoryFilter);
+
+    if (!searchTerm.trim()) {
+      return [...categoryFiltered].sort((a, b) => {
+        if (sortBy === 'name-asc') return a.test_name.localeCompare(b.test_name);
+        if (sortBy === 'name-desc') return b.test_name.localeCompare(a.test_name);
+        if (sortBy === 'price-asc') return (a.price || 0) - (b.price || 0);
+        if (sortBy === 'price-desc') return (b.price || 0) - (a.price || 0);
+        if (sortBy === 'category-asc') {
+          const catA = a.category || '';
+          const catB = b.category || '';
+          return catA.localeCompare(catB);
+        }
+        return 0;
+      });
+    }
+
+    return categoryFiltered
+      .map(test => {
+        const nameScore = getSearchScore(test.test_name, searchTerm);
+        const codeScore = getSearchScore(test.test_code, searchTerm);
+        const idScore = getSearchScore(test.id, searchTerm);
+        const score = Math.max(nameScore * 1.0, codeScore * 0.8, idScore * 0.5);
+        return { test, score };
+      })
+      .filter(wrapped => wrapped.score > 0)
+      .sort((a, b) => {
+        if (b.score !== a.score) {
+          return b.score - a.score;
+        }
+        if (sortBy === 'name-asc') return a.test.test_name.localeCompare(b.test.test_name);
+        if (sortBy === 'name-desc') return b.test.test_name.localeCompare(a.test.test_name);
+        if (sortBy === 'price-asc') return (a.test.price || 0) - (b.test.price || 0);
+        if (sortBy === 'price-desc') return (b.test.price || 0) - (a.test.price || 0);
+        if (sortBy === 'category-asc') {
+          const catA = a.test.category || '';
+          const catB = b.test.category || '';
+          return catA.localeCompare(catB);
+        }
+        return 0;
+      })
+      .map(wrapped => wrapped.test);
+  }, [tests, searchTerm, categoryFilter, sortBy]);
 
   const totalPages = Math.ceil(filteredTests.length / itemsPerPage);
   const paginatedTests = filteredTests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -393,20 +439,39 @@ export function TestManagement() {
   const categories = [...new Set(tests.map(t => t.category).filter(Boolean))];
   const packageCategories = [...new Set(packages.map(p => p.category).filter(Boolean))];
 
-  const filteredPackages = [...packages]
-    .filter(pkg => {
-      const matchSearch = (pkg.package_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (pkg.package_code || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const matchCategory = categoryFilter === 'all' || pkg.category === categoryFilter;
-      return matchSearch && matchCategory;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'name-asc') return (a.package_name || '').localeCompare(b.package_name || '');
-      if (sortBy === 'name-desc') return (b.package_name || '').localeCompare(a.package_name || '');
-      if (sortBy === 'price-asc') return (Number(a.price) || 0) - (Number(b.price) || 0);
-      if (sortBy === 'price-desc') return (Number(b.price) || 0) - (Number(a.price) || 0);
-      return 0;
-    });
+  const filteredPackages = useMemo(() => {
+    const categoryFiltered = packages.filter(pkg => categoryFilter === 'all' || pkg.category === categoryFilter);
+
+    if (!searchTerm.trim()) {
+      return [...categoryFiltered].sort((a, b) => {
+        if (sortBy === 'name-asc') return (a.package_name || '').localeCompare(b.package_name || '');
+        if (sortBy === 'name-desc') return (b.package_name || '').localeCompare(a.package_name || '');
+        if (sortBy === 'price-asc') return (Number(a.price) || 0) - (Number(b.price) || 0);
+        if (sortBy === 'price-desc') return (Number(b.price) || 0) - (Number(a.price) || 0);
+        return 0;
+      });
+    }
+
+    return categoryFiltered
+      .map(pkg => {
+        const nameScore = getSearchScore(pkg.package_name || '', searchTerm);
+        const codeScore = getSearchScore(pkg.package_code || '', searchTerm);
+        const score = Math.max(nameScore * 1.0, codeScore * 0.8);
+        return { pkg, score };
+      })
+      .filter(wrapped => wrapped.score > 0)
+      .sort((a, b) => {
+        if (b.score !== a.score) {
+          return b.score - a.score;
+        }
+        if (sortBy === 'name-asc') return (a.pkg.package_name || '').localeCompare(b.pkg.package_name || '');
+        if (sortBy === 'name-desc') return (b.pkg.package_name || '').localeCompare(a.pkg.package_name || '');
+        if (sortBy === 'price-asc') return (Number(a.pkg.price) || 0) - (Number(b.pkg.price) || 0);
+        if (sortBy === 'price-desc') return (Number(b.pkg.price) || 0) - (Number(a.pkg.price) || 0);
+        return 0;
+      })
+      .map(wrapped => wrapped.pkg);
+  }, [packages, searchTerm, categoryFilter, sortBy]);
   
   // Calculate stats
 
@@ -1113,7 +1178,9 @@ function TestModal({ test, categories, readOnly = false, branchId, onClose, onSa
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const result = await onSave(formData);
+      const formattedName = formatTestName(formData.test_name);
+      const updatedFormData = { ...formData, test_name: formattedName };
+      const result = await onSave(updatedFormData);
 
       // Save fields — use existing test ID or ID from newly created test
       const targetId = test?.id || (result && typeof result === 'object' && 'id' in result ? result.id : null);
@@ -1204,7 +1271,7 @@ function TestModal({ test, categories, readOnly = false, branchId, onClose, onSa
                 value={formData.test_name}
                 onChange={e => setFormData(prev => ({ ...prev, test_name: e.target.value }))}
                 className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="e.g., Complete Blood Count (CBC)"
+                placeholder="e.g., CBC (Complete Blood Count)"
                 required
               />
             </div>

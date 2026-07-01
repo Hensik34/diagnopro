@@ -33,6 +33,7 @@ import { useBillingStore } from "../../stores/billingStore";
 import type { AgeUnit, Doctor, Patient, Report, Test, TestField, ReferenceRule, CriticalRules, ReportTestPriceSnapshot } from "../../types";
 import { BillingSection } from "../../app/components/reports/BillingSection";
 import { formatAge, getAgeMax, normalizeAgeUnit } from "../../utils/age";
+import { smartSearchFilter } from "../../utils";
 
 // ============================================
 // Reference Rules Utility Functions for Reports
@@ -868,12 +869,14 @@ export function ReportEntry() {
   // Filter tests based on search
   const filteredTests = useMemo(() => {
     const selectedTestIds = parsedTestData?.testIds || [];
-    return tests.filter(
-      (t) =>
-         !selectedTestIds.includes(t.id) &&
-         ((t.test_name || '').toLowerCase().includes(testSearch.toLowerCase()) ||
-           (t.category || '').toLowerCase().includes(testSearch.toLowerCase()))
-    ).slice(0, 15);
+    const unselected = tests.filter(t => !selectedTestIds.includes(t.id));
+    if (!testSearch.trim()) {
+      return unselected.slice(0, 15);
+    }
+    return smartSearchFilter(unselected, testSearch, [
+      { field: t => t.test_name, weight: 1.0 },
+      { field: t => t.category, weight: 0.6 }
+    ]).slice(0, 15);
   }, [tests, parsedTestData, testSearch]);
 
   const handleAddTest = async (test: Test) => {

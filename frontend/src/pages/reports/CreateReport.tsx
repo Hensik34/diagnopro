@@ -32,6 +32,7 @@ import { priceListApi, pricingEngineApi } from "../../api/priceLists";
 import { doctorApi } from "../../api/doctors";
 import type { AgeUnit, Patient, Test, Doctor, PriceList, ReportTestPriceSnapshot, DoctorPriceAssignment, DoctorTestPriceOverride } from "../../types";
 import { DEFAULT_AGE_UNIT, formatAge, getAgeMax, normalizeAgeUnit } from "../../utils/age";
+import { smartSearchFilter } from "../../utils";
 
 /**
  * CreateReport Page - Create new diagnostic reports
@@ -231,23 +232,27 @@ export function CreateReport() {
 
   // Filter packages based on search
   const filteredPackages = useMemo(() => {
-    return packages.filter(
-      (p) =>
-        !selectedPackages.find((sp) => sp.id === p.id) &&
-        ((p.package_name || '').toLowerCase().includes(testSearch.toLowerCase()) ||
-          (p.package_code || '').toLowerCase().includes(testSearch.toLowerCase()) ||
-          (p.category || '').toLowerCase().includes(testSearch.toLowerCase()))
-    ).slice(0, 10);
+    const unselected = packages.filter(p => !selectedPackages.find((sp) => sp.id === p.id));
+    if (!testSearch.trim()) {
+      return unselected.slice(0, 10);
+    }
+    return smartSearchFilter(unselected, testSearch, [
+      { field: p => p.package_name, weight: 1.0 },
+      { field: p => p.package_code, weight: 0.8 },
+      { field: p => p.category, weight: 0.6 }
+    ]).slice(0, 10);
   }, [packages, selectedPackages, testSearch]);
 
   // Filter tests based on search
   const filteredTests = useMemo(() => {
-    return tests.filter(
-      (t) =>
-        !selectedTests.find((st) => st.id === t.id) &&
-        ((t.test_name || '').toLowerCase().includes(testSearch.toLowerCase()) ||
-          (t.category || '').toLowerCase().includes(testSearch.toLowerCase()))
-    ).slice(0, 15);
+    const unselected = tests.filter(t => !selectedTests.find((st) => st.id === t.id));
+    if (!testSearch.trim()) {
+      return unselected.slice(0, 15);
+    }
+    return smartSearchFilter(unselected, testSearch, [
+      { field: t => t.test_name, weight: 1.0 },
+      { field: t => t.category, weight: 0.6 }
+    ]).slice(0, 15);
   }, [tests, selectedTests, testSearch]);
 
   // Combined search results for navigation
