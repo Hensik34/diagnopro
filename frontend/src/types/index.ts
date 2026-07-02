@@ -395,8 +395,8 @@ export interface Report {
   id: string;
   patient_id: string;
   branch_id: string;
-  doctor_id?: string;
-  referring_doctor_name?: string;
+  doctor_id?: string | null;
+  referring_doctor_name?: string | null;
   technician_id?: string;
   report_type?: string;
   sample_id?: string;
@@ -466,8 +466,8 @@ export interface Report {
 
 export interface CreateReportData {
   patient_id: string;
-  doctor_id?: string;
-  referring_doctor_name?: string;
+  doctor_id?: string | null;
+  referring_doctor_name?: string | null;
   report_type?: string;
   sample_id?: string;
   clinical_notes?: string;
@@ -496,8 +496,8 @@ export interface UpdateReportData {
   clinical_notes?: string;
   technician_id?: string;
   test_data?: TestData;
-  doctor_id?: string;
-  referring_doctor_name?: string;
+  doctor_id?: string | null;
+  referring_doctor_name?: string | null;
   report_type?: string;
   report_amount?: number;
   is_self_report?: boolean;

@@ -17,6 +17,7 @@ import {
   Building2,
   MessageSquare,
   Info,
+  Stethoscope,
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePatientStore } from "../../stores/patientStore";
@@ -68,8 +69,7 @@ export function CreateReport() {
 
   // Doctor selection
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
-  const [isCustomDoctor, setIsCustomDoctor] = useState(false);
-  const [customDoctorName, setCustomDoctorName] = useState("");
+  const [referringDoctorName, setReferringDoctorName] = useState("");
   const [doctorSearch, setDoctorSearch] = useState("");
   const [showDoctorDropdown, setShowDoctorDropdown] = useState(false);
   const [activeDoctorIndex, setActiveDoctorIndex] = useState(0);
@@ -642,30 +642,48 @@ export function CreateReport() {
     }
   };
 
-  const handleSelectDoctor = (doctor: Doctor | null) => {
+  const handleSelectDoctor = (doctor: Doctor) => {
     setSelectedDoctor(doctor);
-    setIsCustomDoctor(false);
-    setCustomDoctorName("");
-    if (doctor) {
-      setDoctorSearch(`${doctor.title || 'Dr'}. ${doctor.name}`);
-    } else {
-      setDoctorSearch("");
-    }
+    setReferringDoctorName("");
+    setDoctorSearch(`${doctor.title || 'Dr'}. ${doctor.name}`);
     setShowDoctorDropdown(false);
     setActiveDoctorIndex(0);
   };
 
-  const handleCreateCustomDoctor = (name: string) => {
-    setIsCustomDoctor(true);
+  const handleClearDoctor = () => {
     setSelectedDoctor(null);
-    const capitalizedName = name.trim()
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-    setCustomDoctorName(capitalizedName);
-    setDoctorSearch(capitalizedName);
+    setReferringDoctorName("");
+    setDoctorSearch("");
     setShowDoctorDropdown(false);
     setActiveDoctorIndex(0);
+  };
+
+  const handleSelectSelf = () => {
+    setSelectedDoctor(null);
+    setReferringDoctorName("");
+    setDoctorSearch("Self (No Doctor)");
+    setShowDoctorDropdown(false);
+    setActiveDoctorIndex(0);
+  };
+
+  // Handle blur on doctor search — if text was typed but no doctor selected, use as referring_doctor_name
+  const handleDoctorBlur = () => {
+    setTimeout(() => {
+      const trimmed = doctorSearch.trim();
+      const isSelf = trimmed.toLowerCase() === 'self' || trimmed === 'Self (No Doctor)';
+      if (!selectedDoctor && trimmed && !isSelf) {
+        const capitalizedName = trimmed
+          .split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+        setReferringDoctorName(capitalizedName);
+        setDoctorSearch(capitalizedName);
+      } else if (!selectedDoctor && (isSelf || !trimmed)) {
+        setReferringDoctorName("");
+        setDoctorSearch(trimmed ? "Self (No Doctor)" : "");
+      }
+      setShowDoctorDropdown(false);
+    }, 200);
   };
 
   const handleDoctorSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -697,7 +715,7 @@ export function CreateReport() {
 
     if (event.key === 'Enter') {
       event.preventDefault();
-      if (filteredDoctors.length > 0) {
+      if (filteredDoctors.length > 0 && showDoctorDropdown) {
         const doctorToSelect = filteredDoctors[activeDoctorIndex] ?? filteredDoctors[0];
         if (doctorToSelect) {
           handleSelectDoctor(doctorToSelect);
@@ -705,8 +723,15 @@ export function CreateReport() {
         return;
       }
 
+      // Typed text becomes referring_doctor_name
       if (doctorSearch.trim()) {
-        handleCreateCustomDoctor(doctorSearch);
+        const capitalizedName = doctorSearch.trim()
+          .split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+        setReferringDoctorName(capitalizedName);
+        setDoctorSearch(capitalizedName);
+        setShowDoctorDropdown(false);
       }
       return;
     }
@@ -930,11 +955,11 @@ export function CreateReport() {
 
       const report = await createReport({
         patient_id: patientId,
-        doctor_id: isCustomDoctor ? undefined : selectedDoctor?.id,
-        referring_doctor_name: isCustomDoctor ? customDoctorName : undefined,
+        doctor_id: selectedDoctor?.id || undefined,
+        referring_doctor_name: !selectedDoctor && referringDoctorName ? referringDoctorName : undefined,
         report_type: reportTypeString || selectedTests.map(t => t.test_name).join(', '),
         report_amount: totalPrice,
-        is_self_report: isCustomDoctor ? false : !selectedDoctor,
+        is_self_report: !selectedDoctor && !referringDoctorName,
         branch_id: currentBranchId,
         base_amount: Object.values(resolvedPricingItems).reduce((sum, item) => sum + (Number(item.default_price) || 0), 0),
         final_amount: totalPrice,
@@ -1317,27 +1342,29 @@ export function CreateReport() {
                       <input
                         ref={doctorSearchInputRef}
                         type="text"
-                        placeholder="Search doctor by name or mobile..."
+                        placeholder="Search or type doctor name..."
                         className="w-full h-8 pl-7 pr-8 bg-background border border-border rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
                         value={doctorSearch}
                         onChange={(e) => {
                           const val = e.target.value;
                           setDoctorSearch(val);
+                          if (selectedDoctor) {
+                            setSelectedDoctor(null);
+                            setReferringDoctorName("");
+                          }
                           setShowDoctorDropdown(true);
                           setActiveDoctorIndex(0);
-                          if (isCustomDoctor) {
-                            setCustomDoctorName(val);
-                          }
                         }}
                         onFocus={() => setShowDoctorDropdown(true)}
+                        onBlur={handleDoctorBlur}
                         onKeyDown={handleDoctorSearchKeyDown}
                       />
-                      {(selectedDoctor || isCustomDoctor || (doctorSearch && doctorSearch !== "Self (No Doctor)")) && (
+                      {doctorSearch && (
                         <button
                           type="button"
-                          onClick={() => handleSelectDoctor(null)}
+                          onClick={handleClearDoctor}
                           className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors focus:outline-none"
-                          title="Clear referring doctor"
+                          title="Clear doctor"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -1345,70 +1372,44 @@ export function CreateReport() {
                     </div>
 
                     {/* Doctor Dropdown */}
-                    {showDoctorDropdown && (
+                    {showDoctorDropdown && (filteredDoctors.length > 0 || !doctorSearch || 'self'.includes(doctorSearch.toLowerCase())) && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg max-h-56 overflow-y-auto z-50">
-                        {/* Option for Self (No Doctor) */}
                         {(!doctorSearch || 'self'.includes(doctorSearch.toLowerCase())) && (
                           <button
                             type="button"
-                            onClick={() => handleSelectDoctor(null)}
+                            onClick={handleSelectSelf}
                             className="w-full px-3 py-2 text-left hover:bg-accent transition-colors border-b border-border text-[11px] text-muted-foreground"
                           >
                             Self (No Doctor)
                           </button>
                         )}
-                        {filteredDoctors.length > 0 ? (
-                          <>
-                            {filteredDoctors.map((doc, index) => (
-                              <button
-                                key={doc.id}
-                                type="button"
-                                onClick={() => handleSelectDoctor(doc)}
-                                onMouseEnter={() => setActiveDoctorIndex(index)}
-                                className={`w-full px-3 py-2 text-left transition-colors border-b border-border last:border-0 text-[11px] ${
-                                  index === activeDoctorIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
-                                }`}
-                              >
-                                <div className="font-medium text-foreground">
-                                  {doc.title || 'Dr'}. {doc.name}
-                                </div>
-                                {doc.specialization || doc.phone ? (
-                                  <div className="text-[9px] text-muted-foreground mt-0.5">
-                                    {doc.specialization} {doc.specialization && doc.phone ? '•' : ''} {doc.phone}
-                                  </div>
-                                ) : null}
-                              </button>
-                            ))}
-                            {doctorSearch.trim() && !filteredDoctors.some(d => `${d.title || 'Dr'}. ${d.name}`.toLowerCase() === doctorSearch.toLowerCase().trim()) && (
-                              <button
-                                type="button"
-                                onClick={() => handleCreateCustomDoctor(doctorSearch)}
-                                className="w-full px-3 py-2 text-left hover:bg-accent transition-colors border-t border-border flex items-center gap-2 text-primary text-[11px]"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                                <span className="font-medium">
-                                  Use Custom Doctor: "{doctorSearch}"
-                                </span>
-                              </button>
-                            )}
-                          </>
-                        ) : (
-                          doctorSearch.trim() && (
-                            <button
-                              type="button"
-                              onClick={() => handleCreateCustomDoctor(doctorSearch)}
-                              className="w-full px-3 py-3 text-center hover:bg-accent transition-colors flex flex-col items-center gap-1 text-primary text-[11px]"
-                            >
-                              <Plus className="w-4 h-4" />
-                              <div>
-                                <div className="font-medium">No doctor found</div>
-                                <div className="text-[9px] text-muted-foreground mt-0.5">
-                                  Click to use custom doctor: "{doctorSearch}"
-                                </div>
+                        {filteredDoctors.map((doc, index) => (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            onClick={() => handleSelectDoctor(doc)}
+                            onMouseEnter={() => setActiveDoctorIndex(index)}
+                            className={`w-full px-3 py-2 text-left transition-colors border-b border-border last:border-0 text-[11px] ${
+                              index === activeDoctorIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
+                            }`}
+                          >
+                            <div className="font-medium text-foreground">
+                              {doc.title || 'Dr'}. {doc.name}
+                            </div>
+                            {doc.specialization || doc.phone ? (
+                              <div className="text-[9px] text-muted-foreground mt-0.5">
+                                {doc.specialization} {doc.specialization && doc.phone ? '•' : ''} {doc.phone}
                               </div>
-                            </button>
-                          )
-                        )}
+                            ) : null}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {/* Indicator showing what will be saved */}
+                    {!selectedDoctor && referringDoctorName && (
+                      <div className="text-[9px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                        <Stethoscope className="w-2.5 h-2.5" />
+                        Ref. Doctor: {referringDoctorName}
                       </div>
                     )}
                   </div>
