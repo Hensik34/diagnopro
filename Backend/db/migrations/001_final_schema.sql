@@ -276,7 +276,7 @@ CREATE TABLE IF NOT EXISTS reports (
     patient_id UUID NOT NULL REFERENCES patients(id),
     doctor_id UUID REFERENCES doctors(id),
     technician_id UUID REFERENCES users(id),
-    report_type VARCHAR(100),
+    report_type TEXT,
     sample_id UUID REFERENCES samples(id),
     branch_id UUID NOT NULL REFERENCES branches(id),
     status VARCHAR(50) DEFAULT 'draft',
