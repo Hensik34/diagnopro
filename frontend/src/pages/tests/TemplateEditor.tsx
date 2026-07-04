@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { CustomConfirmModal } from '../../app/components/ui/CustomConfirmModal';
+import { SmartSelectInput } from '../../app/components/reports/SmartSelectInput';
 import {
   GripVertical,
   Eye,
@@ -91,28 +92,20 @@ function GroupInput({ id, initialValue, onChange, availableGroups }: GroupInputP
     }
   };
 
-  const datalistId = `group-options-${id}`;
-
   return (
     <div className="w-28 sm:w-36 flex-shrink-0">
       <label className="text-[9px] font-medium text-muted-foreground block mb-0.5 uppercase tracking-wide">
         Group
       </label>
-      <input
-        type="text"
+      <SmartSelectInput
         placeholder="No group"
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={setValue}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
-        list={datalistId}
+        options={availableGroups}
         className="w-full text-[11px] h-7 px-2 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all font-medium"
       />
-      <datalist id={datalistId}>
-        {availableGroups.map((g) => (
-          <option key={g} value={g} />
-        ))}
-      </datalist>
     </div>
   );
 }

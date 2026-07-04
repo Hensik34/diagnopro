@@ -1,7 +1,7 @@
-import { useState, useEffect, Fragment,useRef,useMemo } from 'react';
-import { 
-  Plus, 
-  Search, 
+import { useState, useEffect, Fragment, useRef, useMemo } from 'react';
+import {
+  Plus,
+  Search,
   Edit,
   Eye,
   X,
@@ -76,9 +76,9 @@ function formatTestName(name: string): string {
 
   const lowerB = partB.toLowerCase();
   const detailKeywords = [
-    'urine', 'serum', 'plasma', 'blood', 'fluid', 'marker', 'screening', 
-    'confirmation', 'rapid', 'detection', 'analysis', 'test', 'am', 'pm', 
-    'hour', 'quant', 'qual', 'elisa', 'card', 'culture', 'smear', 'swab', 
+    'urine', 'serum', 'plasma', 'blood', 'fluid', 'marker', 'screening',
+    'confirmation', 'rapid', 'detection', 'analysis', 'test', 'am', 'pm',
+    'hour', 'quant', 'qual', 'elisa', 'card', 'culture', 'smear', 'swab',
     'tissue', 'biopsy', 'normal', 'abnormal'
   ];
   const isDetail = detailKeywords.some(keyword => lowerB.includes(keyword));
@@ -167,18 +167,19 @@ function referenceRulesSummary(rules: ReferenceRule[]): string {
     return `${lo} – ${hi}`;
   }
 
-  // Multiple rules: group by sex
+  // Multiple rules: group by sex/age
   const parts: string[] = [];
   for (const r of rules) {
-    if (r.note && !r.low && !r.high) {
-      parts.push(r.note);
+    const sexLabel = r.sex === 'male' ? 'M' : r.sex === 'female' ? 'F' : '';
+    const ageLabel = r.age_group && r.age_group !== 'all' ? `${r.age_group}` : '';
+    const label = [sexLabel, ageLabel].filter(Boolean).join('/');
+
+    if (r.note && r.low == null && r.high == null) {
+      parts.push(label ? `${label}: ${r.note}` : r.note);
       continue;
     }
     const lo = r.low != null ? r.low : '—';
     const hi = r.high != null ? r.high : '—';
-    const sexLabel = r.sex === 'male' ? 'M' : r.sex === 'female' ? 'F' : '';
-    const ageLabel = r.age_group && r.age_group !== 'all' ? `${r.age_group}` : '';
-    const label = [sexLabel, ageLabel].filter(Boolean).join('/');
     parts.push(label ? `${label}: ${lo}–${hi}` : `${lo}–${hi}`);
   }
 
@@ -472,7 +473,7 @@ export function TestManagement() {
       })
       .map(wrapped => wrapped.pkg);
   }, [packages, searchTerm, categoryFilter, sortBy]);
-  
+
   // Calculate stats
 
   const handleEdit = (test: Test) => {
@@ -487,7 +488,7 @@ export function TestManagement() {
 
   const handleDelete = async (testId: string) => {
     if (!confirm('Are you sure you want to delete this test?')) return;
-    
+
     setIsDeleting(testId);
     try {
       await deleteTest(testId);
@@ -498,7 +499,7 @@ export function TestManagement() {
 
   const handleReset = async (testId: string) => {
     if (!confirm('Reset this test to default? Your customizations will be removed.')) return;
-    
+
     setIsResetting(testId);
     try {
       const success = await resetTestToDefault(testId);
@@ -533,7 +534,7 @@ export function TestManagement() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button 
+          <button
             onClick={() => activeTab === 'tests' ? fetchTests(currentBranchId ?? undefined) : fetchPackagesList()}
             disabled={isLoading || packagesLoading}
             className="h-8 px-2.5 flex items-center gap-1.5 bg-secondary text-foreground rounded hover:bg-secondary/80 transition-colors text-xs disabled:opacity-50"
@@ -543,7 +544,7 @@ export function TestManagement() {
             Refresh
           </button>
           {canEditTest && (
-            <button 
+            <button
               onClick={() => activeTab === 'tests' ? handleAdd() : handleAddPackage()}
               className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs"
             >
@@ -588,7 +589,7 @@ export function TestManagement() {
       <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded p-2.5">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
-          <input 
+          <input
             type="text"
             placeholder={activeTab === 'tests' ? "Search by test name or code..." : "Search by package name or code..."}
             className="w-full h-8 pl-8 pr-8 bg-secondary border-0 rounded text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -606,12 +607,12 @@ export function TestManagement() {
             </button>
           )}
         </div>
-        
+
         <div className="hidden sm:block h-6 w-px bg-border"></div>
 
         <div className="flex items-center gap-2">
           <label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Category</label>
-          <select 
+          <select
             className="h-8 text-xs bg-secondary border-0 rounded px-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer font-medium"
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
@@ -627,7 +628,7 @@ export function TestManagement() {
 
         <div className="flex items-center gap-2">
           <label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Sort By</label>
-          <select 
+          <select
             className="h-8 text-xs bg-secondary border-0 rounded px-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer font-medium"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
@@ -663,7 +664,7 @@ export function TestManagement() {
       {!isLoading && !packagesLoading && !error && (activeTab === 'tests' ? filteredTests.length === 0 : filteredPackages.length === 0) && (
         <div className="text-center py-12 bg-card border border-border rounded">
           <div className="text-muted-foreground text-sm">
-            {activeTab === 'tests' 
+            {activeTab === 'tests'
               ? (tests.length === 0 ? 'No tests found. Add your first test to get started.' : 'No tests match your search criteria.')
               : (packages.length === 0 ? 'No packages found. Add your first package to get started.' : 'No packages match your search criteria.')
             }
@@ -705,8 +706,8 @@ export function TestManagement() {
               </thead>
               <tbody className="divide-y divide-border">
                 {paginatedTests.map((test) => (
-                  <tr 
-                    key={test.id} 
+                  <tr
+                    key={test.id}
                     className="hover:bg-accent/30 transition-colors"
                   >
                     <td className="px-3 py-2">
@@ -748,14 +749,14 @@ export function TestManagement() {
                       <div className="flex items-center justify-center gap-1">
                         {canEditTest ? (
                           <>
-                            <button 
+                            <button
                               onClick={() => handleEdit(test)}
                               className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
                               title="Edit"
                             >
                               <Edit className="w-3.5 h-3.5" />
                             </button>
-                            <button 
+                            <button
                               onClick={() => navigate(`/tests/templates/${test.id}`)}
                               className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-cyan-600"
                               title="Configure Layout"
@@ -764,7 +765,7 @@ export function TestManagement() {
                             </button>
                           </>
                         ) : (
-                          <button 
+                          <button
                             onClick={() => handleEdit(test)}
                             className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
                             title="View Details"
@@ -773,7 +774,7 @@ export function TestManagement() {
                           </button>
                         )}
                         {canDeleteTest && (
-                          <button 
+                          <button
                             onClick={() => handleDelete(test.id)}
                             disabled={isDeleting === test.id}
                             className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-destructive disabled:opacity-50"
@@ -819,7 +820,7 @@ export function TestManagement() {
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
-                
+
                 {Array.from({ length: totalPages }, (_, i) => i + 1)
                   .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
                   .map((p, idx, arr) => {
@@ -829,11 +830,10 @@ export function TestManagement() {
                         {showEllipsis && <span className="text-xs text-muted-foreground px-1.5 font-medium">...</span>}
                         <button
                           onClick={() => setCurrentPage(p)}
-                          className={`px-2 py-0.5 text-xs font-semibold rounded border min-w-[24px] text-center transition-colors ${
-                            currentPage === p
+                          className={`px-2 py-0.5 text-xs font-semibold rounded border min-w-[24px] text-center transition-colors ${currentPage === p
                               ? 'bg-primary border-primary text-primary-foreground'
                               : 'border-border bg-background hover:bg-muted text-foreground'
-                          }`}
+                            }`}
                         >
                           {p}
                         </button>
@@ -913,7 +913,7 @@ export function TestManagement() {
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-center gap-1">
                         {canEditTest ? (
-                          <button 
+                          <button
                             onClick={() => handleEditPackage(pkg)}
                             className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
                             title="Edit"
@@ -921,7 +921,7 @@ export function TestManagement() {
                             <Edit className="w-3.5 h-3.5" />
                           </button>
                         ) : (
-                          <button 
+                          <button
                             onClick={() => handleEditPackage(pkg)}
                             className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
                             title="View Details"
@@ -931,7 +931,7 @@ export function TestManagement() {
                         )}
                         {/* If it's a branch-specific package, or if user is admin, allow delete */}
                         {canDeleteTest && (pkg.branch_id || user?.role === 'admin') && (
-                          <button 
+                          <button
                             onClick={() => handleDeletePackage(pkg.id)}
                             disabled={isDeletingPackage === pkg.id}
                             className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-destructive disabled:opacity-50"
@@ -977,8 +977,6 @@ export function TestManagement() {
             } else {
               result = await createTest({ ...data, branch_id: currentBranchId! });
             }
-            setShowTestModal(false);
-            setSelectedTest(null);
             return result;
           }}
           onReset={selectedTest ? () => handleReset(selectedTest.id) : undefined}
@@ -1056,7 +1054,7 @@ function TestModal({ test, categories, readOnly = false, branchId, onClose, onSa
             };
           }));
         })
-        .catch(() => {})
+        .catch(() => { })
         .finally(() => setLoadingFields(false));
     }
   }, [test?.id, branchId]);
@@ -1192,7 +1190,7 @@ function TestModal({ test, categories, readOnly = false, branchId, onClose, onSa
             let refRules: any = null;
             let critRules: any = null;
             let finalOptions = null;
-            
+
             if (f.input_type === 'select') {
               refRules = f._referenceRules.length > 0 ? f._referenceRules : null;
               critRules = null;
@@ -1224,15 +1222,18 @@ function TestModal({ test, categories, readOnly = false, branchId, onClose, onSa
           await testApi.setFields(targetId, fieldsToSave, branchId);
         }
       }
+      
+      // Close the modal only AFTER all saving actions (test + fields) are complete
+      onClose();
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const defaultSampleTypes = [
-    'Blood', 'Serum', 'Plasma', 'Urine', 'Stool', 'Saliva', 'Swab', 
-    'CSF', 'Semen', 'Sputum', 'Biopsy', 'Pleural Fluid', 
-    'Ascitic Fluid', 'Joint Fluid', 'Fluoride Blood', 'EDTA Blood', 
+    'Blood', 'Serum', 'Plasma', 'Urine', 'Stool', 'Saliva', 'Swab',
+    'CSF', 'Semen', 'Sputum', 'Biopsy', 'Pleural Fluid',
+    'Ascitic Fluid', 'Joint Fluid', 'Fluoride Blood', 'EDTA Blood',
     'Citrated Plasma (Blue Top)', 'Other'
   ];
   const sampleTypes = useMemo(() => {
@@ -1252,7 +1253,7 @@ function TestModal({ test, categories, readOnly = false, branchId, onClose, onSa
           <h2 className="text-foreground text-sm font-medium">
             {readOnly ? 'View Test Details' : test ? 'Edit Test' : 'Add New Test'}
           </h2>
-          <button 
+          <button
             onClick={onClose}
             className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors"
           >
@@ -1262,350 +1263,347 @@ function TestModal({ test, categories, readOnly = false, branchId, onClose, onSa
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           <fieldset disabled={readOnly} className={readOnly ? 'opacity-80' : ''}>
-          {/* Basic Info */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className="text-xs text-muted-foreground block mb-1">Test Name *</label>
-              <input 
-                type="text"
-                value={formData.test_name}
-                onChange={e => setFormData(prev => ({ ...prev, test_name: e.target.value }))}
-                className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="e.g., CBC (Complete Blood Count)"
-                required
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Test Code *</label>
-              <input 
-                type="text"
-                value={formData.test_code}
-                onChange={e => setFormData(prev => ({ ...prev, test_code: e.target.value }))}
-                className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="e.g., CBC-01"
-                required
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Category</label>
-              <select 
-                value={formData.category}
-                onChange={e => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="">Select category...</option>
-                {allCategories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Sample & Pricing */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Sample Type</label>
-              <select 
-                value={formData.sample_type}
-                onChange={e => setFormData(prev => ({ ...prev, sample_type: e.target.value }))}
-                className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="">Select...</option>
-                {sampleTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Price (₹)</label>
-              <input 
-                type="number"
-                value={formData.price || ''}
-                onChange={e => setFormData(prev => ({ ...prev, price: e.target.value ? Number(e.target.value) : undefined }))}
-                className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="0"
-                min="0"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">TAT (hours)</label>
-              <input 
-                type="number"
-                value={formData.turnaround_time || ''}
-                onChange={e => setFormData(prev => ({ ...prev, turnaround_time: e.target.value ? Number(e.target.value) : undefined }))}
-                className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="e.g., 24"
-                min="0"
-              />
-            </div>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1">Description</label>
-            <textarea 
-              value={formData.description}
-              onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              className="w-full h-20 px-3 py-2 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none"
-              placeholder="Brief description of the test..."
-            />
-          </div>
-
-          {/* Test Parameters / Fields Editor */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs text-muted-foreground">
-                Test Parameters {fields.length > 0 && <span className="text-foreground">({fields.length})</span>}
-              </label>
-              <button
-                type="button"
-                onClick={addField}
-                className="h-6 px-2 flex items-center gap-1 bg-primary text-white rounded text-[10px] hover:opacity-90 transition-opacity"
-              >
-                <Plus className="w-3 h-3" />
-                Add Parameter
-              </button>
-            </div>
-
-            {loadingFields ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            {/* Basic Info */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">Test Name *</label>
+                <input
+                  type="text"
+                  value={formData.test_name}
+                  onChange={e => setFormData(prev => ({ ...prev, test_name: e.target.value }))}
+                  className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="e.g., CBC (Complete Blood Count)"
+                  required
+                />
               </div>
-            ) : fields.length === 0 ? (
-              <div className="text-center py-4 bg-secondary/30 border border-border rounded text-muted-foreground text-xs">
-                No parameters configured. Click "Add Parameter" to define test fields.
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Test Code *</label>
+                <input
+                  type="text"
+                  value={formData.test_code}
+                  onChange={e => setFormData(prev => ({ ...prev, test_code: e.target.value }))}
+                  className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="e.g., CBC-01"
+                  required
+                />
               </div>
-            ) : (
-              <div className="border border-border rounded overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-secondary/30">
-                    <tr className="border-b border-border">
-                      <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider w-8">#</th>
-                      <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Name</th>
-                      <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider w-32">Unit</th>
-                      <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-24">Field Type</th>
-                      <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-24">Input Type</th>
-                      <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Reference Ranges</th>
-                      <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-16">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {fields.map((field, index) => (
-                      <Fragment key={index}>
-                      <tr className="hover:bg-accent/30">
-                        <td className="px-2 py-1.5">
-                          <div className="flex flex-col gap-0.5">
-                            <button type="button" onClick={() => moveField(index, 'up')} disabled={index === 0}
-                              className="w-4 h-3 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30">
-                              <ChevronUp className="w-3 h-3" />
-                            </button>
-                            <button type="button" onClick={() => moveField(index, 'down')} disabled={index === fields.length - 1}
-                              className="w-4 h-3 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30">
-                              <ChevronDown className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <input
-                            type="text"
-                            value={field.field_name}
-                            onChange={e => updateField(index, { field_name: e.target.value })}
-                            disabled={readOnly || isFieldReferenced(field.field_name)}
-                            className="w-full h-7 px-2 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                            placeholder="e.g., Hemoglobin"
-                            title={isFieldReferenced(field.field_name) ? "This parameter is referenced in a calculation formula and cannot be renamed." : "Parameter Name"}
-                            required
-                          />
-                        </td>
-                        <td className="px-2 py-1.5">
-                          {customUnitMode.has(index) ? (
-                            <div className="flex gap-0.5">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Category</label>
+                <select
+                  value={formData.category}
+                  onChange={e => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                  className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">Select category...</option>
+                  {allCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Sample & Pricing */}
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Sample Type</label>
+                <select
+                  value={formData.sample_type}
+                  onChange={e => setFormData(prev => ({ ...prev, sample_type: e.target.value }))}
+                  className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">Select...</option>
+                  {sampleTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Price (₹)</label>
+                <input
+                  type="number"
+                  value={formData.price || ''}
+                  onChange={e => setFormData(prev => ({ ...prev, price: e.target.value ? Number(e.target.value) : undefined }))}
+                  className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="0"
+                  min="0"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">TAT (hours)</label>
+                <input
+                  type="number"
+                  value={formData.turnaround_time || ''}
+                  onChange={e => setFormData(prev => ({ ...prev, turnaround_time: e.target.value ? Number(e.target.value) : undefined }))}
+                  className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="e.g., 24"
+                  min="0"
+                />
+              </div>
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Description</label>
+              <textarea
+                value={formData.description}
+                onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                className="w-full h-20 px-3 py-2 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                placeholder="Brief description of the test..."
+              />
+            </div>
+
+            {/* Test Parameters / Fields Editor */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs text-muted-foreground">
+                  Test Parameters {fields.length > 0 && <span className="text-foreground">({fields.length})</span>}
+                </label>
+                <button
+                  type="button"
+                  onClick={addField}
+                  className="h-6 px-2 flex items-center gap-1 bg-primary text-white rounded text-[10px] hover:opacity-90 transition-opacity"
+                >
+                  <Plus className="w-3 h-3" />
+                  Add Parameter
+                </button>
+              </div>
+
+              {loadingFields ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : fields.length === 0 ? (
+                <div className="text-center py-4 bg-secondary/30 border border-border rounded text-muted-foreground text-xs">
+                  No parameters configured. Click "Add Parameter" to define test fields.
+                </div>
+              ) : (
+                <div className="border border-border rounded overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-secondary/30">
+                      <tr className="border-b border-border">
+                        <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider w-8">#</th>
+                        <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Name</th>
+                        <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider w-32">Unit</th>
+                        <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-24">Field Type</th>
+                        <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-24">Input Type</th>
+                        <th className="px-2 py-1.5 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Reference Ranges</th>
+                        <th className="px-2 py-1.5 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-16">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {fields.map((field, index) => (
+                        <Fragment key={index}>
+                          <tr className="hover:bg-accent/30">
+                            <td className="px-2 py-1.5">
+                              <div className="flex flex-col gap-0.5">
+                                <button type="button" onClick={() => moveField(index, 'up')} disabled={index === 0}
+                                  className="w-4 h-3 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30">
+                                  <ChevronUp className="w-3 h-3" />
+                                </button>
+                                <button type="button" onClick={() => moveField(index, 'down')} disabled={index === fields.length - 1}
+                                  className="w-4 h-3 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30">
+                                  <ChevronDown className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </td>
+                            <td className="px-2 py-1.5">
                               <input
                                 type="text"
-                                value={field.unit || ''}
-                                onChange={e => updateField(index, { unit: e.target.value })}
-                                className="w-full h-7 px-2 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                                placeholder="Custom unit"
-                                autoFocus
+                                value={field.field_name}
+                                onChange={e => updateField(index, { field_name: e.target.value })}
+                                disabled={readOnly || isFieldReferenced(field.field_name)}
+                                className="w-full h-7 px-2 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                                placeholder="e.g., Hemoglobin"
+                                title={isFieldReferenced(field.field_name) ? "This parameter is referenced in a calculation formula and cannot be renamed." : "Parameter Name"}
+                                required
                               />
+                            </td>
+                            <td className="px-2 py-1.5">
+                              {customUnitMode.has(index) ? (
+                                <div className="flex gap-0.5">
+                                  <input
+                                    type="text"
+                                    value={field.unit || ''}
+                                    onChange={e => updateField(index, { unit: e.target.value })}
+                                    className="w-full h-7 px-2 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                    placeholder="Custom unit"
+                                    autoFocus
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCustomUnitMode(prev => { const s = new Set(prev); s.delete(index); return s; });
+                                    }}
+                                    className="w-7 h-7 flex-shrink-0 flex items-center justify-center bg-secondary border border-border rounded hover:bg-accent transition-colors"
+                                    title="Switch to dropdown"
+                                  >
+                                    <ChevronDown className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <select
+                                  value={field.unit || ''}
+                                  onChange={e => {
+                                    if (e.target.value === '__custom__') {
+                                      setCustomUnitMode(prev => new Set([...prev, index]));
+                                    } else {
+                                      updateField(index, { unit: e.target.value });
+                                    }
+                                  }}
+                                  className="w-full h-7 px-1 bg-secondary border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary"
+                                >
+                                  <option value="">Select unit</option>
+                                  {field.unit && !Object.values(LAB_UNITS).flat().includes(field.unit) && (
+                                    <option value={field.unit}>{field.unit}</option>
+                                  )}
+                                  {Object.entries(LAB_UNITS).map(([group, units]) => (
+                                    <optgroup key={group} label={group}>
+                                      {units.map(u => <option key={u} value={u}>{u}</option>)}
+                                    </optgroup>
+                                  ))}
+                                  <option value="__custom__">Other (custom)...</option>
+                                </select>
+                              )}
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <select
+                                value={field.field_type || 'input'}
+                                onChange={e => updateField(index, { field_type: e.target.value as FieldType })}
+                                className="w-full h-7 px-1 bg-secondary border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary"
+                              >
+                                <option value="input">Input</option>
+                                <option value="calculated">Calc</option>
+                                <option value="flag">Flag</option>
+                              </select>
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <select
+                                value={field.input_type || 'number'}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  updateField(index, {
+                                    input_type: val,
+                                    options: val === 'select' ? 'Negative,Positive' : '',
+                                  });
+                                }}
+                                disabled={readOnly}
+                                className="w-full h-7 px-1 bg-secondary border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary"
+                              >
+                                <option value="number">Number</option>
+                                <option value="text">Text</option>
+                                <option value="select">Selection</option>
+                              </select>
+                            </td>
+                            <td className="px-2 py-1.5">
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setCustomUnitMode(prev => { const s = new Set(prev); s.delete(index); return s; });
-                                }}
-                                className="w-7 h-7 flex-shrink-0 flex items-center justify-center bg-secondary border border-border rounded hover:bg-accent transition-colors"
-                                title="Switch to dropdown"
+                                onClick={() => setExpandedRangeIndex(expandedRangeIndex === index ? null : index)}
+                                className="flex items-center gap-1.5 w-full text-left group"
                               >
-                                <ChevronDown className="w-3 h-3" />
+                                <ChevronRight className={`w-3 h-3 text-muted-foreground transition-transform flex-shrink-0 ${expandedRangeIndex === index ? 'rotate-90' : ''}`} />
+                                <span className="text-[11px] text-foreground truncate">
+                                  {field._referenceRules.length > 0 ? (
+                                    referenceRulesSummary(field._referenceRules)
+                                  ) : (field.min_value != null || field.max_value != null) ? (
+                                    `${field.min_value ?? '—'} – ${field.max_value ?? '—'}`
+                                  ) : (
+                                    <span className="text-muted-foreground">Click to add</span>
+                                  )}
+                                </span>
                               </button>
-                            </div>
-                          ) : (
-                            <select
-                              value={field.unit || ''}
-                              onChange={e => {
-                                if (e.target.value === '__custom__') {
-                                  setCustomUnitMode(prev => new Set([...prev, index]));
-                                } else {
-                                  updateField(index, { unit: e.target.value });
-                                }
-                              }}
-                              className="w-full h-7 px-1 bg-secondary border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary"
-                            >
-                              <option value="">Select unit</option>
-                              {field.unit && !Object.values(LAB_UNITS).flat().includes(field.unit) && (
-                                <option value={field.unit}>{field.unit}</option>
-                              )}
-                              {Object.entries(LAB_UNITS).map(([group, units]) => (
-                                <optgroup key={group} label={group}>
-                                  {units.map(u => <option key={u} value={u}>{u}</option>)}
-                                </optgroup>
-                              ))}
-                              <option value="__custom__">Other (custom)...</option>
-                            </select>
+                            </td>
+                            <td className="px-2 py-1.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => removeField(index)}
+                                disabled={readOnly || isFieldReferenced(field.field_name)}
+                                className="w-6 h-6 flex items-center justify-center rounded hover:bg-destructive/10 transition-colors text-destructive mx-auto disabled:opacity-40 disabled:cursor-not-allowed"
+                                title={isFieldReferenced(field.field_name) ? "This parameter is referenced in a calculation formula and cannot be deleted." : "Delete"}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </td>
+                          </tr>
+
+                          {/* Expanded Reference Range Editor */}
+                          {expandedRangeIndex === index && (
+                            <tr className="bg-gradient-to-r from-emerald-50/50 to-blue-50/50 dark:from-emerald-950/20 dark:to-blue-950/20">
+                              <td className="px-2 py-2"></td>
+                              <td colSpan={6} className="px-2 py-2">
+                                <ReferenceRangeEditor
+                                  rules={field._referenceRules}
+                                  criticalRules={field._criticalRules}
+                                  onAddRule={() => addReferenceRule(index)}
+                                  onUpdateRule={(ri, updates) => updateReferenceRule(index, ri, updates)}
+                                  onRemoveRule={(ri) => removeReferenceRule(index, ri)}
+                                  onUpdateCritical={(updates) => updateCriticalRules(index, updates)}
+                                  readOnly={readOnly}
+                                />
+                              </td>
+                            </tr>
                           )}
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <select
-                            value={field.field_type || 'input'}
-                            onChange={e => updateField(index, { field_type: e.target.value as FieldType })}
-                            className="w-full h-7 px-1 bg-secondary border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary"
-                          >
-                            <option value="input">Input</option>
-                            <option value="calculated">Calc</option>
-                            <option value="flag">Flag</option>
-                          </select>
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <select
-                            value={field.input_type || 'number'}
-                            onChange={e => {
-                              const val = e.target.value;
-                              updateField(index, {
-                                input_type: val,
-                                options: val === 'select' ? 'Negative,Positive' : '',
-                              });
-                            }}
-                            disabled={readOnly}
-                            className="w-full h-7 px-1 bg-secondary border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary"
-                          >
-                            <option value="number">Number</option>
-                            <option value="text">Text</option>
-                            <option value="select">Selection</option>
-                          </select>
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedRangeIndex(expandedRangeIndex === index ? null : index)}
-                            className="flex items-center gap-1.5 w-full text-left group"
-                          >
-                            <ChevronRight className={`w-3 h-3 text-muted-foreground transition-transform flex-shrink-0 ${expandedRangeIndex === index ? 'rotate-90' : ''}`} />
-                            <span className="text-[11px] text-foreground truncate">
-                              {field._referenceRules.length > 0 ? (
-                                referenceRulesSummary(field._referenceRules)
-                              ) : (field.min_value != null || field.max_value != null) ? (
-                                `${field.min_value ?? '—'} – ${field.max_value ?? '—'}`
-                              ) : (
-                                <span className="text-muted-foreground">Click to add</span>
-                              )}
-                            </span>
-                            {field._criticalRules && (field._criticalRules.low != null || field._criticalRules.high != null) ? (
-                              <AlertTriangle className="w-3 h-3 text-red-500 flex-shrink-0" title="Has critical thresholds" />
-                            ) : null}
-                          </button>
-                        </td>
-                        <td className="px-2 py-1.5 text-center">
-                          <button
-                            type="button"
-                            onClick={() => removeField(index)}
-                            disabled={readOnly || isFieldReferenced(field.field_name)}
-                            className="w-6 h-6 flex items-center justify-center rounded hover:bg-destructive/10 transition-colors text-destructive mx-auto disabled:opacity-40 disabled:cursor-not-allowed"
-                            title={isFieldReferenced(field.field_name) ? "This parameter is referenced in a calculation formula and cannot be deleted." : "Delete"}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </td>
-                      </tr>
 
-                      {/* Expanded Reference Range Editor */}
-                      {expandedRangeIndex === index && (
-                        <tr className="bg-gradient-to-r from-emerald-50/50 to-blue-50/50 dark:from-emerald-950/20 dark:to-blue-950/20">
-                          <td className="px-2 py-2"></td>
-                          <td colSpan={6} className="px-2 py-2">
-                            <ReferenceRangeEditor
-                              rules={field._referenceRules}
-                              criticalRules={field._criticalRules}
-                              onAddRule={() => addReferenceRule(index)}
-                              onUpdateRule={(ri, updates) => updateReferenceRule(index, ri, updates)}
-                              onRemoveRule={(ri) => removeReferenceRule(index, ri)}
-                              onUpdateCritical={(updates) => updateCriticalRules(index, updates)}
-                              readOnly={readOnly}
-                            />
-                          </td>
-                        </tr>
-                      )}
-
-                      {/* Formula row for calculated fields - READ ONLY */}
-                      {field.field_type === 'calculated' && (
-                        <tr className="bg-primary/5">
-                          <td className="px-2 py-1.5"></td>
-                          <td colSpan={4} className="px-2 py-1.5">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-primary font-medium whitespace-nowrap">Formula:</span>
-                              <div className="flex-1 h-7 px-2 bg-gray-100 dark:bg-gray-800 border border-primary/20 rounded text-xs flex items-center font-mono text-gray-600 dark:text-gray-400">
-                                {field.formula || '(No formula set)'}
-                              </div>
-                              <span className="text-[10px] text-primary font-medium whitespace-nowrap">Depends on:</span>
-                              <div className="flex-1 h-7 px-2 bg-gray-100 dark:bg-gray-800 border border-primary/20 rounded text-xs flex items-center font-mono text-gray-600 dark:text-gray-400">
-                                {field.depends_on || '(Not specified)'}
-                              </div>
-                            </div>
-                          </td>
-                          <td colSpan={2}></td>
-                        </tr>
-                      )}
-                      {/* Options row for qualitative fields - READ ONLY */}
-                      {QUALITATIVE_UNITS.includes(field.unit || '') && field.field_type !== 'calculated' && (
-                        <tr className="bg-amber-50/50 dark:bg-amber-950/20">
-                          <td className="px-2 py-1.5"></td>
-                          <td colSpan={4} className="px-2 py-1.5">
-                            <div>
-                              <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium whitespace-nowrap">Options:</span>
-                            </div>
-                            {field.formula && (
-                              <div className="flex flex-wrap gap-1 mt-1.5">
-                                {field.formula.split(',').map((opt, i) => (
-                                  <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                                    {opt.trim()}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                            {!field.formula && (
-                              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">No options defined</p>
-                            )}
-                          </td>
-                          <td colSpan={2}></td>
-                        </tr>
-                      )}
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {!test && fields.length > 0 && (
-              <p className="text-[10px] text-muted-foreground mt-1">
-                Parameters will be saved after the test is created. You&apos;ll need to edit the test to finalize them.
-              </p>
-            )}
-          </div>
+                          {/* Formula row for calculated fields - READ ONLY */}
+                          {field.field_type === 'calculated' && (
+                            <tr className="bg-primary/5">
+                              <td className="px-2 py-1.5"></td>
+                              <td colSpan={4} className="px-2 py-1.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-primary font-medium whitespace-nowrap">Formula:</span>
+                                  <div className="flex-1 h-7 px-2 bg-gray-100 dark:bg-gray-800 border border-primary/20 rounded text-xs flex items-center font-mono text-gray-600 dark:text-gray-400">
+                                    {field.formula || '(No formula set)'}
+                                  </div>
+                                  <span className="text-[10px] text-primary font-medium whitespace-nowrap">Depends on:</span>
+                                  <div className="flex-1 h-7 px-2 bg-gray-100 dark:bg-gray-800 border border-primary/20 rounded text-xs flex items-center font-mono text-gray-600 dark:text-gray-400">
+                                    {field.depends_on || '(Not specified)'}
+                                  </div>
+                                </div>
+                              </td>
+                              <td colSpan={2}></td>
+                            </tr>
+                          )}
+                          {/* Options row for qualitative fields - READ ONLY */}
+                          {QUALITATIVE_UNITS.includes(field.unit || '') && field.field_type !== 'calculated' && (
+                            <tr className="bg-amber-50/50 dark:bg-amber-950/20">
+                              <td className="px-2 py-1.5"></td>
+                              <td colSpan={4} className="px-2 py-1.5">
+                                <div>
+                                  <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium whitespace-nowrap">Options:</span>
+                                </div>
+                                {field.formula && (
+                                  <div className="flex flex-wrap gap-1 mt-1.5">
+                                    {field.formula.split(',').map((opt, i) => (
+                                      <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                                        {opt.trim()}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {!field.formula && (
+                                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">No options defined</p>
+                                )}
+                              </td>
+                              <td colSpan={2}></td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {!test && fields.length > 0 && (
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Parameters will be saved after the test is created. You&apos;ll need to edit the test to finalize them.
+                </p>
+              )}
+            </div>
           </fieldset>
 
           {/* Modal Footer */}
           <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
             {test?.has_branch_override && onReset && !readOnly && (
-              <button 
+              <button
                 type="button"
                 onClick={async () => {
                   if (confirm("Are you sure you want to reset this test to default? All branch-specific price and field overrides will be deleted.")) {
@@ -1623,7 +1621,7 @@ function TestModal({ test, categories, readOnly = false, branchId, onClose, onSa
                 Reset to Default
               </button>
             )}
-            <button 
+            <button
               type="button"
               onClick={onClose}
               className="h-9 px-4 bg-secondary border border-border rounded text-sm hover:bg-accent transition-colors"
@@ -1631,7 +1629,7 @@ function TestModal({ test, categories, readOnly = false, branchId, onClose, onSa
               {readOnly ? 'Close' : 'Cancel'}
             </button>
             {!readOnly && (
-              <button 
+              <button
                 type="submit"
                 disabled={isSubmitting || !formData.test_name.trim() || !formData.test_code.trim()}
                 className="h-9 px-4 bg-primary text-white rounded text-sm hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
@@ -1792,43 +1790,6 @@ function ReferenceRangeEditor({
         )}
       </div>
 
-      {/* Critical Thresholds Section */}
-      <div>
-        <span className="text-[10px] text-red-600 dark:text-red-400 font-semibold uppercase tracking-wider flex items-center gap-1 mb-1.5">
-          <AlertTriangle className="w-3 h-3" />
-          Critical Thresholds
-        </span>
-        <div className="flex items-center gap-3 bg-white dark:bg-gray-900 border border-red-200 dark:border-red-800/40 rounded px-2 py-1.5">
-          <div className="flex flex-col">
-            <span className="text-[9px] text-muted-foreground mb-0.5">Critical Low</span>
-            <input
-              type="number"
-              value={criticalRules.low ?? ''}
-              onChange={e => onUpdateCritical({ low: e.target.value ? Number(e.target.value) : null })}
-              disabled={readOnly}
-              className="h-6 w-24 px-1.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 rounded text-[10px] text-center focus:outline-none focus:ring-1 focus:ring-red-500 tabular-nums"
-              placeholder="Critical min"
-              step="any"
-            />
-          </div>
-          <span className="text-muted-foreground text-xs mt-3">–</span>
-          <div className="flex flex-col">
-            <span className="text-[9px] text-muted-foreground mb-0.5">Critical High</span>
-            <input
-              type="number"
-              value={criticalRules.high ?? ''}
-              onChange={e => onUpdateCritical({ high: e.target.value ? Number(e.target.value) : null })}
-              disabled={readOnly}
-              className="h-6 w-24 px-1.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 rounded text-[10px] text-center focus:outline-none focus:ring-1 focus:ring-red-500 tabular-nums"
-              placeholder="Critical max"
-              step="any"
-            />
-          </div>
-          <div className="text-[9px] text-muted-foreground ml-2 mt-3 italic">
-            Values outside this range trigger immediate alerts
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -1856,14 +1817,14 @@ function PackageModal({ pkg, tests, onClose, onSave, readOnly = false }: Package
   const [testSearch, setTestSearch] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const filteredTests = useMemo(() => {
     return tests.filter(
       t => !selectedTestIds.includes(t.id) &&
-      (t.test_name.toLowerCase().includes(testSearch.toLowerCase()) ||
-       t.test_code.toLowerCase().includes(testSearch.toLowerCase()))
+        (t.test_name.toLowerCase().includes(testSearch.toLowerCase()) ||
+          t.test_code.toLowerCase().includes(testSearch.toLowerCase()))
     ).slice(0, 10);
   }, [tests, selectedTestIds, testSearch]);
 
@@ -1917,7 +1878,7 @@ function PackageModal({ pkg, tests, onClose, onSave, readOnly = false }: Package
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="text-xs text-muted-foreground block mb-1">Package Name *</label>
-                <input 
+                <input
                   type="text"
                   value={packageName}
                   onChange={e => setPackageName(e.target.value)}
@@ -1928,7 +1889,7 @@ function PackageModal({ pkg, tests, onClose, onSave, readOnly = false }: Package
               </div>
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">Package Code *</label>
-                <input 
+                <input
                   type="text"
                   value={packageCode}
                   onChange={e => setPackageCode(e.target.value)}
@@ -1940,7 +1901,7 @@ function PackageModal({ pkg, tests, onClose, onSave, readOnly = false }: Package
               </div>
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">Category</label>
-                <input 
+                <input
                   type="text"
                   value={category}
                   onChange={e => setCategory(e.target.value)}
@@ -1950,7 +1911,7 @@ function PackageModal({ pkg, tests, onClose, onSave, readOnly = false }: Package
               </div>
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">Price (₹) *</label>
-                <input 
+                <input
                   type="number"
                   value={price}
                   onChange={e => setPrice(e.target.value)}
@@ -1962,7 +1923,7 @@ function PackageModal({ pkg, tests, onClose, onSave, readOnly = false }: Package
               </div>
               <div className="flex items-center mt-6">
                 <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
-                  <input 
+                  <input
                     type="checkbox"
                     checked={isActive}
                     onChange={e => setIsActive(e.target.checked)}
@@ -1975,7 +1936,7 @@ function PackageModal({ pkg, tests, onClose, onSave, readOnly = false }: Package
 
             <div className="mt-3">
               <label className="text-xs text-muted-foreground block mb-1">Description</label>
-              <textarea 
+              <textarea
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 className="w-full h-16 px-3 py-2 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none"
@@ -1989,7 +1950,7 @@ function PackageModal({ pkg, tests, onClose, onSave, readOnly = false }: Package
               {!readOnly && (
                 <div className="relative mb-2" ref={dropdownRef}>
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
-                  <input 
+                  <input
                     type="text"
                     placeholder="Search tests by name or code to add..."
                     className="w-full h-8 pl-8 pr-3 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
@@ -2036,7 +1997,7 @@ function PackageModal({ pkg, tests, onClose, onSave, readOnly = false }: Package
                       <span key={tid} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-primary/10 text-primary border border-primary/20">
                         <span>{test.test_code}</span>
                         {!readOnly && (
-                          <button 
+                          <button
                             type="button"
                             onClick={() => setSelectedTestIds(selectedTestIds.filter(id => id !== tid))}
                             className="p-0.5 hover:bg-primary/20 rounded-full transition-colors text-primary"
@@ -2054,7 +2015,7 @@ function PackageModal({ pkg, tests, onClose, onSave, readOnly = false }: Package
 
           {/* Modal Footer */}
           <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
-            <button 
+            <button
               type="button"
               onClick={onClose}
               className="h-9 px-4 bg-secondary border border-border rounded text-sm hover:bg-accent transition-colors"
@@ -2062,7 +2023,7 @@ function PackageModal({ pkg, tests, onClose, onSave, readOnly = false }: Package
               {readOnly ? 'Close' : 'Cancel'}
             </button>
             {!readOnly && (
-              <button 
+              <button
                 type="submit"
                 disabled={isSubmitting || !packageName.trim() || !packageCode.trim() || selectedTestIds.length === 0}
                 className="h-9 px-4 bg-primary text-white rounded text-sm hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"

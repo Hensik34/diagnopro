@@ -119,7 +119,24 @@ exports.getReportById = async (id) => {
     report_margin_right: settings?.report_margin_right,
     header_safe_area: settings?.header_safe_area,
     footer_safe_area: settings?.footer_safe_area,
-    owner_signature_url: settings?.owner_signature_url,
+    owner_signature_url: (() => {
+      if (!settings) return null;
+      const idx = settings.default_signature_index;
+      if (idx === 1 && settings.signature_1_url) return settings.signature_1_url;
+      if (idx === 2 && settings.signature_2_url) return settings.signature_2_url;
+      if (idx === 3 && settings.signature_3_url) return settings.signature_3_url;
+      if (idx === 4 && settings.signature_4_url) return settings.signature_4_url;
+      return settings.owner_signature_url || settings.signature_1_url || null;
+    })(),
+    owner_signature_label: (() => {
+      if (!settings) return null;
+      const idx = settings.default_signature_index;
+      if (idx === 1 && settings.signature_1_label) return settings.signature_1_label;
+      if (idx === 2 && settings.signature_2_label) return settings.signature_2_label;
+      if (idx === 3 && settings.signature_3_label) return settings.signature_3_label;
+      if (idx === 4 && settings.signature_4_label) return settings.signature_4_label;
+      return null;
+    })(),
 
     approved_by_firstname: row.approvedByUser?.firstname,
     approved_by_lastname: row.approvedByUser?.lastname,

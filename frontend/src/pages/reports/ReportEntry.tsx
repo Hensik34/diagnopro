@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback, Fragment } from "react";
 import { useParams, useNavigate, useLocation, useSearchParams, Link } from "react-router";
 import {
   Save,
@@ -32,8 +32,8 @@ import { priceListApi, pricingEngineApi } from "../../api/priceLists";
 import { useBillingStore } from "../../stores/billingStore";
 import type { AgeUnit, Doctor, Patient, Report, Test, TestField, ReferenceRule, CriticalRules, ReportTestPriceSnapshot } from "../../types";
 import { BillingSection } from "../../app/components/reports/BillingSection";
+import { SmartSelectInput } from "../../app/components/reports/SmartSelectInput";
 import { formatAge, getAgeMax, normalizeAgeUnit } from "../../utils/age";
-import { smartSearchFilter } from "../../utils";
 
 // ============================================
 // Reference Rules Utility Functions for Reports
@@ -87,6 +87,45 @@ function normalizeReferenceRules(raw: any): ReferenceRule[] {
   }
 
   return [];
+}
+
+function isMicroscopicRangeHigh(fieldName: string, value: string): boolean {
+  if (!value) return false;
+  const name = fieldName.toLowerCase();
+  
+  const isMicroscopicTarget = 
+    name.includes('pus cell') || 
+    name.includes('red cell') || 
+    name.includes('r.b. c') || 
+    name.includes('epithelial') ||
+    name.includes('epithcell') ||
+    name.includes('puscells') || 
+    name.includes('redcells');
+
+  if (isMicroscopicTarget) {
+    const val = value.trim().toLowerCase();
+    
+    if (val === 'plenty') return true;
+    
+    const match = val.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (match) {
+      const minVal = parseInt(match[1], 10);
+      const maxVal = parseInt(match[2], 10);
+      if (minVal >= 3 || maxVal >= 5) {
+        return true;
+      }
+    }
+    
+    const singleNum = parseFloat(val);
+    if (!isNaN(singleNum)) {
+      if (name.includes('red cell') || name.includes('r.b. c') || name.includes('redcells')) {
+        return singleNum > 2;
+      } else {
+        return singleNum >= 5;
+      }
+    }
+  }
+  return false;
 }
 
 interface MatchedRange {
@@ -379,6 +418,22 @@ export function ReportEntry() {
             if (baseName && baseName !== param.name && !(baseName in scope)) {
               scope[baseName] = num;
             }
+            // Standard clinical shorthand aliases
+            const nameLower = param.name.toLowerCase();
+            if (nameLower.includes("hematocrit")) {
+              scope["Hct"] = num;
+              scope["HCT"] = num;
+            }
+            if (nameLower.includes("hemoglobin")) {
+              scope["Hb"] = num;
+              scope["HB"] = num;
+            }
+            if (nameLower.includes("rbc count")) {
+              scope["RBC"] = num;
+            }
+            if (nameLower.includes("total wbc count")) {
+              scope["WBC"] = num;
+            }
           }
         }
       }
@@ -508,15 +563,15 @@ export function ReportEntry() {
     }
   }, [selectedReport, parsedTestData, tests, fetchTestFields, fetchTestFieldsMulti, currentBranchId]);
 
-  // Track whether we've already populated values from the report (to avoid overwriting user input)
-  const hasPopulatedValues = useRef(false);
+  // Track the report ID we've populated values for (to avoid overwriting user input)
+  const populatedReportIdRef = useRef<string | null>(null);
   // Track whether billing has been loaded from the report (to avoid overwriting user's discount changes)
   const hasBillingLoaded = useRef(false);
   const originalSnapshotRef = useRef<ReportTestPriceSnapshot[]>([]);
 
   // Reset the populated flag and form state when reportId changes (navigating to a different report)
   useEffect(() => {
-    hasPopulatedValues.current = false;
+    populatedReportIdRef.current = null;
     hasBillingLoaded.current = false;
     originalSnapshotRef.current = [];
     setSelectedReport(null); // Clear stale report data before fetching new one
@@ -592,18 +647,33 @@ export function ReportEntry() {
 
   // Populate test values from report's test_data ONCE when dynamic params arrive
   useEffect(() => {
-    if (hasPopulatedValues.current) return;
+    if (populatedReportIdRef.current === reportId) return;
     if (!selectedReport || dynamicParams.length === 0) return;
     // Guard: only populate when selectedReport matches the current URL reportId
     if (selectedReport.id !== reportId) return;
 
+    // Verify dynamicParams match the expected testIds to avoid loading stale fields
+    const testIdsInParams = new Set(dynamicParams.map(p => p.test_id));
+    const expectedTestIds = parsedTestData?.testIds || [];
+    if (expectedTestIds.length > 0) {
+      const allMatched = expectedTestIds.every((id: string) => testIdsInParams.has(id));
+      if (!allMatched) {
+        // The dynamicParams are still stale (don't match the new report's tests yet)
+        return;
+      }
+    }
+
     const existingValues: Record<string, string> = {};
 
-    // Initialize select fields with default values first
+    // Initialize fields with default values first
     dynamicParams.forEach((param) => {
-      if (param.input_type === 'select') {
-        const defaultValue = param.options ? param.options.split(',')[0].trim() : "Negative";
-        existingValues[param.id] = defaultValue;
+      if (param.options && param.options.trim() !== '') {
+        if (param.input_type === 'select') {
+          const defaultValue = param.options.split(',')[0].trim();
+          existingValues[param.id] = defaultValue;
+        } else {
+          existingValues[param.id] = param.options.trim();
+        }
       }
     });
 
@@ -632,7 +702,7 @@ export function ReportEntry() {
 
     // Set values (this includes the initialized select fields, so status computation runs correctly)
     setValues(existingValues);
-    hasPopulatedValues.current = true;
+    populatedReportIdRef.current = reportId;
   }, [selectedReport, parsedTestData, dynamicParams, reportId]);
 
   // Fetch doctors on mount
@@ -869,14 +939,12 @@ export function ReportEntry() {
   // Filter tests based on search
   const filteredTests = useMemo(() => {
     const selectedTestIds = parsedTestData?.testIds || [];
-    const unselected = tests.filter(t => !selectedTestIds.includes(t.id));
-    if (!testSearch.trim()) {
-      return unselected.slice(0, 15);
-    }
-    return smartSearchFilter(unselected, testSearch, [
-      { field: t => t.test_name, weight: 1.0 },
-      { field: t => t.category, weight: 0.6 }
-    ]).slice(0, 15);
+    return tests.filter(
+      (t) =>
+         !selectedTestIds.includes(t.id) &&
+         ((t.test_name || '').toLowerCase().includes(testSearch.toLowerCase()) ||
+           (t.category || '').toLowerCase().includes(testSearch.toLowerCase()))
+    ).slice(0, 15);
   }, [tests, parsedTestData, testSearch]);
 
   const handleAddTest = async (test: Test) => {
@@ -1044,17 +1112,34 @@ export function ReportEntry() {
 
       // Qualitative Select (Case 1)
       if (param.input_type === 'select') {
-        if (valStr && valStr.toLowerCase() === 'positive') {
-          newStatuses[param.id] = "critical";
+        const lowerVal = valStr.trim().toLowerCase();
+        const isMicroscopic = isMicroscopicRangeHigh(param.name, valStr);
+        if (
+          lowerVal === 'positive' || 
+          lowerVal === 'present' || 
+          lowerVal === 'reactive' || 
+          lowerVal === 'trace' ||
+          lowerVal.includes('positive') ||
+          lowerVal.includes('present') ||
+          lowerVal.includes('reactive') ||
+          lowerVal.includes('trace')
+        ) {
+          newStatuses[param.id] = "high";
+        } else if (isMicroscopic) {
+          newStatuses[param.id] = "high";
         } else {
           newStatuses[param.id] = "normal";
         }
         return;
       }
 
-      // Text fields don't have numeric ranges — any non-empty value is "normal"
+      // Text fields don't have numeric ranges — flag high microscopic text ranges
       if (param.input_type === 'text') {
-        newStatuses[param.id] = "normal";
+        if (isMicroscopicRangeHigh(param.name, valStr)) {
+          newStatuses[param.id] = "high";
+        } else {
+          newStatuses[param.id] = "normal";
+        }
         return;
       }
 
@@ -1067,12 +1152,8 @@ export function ReportEntry() {
       // Resolve reference range for the patient
       const range = getPatientReferenceRange(param, patient);
 
-      // Check critical thresholds first
-      if (range.criticalLow != null && val <= range.criticalLow) {
-        newStatuses[param.id] = "critical";
-      } else if (range.criticalHigh != null && val >= range.criticalHigh) {
-        newStatuses[param.id] = "critical";
-      } else if (range.low != null && val < range.low) {
+      // Check thresholds
+      if (range.low != null && val < range.low) {
         newStatuses[param.id] = "low";
       } else if (range.high != null && val > range.high) {
         newStatuses[param.id] = "high";
@@ -1089,20 +1170,20 @@ export function ReportEntry() {
   ) => {
     const styles = {
       low: {
-        bg: "var(--info)",
-        text: "var(--info-foreground)",
+        bg: "var(--success)",
+        text: "var(--success-foreground)",
       },
       high: {
         bg: "var(--destructive)",
         text: "var(--destructive-foreground)",
       },
       critical: {
-        bg: "#c62828",
-        text: "#ffffff",
+        bg: "var(--destructive)",
+        text: "var(--destructive-foreground)",
       },
       normal: {
-        bg: "var(--success)",
-        text: "var(--success-foreground)",
+        bg: "var(--info)",
+        text: "var(--info-foreground)",
       },
     };
 
@@ -1127,16 +1208,16 @@ export function ReportEntry() {
     status: "low" | "high" | "normal" | "critical" | "empty" | undefined,
   ) => {
     const base =
-      "w-full px-2 py-1.5 text-xs border rounded focus:outline-none focus:ring-1 transition-colors text-right tabular-nums";
+      "w-full px-2 py-1.5 text-xs border rounded focus:outline-none focus:ring-1 transition-colors text-left tabular-nums";
 
     if (status === "low") {
-      return `${base} border-info bg-info/5 text-foreground focus:border-info focus:ring-info`;
+      return `${base} border-success bg-success/5 text-foreground focus:border-success focus:ring-success`;
     } else if (status === "high") {
       return `${base} border-destructive bg-destructive/5 text-foreground focus:border-destructive focus:ring-destructive`;
     } else if (status === "critical") {
-      return `${base} border-red-600 bg-red-500/10 text-red-700 dark:text-red-400 font-bold focus:border-red-600 focus:ring-red-600`;
+      return `${base} border-destructive bg-destructive/5 text-foreground focus:border-destructive focus:ring-destructive`;
     } else if (status === "normal") {
-      return `${base} border-success bg-success/5 text-foreground focus:border-success focus:ring-success`;
+      return `${base} border-info bg-info/5 text-foreground focus:border-info focus:ring-info`;
     } else {
       return `${base} border-border focus:border-primary focus:ring-primary`;
     }
@@ -1178,6 +1259,83 @@ export function ReportEntry() {
     () => Object.values(sectionCompletion).reduce((sum, section) => sum + section.total, 0),
     [sectionCompletion]
   );
+
+  // ── Sum-100 validation groups ──────────────────────────────────────
+  // Define groups of percentage parameters whose values must total 100.
+  // Each group is identified by { paramNames, sectionGroup (optional) }.
+  const SUM_100_GROUPS = useMemo(() => [
+    {
+      label: 'Differential Count',
+      paramNames: ['Neutrophils', 'Lymphocytes', 'Monocytes', 'Eosinophils', 'Basophils'],
+    },
+    {
+      label: 'Motility Count',
+      paramNames: ['Motility Actively Motile', 'Sluggish Motile', 'Non Motile'],
+    },
+  ], []);
+
+  // Build a map: paramId → groupLabel, and compute the running sum per group.
+  const sumValidation = useMemo(() => {
+    const paramToGroup: Record<string, string> = {};
+    const groupSums: Record<string, { sum: number; hasAnyValue: boolean; paramIds: string[] }> = {};
+
+    for (const group of SUM_100_GROUPS) {
+      const lowerNames = group.paramNames.map(n => n.toLowerCase());
+      const matchingParams = dynamicParams.filter(
+        p => p.unit === '%' && p.input_type === 'number' && p.field_type !== 'calculated' && lowerNames.includes(p.name.toLowerCase())
+      );
+
+      if (matchingParams.length === 0) continue;
+
+      let sum = 0;
+      let hasAnyValue = false;
+      const paramIds: string[] = [];
+
+      for (const mp of matchingParams) {
+        paramToGroup[mp.id] = group.label;
+        paramIds.push(mp.id);
+        const raw = values[mp.id];
+        if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
+          const num = parseFloat(String(raw));
+          if (!isNaN(num)) {
+            sum += num;
+            hasAnyValue = true;
+          }
+        }
+      }
+
+      groupSums[group.label] = { sum: Math.round(sum * 100) / 100, hasAnyValue, paramIds };
+    }
+
+    return { paramToGroup, groupSums };
+  }, [SUM_100_GROUPS, dynamicParams, values]);
+
+  // Helper: check if a param belongs to a sum-100 group that is currently invalid
+  const isParamInInvalidSumGroup = useCallback((paramId: string) => {
+    const groupLabel = sumValidation.paramToGroup[paramId];
+    if (!groupLabel) return false;
+    const group = sumValidation.groupSums[groupLabel];
+    if (!group || !group.hasAnyValue) return false;
+    return group.sum !== 100;
+  }, [sumValidation]);
+
+  // Helper: check if a field outside the invalid sum-100 group should be blocked
+  const isFieldBlockedBySum100 = useCallback((paramId: string) => {
+    for (const [groupLabel, groupInfo] of Object.entries(sumValidation.groupSums)) {
+      if (groupInfo.hasAnyValue && groupInfo.sum !== 100) {
+        if (!groupInfo.paramIds.includes(paramId)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }, [sumValidation]);
+
+  const hasAnyInvalidSumGroup = useMemo(() => {
+    return Object.values(sumValidation.groupSums).some(
+      group => group.hasAnyValue && group.sum !== 100
+    );
+  }, [sumValidation]);
 
   const hasQuickNavigation = testSections.length > 1;
   const tableHeaderStickyTopClass = hasQuickNavigation ? 'top-[6.6rem]' : 'top-[3.8rem]';
@@ -1276,9 +1434,7 @@ export function ReportEntry() {
       return;
     }
 
-    if (inputType === 'select') {
-      return;
-    }
+
 
     if (event.key === 'ArrowDown') {
       event.preventDefault();
@@ -1737,7 +1893,7 @@ export function ReportEntry() {
                 ) : (
                   <Save className="w-3.5 h-3.5" />
                 )}
-                {isEditMode ? 'Update' : 'Save Draft'}
+                {isEditMode ? 'Save' : 'Save Draft'}
                 <span className="text-muted-foreground ml-1">
                   Ctrl+S
                 </span>
@@ -1746,8 +1902,9 @@ export function ReportEntry() {
               {reportStatus === 'draft' && (
                 <button
                   onClick={handleSubmitForReview}
-                  disabled={isSubmitting || !reportId || Object.keys(values).length === 0}
+                  disabled={isSubmitting || !reportId || Object.keys(values).length === 0 || hasAnyInvalidSumGroup}
                   className="h-7 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-[11px] disabled:opacity-50"
+                  title={hasAnyInvalidSumGroup ? "Resolve sum to 100% validation errors first" : undefined}
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -2108,157 +2265,192 @@ export function ReportEntry() {
                       </button>
 
                       {isExpanded && (
-                        <>
-                          <div className="bg-secondary/40 grid grid-cols-[45%_25%_20%_10%] gap-0 px-2 py-1 border-b border-border text-[10px] md:text-[11px]">
-                            <div className="text-left text-muted-foreground uppercase tracking-wider font-semibold">Parameter</div>
-                            <div className="px-2 py-1 text-right text-muted-foreground uppercase tracking-wider font-semibold">Result</div>
-                            <div className="px-2 py-1 text-left text-muted-foreground uppercase tracking-wider font-semibold">Reference Range</div>
-                            <div className="text-center text-muted-foreground uppercase tracking-wider font-semibold">Flag</div>
-                          </div>
-                          <div className="overflow-x-auto">
-                            <table className="w-full table-fixed text-[10px] md:text-[11px]">
-                              <colgroup>
-                                <col className="w-[45%]" />
-                                <col className="w-[25%]" />
-                                <col className="w-[20%]" />
-                                <col className="w-[10%]" />
-                              </colgroup>
-                              <tbody className="divide-y divide-border/70">
-                                {section.params.map((param) => {
+                        <div className="overflow-x-auto">
+                          <table className="w-full table-fixed text-[11px] md:text-[12px] border border-border/80 rounded-lg overflow-hidden">
+                            <colgroup>
+                              <col className="w-[28%]" />
+                              <col className="w-[30%]" />
+                              <col className="w-[12%]" />
+                              <col className="w-[20%]" />
+                              <col className="w-[10%]" />
+                            </colgroup>
+                            <thead className="bg-secondary/40 border-b border-border">
+                              <tr>
+                                <th className="px-2 py-2 text-left text-foreground text-[13px] md:text-[15px] font-bold uppercase tracking-wider">Parameter</th>
+                                <th className="px-2 py-2 text-left text-foreground text-[13px] md:text-[15px] font-bold uppercase tracking-wider">Result</th>
+                                <th className="px-2 py-2 text-left text-foreground text-[13px] md:text-[15px] font-bold uppercase tracking-wider">Unit</th>
+                                <th className="px-2 py-2 text-left text-foreground text-[13px] md:text-[15px] font-bold uppercase tracking-wider">Reference Range</th>
+                                <th className="px-2 py-2 text-center text-foreground text-[13px] md:text-[15px] font-bold uppercase tracking-wider">Flag</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/70 bg-background">
+                              {(() => {
+                                // Track which sum-100 groups we've already rendered alerts for
+                                const renderedSumAlerts = new Set<string>();
+                                return section.params.map((param, paramIndex) => {
+                                  const groupLabel = sumValidation.paramToGroup[param.id];
+                                  const groupInfo = groupLabel ? sumValidation.groupSums[groupLabel] : null;
+                                  const isInInvalidGroup = isParamInInvalidSumGroup(param.id);
+
+                                  // Check if this is the last param in its sum-100 group within this section
+                                  let showSumAlert = false;
+                                  if (groupLabel && groupInfo && !renderedSumAlerts.has(groupLabel)) {
+                                    const remainingGroupParams = section.params.slice(paramIndex + 1).filter(
+                                      p => sumValidation.paramToGroup[p.id] === groupLabel
+                                    );
+                                    if (remainingGroupParams.length === 0) {
+                                      showSumAlert = true;
+                                      renderedSumAlerts.add(groupLabel);
+                                    }
+                                  }
+
                                   return (
-                                    <tr key={param.id} className="hover:bg-accent/20 transition-colors">
-                                      <td className="px-2 py-1 align-middle text-foreground">
-                                        <div className="leading-tight break-words">{param.name}</div>
-                                        <div className="mt-0.5 flex items-center gap-1 text-[9px] text-muted-foreground">
-                                          <span>{param.unit || '-'}</span>
-                                          {param.field_type === 'calculated' && (
-                                            <span className="inline-flex items-center rounded bg-primary/10 px-1 py-0.5 text-primary">calc</span>
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td className="px-2 py-1 align-middle">
-                                        {param.input_type === 'select' ? (
-                                          <select
-                                            ref={(node) => {
-                                              inputRefs.current[param.id] = node;
-                                            }}
-                                            className={`${getInputClass(statuses[param.id])} h-7 text-[11px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''} !text-left bg-background !py-0`}
-                                            value={values[param.id] || (param.options ? param.options.split(',')[0] : "Negative")}
-                                            onChange={(e) => handleValueChange(param.id, e.target.value)}
-                                            onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
-                                            tabIndex={param.field_type === 'calculated' ? -1 : fieldTabOrder[param.id]}
-                                            disabled={!isEditable}
-                                          >
-                                            {param.options ? (
-                                              param.options.split(',').map((opt: string) => (
-                                                <option key={opt} value={opt}>{opt}</option>
-                                              ))
-                                            ) : (
-                                              <>
-                                                <option value="Negative">Negative</option>
-                                                <option value="Positive">Positive</option>
-                                              </>
+                                    <Fragment key={param.id}>
+                                      <tr className={`hover:bg-accent/20 transition-colors ${isInInvalidGroup ? 'bg-amber-500/5' : ''}`}>
+                                        <td className="px-2 py-1.5 align-middle text-foreground">
+                                          <div className="font-semibold text-[12px] md:text-[13px] leading-tight break-words flex flex-wrap items-center gap-1.5">
+                                            <span>{param.name}</span>
+                                            {param.field_type === 'calculated' && (
+                                              <span className="inline-flex items-center rounded bg-primary/10 px-1 py-0.5 text-[8px] font-bold text-primary uppercase tracking-wide">calc</span>
                                             )}
-                                          </select>
-                                        ) : param.input_type === 'textarea' ? (
-                                          <div className="relative py-1">
-                                            <textarea
+                                            {isInInvalidGroup && (
+                                              <span className="inline-flex items-center rounded bg-amber-500/15 px-1 py-0.5 text-[8px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide">Σ≠100</span>
+                                            )}
+                                          </div>
+                                        </td>
+                                        <td className="px-2 py-1.5 align-middle">
+                                          {param.input_type === 'select' ? (
+                                            <SmartSelectInput
                                               ref={(node) => {
                                                 inputRefs.current[param.id] = node;
                                               }}
-                                              className={`${getInputClass(statuses[param.id])} min-h-[4rem] py-1 px-2 text-[11px] w-full resize-y font-normal bg-background`}
-                                              placeholder="Enter description..."
-                                              value={values[param.id] || ""}
-                                              onChange={(e) => handleValueChange(param.id, e.target.value)}
-                                              onFocus={() => setActiveTextareaId(param.id)}
-                                              onBlur={() => {
-                                                setTimeout(() => {
-                                                  setActiveTextareaId(null);
-                                                }, 150);
-                                              }}
-                                              tabIndex={fieldTabOrder[param.id]}
-                                              disabled={!isEditable}
+                                              className={`${getInputClass(statuses[param.id])} h-8 text-[11px] md:text-[12px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}${isInInvalidGroup ? ' !ring-1 !ring-amber-500 !border-amber-500' : ''}${isFieldBlockedBySum100(param.id) ? ' opacity-40 bg-neutral-100 dark:bg-neutral-800 cursor-not-allowed' : ''} !text-left bg-background !py-0`}
+                                              value={values[param.id] !== undefined && values[param.id] !== null ? values[param.id] : (param.options ? param.options.split(',')[0].trim() : "Negative")}
+                                              onChange={(val) => handleValueChange(param.id, val)}
+                                              onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
+                                              tabIndex={param.field_type === 'calculated' || isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
+                                              disabled={!isEditable || isFieldBlockedBySum100(param.id)}
+                                              options={param.options ? param.options.split(',').map((opt: string) => opt.trim()) : ["Negative", "Positive"]}
                                             />
-                                            {param.options && activeTextareaId === param.id && (
-                                              (() => {
-                                                const currentVal = values[param.id] || '';
-                                                const lastPart = currentVal.split(/,\s*/).pop()?.trim() || '';
-                                                const filteredOpts = param.options.split(',').filter(opt =>
-                                                  !lastPart || opt.toLowerCase().includes(lastPart.toLowerCase())
-                                                );
+                                          ) : param.input_type === 'textarea' ? (
+                                            <div className="relative py-1">
+                                              <textarea
+                                                ref={(node) => {
+                                                  inputRefs.current[param.id] = node;
+                                                }}
+                                                className={`${getInputClass(statuses[param.id])} min-h-[4rem] py-1 px-2 text-[11px] md:text-[12px] w-full resize-y font-normal bg-background${isFieldBlockedBySum100(param.id) ? ' opacity-40 bg-neutral-100 dark:bg-neutral-800 cursor-not-allowed' : ''}`}
+                                                placeholder="Enter description..."
+                                                value={values[param.id] || ""}
+                                                onChange={(e) => handleValueChange(param.id, e.target.value)}
+                                                onFocus={() => setActiveTextareaId(param.id)}
+                                                onBlur={() => {
+                                                  setTimeout(() => {
+                                                    setActiveTextareaId(null);
+                                                  }, 150);
+                                                }}
+                                                tabIndex={isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
+                                                disabled={!isEditable || isFieldBlockedBySum100(param.id)}
+                                              />
+                                              {param.options && activeTextareaId === param.id && (
+                                                (() => {
+                                                  const currentVal = values[param.id] || '';
+                                                  const lastPart = currentVal.split(/,\s*/).pop()?.trim() || '';
+                                                  const filteredOpts = param.options.split(',').filter(opt =>
+                                                    !lastPart || opt.toLowerCase().includes(lastPart.toLowerCase())
+                                                  );
 
-                                                if (filteredOpts.length === 0) return null;
+                                                  if (filteredOpts.length === 0) return null;
 
-                                                return (
-                                                  <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border rounded shadow-lg max-h-48 overflow-y-auto p-1 divide-y divide-border/30 flex flex-col">
-                                                    {filteredOpts.map((opt: string) => (
-                                                      <button
-                                                        key={opt}
-                                                        type="button"
-                                                        onMouseDown={(e) => {
-                                                          e.preventDefault();
-                                                          const trimmed = currentVal.trim();
-                                                          if (!trimmed) {
-                                                            handleValueChange(param.id, opt + ', ');
-                                                          } else {
-                                                            const parts = currentVal.split(/,\s*/);
-                                                            const last = parts[parts.length - 1] || '';
-                                                            if (last && opt.toLowerCase().includes(last.toLowerCase())) {
-                                                              parts.pop();
-                                                              parts.push(opt);
-                                                              handleValueChange(param.id, parts.join(', ') + ', ');
+                                                  return (
+                                                    <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border rounded shadow-lg max-h-48 overflow-y-auto p-1 divide-y divide-border/30 flex flex-col">
+                                                      {filteredOpts.map((opt: string) => (
+                                                        <button
+                                                          key={opt}
+                                                          type="button"
+                                                          onMouseDown={(e) => {
+                                                            e.preventDefault();
+                                                            const trimmed = currentVal.trim();
+                                                            if (!trimmed) {
+                                                              handleValueChange(param.id, opt + ', ');
                                                             } else {
-                                                              if (currentVal.endsWith(', ')) {
-                                                                handleValueChange(param.id, currentVal + opt + ', ');
-                                                              } else if (currentVal.endsWith(',')) {
-                                                                handleValueChange(param.id, currentVal + ' ' + opt + ', ');
+                                                              const parts = currentVal.split(/,\s*/);
+                                                              const last = parts[parts.length - 1] || '';
+                                                              if (last && opt.toLowerCase().includes(last.toLowerCase())) {
+                                                                parts.pop();
+                                                                parts.push(opt);
+                                                                handleValueChange(param.id, parts.join(', ') + ', ');
                                                               } else {
-                                                                handleValueChange(param.id, currentVal + ', ' + opt + ', ');
+                                                                if (currentVal.endsWith(', ')) {
+                                                                  handleValueChange(param.id, currentVal + opt + ', ');
+                                                                } else if (currentVal.endsWith(',')) {
+                                                                  handleValueChange(param.id, currentVal + ' ' + opt + ', ');
+                                                                } else {
+                                                                  handleValueChange(param.id, currentVal + ', ' + opt + ', ');
+                                                                }
                                                               }
                                                             }
-                                                          }
-                                                        }}
-                                                        className="w-full text-left px-2.5 py-1.5 hover:bg-accent text-[11px] font-normal text-foreground transition-colors rounded whitespace-normal"
-                                                      >
-                                                        {opt}
-                                                      </button>
-                                                    ))}
-                                                  </div>
-                                                );
-                                              })()
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <input
-                                            ref={(node) => {
-                                              inputRefs.current[param.id] = node;
-                                            }}
-                                            type={param.input_type === 'text' ? 'text' : 'number'}
-                                            step={param.step}
-                                            className={`${getInputClass(statuses[param.id])} h-7 text-[11px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}`}
-                                            placeholder={param.field_type === 'calculated' ? 'Auto' : ''}
-                                            value={values[param.id] || ""}
-                                            onChange={(e) => handleValueChange(param.id, e.target.value)}
-                                            onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
-                                            onFocus={(event) => event.currentTarget.select()}
-                                            tabIndex={param.field_type === 'calculated' ? -1 : fieldTabOrder[param.id]}
-                                            disabled={!isEditable}
-                                            readOnly={param.field_type === 'calculated'}
-                                          />
-                                        )}
-                                      </td>
-                                      <td className="px-2 py-1 align-middle text-left text-muted-foreground tabular-nums text-[10px] md:text-[11px] leading-tight">
-                                        {formatReferenceRange(getPatientReferenceRange(param, patient))}
-                                      </td>
-                                      <td className="px-2 py-1 align-middle text-center">{getStatusBadge(statuses[param.id])}</td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </>
+                                                          }}
+                                                          className="w-full text-left px-2.5 py-1.5 hover:bg-accent text-[11px] md:text-[12px] font-normal text-foreground transition-colors rounded whitespace-normal"
+                                                        >
+                                                          {opt}
+                                                        </button>
+                                                      ))}
+                                                    </div>
+                                                  );
+                                                })()
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <input
+                                              ref={(node) => {
+                                                inputRefs.current[param.id] = node;
+                                              }}
+                                              type={param.input_type === 'text' ? 'text' : 'number'}
+                                              step={param.step}
+                                              className={`${getInputClass(statuses[param.id])} h-8 text-[11px] md:text-[12px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}${isInInvalidGroup ? ' !ring-1 !ring-amber-500 !border-amber-500' : ''}${isFieldBlockedBySum100(param.id) ? ' opacity-40 bg-neutral-100 dark:bg-neutral-800 cursor-not-allowed' : ''}`}
+                                              placeholder={param.field_type === 'calculated' ? 'Auto' : ''}
+                                              value={values[param.id] || ""}
+                                              onChange={(e) => handleValueChange(param.id, e.target.value)}
+                                              onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
+                                              onFocus={(event) => event.currentTarget.select()}
+                                              tabIndex={param.field_type === 'calculated' || isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
+                                              disabled={!isEditable || isFieldBlockedBySum100(param.id)}
+                                              readOnly={param.field_type === 'calculated'}
+                                            />
+                                          )}
+                                        </td>
+                                        <td className="px-2 py-1.5 align-middle text-left text-muted-foreground font-medium text-[11px] md:text-[12px] leading-tight">
+                                          {param.unit || '-'}
+                                        </td>
+                                        <td className="px-2 py-1.5 align-middle text-left text-muted-foreground font-medium text-[11px] md:text-[12px] leading-tight break-words">
+                                          {formatReferenceRange(getPatientReferenceRange(param, patient))}
+                                        </td>
+                                        <td className="px-2 py-1.5 align-middle text-center">{getStatusBadge(statuses[param.id])}</td>
+                                      </tr>
 
+                                      {/* Sum-100 validation alert row */}
+                                      {showSumAlert && groupInfo && groupInfo.hasAnyValue && groupInfo.sum !== 100 && (
+                                        <tr>
+                                          <td colSpan={5} className="px-0 py-0">
+                                            <div className="mx-2 my-1.5 flex items-center gap-2 px-3 py-2 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300">
+                                              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                              <span className="text-[11px] md:text-[12px] font-medium">
+                                                {groupLabel} total is <strong className="font-bold">{groupInfo.sum}%</strong> — must equal <strong className="font-bold">100%</strong>. 
+                                                {groupInfo.sum < 100
+                                                  ? ` Add ${Math.round((100 - groupInfo.sum) * 100) / 100}% more.`
+                                                  : ` Remove ${Math.round((groupInfo.sum - 100) * 100) / 100}%.`}
+                                              </span>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </Fragment>
+                                  );
+                                });
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
                       )}
                     </div>
                   );
