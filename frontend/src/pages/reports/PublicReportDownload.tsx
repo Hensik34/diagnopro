@@ -37,7 +37,7 @@ const C = {
   remarkBg: '#FFF8E1',
   remarkBorder: '#FFB300',
   high: '#C62828',
-  low: '#1565C0',
+  low: '#2E7D32',
   white: '#FFFFFF',
   sectionTitle: '#37474F',
 } as const;
@@ -334,7 +334,7 @@ export function PublicReportDownload() {
       result: p.value?.toString() || '',
       unit: p.unit || '',
       refRange: p.referenceRange || '',
-      isAbnormal: p.status === 'low' || p.status === 'high' || p.status === 'critical',
+      isAbnormal: p.status === 'low' || p.status === 'high',
       status: p.status,
       fieldType: p.fieldType || undefined,
       group: p.group || undefined,
@@ -486,21 +486,48 @@ export function PublicReportDownload() {
 
     place({ type: 'patient' }, patientHeight);
 
-    for (const chunk of chunks) {
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
       const section = testSections.find(s => s.id === chunk.sectionId);
       if (!section) continue;
-      place({ type: 'test', chunk }, estimateHeight(section, chunk.parameters));
 
-      // Place interpretation if it is the last chunk of the section and has significance
+      const chunkH = estimateHeight(section, chunk.parameters);
+
+      let sigH = 0;
       const isLastChunk = chunks.filter(c => c.sectionId === chunk.sectionId).pop() === chunk;
       if (isLastChunk && section.testId) {
         const sig = layoutSnapshots[section.testId]?.clinical_significance;
         if (sig?.trim()) {
-          const sigH = needsCompact
+          sigH = needsCompact
             ? Math.floor(estimateInterpretationHeight(sig.trim(), isDense) * compactScale)
             : estimateInterpretationHeight(sig.trim(), isDense);
-          place({ type: 'interpretation', testId: section.testId, text: sig.trim() }, sigH);
         }
+      }
+
+      let trailingH = 0;
+      const isLastChunkOverall = i === chunks.length - 1;
+      if (isLastChunkOverall) {
+        if (notes) {
+          trailingH += needsCompact
+            ? Math.floor(estimateInterpretationHeight(notes, isDense) * compactScale)
+            : estimateInterpretationHeight(notes, isDense);
+        }
+        trailingH += signatureHeight + endMarkerHeight;
+      }
+
+      const totalSectionHeight = chunkH + sigH + trailingH;
+
+      const currentHasContent = out[out.length - 1].some(item => item.type === 'test' || item.type === 'interpretation');
+      if (currentHasContent && currentHeight + totalSectionHeight > contentHeight && totalSectionHeight <= contentHeight) {
+        out.push([]);
+        currentHeight = 0;
+      }
+
+      place({ type: 'test', chunk }, chunkH);
+
+      if (sigH > 0) {
+        const sig = layoutSnapshots[section.testId]?.clinical_significance;
+        place({ type: 'interpretation', testId: section.testId, text: sig!.trim() }, sigH);
       }
     }
 
@@ -916,11 +943,10 @@ export function PublicReportDownload() {
                           <tbody>
                             {item.chunk.parameters.map((param: any, rowIdx: number) => {
                               const status = (param.status || '').toLowerCase();
-                              const isCritical = status === 'critical';
-                              const isHigh = status === 'high';
+                              const isHigh = status === 'high' || status === 'critical';
                               const isLow = status === 'low';
-                              const isAbnormal = isCritical || isHigh || isLow;
-                              const statusColor = isCritical ? C.high : isHigh ? C.high : isLow ? C.low : C.text;
+                              const isAbnormal = isHigh || isLow;
+                              const statusColor = isHigh ? C.high : isLow ? C.low : C.text;
                               const showGroupHeader = !!param.group && param.group !== lastGroup;
                               if (param.group) lastGroup = param.group;
 
@@ -936,7 +962,7 @@ export function PublicReportDownload() {
                                   <InvestigationTableRow
                                     investigation={param.name}
                                     result={param.result}
-                                    status={isCritical ? 'Critical' : isHigh ? 'High' : isLow ? 'Low' : ''}
+                                    status={isHigh ? 'High' : isLow ? 'Low' : ''}
                                     refRange={param.refRange}
                                     unit={param.unit}
                                     isAbnormal={isAbnormal}
@@ -1032,7 +1058,7 @@ export function PublicReportDownload() {
                           </div>
                           <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
                             <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
-                              {report.technician_firstname ? `${report.technician_firstname} ${report.technician_lastname || ''}` : 'Lab Technician'}
+                              {report.owner_signature_label || (report.technician_firstname ? `${report.technician_firstname} ${report.technician_lastname || ''}` : 'Lab Technician')}
                             </p>
                             <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>Lab Owner / Incharge</p>
                           </div>
@@ -1292,11 +1318,10 @@ export function PublicReportDownload() {
                           <tbody>
                             {item.chunk.parameters.map((param: any, rowIdx: number) => {
                               const status = (param.status || '').toLowerCase();
-                              const isCritical = status === 'critical';
-                              const isHigh = status === 'high';
+                              const isHigh = status === 'high' || status === 'critical';
                               const isLow = status === 'low';
-                              const isAbnormal = isCritical || isHigh || isLow;
-                              const statusColor = isCritical ? C.high : isHigh ? C.high : isLow ? C.low : C.text;
+                              const isAbnormal = isHigh || isLow;
+                              const statusColor = isHigh ? C.high : isLow ? C.low : C.text;
                               const showGroupHeader = !!param.group && param.group !== lastGroup;
                               if (param.group) lastGroup = param.group;
 
@@ -1312,7 +1337,7 @@ export function PublicReportDownload() {
                                   <InvestigationTableRow
                                     investigation={param.name}
                                     result={param.result}
-                                    status={isCritical ? 'Critical' : isHigh ? 'High' : isLow ? 'Low' : ''}
+                                    status={isHigh ? 'High' : isLow ? 'Low' : ''}
                                     refRange={param.refRange}
                                     unit={param.unit}
                                     isAbnormal={isAbnormal}
@@ -1408,7 +1433,7 @@ export function PublicReportDownload() {
                           </div>
                           <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
                             <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
-                              {report.technician_firstname ? `${report.technician_firstname} ${report.technician_lastname || ''}` : 'Lab Technician'}
+                              {report.owner_signature_label || (report.technician_firstname ? `${report.technician_firstname} ${report.technician_lastname || ''}` : 'Lab Technician')}
                             </p>
                             <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>Lab Owner / Incharge</p>
                           </div>

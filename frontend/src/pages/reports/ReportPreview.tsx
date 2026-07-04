@@ -53,7 +53,7 @@ const C = {
   remarkBg: '#FFF8E1',
   remarkBorder: '#FFB300',
   high: '#C62828',
-  low: '#1565C0',
+  low: '#2E7D32',
   white: '#FFFFFF',
   sectionTitle: '#37474F',
 } as const;
@@ -369,7 +369,7 @@ export function ReportPreview() {
       result: p.value?.toString() || '',
       unit: p.unit || '',
       refRange: p.referenceRange || '',
-      isAbnormal: p.status === 'low' || p.status === 'high' || p.status === 'critical',
+      isAbnormal: p.status === 'low' || p.status === 'high',
       status: p.status,
       fieldType: p.fieldType || undefined,
       group: p.group || (testId ? sectionGroupMap.get(`${testId}::${p.name}`) : undefined),
@@ -545,7 +545,7 @@ export function ReportPreview() {
   }, [reportData, sectionOrder, visibleSections]);
 
   const abnormalParams = useMemo(
-    () => (reportData?.parameters ?? []).filter(p => p.status === 'high' || p.status === 'low' || p.status === 'critical'),
+    () => (reportData?.parameters ?? []).filter(p => p.status === 'high' || p.status === 'low'),
     [reportData],
   );
 
@@ -674,22 +674,49 @@ export function ReportPreview() {
 
     place({ type: 'patient' }, patientHeight);
 
-    for (const chunk of chunks) {
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
       const section = orderedSections.find(s => s.id === chunk.sectionId);
       if (!section) continue;
-      
-      place({ type: 'test', chunk }, estimateHeight(section, chunk.parameters));
-      
-      // Place interpretation if it is the last chunk of the section and has significance
+
+      const chunkH = estimateHeight(section, chunk.parameters);
+
+      let sigH = 0;
       const isLastChunk = chunks.filter(c => c.sectionId === chunk.sectionId).pop() === chunk;
       if (isLastChunk && section.testId) {
         const sig = layoutSnapshots[section.testId]?.clinical_significance;
         if (sig?.trim()) {
-          const sigH = needsCompact
+          sigH = needsCompact
             ? Math.floor(estimateInterpretationHeight(sig.trim(), isDense) * compactScale)
             : estimateInterpretationHeight(sig.trim(), isDense);
-          place({ type: 'interpretation', testId: section.testId, text: sig.trim() }, sigH);
         }
+      }
+
+      let trailingH = 0;
+      const isLastChunkOverall = i === chunks.length - 1;
+      if (isLastChunkOverall) {
+        if (rawReport?.clinical_notes?.trim()) {
+          const notes = rawReport.clinical_notes.trim();
+          trailingH += needsCompact
+            ? Math.floor(estimateInterpretationHeight(notes, isDense) * compactScale)
+            : estimateInterpretationHeight(notes, isDense);
+        }
+        trailingH += signatureHeight + endMarkerHeight;
+      }
+
+      const totalSectionHeight = chunkH + sigH + trailingH;
+
+      const currentHasContent = out[out.length - 1].some(item => item.type === 'test' || item.type === 'interpretation');
+      if (currentHasContent && currentHeight + totalSectionHeight > contentHeight && totalSectionHeight <= contentHeight) {
+        out.push([]);
+        currentHeight = 0;
+      }
+
+      place({ type: 'test', chunk }, chunkH);
+
+      if (sigH > 0) {
+        const sig = layoutSnapshots[section.testId]?.clinical_significance;
+        place({ type: 'interpretation', testId: section.testId, text: sig!.trim() }, sigH);
       }
     }
 
@@ -934,6 +961,31 @@ export function ReportPreview() {
       </div>
     );
   }
+
+  const ownerSigUrl = (() => {
+    if (!settings) return rawReport?.owner_signature_url || null;
+    const index = settings.default_signature_index;
+    if (index === 1 && settings.signature_1_url) return settings.signature_1_url;
+    if (index === 2 && settings.signature_2_url) return settings.signature_2_url;
+    if (index === 3 && settings.signature_3_url) return settings.signature_3_url;
+    if (index === 4 && settings.signature_4_url) return settings.signature_4_url;
+    return settings.owner_signature_url || settings.signature_1_url || rawReport?.owner_signature_url || null;
+  })();
+
+  const ownerSigLabel = (() => {
+    if ((rawReport as any)?.owner_signature_label) {
+      return (rawReport as any).owner_signature_label;
+    }
+    if (!settings) {
+      return user ? `${user.firstname} ${user.lastname}` : (rawReport?.technician_firstname ? `${rawReport.technician_firstname} ${rawReport.technician_lastname || ''}` : reportData.technician.name);
+    }
+    const index = settings.default_signature_index;
+    if (index === 1 && settings.signature_1_label) return settings.signature_1_label;
+    if (index === 2 && settings.signature_2_label) return settings.signature_2_label;
+    if (index === 3 && settings.signature_3_label) return settings.signature_3_label;
+    if (index === 4 && settings.signature_4_label) return settings.signature_4_label;
+    return user ? `${user.firstname} ${user.lastname}` : (rawReport?.technician_firstname ? `${rawReport.technician_firstname} ${rawReport.technician_lastname || ''}` : reportData.technician.name);
+  })();
 
   const letterheadActive = showLetterhead && !!settings?.letterhead_url;
   const headerActive = showLetterhead && !!settings?.header_url && !settings?.letterhead_url;
@@ -1184,11 +1236,10 @@ export function ReportPreview() {
                                 }}><InvestigationTableHeader colorTokens={C} /><tbody>
                                     {item.chunk.parameters.map((param, rowIdx) => {
                                       const status = (param.status || '').toLowerCase();
-                                      const isCritical = status === 'critical';
-                                      const isHigh = status === 'high';
+                                      const isHigh = status === 'high' || status === 'critical';
                                       const isLow = status === 'low';
-                                      const isAbnormal = isCritical || isHigh || isLow;
-                                      const statusColor = isCritical ? C.high : isHigh ? C.high : isLow ? C.low : C.text;
+                                      const isAbnormal = isHigh || isLow;
+                                      const statusColor = isHigh ? C.high : isLow ? C.low : C.text;
                                       const showGroupHeader = !!param.group && param.group !== lastGroup;
                                       if (param.group) lastGroup = param.group;
 
@@ -1204,7 +1255,7 @@ export function ReportPreview() {
                                           <InvestigationTableRow
                                             investigation={param.name}
                                             result={param.result}
-                                            status={isCritical ? 'Critical' : isHigh ? 'High' : isLow ? 'Low' : ''}
+                                            status={isHigh ? 'High' : isLow ? 'Low' : ''}
                                             refRange={param.refRange}
                                             unit={param.unit}
                                             isAbnormal={isAbnormal}
@@ -1295,9 +1346,9 @@ export function ReportPreview() {
                               <div style={{ display: 'flex', justifyContent: isSelfReport ? 'flex-start' : 'space-between' }}>
                                 <div>
                                   <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 6 }}>
-                                    {settings?.owner_signature_url && (
+                                    {ownerSigUrl && (
                                       <img
-                                        src={getImageUrl(settings.owner_signature_url) || ''}
+                                        src={getImageUrl(ownerSigUrl) || ''}
                                         alt="Owner Signature"
                                         style={{ maxHeight: 40, objectFit: 'contain' }}
                                       />
@@ -1305,7 +1356,7 @@ export function ReportPreview() {
                                   </div>
                                   <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
                                     <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
-                                      {user ? `${user.firstname} ${user.lastname}` : reportData.technician.name}
+                                      {ownerSigLabel}
                                     </p>
                                     <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>Lab Owner / Incharge</p>
                                   </div>

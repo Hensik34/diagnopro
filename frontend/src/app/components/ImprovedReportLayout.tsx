@@ -21,9 +21,9 @@ export const ReportLayoutConfig = {
   },
   fontSize: {
     label: 10,
-    value: 11,
-    header: 10,
-    sectionTitle: 12,
+    value: 12,
+    header: 13,
+    sectionTitle: 14,
     patientName: 14,
   },
   lineHeight: {
@@ -94,7 +94,7 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
     padding: '4px 0',
     fontWeight: 700,
     color: '#111',
-    fontSize: '10px',
+    fontSize: `${ReportLayoutConfig.fontSize.header}px`,
     letterSpacing: '0.3px',
     textTransform: 'uppercase',
     whiteSpace: 'nowrap',
@@ -110,11 +110,11 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
         <th style={thStyle(ReportLayoutConfig.tableColumns.result, 'left')}>
           Result
         </th>
-        <th style={thStyle(ReportLayoutConfig.tableColumns.refRange, 'left')}>
-          Reference Value
-        </th>
         <th style={thStyle(ReportLayoutConfig.tableColumns.unit, 'left')}>
           Unit
+        </th>
+        <th style={thStyle(ReportLayoutConfig.tableColumns.refRange, 'left')}>
+          Reference Value
         </th>
         <th style={thStyle(ReportLayoutConfig.tableColumns.extra, 'left')}>
           {/* Spacer */}
@@ -166,7 +166,7 @@ export function InvestigationTableRow({
   colorTokens: Record<string, string>;
   compact?: boolean;
 }) {
-  const fontSize = compact ? '10.5px' : '11px';
+  const fontSize = compact ? `${ReportLayoutConfig.fontSize.value - 0.5}px` : `${ReportLayoutConfig.fontSize.value}px`;
   const vPad = compact ? '2px' : '3px';
 
   return (
@@ -225,11 +225,11 @@ export function InvestigationTableRow({
           textAlign: 'left',
           color: '#555',
           fontWeight: 400,
-          fontSize: compact ? '10px' : '10.5px',
+          fontSize,
           whiteSpace: 'nowrap',
         }}
       >
-        {refRange}
+        {unit}
       </td>
       <td
         style={{
@@ -240,11 +240,11 @@ export function InvestigationTableRow({
           textAlign: 'left',
           color: '#555',
           fontWeight: 400,
-          fontSize: compact ? '10px' : '10.5px',
+          fontSize,
           whiteSpace: 'nowrap',
         }}
       >
-        {unit}
+        {refRange}
       </td>
       <td
         style={{

@@ -76,7 +76,7 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'PPBS (Post Prandial Blood Sugar)', 'PPBS-01', 'Biochemistry', 'Blood', 50, 2, 'Post-meal glucose measurement', NOW(), NOW()),
   (gen_random_uuid(), 'RBS (Random Blood Sugar)', 'RBS-01', 'Biochemistry', 'Blood', 50, 1, 'Random glucose level', NOW(), NOW()),
   (gen_random_uuid(), 'HbA1c (Glycated Hemoglobin)', 'HBA1C-01', 'Biochemistry', 'Blood', 400, 4, 'Average blood sugar over 3 months', NOW(), NOW()),
-  (gen_random_uuid(), 'GTT (2-hour)', 'GTT-01', 'Biochemistry', 'Blood', 150, 4, '2-hour glucose tolerance test', NOW(), NOW()),
+  (gen_random_uuid(), 'GTT (Glucose Tolerance Test)', 'GTT-01', 'Biochemistry', 'Blood', 150, 4, '2-hour glucose tolerance test', NOW(), NOW()),
   (gen_random_uuid(), 'Fasting Insulin', 'INS-F-01', 'Biochemistry', 'Blood', 300, 4, 'Fasting insulin level', NOW(), NOW()),
   (gen_random_uuid(), 'C-Peptide', 'CPEP-01', 'Biochemistry', 'Blood', 350, 4, 'Beta cell function assessment', NOW(), NOW()),
   (gen_random_uuid(), 'Microalbumin (Urine)', 'MALB-01', 'Biochemistry', 'Urine', 200, 4, 'Urine microalbumin for diabetes screening', NOW(), NOW()),
@@ -165,7 +165,7 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'Complement C3', 'C3-01', 'Immunology', 'Blood', 400, 4, 'Complement system component', NOW(), NOW()),
   (gen_random_uuid(), 'Complement C4', 'C4-01', 'Immunology', 'Blood', 400, 4, 'Complement system component', NOW(), NOW()),
   (gen_random_uuid(), 'IgA (Immunoglobulin A)', 'IGA-01', 'Immunology', 'Blood', 350, 4, 'Immune response antibody', NOW(), NOW()),
-  (gen_random_uuid(), 'Urine Routine & Microscopy', 'URINE-01', 'Clinical Pathology', 'Urine', 100, 3, 'Complete urine analysis', NOW(), NOW()),
+  (gen_random_uuid(), 'Urine Routine Examination', 'URINE-01', 'Clinical Pathology', 'Urine', 100, 3, 'Complete urine analysis', NOW(), NOW()),
   (gen_random_uuid(), 'Urine Culture & Sensitivity', 'UCULT-01', 'Microbiology', 'Urine', 500, 48, 'UTI pathogen identification', NOW(), NOW()),
   (gen_random_uuid(), 'Blood Culture & Sensitivity', 'BCULT-01', 'Microbiology', 'Blood', 700, 72, 'Bloodstream infection detection', NOW(), NOW()),
   (gen_random_uuid(), 'Stool Routine & Microscopy', 'STOOL-01', 'Clinical Pathology', 'Stool', 300, 3, 'Parasites and microbes', NOW(), NOW()),
@@ -226,7 +226,6 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'Sputum Routine & Microscopy', 'SPUTUM-RM', 'Clinical Pathology', 'Sputum', 350, 6, 'Routine macroscopic and microscopic analysis of sputum', NOW(), NOW()),
   (gen_random_uuid(), 'Mantoux', 'MANTOUX-01', 'Immunology', 'Intradermal Injection', 200, 48, 'Tuberculin skin test for exposure to Tuberculosis', NOW(), NOW()),
   (gen_random_uuid(), 'Typhidot (IgM & IgG)', 'TYPHIDOT-01', 'Serology', 'Serum', 300, 4, 'Qualitative rapid test for Salmonella typhi IgM and IgG', NOW(), NOW()),
-  (gen_random_uuid(), 'Stool Analysis', 'STOOL-ANA', 'Clinical Pathology', 'Stool', 300, 3, 'Comprehensive macroscopic, chemical and microscopic analysis of stool specimen', NOW(), NOW()),
   (gen_random_uuid(), 'Brucella IgM', 'BRUC-IGM', 'Serology', 'Serum', 350, 4, 'Qualitative detection of IgM antibodies against Brucella species for acute brucellosis diagnosis', NOW(), NOW()),
   (gen_random_uuid(), 'Brucella IgG', 'BRUC-IGG', 'Serology', 'Serum', 350, 4, 'Qualitative detection of IgG antibodies against Brucella species for chronic or past exposure to brucellosis', NOW(), NOW()),
   (gen_random_uuid(), 'APLA/APLZ (Antiphospholipid Antibody Profile)', 'APLA-PRO', 'Immunology', 'Serum/Plasma', 2800, 12, 'Comprehensive profile for Antiphospholipid Syndrome (APS) detecting Lupus Anticoagulant, Anti-Cardiolipin, and Beta-2 Glycoprotein I antibodies', NOW(), NOW()),
@@ -406,6 +405,30 @@ NULL,NULL,
 true,NOW(),NOW()),
 
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
+'MCHC','g/dL','number',NULL,'calculated',
+'(Hemoglobin * 100) / Hematocrit (PCV)', 'Hemoglobin,Hematocrit (PCV)',
+'Blood Indices',17,
+'{"min":32,"max":36}'::jsonb,
+'{"low":25,"high":40}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
+'MCH','pg','number',NULL,'calculated',
+'(Hemoglobin * 10) / RBC Count', 'Hemoglobin,RBC Count',
+'Blood Indices',18,
+'{"min":27,"max":33}'::jsonb,
+'{"low":20,"high":40}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
+'MCV','fL','number',NULL,'calculated',
+'(Hematocrit (PCV) * 10) / RBC Count', 'Hematocrit (PCV),RBC Count',
+'Blood Indices',19,
+'{"min":80,"max":100}'::jsonb,
+'{"low":60,"high":120}'::jsonb,
+true,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
 'RDW-CV','%','number',NULL,'input',
 NULL,NULL,
 'Blood Indices',16,
@@ -414,27 +437,11 @@ NULL,NULL,
 true,NOW(),NOW()),
 
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
-'MCHC','g/dL','number',NULL,'input',
+'PCT','%','number',NULL,'input',
 NULL,NULL,
-'Blood Indices',17,
-'{"min":32,"max":36}'::jsonb,
-'{"low":25,"high":40}'::jsonb,
-true,NOW(),NOW()),
-
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
-'MCH','pg','number',NULL,'input',
-NULL,NULL,
-'Blood Indices',18,
-'{"min":27,"max":33}'::jsonb,
-'{"low":20,"high":40}'::jsonb,
-true,NOW(),NOW()),
-
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
-'MCV','fL','number',NULL,'input',
-NULL,NULL,
-'Blood Indices',19,
-'{"min":80,"max":100}'::jsonb,
-'{"low":60,"high":120}'::jsonb,
+'Blood Indices',21,
+NULL,
+NULL,
 true,NOW(),NOW()),
 
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
@@ -961,7 +968,7 @@ true,NOW(),NOW()),
 'HIV Rapid',NULL,'select','Negative,Positive','input',
 NULL,NULL,
 'HIV Screening',1,
-NULL,
+'[{"age_group":"all","sex":"any","note":"Negative"}]'::jsonb,
 '{"positive":"Positive"}'::jsonb,
 true,NOW(),NOW()),
 
@@ -970,7 +977,7 @@ true,NOW(),NOW()),
 'HBsAg Rapid',NULL,'select','Negative,Positive','input',
 NULL,NULL,
 'Hepatitis B Screening',1,
-NULL,
+'[{"age_group":"all","sex":"any","note":"Negative"}]'::jsonb,
 '{"positive":"Positive"}'::jsonb,
 true,NOW(),NOW()),
 
@@ -979,7 +986,7 @@ true,NOW(),NOW()),
 'Anti-HCV Rapid',NULL,'select','Negative,Positive','input',
 NULL,NULL,
 'Hepatitis C Screening',1,
-NULL,
+'[{"age_group":"all","sex":"any","note":"Negative"}]'::jsonb,
 '{"positive":"Positive"}'::jsonb,
 true,NOW(),NOW()),
 
@@ -1045,14 +1052,32 @@ false,NOW(),NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ELEC-01'), 'Serum Chloride (Cl-)', 'mmol/L', 'number', NULL, 'input', NULL, NULL, 'Electrolytes', 3, '{"min":96,"max":106}'::jsonb, '{"low":80,"high":120}'::jsonb, true, NOW(), NOW()),
 
 -- STOOL ROUTINE & MICROSCOPY (STOOL-01)
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Color', NULL, 'select', 'Brown,Yellow,Clay,Black,Red', 'input', NULL, NULL, 'Physical Examination', 1, NULL, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Consistency', NULL, 'select', 'Formed,Semi-formed,Loose,Watery', 'input', NULL, NULL, 'Physical Examination', 2, NULL, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Mucus', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Chemical Examination', 3, NULL, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Blood', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Chemical Examination', 4, NULL, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Pus Cells', '/HPF', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 5, '{"min":0,"max":5}'::jsonb, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'RBCs', '/HPF', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 6, '{"min":0,"max":2}'::jsonb, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Ova', NULL, 'select', 'Not seen,Roundworm,Hookworm,Whipworm', 'input', NULL, NULL, 'Microscopic Examination', 7, NULL, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Cysts', NULL, 'select', 'Not seen,E. histolytica,E. coli,Giardia', 'input', NULL, NULL, 'Microscopic Examination', 8, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Quantity', 'gm', 'text', '10', 'input', NULL, NULL, 'Physical Examination', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Color', NULL, 'select', 'Brownish,Yellowish,Creemish,Blackish,Reddish,Greenish', 'input', NULL, NULL, 'Physical Examination', 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Consistency', NULL, 'select', 'Semi-Solid,Liquid,Hard,Soft', 'input', NULL, NULL, 'Physical Examination', 3, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Adult Warm', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Physical Examination', 4, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Pus', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Physical Examination', 5, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Blood', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Physical Examination', 6, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Mucus', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Physical Examination', 7, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Parasites', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Physical Examination', 8, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Occult Blood', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Chemical Examination', 9, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Reducing Sub.', NULL, 'select', 'Present,Absent', 'input', NULL, NULL, 'Chemical Examination', 10, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Reaction', NULL, 'select', 'Acidic,Alkaline,Neutral', 'input', NULL, NULL, 'Chemical Examination', 11, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Pus Cells', '/HPF', 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 'input', NULL, NULL, 'Microscopic Examination', 12, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'R.B. Cs', '/HPF', 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 'input', NULL, NULL, 'Microscopic Examination', 13, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Macrophages', '/HPF', 'select', 'Absent,Present', 'input', NULL, NULL, 'Microscopic Examination', 14, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Epithelial Cells', '/HPF', 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 'input', NULL, NULL, 'Microscopic Examination', 15, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Trophozoite', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Microscopic Examination', 16, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Ova', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Microscopic Examination', 17, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Bacteria', NULL, 'select', 'Present,Absent', 'input', NULL, NULL, 'Microscopic Examination', 18, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Muscle fibers', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Microscopic Examination', 19, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Vege. Cells', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Microscopic Examination', 20, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Fat Globules', NULL, 'select', 'Absent,Present,Fat Globules +,Fat Globules ++,Fat Globules +++,Fat Globules ++++', 'input', NULL, NULL, 'Microscopic Examination', 21, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Starch', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Microscopic Examination', 22, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Cysts', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Microscopic Examination', 23, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Larva', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Microscopic Examination', 24, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Ova (Concentration)', NULL, 'text', NULL, 'input', NULL, NULL, 'Concentration - Method', 25, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Cyst (Concentration)', NULL, 'text', NULL, 'input', NULL, NULL, 'Concentration - Method', 26, NULL, NULL, true, NOW(), NOW()),
 
 -- HEMOGLOBIN (HB-01)
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HB-01'), 'Hemoglobin', 'g/dL', 'number', NULL, 'input', NULL, NULL, 'Hemoglobin', 1, '{"male":{"min":13.0,"max":17.0},"female":{"min":12.0,"max":15.0}}'::jsonb, '{"low":7.0,"high":20.0}'::jsonb, true, NOW(), NOW()),
@@ -1120,17 +1145,7 @@ false,NOW(),NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TYPHIDOT-01'), 'Typhidot IgM', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Serology Findings', 1, NULL, '{"positive":"Positive"}'::jsonb, true, NOW(), NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TYPHIDOT-01'), 'Typhidot IgG', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Serology Findings', 2, NULL, NULL, true, NOW(), NOW()),
 
--- STOOL ANALYSIS (STOOL-ANA)
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Color', NULL, 'select', 'Brown,Yellow,Clay,Black,Red,Green', 'input', NULL, NULL, 'Physical Examination', 1, NULL, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Consistency', NULL, 'select', 'Formed,Semi-formed,Loose,Watery', 'input', NULL, NULL, 'Physical Examination', 2, NULL, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'pH', NULL, 'number', NULL, 'input', NULL, NULL, 'Chemical Examination', 3, '{"min":6.0,"max":7.8}'::jsonb, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Reducing Substances', NULL, 'select', 'Negative,Trace,1+,2+,3+', 'input', NULL, NULL, 'Chemical Examination', 4, NULL, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Occult Blood', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Chemical Examination', 5, NULL, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Pus Cells', '/HPF', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 6, '{"min":0,"max":5}'::jsonb, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'RBCs', '/HPF', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 7, '{"min":0,"max":2}'::jsonb, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Epithelial Cells', '/HPF', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 8, '{"min":0,"max":5}'::jsonb, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Ova', NULL, 'select', 'Not seen,Roundworm,Hookworm,Whipworm', 'input', NULL, NULL, 'Microscopic Examination', 9, NULL, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-ANA'), 'Cysts', NULL, 'select', 'Not seen,E. histolytica,E. coli,Giardia', 'input', NULL, NULL, 'Microscopic Examination', 10, NULL, NULL, true, NOW(), NOW()),
+
 
 -- BRUCELLA IgM (BRUC-IGM)
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BRUC-IGM'), 'Brucella IgM Antibody', 'Index', 'number', NULL, 'input', NULL, NULL, 'Brucella Serology', 1, '{"min":0.0,"max":0.9}'::jsonb, NULL, true, NOW(), NOW()),
@@ -1171,7 +1186,69 @@ false,NOW(),NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='RUB-IGG'), 'Rubella IgG Antibody', 'IU/mL', 'number', NULL, 'input', NULL, NULL, 'Rubella Serology', 1, '{"min":10.0,"max":500.0}'::jsonb, NULL, true, NOW(), NOW()),
 
 -- RUBELLA IgM (RUB-IGM)
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='RUB-IGM'), 'Rubella IgM Antibody', 'Index', 'number', NULL, 'input', NULL, NULL, 'Rubella Serology', 1, '{"min":0.0,"max":0.9}'::jsonb, NULL, true, NOW(), NOW())
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='RUB-IGM'), 'Rubella IgM Antibody', 'Index', 'number', NULL, 'input', NULL, NULL, 'Rubella Serology', 1, '{"min":0.0,"max":0.9}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- CRP (C-REACTIVE PROTEIN) (CRP-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CRP-01'), 'C-Reactive Protein', 'mg/L', 'number', NULL, 'input', NULL, NULL, 'Inflammation Markers', 1, '{"min":0.0,"max":6.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- GTT (GLUCOSE TOLERANCE TEST) (GTT-01)
+-- Fasting
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='GTT-01'), 'Fasting Blood Glucose', 'mg/dl', 'number', NULL, 'input', NULL, NULL, 'Fasting', 1, '{"min":70.0,"max":110.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='GTT-01'), 'Urine Glucose (Fasting)', 'gm/dl', 'select', 'Absent,Trace,Present +,Present ++,Present +++', 'input', NULL, NULL, 'Fasting', 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='GTT-01'), 'Urine Acetone (Fasting)', 'mg/dl', 'select', 'Absent,Trace,Present +,Present ++,Present +++', 'input', NULL, NULL, 'Fasting', 3, NULL, NULL, true, NOW(), NOW()),
+-- 1st Hour
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='GTT-01'), '1st Hour Blood Glucose', 'mg/dl', 'number', NULL, 'input', NULL, NULL, '1st Hour', 4, '{"min":120.0,"max":170.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='GTT-01'), 'Urine Glucose (1st Hour)', 'gm/dl', 'select', 'Absent,Trace,Present +,Present ++,Present +++', 'input', NULL, NULL, '1st Hour', 5, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='GTT-01'), 'Urine Acetone (1st Hour)', 'mg/dl', 'select', 'Absent,Trace,Present +,Present ++,Present +++', 'input', NULL, NULL, '1st Hour', 6, NULL, NULL, true, NOW(), NOW()),
+-- 2nd Hour
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='GTT-01'), '2nd Hour Blood Glucose', 'mg/dl', 'number', NULL, 'input', NULL, NULL, '2nd Hour', 7, '{"min":80.0,"max":120.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='GTT-01'), 'Urine Glucose (2nd Hour)', 'gm/dl', 'select', 'Absent,Trace,Present +,Present ++,Present +++', 'input', NULL, NULL, '2nd Hour', 8, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='GTT-01'), 'Urine Acetone (2nd Hour)', 'mg/dl', 'select', 'Absent,Trace,Present +,Present ++,Present +++', 'input', NULL, NULL, '2nd Hour', 9, NULL, NULL, true, NOW(), NOW()),
+
+-- FBS (FASTING BLOOD SUGAR) (FBS-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='FBS-01'), 'Fasting Blood Sugar', 'mg/dL', 'number', NULL, 'input', NULL, NULL, Null, 1, '{"min":70.0,"max":110.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='FBS-01'), 'Urine Glucose', NULL, 'select', 'Absent,Trace,Present +,Present ++,Present +++', 'input', NULL, NULL, NULL, 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='FBS-01'), 'Urine Ketone', NULL, 'select', 'Absent,Trace,Present +,Present ++,Present +++', 'input', NULL, NULL, NULL, 3, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='FBS-01'), 'Urine Protein', NULL, 'select', 'Absent,Trace,Present +,Present ++,Present +++', 'input', NULL, NULL, NULL, 4, NULL, NULL, true, NOW(), NOW()),
+
+-- PPBS (POST PRANDIAL BLOOD SUGAR) (PPBS-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PPBS-01'), 'Post Prandial Blood Sugar', 'mg/dL', 'number', NULL, 'input', NULL, NULL, Null, 1, '{"min":70.0,"max":140.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PPBS-01'), 'Urine Glucose', NULL, 'select', 'Absent,Trace,Present +,Present ++,Present +++', 'input', NULL, NULL, NULL, 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PPBS-01'), 'Urine Ketone', NULL, 'select', 'Absent,Trace,Present +,Present ++,Present +++', 'input', NULL, NULL, NULL, 3, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PPBS-01'), 'Urine Protein', NULL, 'select', 'Absent,Trace,Present +,Present ++,Present +++', 'input', NULL, NULL, NULL, 4, NULL, NULL, true, NOW(), NOW()),
+
+-- RBS (RANDOM BLOOD SUGAR) (RBS-01)
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='RBS-01'), 'Random Blood Sugar', 'mg/dL', 'number', NULL, 'input', NULL, NULL, Null, 1, '{"min":70.0,"max":140.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='RBS-01'), 'Urine Glucose', NULL, 'select', 'Absent,Trace,Present +,Present ++,Present +++', 'input', NULL, NULL, NULL, 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='RBS-01'), 'Urine Ketone', NULL, 'select', 'Absent,Trace,Present +,Present ++,Present +++', 'input', NULL, NULL, NULL, 3, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='RBS-01'), 'Urine Protein', NULL, 'select', 'Absent,Trace,Present +,Present ++,Present +++', 'input', NULL, NULL, NULL, 4, NULL, NULL, true, NOW(), NOW()),
+
+-- URINE ROUTINE EXAMINATION (URINE-01)
+-- PHYSICAL
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Quantity', 'c.c.', 'number', '20', 'input', NULL, NULL, 'PHYSICAL', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Colour', NULL, 'select', 'Pale Yellow,Yellow,Dark Yellow,Milky,Orange,Reddish Yellow,Deep Yellow,Colorless', 'input', NULL, NULL, 'PHYSICAL', 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Transparency', NULL, 'select', 'Clear,Slightly Turbid,Turbid,Cloudy', 'input', NULL, NULL, 'PHYSICAL', 3, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Deposite', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'PHYSICAL', 4, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Reaction', NULL, 'select', 'Acidic,Alkaline,Neutral', 'input', NULL, NULL, 'PHYSICAL', 5, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Sp. Gravity', NULL, 'select', '1.015,1.010,1.020,1.025', 'input', NULL, NULL, 'PHYSICAL', 6, '{"min":1.005,"max":1.030}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- CHEMICAL
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Albumin', NULL, 'select', 'Absent,Trace,Present +,Present ++,Present +++,Present ++++', 'input', NULL, NULL, 'CHEMICAL', 7, '[{"age_group":"all","sex":"any","note":"Nil"}]'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Ketone', NULL, 'select', 'Absent,Trace,Present +,Present ++,Present +++,Present ++++', 'input', NULL, NULL, 'CHEMICAL', 8, '[{"age_group":"all","sex":"any","note":"Absent"}]'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Sugar', NULL, 'select', 'Absent,Trace,Present +,Present ++,Present +++,Present ++++', 'input', NULL, NULL, 'CHEMICAL', 9, '[{"age_group":"all","sex":"any","note":"Nil"}]'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Bile Salts', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'CHEMICAL', 10, '[{"age_group":"all","sex":"any","note":"Negative"}]'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Bile Pigments', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'CHEMICAL', 11, '[{"age_group":"all","sex":"any","note":"Negative"}]'::jsonb, NULL, true, NOW(), NOW()),
+
+-- MICROSCOPIC
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Pus Cells', '/H.P.F.', 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 'input', NULL, NULL, 'MICROSCOPIC: ( After centrifugation at 2000 r.p.m. for 10 minutes )', 12, '{"min":0,"max":5}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Red Cells', '/H.P.F.', 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 'input', NULL, NULL, 'MICROSCOPIC: ( After centrifugation at 2000 r.p.m. for 10 minutes )', 13, '{"min":0,"max":2}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Epithelial Cells', '/H.P.F.', 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 'input', NULL, NULL, 'MICROSCOPIC: ( After centrifugation at 2000 r.p.m. for 10 minutes )', 14, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Casts', NULL, 'select', 'Absent,Hyaline,Granular,Cellular,Wbc Cast,Rbc Cast', 'input', NULL, NULL, 'MICROSCOPIC: ( After centrifugation at 2000 r.p.m. for 10 minutes )', 15, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Crystals', NULL, 'select', 'Absent,Calcium Oxalate,Uric Acid,Triple Phosphate,Calcium Monooxalate,Calcium Carbonate', 'input', NULL, NULL, 'MICROSCOPIC: ( After centrifugation at 2000 r.p.m. for 10 minutes )', 16, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Amorphous', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'MICROSCOPIC: ( After centrifugation at 2000 r.p.m. for 10 minutes )', 17, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'T. Vaginalis', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'MICROSCOPIC: ( After centrifugation at 2000 r.p.m. for 10 minutes )', 18, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Bacteria', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'MICROSCOPIC: ( After centrifugation at 2000 r.p.m. for 10 minutes )', 19, '[{"age_group":"all","sex":"any","note":"Absent"}]'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Budding Yeast', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'MICROSCOPIC: ( After centrifugation at 2000 r.p.m. for 10 minutes )', 20, NULL, NULL, true, NOW(), NOW())
 
 ON CONFLICT (test_id, field_name)
 DO UPDATE SET
@@ -1229,9 +1306,9 @@ WITH template_fields (
   ('URINE_ROUTINE_COMPLETE', 'Nitrite', NULL, NULL, NULL, 'select', 'Negative,Positive', 12, 'input', NULL, NULL, 'Urine | Chemical', NULL, NULL, NULL, true),
   ('URINE_ROUTINE_COMPLETE', 'Leukocyte Esterase', NULL, NULL, NULL, 'select', 'Negative,Trace,1+,2+,3+', 13, 'input', NULL, NULL, 'Urine | Chemical', NULL, NULL, NULL, true),
   ('URINE_ROUTINE_COMPLETE', 'Ascorbic Acid Interference', NULL, NULL, NULL, 'select', 'Absent,Present', 14, 'input', NULL, NULL, 'Urine | Chemical', NULL, NULL, NULL, false),
-  ('URINE_ROUTINE_COMPLETE', 'Pus Cells', '/HPF', 0.00, 5.00, 'number', NULL, 15, 'input', NULL, NULL, 'Urine | Microscopy', NULL, NULL, NULL, true),
-  ('URINE_ROUTINE_COMPLETE', 'RBCs', '/HPF', 0.00, 2.00, 'number', NULL, 16, 'input', NULL, NULL, 'Urine | Microscopy', NULL, NULL, NULL, true),
-  ('URINE_ROUTINE_COMPLETE', 'Epithelial Cells', '/HPF', 0.00, 5.00, 'number', NULL, 17, 'input', NULL, NULL, 'Urine | Microscopy', NULL, NULL, NULL, true),
+  ('URINE_ROUTINE_COMPLETE', 'Pus Cells', '/HPF', NULL, NULL, 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 15, 'input', NULL, NULL, 'Urine | Microscopy', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('URINE_ROUTINE_COMPLETE', 'RBCs', '/HPF', NULL, NULL, 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 16, 'input', NULL, NULL, 'Urine | Microscopy', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('URINE_ROUTINE_COMPLETE', 'Epithelial Cells', '/HPF', NULL, NULL, 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 17, 'input', NULL, NULL, 'Urine | Microscopy', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
   ('URINE_ROUTINE_COMPLETE', 'Casts', NULL, NULL, NULL, 'select', 'None,Hyaline,Granular,Waxy,RBC cast,WBC cast', 18, 'input', NULL, NULL, 'Urine | Microscopy', NULL, NULL, NULL, true),
   ('URINE_ROUTINE_COMPLETE', 'Crystals', NULL, NULL, NULL, 'select', 'None,Uric acid,Calcium oxalate,Triple phosphate,Cystine,Amorphous', 19, 'input', NULL, NULL, 'Urine | Microscopy', NULL, NULL, NULL, true),
   ('URINE_ROUTINE_COMPLETE', 'Bacteria', NULL, NULL, NULL, 'select', 'Absent,Few,Moderate,Many', 20, 'input', NULL, NULL, 'Urine | Microscopy', NULL, NULL, NULL, true),
@@ -1241,36 +1318,28 @@ WITH template_fields (
   ('URINE_ROUTINE_COMPLETE', 'Method', NULL, NULL, NULL, 'text', NULL, 24, 'input', NULL, NULL, 'Urine | Method', NULL, NULL, NULL, true),
   ('URINE_ROUTINE_COMPLETE', 'Interpretation', NULL, NULL, NULL, 'textarea', NULL, 25, 'input', NULL, NULL, 'Urine | Interpretation', NULL, NULL, NULL, true),
 
-  ('SEMEN_WHO_COMPLETE', 'Abstinence Period', 'days', 2.00, 7.00, 'number', NULL, 1, 'input', NULL, NULL, 'Semen | Collection', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Collection to Analysis Time', 'minutes', 0.00, 60.00, 'number', NULL, 2, 'input', NULL, NULL, 'Semen | Collection', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Volume', 'mL', 1.40, 7.00, 'number', NULL, 3, 'input', NULL, NULL, 'Semen | Macroscopic', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Color', NULL, NULL, NULL, 'select', 'Gray-opalescent,Whitish,Yellowish,Reddish', 4, 'input', NULL, NULL, 'Semen | Macroscopic', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Viscosity', NULL, NULL, NULL, 'select', 'Normal,Increased,Highly increased', 5, 'input', NULL, NULL, 'Semen | Macroscopic', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Liquefaction Time', 'minutes', 15.00, 60.00, 'number', NULL, 6, 'input', NULL, NULL, 'Semen | Macroscopic', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'pH', NULL, 7.20, 8.00, 'number', NULL, 7, 'input', NULL, NULL, 'Semen | Macroscopic', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Sperm Concentration', 'million/mL', 15.00, 300.00, 'number', NULL, 8, 'input', NULL, NULL, 'Semen | Count', NULL, '{"low":1}'::jsonb, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Total Sperm Number', 'million/ejaculate', 39.00, 1500.00, 'number', NULL, 9, 'calculated', 'Sperm Concentration * Volume', 'Sperm Concentration,Volume', 'Semen | Count', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Total Motility (PR+NP)', '%', 42.00, 100.00, 'number', NULL, 10, 'input', NULL, NULL, 'Semen | Motility', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Progressive Motility (PR)', '%', 30.00, 100.00, 'number', NULL, 11, 'input', NULL, NULL, 'Semen | Motility', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Non-progressive Motility (NP)', '%', 0.00, 30.00, 'number', NULL, 12, 'input', NULL, NULL, 'Semen | Motility', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Immotile', '%', 0.00, 70.00, 'number', NULL, 13, 'input', NULL, NULL, 'Semen | Motility', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Vitality (Live Sperms)', '%', 54.00, 100.00, 'number', NULL, 14, 'input', NULL, NULL, 'Semen | Vitality', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Normal Morphology (Strict)', '%', 4.00, 100.00, 'number', NULL, 15, 'input', NULL, NULL, 'Semen | Morphology', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Head Defects', '%', 0.00, 100.00, 'number', NULL, 16, 'input', NULL, NULL, 'Semen | Morphology', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Midpiece Defects', '%', 0.00, 100.00, 'number', NULL, 17, 'input', NULL, NULL, 'Semen | Morphology', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Tail Defects', '%', 0.00, 100.00, 'number', NULL, 18, 'input', NULL, NULL, 'Semen | Morphology', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Round Cells', 'million/mL', 0.00, 1.00, 'number', NULL, 19, 'input', NULL, NULL, 'Semen | Cells', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Leukocytes (Peroxidase)', 'million/mL', 0.00, 1.00, 'number', NULL, 20, 'input', NULL, NULL, 'Semen | Cells', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Agglutination', NULL, NULL, NULL, 'select', 'Absent,Present (+),Present (++),Present (+++)', 21, 'input', NULL, NULL, 'Semen | Cells', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Debris', NULL, NULL, NULL, 'select', 'Absent,Minimal,Moderate,Heavy', 22, 'input', NULL, NULL, 'Semen | Cells', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Fructose', NULL, NULL, NULL, 'select', 'Present,Absent', 23, 'input', NULL, NULL, 'Semen | Biochemistry', NULL, NULL, NULL, false),
-  ('SEMEN_WHO_COMPLETE', 'Zinc', 'umol/ejaculate', 2.40, 20.00, 'number', NULL, 24, 'input', NULL, NULL, 'Semen | Biochemistry', NULL, NULL, NULL, false),
-  ('SEMEN_WHO_COMPLETE', 'MAR Test', '%', 0.00, 50.00, 'number', NULL, 25, 'input', NULL, NULL, 'Semen | Immunology', NULL, NULL, NULL, false),
-  ('SEMEN_WHO_COMPLETE', 'Total Motile Sperm Count', 'million', 20.00, 1000.00, 'number', NULL, 26, 'calculated', '(Total Motility (PR+NP) / 100) * Total Sperm Number', 'Total Motility (PR+NP),Total Sperm Number', 'Semen | Calculated', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Progressively Motile Sperm Count', 'million', 10.00, 1000.00, 'number', NULL, 27, 'calculated', '(Progressive Motility (PR) / 100) * Total Sperm Number', 'Progressive Motility (PR),Total Sperm Number', 'Semen | Calculated', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Method', NULL, NULL, NULL, 'text', NULL, 28, 'input', NULL, NULL, 'Semen | Method', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'WHO Reference Version', NULL, NULL, NULL, 'text', NULL, 29, 'input', NULL, NULL, 'Semen | Method', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Interpretation', NULL, NULL, NULL, 'textarea', NULL, 30, 'input', NULL, NULL, 'Semen | Interpretation', NULL, NULL, '{"rule":"Classify oligo/astheno/terato/azoospermia per WHO criteria"}'::jsonb, true),
+  ('SEMEN_WHO_COMPLETE', 'Method of Collection', NULL, NULL, NULL, 'text', 'Self Manipulation', 1, 'input', NULL, NULL, 'SEMEN EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Period of Abstinence', NULL, 3.00, 7.00, 'number', '3', 2, 'input', NULL, NULL, 'SEMEN EXAMINATION', NULL, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Time of Collection', NULL, NULL, NULL, 'text', NULL, 3, 'input', NULL, NULL, 'SEMEN EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Time of Examination', NULL, NULL, NULL, 'text', NULL, 4, 'input', NULL, NULL, 'SEMEN EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Volume', 'ml', 5.00, 7.00, 'number', '5.5', 5, 'input', NULL, NULL, 'PHYSICAL EXAMINATION', NULL, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Color', NULL, NULL, NULL, 'select', 'Opalescent Grayish Whitish,Yellowish', 6, 'input', NULL, NULL, 'PHYSICAL EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Reaction', NULL, NULL, NULL, 'select', 'Alkaline,Acidic,Neutral', 7, 'input', NULL, NULL, 'PHYSICAL EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Viscocity', NULL, NULL, NULL, 'select', 'Viscous,Low,Moderate,High,Liquified', 8, 'input', NULL, NULL, 'PHYSICAL EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Liquification Time', 'Minutes', NULL, 30.00, 'number', '15', 9, 'input', NULL, NULL, 'PHYSICAL EXAMINATION', NULL, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Total Sperm Count', 'Million/ml', 60.00, 300.00, 'number', NULL, 10, 'input', NULL, NULL, 'MICROSCOPIC EXAMINATION', NULL, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Motility Actively Motile', '%', 60.00, 100.00, 'number', NULL, 11, 'input', NULL, NULL, 'MICROSCOPIC EXAMINATION', NULL, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Sluggish Motile', '%', NULL, NULL, 'number', NULL, 12, 'input', NULL, NULL, 'MICROSCOPIC EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Non Motile', '%', NULL, NULL, 'number', NULL, 13, 'input', NULL, NULL, 'MICROSCOPIC EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Head defect', '%', NULL, 20.00, 'number', NULL, 14, 'input', NULL, NULL, 'MICROSCOPIC EXAMINATION', NULL, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Body defect', '%', NULL, NULL, 'number', NULL, 15, 'input', NULL, NULL, 'MICROSCOPIC EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'tail defect', '%', NULL, NULL, 'number', NULL, 16, 'input', NULL, NULL, 'MICROSCOPIC EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Linearity', 'Sec.', NULL, NULL, 'select', '00 - 10 Sec - excellent,11 - 15 Sec - Good,16 - 20 Sec - Average,> 20 Sec - Poor', 17, 'input', NULL, NULL, 'MICROSCOPIC EXAMINATION', '[{"age_group":"all","sex":"any","note":"00 - 10 Sec - excellent\n11 - 15 Sec - Good\n16 - 20 Sec - Average\n> 20 Sec - Poor"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Pus Cells', '/HPF', NULL, NULL, 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 18, 'input', NULL, NULL, 'MICROSCOPIC EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'RBCs', '/HPF', NULL, NULL, 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 19, 'input', NULL, NULL, 'MICROSCOPIC EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Epithelial Cells', '/HPF', NULL, NULL, 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 20, 'input', NULL, NULL, 'MICROSCOPIC EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Fructose Test', NULL, NULL, NULL, 'select', 'Present,Absent', 21, 'input', NULL, NULL, 'MICROSCOPIC EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Auto Agglutination', NULL, NULL, NULL, 'select', 'Absent,Present', 22, 'input', NULL, NULL, 'MICROSCOPIC EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
 
   ('CULTURE_COMPLETE', 'Specimen Type', NULL, NULL, NULL, 'text', NULL, 1, 'input', NULL, NULL, 'Culture | Specimen', NULL, NULL, NULL, true),
   ('CULTURE_COMPLETE', 'Collection Date-Time', NULL, NULL, NULL, 'datetime', NULL, 2, 'input', NULL, NULL, 'Culture | Specimen', NULL, NULL, NULL, true),
@@ -1436,7 +1505,7 @@ test_panel_map AS (
       ELSE 'SINGLE_ANALYTE_NUMERIC'
     END AS template_code
   FROM tests t
-  WHERE t.test_code NOT IN ('CBC-01', 'LFT-01', 'KFT-01', 'LIPID-01', 'PT', 'APTT', 'HBA1C-01', 'MAL-AG-01', 'TP-01', 'HIV-01', 'HBSAG-01', 'HCV-01', 'CHIK-IGM-01', 'UACR-01', 'TORCH-01', 'HIV-RAPID-01', 'RPR-01', 'TB-XPERT-01', 'DENGUE-01', 'DENGUE-RAPID', 'DENGNS1-RAPID', 'DENGNS1-01', 'DENGIGG-01', 'HBSAG-RAPID-01', 'HCV-RAPID-01', 'HB-01', 'AEC-01', 'RETIC-01', 'MP-01', 'PLT-01', 'PGBS-01', 'UREA-01', 'CREAT-01', 'BIL-01', 'SGPT-01', 'SGOT-01', 'ALP-01', 'CHOL-01', 'TRIG-01', 'HDL-01', 'SPUTUM-RM', 'MANTOUX-01', 'TYPHIDOT-01', 'WIDAL-01', 'PBS-01', 'ELEC-01', 'STOOL-01', 'STOOL-ANA', 'BRUC-IGM', 'BRUC-IGG', 'APLA-PRO', 'DBLM-01', 'TRPM-01', 'RUB-IGG', 'RUB-IGM')
+  WHERE t.test_code NOT IN ('CBC-01', 'LFT-01', 'KFT-01', 'LIPID-01', 'PT', 'APTT', 'HBA1C-01', 'MAL-AG-01', 'TP-01', 'HIV-01', 'HBSAG-01', 'HCV-01', 'CHIK-IGM-01', 'UACR-01', 'TORCH-01', 'HIV-RAPID-01', 'RPR-01', 'TB-XPERT-01', 'DENGUE-01', 'DENGUE-RAPID', 'DENGNS1-RAPID', 'DENGNS1-01', 'DENGIGG-01', 'HBSAG-RAPID-01', 'HCV-RAPID-01', 'HB-01', 'AEC-01', 'RETIC-01', 'MP-01', 'PLT-01', 'PGBS-01', 'UREA-01', 'CREAT-01', 'BIL-01', 'SGPT-01', 'SGOT-01', 'ALP-01', 'CHOL-01', 'TRIG-01', 'HDL-01', 'SPUTUM-RM', 'MANTOUX-01', 'TYPHIDOT-01', 'WIDAL-01', 'PBS-01', 'ELEC-01', 'STOOL-01', 'BRUC-IGM', 'BRUC-IGG', 'APLA-PRO', 'DBLM-01', 'TRPM-01', 'RUB-IGG', 'RUB-IGM', 'GTT-01', 'CRP-01', 'FBS-01', 'PPBS-01', 'RBS-01', 'URINE-01')
 ),
 seed_rows AS (
   SELECT
@@ -1730,6 +1799,29 @@ VALUES
 (gen_random_uuid(), NULL, 'payment_confirmation', 'Payment Confirmation', 'Hello {{patient_name}}, we received your payment of {{payment_amount}} for {{test_name}} at {{branch_name}}. Thank you.', TRUE, TRUE, NOW(), NOW()),
 (gen_random_uuid(), NULL, 'registration_confirmation', 'Registration Confirmation', 'Welcome {{patient_name}}. Your registration at {{branch_name}} is complete for tests: {{patient_tests}}. Thank you for choosing us!', TRUE, TRUE, NOW(), NOW())
 ON CONFLICT (branch_id, event_key) DO NOTHING;
+
+-- ============================================
+-- QUALITATIVE REFERENCE RULES
+-- ============================================
+UPDATE test_fields 
+SET reference_rules = '[{"age_group":"all","sex":"any","note":"Negative"}]'::jsonb
+WHERE input_type = 'select' 
+  AND options ILIKE '%Negative%';
+
+UPDATE test_fields 
+SET reference_rules = '[{"age_group":"all","sex":"any","note":"Absent"}]'::jsonb
+WHERE input_type = 'select' 
+  AND options ILIKE '%Absent%'
+  AND field_name <> 'Fructose Test';
+
+UPDATE test_fields 
+SET reference_rules = '[{"age_group":"all","sex":"any","note":"Present"}]'::jsonb
+WHERE field_name = 'Fructose Test';
+
+-- ============================================
+-- CLEANUP CRITICAL RULES
+-- ============================================
+UPDATE test_fields SET critical_rules = NULL;
 
 -- ============================================
 -- SUMMARY COUNTS

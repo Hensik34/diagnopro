@@ -1032,6 +1032,20 @@ export function CreateReport() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Listen for F10 keypress globally to trigger report creation
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F10') {
+        e.preventDefault();
+        if (!isSubmitting && selectedTests.length > 0) {
+          handleCreateReport();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [isSubmitting, selectedTests, handleCreateReport]);
+
   const handleFormNavigation = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
       const target = e.target as HTMLElement;
@@ -1950,7 +1964,7 @@ export function CreateReport() {
             ) : (
               <>
                 <Plus className="w-4 h-4" />
-                Create Report & Continue to Entry
+                Create Report & Continue to Entry [F10]
               </>
             )}
           </button>

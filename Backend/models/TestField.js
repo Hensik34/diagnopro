@@ -53,6 +53,8 @@ exports.getFieldsByTestId = async (testId, branchId = null) => {
       formula: override.formula ?? field.formula,
       depends_on: override.depends_on ?? field.depends_on,
       section_group: override.section_group ?? field.section_group,
+      reference_rules: override.reference_rules ?? field.reference_rules,
+      critical_rules: override.critical_rules ?? field.critical_rules,
       test_field_id: field.id,
       has_branch_override: true,
     };
@@ -121,6 +123,8 @@ exports.getFieldsByTestIds = async (testIds, branchId = null) => {
       formula: override.formula ?? field.formula,
       depends_on: override.depends_on ?? field.depends_on,
       section_group: override.section_group ?? field.section_group,
+      reference_rules: override.reference_rules ?? field.reference_rules,
+      critical_rules: override.critical_rules ?? field.critical_rules,
       test_field_id: field.id,
       has_branch_override: true,
     };
