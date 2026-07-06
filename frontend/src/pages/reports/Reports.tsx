@@ -419,6 +419,16 @@ export function Reports() {
     await fetchSummary(currentBranchId);
   }, [currentBranchId, fetchReports, fetchSummary]);
 
+  const handleRowDoubleClick = (report: Report) => {
+    if (report.status === 'draft' || report.status === 'rejected') {
+      navigate(`/reports/${report.id}/entry`);
+      return;
+    }
+    if (report.status === 'approved') {
+      navigate(`/reports/preview/${report.id}`);
+    }
+  };
+
   /**
    * Handle submit for review action
    */
@@ -724,14 +734,15 @@ export function Reports() {
                   return (
                     <tr
                       key={report.id}
-                      className="border-b border-border hover:bg-accent transition-colors"
+                      className="border-b border-border hover:bg-accent transition-colors cursor-pointer"
+                      onDoubleClick={() => handleRowDoubleClick(report)}
                     >
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-foreground font-medium font-mono">
                             {report.sample_id_code}
                           </span>
-                          {report.rejection_reason && (
+                          {report.status === 'rejected' && report.rejection_reason && (
                             <span title={report.rejection_reason}>
                               <AlertCircle
                                 className="w-3.5 h-3.5"

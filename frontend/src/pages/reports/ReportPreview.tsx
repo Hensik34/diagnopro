@@ -770,7 +770,42 @@ export function ReportPreview() {
 
   const isSelfReport = reportData?.patient.referringDoctor === 'Self' || rawReport?.is_self_report;
   const refDoctor = doctors.find(d => d.id === rawReport?.doctor_id);
-  const doctorSignatureUrl = refDoctor?.signature_url;
+  const pathologySignature = (() => {
+    if (!settings) {
+      return {
+        url: rawReport?.doctor_signature_url || null,
+        label: null as string | null,
+      };
+    }
+
+    const getSigValue = (index: number, field: 'url' | 'label') => {
+      const key = field === 'url' ? `signature_${index}_url` : `signature_${index}_label`;
+      return settings[key as keyof typeof settings] as string | null | undefined;
+    };
+
+    const index = settings.default_signature_index;
+    if ([1, 2, 3, 4].includes(index || 0)) {
+      const url = getSigValue(index!, 'url');
+      const label = getSigValue(index!, 'label');
+      if (url) return { url, label: label || null };
+    }
+
+    for (let i = 1; i <= 4; i += 1) {
+      const url = getSigValue(i, 'url');
+      if (url) {
+        const label = getSigValue(i, 'label');
+        return { url, label: label || null };
+      }
+    }
+
+    return {
+      url: rawReport?.doctor_signature_url || null,
+      label: null,
+    };
+  })();
+
+  const doctorSignatureUrl = pathologySignature.url;
+  const doctorSignatureName = pathologySignature.label || 'MD Pathologist';
 
   const generatePDF = useCallback(async (): Promise<File | null> => {
     if (!reportData || pages.length === 0) return null;
@@ -962,30 +997,23 @@ export function ReportPreview() {
     );
   }
 
-  const ownerSigUrl = (() => {
-    if (!settings) return rawReport?.owner_signature_url || null;
-    const index = settings.default_signature_index;
-    if (index === 1 && settings.signature_1_url) return settings.signature_1_url;
-    if (index === 2 && settings.signature_2_url) return settings.signature_2_url;
-    if (index === 3 && settings.signature_3_url) return settings.signature_3_url;
-    if (index === 4 && settings.signature_4_url) return settings.signature_4_url;
-    return settings.owner_signature_url || settings.signature_1_url || rawReport?.owner_signature_url || null;
+  const ownerSignature = (() => {
+    let url: string | null = null;
+    let label: string | null = null;
+
+    if (settings) {
+      url = settings.owner_signature_url || null;
+      label = (rawReport as any)?.owner_signature_label || null;
+    } else {
+      url = rawReport?.owner_signature_url || null;
+      label = (rawReport as any)?.owner_signature_label || null;
+    }
+
+    return { url, label };
   })();
 
-  const ownerSigLabel = (() => {
-    if ((rawReport as any)?.owner_signature_label) {
-      return (rawReport as any).owner_signature_label;
-    }
-    if (!settings) {
-      return user ? `${user.firstname} ${user.lastname}` : (rawReport?.technician_firstname ? `${rawReport.technician_firstname} ${rawReport.technician_lastname || ''}` : reportData.technician.name);
-    }
-    const index = settings.default_signature_index;
-    if (index === 1 && settings.signature_1_label) return settings.signature_1_label;
-    if (index === 2 && settings.signature_2_label) return settings.signature_2_label;
-    if (index === 3 && settings.signature_3_label) return settings.signature_3_label;
-    if (index === 4 && settings.signature_4_label) return settings.signature_4_label;
-    return user ? `${user.firstname} ${user.lastname}` : (rawReport?.technician_firstname ? `${rawReport.technician_firstname} ${rawReport.technician_lastname || ''}` : reportData.technician.name);
-  })();
+  const ownerSigUrl = ownerSignature.url;
+  const ownerSigLabel = ownerSignature.label || (user ? `${user.firstname} ${user.lastname}` : (rawReport?.technician_firstname ? `${rawReport.technician_firstname} ${rawReport?.technician_lastname || ''}` : reportData.technician.name));
 
   const letterheadActive = showLetterhead && !!settings?.letterhead_url;
   const headerActive = showLetterhead && !!settings?.header_url && !settings?.letterhead_url;
@@ -1343,7 +1371,7 @@ export function ReportPreview() {
 
                           return (
                             <section key={`s-${idx}`} style={{ marginTop: '8px' }}>
-                              <div style={{ display: 'flex', justifyContent: isSelfReport ? 'flex-start' : 'space-between' }}>
+                              <div style={{ display: 'flex', justifyContent: doctorSignatureUrl ? 'space-between' : 'flex-start' }}>
                                 <div>
                                   <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 6 }}>
                                     {ownerSigUrl && (
@@ -1362,24 +1390,20 @@ export function ReportPreview() {
                                   </div>
                                 </div>
 
-                                {!isSelfReport && (
+                                {doctorSignatureUrl && (
                                   <div style={{ textAlign: 'right' }}>
                                     <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
-                                      {doctorSignatureUrl && (
-                                        <img
-                                          src={getImageUrl(doctorSignatureUrl) || ''}
-                                          alt="Doctor Signature"
-                                          style={{ maxHeight: 40, objectFit: 'contain' }}
-                                        />
-                                      )}
+                                      <img
+                                        src={getImageUrl(doctorSignatureUrl) || ''}
+                                        alt="Doctor Signature"
+                                        style={{ maxHeight: 40, objectFit: 'contain' }}
+                                      />
                                     </div>
                                     <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
                                       <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
-                                        {refDoctor ? `${refDoctor.title} ${refDoctor.name}` : reportData.patient.referringDoctor}
+                                        {doctorSignatureName}
                                       </p>
-                                      <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>
-                                        {refDoctor?.specialization || 'Referring Physician'}
-                                      </p>
+                                      <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>Pathologist</p>
                                     </div>
                                   </div>
                                 )}

@@ -232,10 +232,10 @@ export function CreateReport() {
 
   // Filter packages based on search
   const filteredPackages = useMemo(() => {
-    const unselected = packages.filter(p => !selectedPackages.find((sp) => sp.id === p.id));
     if (!testSearch.trim()) {
-      return unselected.slice(0, 10);
+      return []; // Search by need only
     }
+    const unselected = packages.filter(p => !selectedPackages.find((sp) => sp.id === p.id));
     return smartSearchFilter(unselected, testSearch, [
       { field: p => p.package_name, weight: 1.0 },
       { field: p => p.package_code, weight: 0.8 },
@@ -255,11 +255,11 @@ export function CreateReport() {
     ]).slice(0, 15);
   }, [tests, selectedTests, testSearch]);
 
-  // Combined search results for navigation
+  // Combined search results for navigation: tests at the top, packages at the bottom
   const searchResults = useMemo(() => {
     const results: ({ type: 'test'; data: Test } | { type: 'package'; data: any })[] = [];
-    filteredPackages.forEach(p => results.push({ type: 'package', data: p }));
     filteredTests.forEach(t => results.push({ type: 'test', data: t }));
+    filteredPackages.forEach(p => results.push({ type: 'package', data: p }));
     return results;
   }, [filteredPackages, filteredTests]);
 

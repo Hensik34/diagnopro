@@ -111,6 +111,10 @@ function normalizeReferenceRules(raw: any): ReferenceRule[] {
       sex: r.sex || 'any',
       low: r.low ?? r.min ?? null,
       high: r.high ?? r.max ?? null,
+      age_min: r.age_min != null ? Number(r.age_min) : null,
+      age_max: r.age_max != null ? Number(r.age_max) : null,
+      age_min_unit: r.age_min_unit || 'years',
+      age_max_unit: r.age_max_unit || 'years',
       note: r.note,
     }));
   }

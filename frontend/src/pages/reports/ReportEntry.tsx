@@ -34,6 +34,7 @@ import type { AgeUnit, Doctor, Patient, Report, Test, TestField, ReferenceRule, 
 import { BillingSection } from "../../app/components/reports/BillingSection";
 import { SmartSelectInput } from "../../app/components/reports/SmartSelectInput";
 import { formatAge, getAgeMax, normalizeAgeUnit } from "../../utils/age";
+import { SUM_100_GROUPS, isQualitativeValueHigh, isMicroscopicRangeHigh } from "./reportSpecialCases";
 
 // ============================================
 // Reference Rules Utility Functions for Reports
@@ -49,6 +50,10 @@ function normalizeReferenceRules(raw: any): ReferenceRule[] {
       sex: r.sex || 'any',
       low: r.low ?? r.min ?? null,
       high: r.high ?? r.max ?? null,
+      age_min: r.age_min != null ? Number(r.age_min) : null,
+      age_max: r.age_max != null ? Number(r.age_max) : null,
+      age_min_unit: r.age_min_unit || 'years',
+      age_max_unit: r.age_max_unit || 'years',
       note: r.note,
     }));
   }
@@ -89,45 +94,6 @@ function normalizeReferenceRules(raw: any): ReferenceRule[] {
   return [];
 }
 
-function isMicroscopicRangeHigh(fieldName: string, value: string): boolean {
-  if (!value) return false;
-  const name = fieldName.toLowerCase();
-  
-  const isMicroscopicTarget = 
-    name.includes('pus cell') || 
-    name.includes('red cell') || 
-    name.includes('r.b. c') || 
-    name.includes('epithelial') ||
-    name.includes('epithcell') ||
-    name.includes('puscells') || 
-    name.includes('redcells');
-
-  if (isMicroscopicTarget) {
-    const val = value.trim().toLowerCase();
-    
-    if (val === 'plenty') return true;
-    
-    const match = val.match(/^(\d+)\s*-\s*(\d+)$/);
-    if (match) {
-      const minVal = parseInt(match[1], 10);
-      const maxVal = parseInt(match[2], 10);
-      if (minVal >= 3 || maxVal >= 5) {
-        return true;
-      }
-    }
-    
-    const singleNum = parseFloat(val);
-    if (!isNaN(singleNum)) {
-      if (name.includes('red cell') || name.includes('r.b. c') || name.includes('redcells')) {
-        return singleNum > 2;
-      } else {
-        return singleNum >= 5;
-      }
-    }
-  }
-  return false;
-}
-
 interface MatchedRange {
   low: number | null;
   high: number | null;
@@ -136,8 +102,27 @@ interface MatchedRange {
   criticalLow: number | null;
   criticalHigh: number | null;
 }
+function convertAge(age: number, fromUnit: string, toUnit: string): number {
+  const from = fromUnit.toLowerCase();
+  const to = toUnit.toLowerCase();
+  if (from === to) return age;
 
+  // Convert to days first
+  let ageInDays = age;
+  if (from === 'years' || from === 'year' || from === 'y') {
+    ageInDays = age * 365.25;
+  } else if (from === 'months' || from === 'month' || from === 'm') {
+    ageInDays = age * 30.4375;
+  }
 
+  // Convert from days to target unit
+  if (to === 'years' || to === 'year' || to === 'y') {
+    return ageInDays / 365.25;
+  } else if (to === 'months' || to === 'month' || to === 'm') {
+    return ageInDays / 30.4375;
+  }
+  return ageInDays;
+}
 
 function getPatientReferenceRange(
   field: {
@@ -239,11 +224,19 @@ function getPatientReferenceRange(
     // Check age compatibility
     if (isCompatible) {
       if (rule.age_min != null || rule.age_max != null) {
-        if (rule.age_min != null && ageInYears < rule.age_min) {
-          isCompatible = false;
+        if (rule.age_min != null) {
+          const ruleMinUnit = (rule.age_min_unit || 'years').toLowerCase();
+          const patientAgeInMinUnit = convertAge(patient.age ?? 0, patient.age_unit || 'years', ruleMinUnit);
+          if (patientAgeInMinUnit < rule.age_min) {
+            isCompatible = false;
+          }
         }
-        if (rule.age_max != null && ageInYears > rule.age_max) {
-          isCompatible = false;
+        if (isCompatible && rule.age_max != null) {
+          const ruleMaxUnit = (rule.age_max_unit || 'years').toLowerCase();
+          const patientAgeInMaxUnit = convertAge(patient.age ?? 0, patient.age_unit || 'years', ruleMaxUnit);
+          if (patientAgeInMaxUnit > rule.age_max) {
+            isCompatible = false;
+          }
         }
         if (isCompatible) {
           score += 20;
@@ -1153,18 +1146,9 @@ export function ReportEntry() {
 
       // Qualitative Select (Case 1)
       if (param.input_type === 'select') {
-        const lowerVal = valStr.trim().toLowerCase();
         const isMicroscopic = isMicroscopicRangeHigh(param.name, valStr);
-        if (
-          lowerVal === 'positive' || 
-          lowerVal === 'present' || 
-          lowerVal === 'reactive' || 
-          lowerVal === 'trace' ||
-          lowerVal.includes('positive') ||
-          lowerVal.includes('present') ||
-          lowerVal.includes('reactive') ||
-          lowerVal.includes('trace')
-        ) {
+        const testCode = tests.find(t => t.id === param.test_id)?.test_code;
+        if (isQualitativeValueHigh(valStr, param.name, param.options, testCode, selectedReport?.report_type)) {
           newStatuses[param.id] = "high";
         } else if (isMicroscopic) {
           newStatuses[param.id] = "high";
@@ -1200,11 +1184,11 @@ export function ReportEntry() {
         newStatuses[param.id] = "high";
       } else {
         newStatuses[param.id] = "normal";
-      }
+        }
     });
 
     setStatuses(newStatuses);
-  }, [values, dynamicParams, patient]);
+  }, [values, dynamicParams, patient, tests, selectedReport]);
 
   const getStatusBadge = (
     status: "low" | "high" | "normal" | "critical" | "empty" | undefined,
@@ -1301,20 +1285,6 @@ export function ReportEntry() {
     [sectionCompletion]
   );
 
-  // ── Sum-100 validation groups ──────────────────────────────────────
-  // Define groups of percentage parameters whose values must total 100.
-  // Each group is identified by { paramNames, sectionGroup (optional) }.
-  const SUM_100_GROUPS = useMemo(() => [
-    {
-      label: 'Differential Count',
-      paramNames: ['Neutrophils', 'Lymphocytes', 'Monocytes', 'Eosinophils', 'Basophils'],
-    },
-    {
-      label: 'Motility Count',
-      paramNames: ['Motility Actively Motile', 'Sluggish Motile', 'Non Motile'],
-    },
-  ], []);
-
   // Build a map: paramId → groupLabel, and compute the running sum per group.
   const sumValidation = useMemo(() => {
     const paramToGroup: Record<string, string> = {};
@@ -1349,7 +1319,7 @@ export function ReportEntry() {
     }
 
     return { paramToGroup, groupSums };
-  }, [SUM_100_GROUPS, dynamicParams, values]);
+  }, [dynamicParams, values]);
 
   // Helper: check if a param belongs to a sum-100 group that is currently invalid
   const isParamInInvalidSumGroup = useCallback((paramId: string) => {
