@@ -102,8 +102,15 @@ export function Reports() {
   } = useReportStore();
   const summary = useReportSummary();
   const { branches, fetchBranches, currentBranchId } = useBranchStore();
-  const { can } = useAuthStore();
+  const { can, user } = useAuthStore();
   const { tests, fetchTests } = useTestStore();
+
+  // Redirect doctors to doctor-reports
+  useEffect(() => {
+    if (user?.role === 'doctor') {
+      navigate('/doctor-reports', { replace: true });
+    }
+  }, [user, navigate]);
 
   // Permission checks
   const canEdit = can('report:update');

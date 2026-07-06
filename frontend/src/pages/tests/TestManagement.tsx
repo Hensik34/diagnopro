@@ -233,8 +233,6 @@ export function TestManagement() {
   const [sortBy, setSortBy] = useState(() => {
     return sessionStorage.getItem('test_mgmt_sort') || 'name-asc';
   });
-  const [showTestModal, setShowTestModal] = useState(false);
-  const [selectedTest, setSelectedTest] = useState<Test | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState<string | null>(null);
 
@@ -481,13 +479,11 @@ export function TestManagement() {
   // Calculate stats
 
   const handleEdit = (test: Test) => {
-    setSelectedTest(test);
-    setShowTestModal(true);
+    navigate(`/tests/configure/${test.id}`);
   };
 
   const handleAdd = () => {
-    setSelectedTest(null);
-    setShowTestModal(true);
+    navigate('/tests/configure/new');
   };
 
   const handleDelete = async (testId: string) => {
@@ -963,29 +959,7 @@ export function TestManagement() {
         </div>
       )}
 
-      {/* Add/Edit Test Modal */}
-      {showTestModal && (
-        <TestModal
-          test={selectedTest}
-          categories={categories}
-          readOnly={!canEditTest}
-          branchId={currentBranchId || undefined}
-          onClose={() => {
-            setShowTestModal(false);
-            setSelectedTest(null);
-          }}
-          onSave={async (data) => {
-            let result = null;
-            if (selectedTest) {
-              result = await updateTest(selectedTest.id, data);
-            } else {
-              result = await createTest({ ...data, branch_id: currentBranchId! });
-            }
-            return result;
-          }}
-          onReset={selectedTest ? () => handleReset(selectedTest.id) : undefined}
-        />
-      )}
+
 
       {/* Add/Edit Package Modal */}
       {showPackageModal && (

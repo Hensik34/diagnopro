@@ -348,12 +348,12 @@ export function ReportReview() {
       {/* Quick Links */}
       <div className="grid grid-cols-2 gap-3">
         <Link
-          to="/reports"
+          to={user?.role === 'doctor' ? "/doctor-reports" : "/reports"}
           className="bg-card border border-border rounded p-3 hover:bg-accent/30 transition-colors flex items-center justify-between"
         >
           <div>
-            <div className="text-sm text-foreground">All Reports</div>
-            <div className="text-xs text-muted-foreground">View complete report list</div>
+            <div className="text-sm text-foreground">{user?.role === 'doctor' ? 'My Reports' : 'All Reports'}</div>
+            <div className="text-xs text-muted-foreground">{user?.role === 'doctor' ? 'View your doctor report list' : 'View complete report list'}</div>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </Link>

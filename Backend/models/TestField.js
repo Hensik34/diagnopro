@@ -155,13 +155,127 @@ exports.setFieldsForTest = async (testId, fields, branchId = null, userRole = nu
   try {
     // Only modify global test_fields when admin AND no branch context
     if (userRole === "admin" && !branchId) {
-      await TestField.destroy({ where: { test_id: testId }, transaction: t });
+      // 1. Get all existing default fields for this test
+      const existingFields = await TestField.findAll({
+        where: { test_id: testId },
+        transaction: t
+      });
+      const existingMap = new Map(existingFields.map(f => [f.id, f]));
 
+      // 2. Track which fields we keep/update
+      const keptIds = new Set();
       const inserted = [];
+
       for (let i = 0; i < fields.length; i++) {
         const f = fields[i];
-        const record = await TestField.create({
+        // If there's an existing field with this ID, update it
+        if (f.test_field_id && existingMap.has(f.test_field_id)) {
+          const fieldId = f.test_field_id;
+          keptIds.add(fieldId);
+          await TestField.update({
+            field_name: f.field_name,
+            unit: f.unit ?? null,
+            min_value: f.min_value != null ? f.min_value : null,
+            max_value: f.max_value != null ? f.max_value : null,
+            input_type: f.input_type || "number",
+            options: f.options ?? null,
+            order_index: f.order_index != null ? f.order_index : i,
+            field_type: f.field_type || "input",
+            formula: f.formula ?? null,
+            depends_on: f.depends_on ?? null,
+            section_group: f.section_group ?? null,
+            reference_rules: f.reference_rules ?? null,
+            critical_rules: f.critical_rules ?? null,
+            is_mandatory: f.is_mandatory != null ? f.is_mandatory : true,
+          }, {
+            where: { id: fieldId },
+            transaction: t
+          });
+          inserted.push({ id: fieldId, ...f });
+        } else {
+          // Otherwise, create a new one
+          const record = await TestField.create({
+            test_id: testId,
+            field_name: f.field_name,
+            unit: f.unit ?? null,
+            min_value: f.min_value != null ? f.min_value : null,
+            max_value: f.max_value != null ? f.max_value : null,
+            input_type: f.input_type || "number",
+            options: f.options ?? null,
+            order_index: f.order_index != null ? f.order_index : i,
+            field_type: f.field_type || "input",
+            formula: f.formula ?? null,
+            depends_on: f.depends_on ?? null,
+            section_group: f.section_group ?? null,
+            reference_rules: f.reference_rules ?? null,
+            critical_rules: f.critical_rules ?? null,
+            is_mandatory: f.is_mandatory != null ? f.is_mandatory : true,
+          }, { transaction: t });
+          inserted.push(record.toJSON());
+        }
+      }
+
+      // 3. Delete fields that were not in the updated list
+      const idsToDelete = existingFields
+        .map(f => f.id)
+        .filter(id => !keptIds.has(id));
+
+      if (idsToDelete.length > 0) {
+        await TestField.destroy({
+          where: { id: { [Op.in]: idsToDelete } },
+          transaction: t
+        });
+      }
+
+      await t.commit();
+      return inserted;
+    }
+
+    if (!branchId) {
+      throw new Error("branch_id is required for branch field overrides");
+    }
+
+    // 1. Get all existing branch fields for this test
+    const existingBranchFields = await UserTestField.findAll({
+      where: { test_id: testId, branch_id: branchId },
+      transaction: t
+    });
+    const existingBranchMap = new Map(existingBranchFields.map(f => [f.field_name, f]));
+
+    const keptBranchNames = new Set();
+    const inserted = [];
+
+    for (let i = 0; i < fields.length; i++) {
+      const f = fields[i];
+      keptBranchNames.add(f.field_name);
+      
+      const existing = existingBranchMap.get(f.field_name);
+      if (existing) {
+        await UserTestField.update({
+          test_field_id: f.test_field_id || null,
+          unit: f.unit ?? null,
+          min_value: f.min_value != null ? f.min_value : null,
+          max_value: f.max_value != null ? f.max_value : null,
+          input_type: f.input_type || "number",
+          options: f.options ?? null,
+          order_index: f.order_index != null ? f.order_index : i,
+          field_type: f.field_type || "input",
+          formula: f.formula ?? null,
+          depends_on: f.depends_on ?? null,
+          section_group: f.section_group ?? null,
+          reference_rules: f.reference_rules ?? null,
+          critical_rules: f.critical_rules ?? null,
+          is_mandatory: f.is_mandatory != null ? f.is_mandatory : true,
+        }, {
+          where: { id: existing.id },
+          transaction: t
+        });
+        inserted.push({ id: existing.id, ...f });
+      } else {
+        const record = await UserTestField.create({
+          branch_id: branchId,
           test_id: testId,
+          test_field_id: f.test_field_id || null,
           field_name: f.field_name,
           unit: f.unit ?? null,
           min_value: f.min_value != null ? f.min_value : null,
@@ -179,43 +293,17 @@ exports.setFieldsForTest = async (testId, fields, branchId = null, userRole = nu
         }, { transaction: t });
         inserted.push(record.toJSON());
       }
-
-      await t.commit();
-      return inserted;
     }
 
-    if (!branchId) {
-      throw new Error("branch_id is required for branch field overrides");
-    }
+    const branchFieldsToDelete = existingBranchFields
+      .filter(f => !keptBranchNames.has(f.field_name))
+      .map(f => f.id);
 
-    await UserTestField.destroy({
-      where: { test_id: testId, branch_id: branchId },
-      transaction: t,
-    });
-
-    const inserted = [];
-    for (let i = 0; i < fields.length; i++) {
-      const f = fields[i];
-      const record = await UserTestField.create({
-        branch_id: branchId,
-        test_id: testId,
-        test_field_id: f.test_field_id || null,
-        field_name: f.field_name,
-        unit: f.unit ?? null,
-        min_value: f.min_value != null ? f.min_value : null,
-        max_value: f.max_value != null ? f.max_value : null,
-        input_type: f.input_type || "number",
-        options: f.options ?? null,
-        order_index: f.order_index != null ? f.order_index : i,
-        field_type: f.field_type || "input",
-        formula: f.formula ?? null,
-        depends_on: f.depends_on ?? null,
-        section_group: f.section_group ?? null,
-        reference_rules: f.reference_rules ?? null,
-        critical_rules: f.critical_rules ?? null,
-        is_mandatory: f.is_mandatory != null ? f.is_mandatory : true,
-      }, { transaction: t });
-      inserted.push(record.toJSON());
+    if (branchFieldsToDelete.length > 0) {
+      await UserTestField.destroy({
+        where: { id: { [Op.in]: branchFieldsToDelete } },
+        transaction: t
+      });
     }
 
     await t.commit();

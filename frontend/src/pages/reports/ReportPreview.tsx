@@ -278,6 +278,9 @@ export function ReportPreview() {
   const { settings, fetchSettings } = useSettingsStore();
   const { doctors, fetchDoctors } = useDoctorStore();
   const { user } = useAuthStore();
+  const [containerWidth, setContainerWidth] = useState(A4_WIDTH_PX);
+  const backPath = user?.role === 'doctor' ? '/doctor-reports' : '/reports';
+  const backLabel = user?.role === 'doctor' ? 'My Reports' : 'Reports';
 
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -525,7 +528,8 @@ export function ReportPreview() {
 
     const updateScale = () => {
       const width = node.clientWidth;
-      const fit = clamp((width - 24) / A4_WIDTH_PX, 0.45, 1);
+      setContainerWidth(width);
+      const fit = clamp((width - 24) / A4_WIDTH_PX, 0.3, 1);
       setBaseScale(fit);
     };
 
@@ -641,12 +645,12 @@ export function ReportPreview() {
         }
       }
     }
-    
+
     // Add general clinical notes if present
     if (rawReport?.clinical_notes?.trim()) {
       totalNeeded += estimateInterpretationHeight(rawReport.clinical_notes.trim(), isDense);
     }
-    
+
     totalNeeded += signatureHeight + endMarkerHeight;
 
     const overflow = totalNeeded - contentHeight;
@@ -844,7 +848,7 @@ export function ReportPreview() {
         cloned.style.boxShadow = 'none';
         cloned.style.border = 'none';
         cloned.style.width = `${A4_WIDTH_PX}px`;
-        cloned.style.height = `${A4_HEIGHT_PX}px`;  
+        cloned.style.height = `${A4_HEIGHT_PX}px`;
         cloned.style.overflow = 'hidden';
         offscreenRoot.appendChild(cloned);
 
@@ -976,8 +980,8 @@ export function ReportPreview() {
         <div className="text-center space-y-3">
           <AlertCircle className="w-8 h-8 text-red-500 mx-auto" />
           <p className="text-sm text-gray-700">{error}</p>
-          <Link to="/reports" className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1">
-            <ArrowLeft className="w-3.5 h-3.5" /> Back to Reports
+          <Link to={backPath} className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back to {backLabel}
           </Link>
         </div>
       </div>
@@ -989,8 +993,8 @@ export function ReportPreview() {
       <div className="min-h-screen flex items-center justify-center p-6">
         <div className="text-center space-y-3">
           <p className="text-sm text-gray-500">Report not found</p>
-          <Link to="/reports" className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1">
-            <ArrowLeft className="w-3.5 h-3.5" /> Back to Reports
+          <Link to={backPath} className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back to {backLabel}
           </Link>
         </div>
       </div>
@@ -1020,7 +1024,7 @@ export function ReportPreview() {
   const footerActive = showLetterhead && !!settings?.footer_url && !settings?.letterhead_url;
   const hasBranding = !!(settings?.letterhead_url || settings?.header_url || settings?.footer_url);
 
-  const effectiveScale = clamp(baseScale * zoom, 0.45, 2);
+  const effectiveScale = clamp(baseScale * zoom, 0.3, 2);
   const stackHeight = pages.length * A4_HEIGHT_PX + Math.max(0, pages.length - 1) * PAGE_GAP_PX;
 
   return (
@@ -1029,8 +1033,8 @@ export function ReportPreview() {
 
       <div className="no-print sticky top-12 z-30 bg-white/95 backdrop-blur border-b border-gray-200">
         <div className="max-w-[1300px] mx-auto px-3 sm:px-4 py-2 flex flex-wrap items-center gap-2">
-          <Link to="/reports" className="inline-flex items-center gap-1 text-xs sm:text-sm text-gray-600 hover:text-gray-900">
-            <ArrowLeft className="w-4 h-4" /> Reports
+          <Link to={backPath} className="inline-flex items-center gap-1 text-xs sm:text-sm text-gray-600 hover:text-gray-900">
+            <ArrowLeft className="w-4 h-4" /> {backLabel}
           </Link>
 
           <div className="flex items-center gap-2 ml-auto">
@@ -1044,7 +1048,7 @@ export function ReportPreview() {
                   backgroundColor: showLetterhead ? C.brandLight : '#F9FAFB',
                 }}
               >
-                <FileImage className="w-3.5 h-3.5" /> {showLetterhead ? 'Branding On' : 'Branding Off'}
+                <FileImage className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{showLetterhead ? 'Branding On' : 'Branding Off'}</span>
               </button>
             )}
 
@@ -1068,7 +1072,7 @@ export function ReportPreview() {
               onClick={() => setIsOrderDrawerOpen(true)}
               className="lg:hidden inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5" /> Arrange Tests
+              <SlidersHorizontal className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Arrange Tests</span>
             </button>
 
             <button
@@ -1077,7 +1081,7 @@ export function ReportPreview() {
               title={!hasVisibleTests ? 'Select at least one test to share' : 'Share report'}
               className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-              <Send className="w-3.5 h-3.5" /> Share
+              <Send className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Share</span>
             </button>
             <button
               onClick={handleDownloadPdf}
@@ -1085,7 +1089,7 @@ export function ReportPreview() {
               title={!hasVisibleTests ? 'Select at least one test to download' : 'Download as PDF'}
               className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-              {isGeneratingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} PDF
+              {isGeneratingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} <span className="hidden sm:inline">PDF</span>
             </button>
             <button
               onClick={() => window.print()}
@@ -1094,7 +1098,7 @@ export function ReportPreview() {
               className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               style={{ backgroundColor: !hasVisibleTests ? '#9CA3AF' : C.brand }}
             >
-              <Printer className="w-3.5 h-3.5" /> Print
+              <Printer className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Print</span>
             </button>
           </div>
         </div>
@@ -1115,8 +1119,17 @@ export function ReportPreview() {
             />
           </aside>
 
-          <div ref={viewerRef} className="w-full overflow-x-hidden overflow-y-auto">
-            <div className="report-print-wrapper" style={{ height: stackHeight * effectiveScale, position: 'relative' }}>
+          <div ref={viewerRef} className="w-full overflow-x-auto overflow-y-auto">
+            <div
+              className="report-print-wrapper"
+              style={{
+                height: stackHeight * effectiveScale,
+                width: A4_WIDTH_PX * effectiveScale,
+                position: 'relative',
+                margin: '0 auto',
+                overflow: 'hidden',
+              }}
+            >
               <div
                 className="report-print-container"
                 style={{
@@ -1303,59 +1316,51 @@ export function ReportPreview() {
                             );
                           }
 
-                           // Render inline clinical significance box
-                           if (item.type === 'interpretation') {
-                             return (
-                               <div
-                                 key={`i-${idx}`}
-                                 style={{
-                                   marginTop: '24px',
-                                   border: `1px solid ${C.borderLight}`,
-                                   borderRadius: '4px',
-                                   padding: '8px 10px',
-                                   backgroundColor: '#FFFDE7',
-                                   fontSize: '9px',
-                                   color: '#546E7A',
-                                   lineHeight: 1.5,
-                                   textAlign: 'left'
-                                 }}
-                               >
-                                 <span style={{ fontWeight: 800, color: '#37474F', textTransform: 'uppercase' }}>
-                                   Clinical Significance
-                                 </span>
-                                 <p style={{ margin: '3px 0 0 0', whiteSpace: 'pre-line' }}>
-                                   {item.text}
-                                 </p>
-                               </div>
-                             );
-                           }
+                          // Render inline clinical significance box
+                          if (item.type === 'interpretation') {
+                            return (
+                              <div
+                                key={`i-${idx}`}
+                                style={{
+                                  marginTop: '8px',
+                                  fontSize: '9.5px',
+                                  color: '#222',
+                                  lineHeight: 1.45,
+                                  textAlign: 'left'
+                                }}
+                              >
+                                <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                                  Clinical Significance
+                                </div>
+                                <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                                  {item.text}
+                                </p>
+                              </div>
+                            );
+                          }
 
-                           // Render inline general/technician notes box
-                           if (item.type === 'generalNotes') {
-                             return (
-                               <div
-                                 key={`gnotes-${idx}`}
-                                 style={{
-                                   marginTop: '24px',
-                                   border: `1px solid ${C.borderLight}`,
-                                   borderRadius: '4px',
-                                   padding: '8px 10px',
-                                   backgroundColor: '#FFFDE7',
-                                   fontSize: '9px',
-                                   color: '#546E7A',
-                                   lineHeight: 1.5,
-                                   textAlign: 'left'
-                                 }}
-                               >
-                                 <span style={{ fontWeight: 800, color: '#37474F', textTransform: 'uppercase' }}>
-                                   Technician Notes / Interpretation
-                                 </span>
-                                 <p style={{ margin: '3px 0 0 0', whiteSpace: 'pre-line' }}>
-                                   {item.text}
-                                 </p>
-                               </div>
-                             );
-                           }
+                          // Render inline general/technician notes box
+                          if (item.type === 'generalNotes') {
+                            return (
+                              <div
+                                key={`gnotes-${idx}`}
+                                style={{
+                                  marginTop: '8px',
+                                  fontSize: '9.5px',
+                                  color: '#222',
+                                  lineHeight: 1.45,
+                                  textAlign: 'left'
+                                }}
+                              >
+                                <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                                  Technician Notes / Interpretation
+                                </div>
+                                <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                                  {item.text}
+                                </p>
+                              </div>
+                            );
+                          }
 
 
                           // Find item.type === 'endMarker' block, replace with:

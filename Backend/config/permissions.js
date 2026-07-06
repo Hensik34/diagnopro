@@ -142,16 +142,15 @@ const ROLE_PERMISSIONS = {
   // Admin has full access to everything
   [ROLES.ADMIN]: ['*'],
 
-  // Doctor: Can view patients, reports, approve reports, view commissions
+  // Doctor: Can view patients, reports, view commissions
   [ROLES.DOCTOR]: [
     // Patient - read only
     PERMISSIONS.PATIENT_READ,
     
-    // Reports - full access except delete
+    // Reports - view and download only
     PERMISSIONS.REPORT_READ,
     PERMISSIONS.REPORT_CREATE,
     PERMISSIONS.REPORT_UPDATE,
-    PERMISSIONS.REPORT_APPROVE,
     PERMISSIONS.REPORT_DOWNLOAD,
     
     // Samples - read only
@@ -175,33 +174,42 @@ const ROLE_PERMISSIONS = {
 
   // Lab Technician (also does sample collection): Sample collection, test processing, report creation
   [ROLES.TECHNICIAN]: [
-    // Patient - read only
+    // Patient Management - full access
+    PERMISSIONS.PATIENT_CREATE,
     PERMISSIONS.PATIENT_READ,
+    PERMISSIONS.PATIENT_UPDATE,
+    PERMISSIONS.PATIENT_DELETE,
     
-    // Reports - create and update (not approve)
+    // Reports - create, update, read, download, approve (not delete)
     PERMISSIONS.REPORT_READ,
     PERMISSIONS.REPORT_CREATE,
     PERMISSIONS.REPORT_UPDATE,
+    PERMISSIONS.REPORT_APPROVE,
     PERMISSIONS.REPORT_DOWNLOAD,
+    PERMISSIONS.REPORT_ASSIGN_TECHNICIAN,
     
     // Samples - full CRUD
     PERMISSIONS.SAMPLE_CREATE,
     PERMISSIONS.SAMPLE_READ,
     PERMISSIONS.SAMPLE_UPDATE,
+    PERMISSIONS.SAMPLE_DELETE,
     PERMISSIONS.SAMPLE_COLLECT,
     
-    // Tests - read, update results, edit
+    // Tests - full access
+    PERMISSIONS.TEST_CREATE,
     PERMISSIONS.TEST_READ,
-    PERMISSIONS.TEST_RESULT_UPDATE,
     PERMISSIONS.TEST_UPDATE,
+    PERMISSIONS.TEST_DELETE,
+    PERMISSIONS.TEST_RESULT_UPDATE,
 
-    // Branch - read only (for data fetching)
+    // Branch - read only (branches is excluded from all rights)
     PERMISSIONS.BRANCH_READ,
 
     // Inventory - full access
     PERMISSIONS.INVENTORY_CREATE,
     PERMISSIONS.INVENTORY_READ,
     PERMISSIONS.INVENTORY_UPDATE,
+    PERMISSIONS.INVENTORY_DELETE,
 
     // Collection Tracking - own records
     PERMISSIONS.COLLECTION_CREATE,
@@ -239,7 +247,7 @@ const ROLE_PERMISSIONS = {
     PERMISSIONS.TIMELOG_TRACK,
   ],
 
-  // Staff: Front desk operations - patient registration, report generation, basic reads
+  // Staff: Front desk operations - patient registration, report generation, basic reads, sample collection
   [ROLES.STAFF]: [
     // Patient - full CRUD
     PERMISSIONS.PATIENT_CREATE,
@@ -252,9 +260,10 @@ const ROLE_PERMISSIONS = {
     PERMISSIONS.REPORT_UPDATE,
     PERMISSIONS.REPORT_DOWNLOAD,
     
-    // Samples - create and read
+    // Samples - create, read, collect
     PERMISSIONS.SAMPLE_CREATE,
     PERMISSIONS.SAMPLE_READ,
+    PERMISSIONS.SAMPLE_COLLECT,
     
     // Tests - read only
     PERMISSIONS.TEST_READ,
