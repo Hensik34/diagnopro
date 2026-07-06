@@ -47,8 +47,16 @@ export function Reports() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [dateFilter, setDateFilter] = useState<string>(getLocalDateString());
+  const [dateFilter, setDateFilter] = useState<string>(() => {
+    return sessionStorage.getItem('diagnopro_reports_date_filter') || getLocalDateString();
+  });
   const [sortField, setSortField] = useState<'sample_id_code' | 'patient_name' | 'test_type' | 'doctor' | 'status' | 'created_at' | 'technician' | 'payment_status'>('created_at');
+
+  const handleDateChange = (val: string) => {
+    const newDate = val || getLocalDateString();
+    setDateFilter(newDate);
+    sessionStorage.setItem('diagnopro_reports_date_filter', newDate);
+  };
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const handleSort = (field: typeof sortField) => {
@@ -343,6 +351,32 @@ export function Reports() {
     return patientId ? patientId.slice(0, 8) : '-';
   };
 
+  const dateSpecificSummary = useMemo(() => {
+    let total = 0;
+    let draft = 0;
+    let under_review = 0;
+    let approved = 0;
+
+    reports.forEach((report) => {
+      if (report.created_at) {
+        try {
+          const reportDate = new Date(report.created_at);
+          const reportLocalDateStr = getLocalDateString(reportDate);
+          if (reportLocalDateStr === dateFilter) {
+            total++;
+            if (report.status === 'draft') draft++;
+            else if (report.status === 'under_review') under_review++;
+            else if (report.status === 'approved') approved++;
+          }
+        } catch (e) {
+          console.error("Invalid report created_at date:", report.created_at, e);
+        }
+      }
+    });
+
+    return { total, draft, under_review, approved };
+  }, [reports, dateFilter]);
+
   /**
    * Filter reports based on search and filters
    */
@@ -565,7 +599,7 @@ export function Reports() {
             Total Reports
           </div>
           <div className="text-lg md:text-xl text-foreground font-semibold">
-            {summary?.total || reports.length}
+            {dateSpecificSummary.total}
           </div>
         </div>
         <div className="bg-card border border-border rounded p-2 md:p-3">
@@ -573,7 +607,7 @@ export function Reports() {
             Draft
           </div>
           <div className="text-lg md:text-xl text-foreground font-semibold">
-            {summary?.draft || 0}
+            {dateSpecificSummary.draft}
           </div>
         </div>
         <div className="bg-card border border-border rounded p-2 md:p-3">
@@ -581,7 +615,7 @@ export function Reports() {
             Under Review
           </div>
           <div className="text-lg md:text-xl text-foreground font-semibold">
-            {summary?.under_review || 0}
+            {dateSpecificSummary.under_review}
           </div>
         </div>
         <div className="bg-card border border-border rounded p-2 md:p-3">
@@ -589,7 +623,7 @@ export function Reports() {
             Approved
           </div>
           <div className="text-lg md:text-xl text-foreground font-semibold">
-            {summary?.approved || 0}
+            {dateSpecificSummary.approved}
           </div>
         </div>
       </div>
@@ -640,17 +674,8 @@ export function Reports() {
               type="date"
               className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer text-foreground"
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value || getLocalDateString())}
+              onChange={(e) => handleDateChange(e.target.value)}
             />
-            {dateFilter !== getLocalDateString() && (
-              <button
-                onClick={() => setDateFilter(getLocalDateString())}
-                className="h-8 px-2 flex items-center justify-center bg-secondary border border-border rounded text-xs text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer transition-colors"
-                title="Reset to Today"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
           </div>
         </div>
       </div>

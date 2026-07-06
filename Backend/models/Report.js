@@ -119,22 +119,43 @@ exports.getReportById = async (id) => {
     report_margin_right: settings?.report_margin_right,
     header_safe_area: settings?.header_safe_area,
     footer_safe_area: settings?.footer_safe_area,
-    owner_signature_url: (() => {
+    owner_signature_url: settings?.owner_signature_url || null,
+    owner_signature_label: settings?.owner_signature_label || null,
+    owner_signature_description: settings?.owner_signature_description || null,
+    pathology_signature_url: (() => {
       if (!settings) return null;
       const idx = settings.default_signature_index;
-      if (idx === 1 && settings.signature_1_url) return settings.signature_1_url;
-      if (idx === 2 && settings.signature_2_url) return settings.signature_2_url;
-      if (idx === 3 && settings.signature_3_url) return settings.signature_3_url;
-      if (idx === 4 && settings.signature_4_url) return settings.signature_4_url;
-      return settings.owner_signature_url || settings.signature_1_url || null;
+      if (idx === 1) return settings.signature_1_url || null;
+      if (idx === 2) return settings.signature_2_url || null;
+      if (idx === 3) return settings.signature_3_url || null;
+      if (idx === 4) return settings.signature_4_url || null;
+      for (let i = 1; i <= 4; i++) {
+        if (settings[`signature_${i}_url`]) return settings[`signature_${i}_url`];
+      }
+      return null;
     })(),
-    owner_signature_label: (() => {
+    pathology_signature_label: (() => {
       if (!settings) return null;
       const idx = settings.default_signature_index;
-      if (idx === 1 && settings.signature_1_label) return settings.signature_1_label;
-      if (idx === 2 && settings.signature_2_label) return settings.signature_2_label;
-      if (idx === 3 && settings.signature_3_label) return settings.signature_3_label;
-      if (idx === 4 && settings.signature_4_label) return settings.signature_4_label;
+      if (idx === 1) return settings.signature_1_label || null;
+      if (idx === 2) return settings.signature_2_label || null;
+      if (idx === 3) return settings.signature_3_label || null;
+      if (idx === 4) return settings.signature_4_label || null;
+      for (let i = 1; i <= 4; i++) {
+        if (settings[`signature_${i}_url`]) return settings[`signature_${i}_label`] || null;
+      }
+      return null;
+    })(),
+    pathology_signature_description: (() => {
+      if (!settings) return null;
+      const idx = settings.default_signature_index;
+      if (idx === 1) return settings.signature_1_description || null;
+      if (idx === 2) return settings.signature_2_description || null;
+      if (idx === 3) return settings.signature_3_description || null;
+      if (idx === 4) return settings.signature_4_description || null;
+      for (let i = 1; i <= 4; i++) {
+        if (settings[`signature_${i}_url`]) return settings[`signature_${i}_description`] || null;
+      }
       return null;
     })(),
 

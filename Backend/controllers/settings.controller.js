@@ -79,8 +79,8 @@ exports.upsertSettings = async (req, res) => {
     // Handle base64 letterhead
     if (finalLetterheadUrl === undefined && req.body.letterhead_base64) {
       finalLetterheadUrl = await uploadBase64ToCloudinary(
-        req.body.letterhead_base64, 
-        "letterhead", 
+        req.body.letterhead_base64,
+        "letterhead",
         branchId,
         "settings"
       );
@@ -89,8 +89,8 @@ exports.upsertSettings = async (req, res) => {
     // Handle base64 owner signature
     if (finalOwnerSignatureUrl === undefined && req.body.owner_signature_base64) {
       finalOwnerSignatureUrl = await uploadBase64ToCloudinary(
-        req.body.owner_signature_base64, 
-        "owner_sign", 
+        req.body.owner_signature_base64,
+        "owner_sign",
         branchId,
         "settings"
       );
@@ -98,8 +98,8 @@ exports.upsertSettings = async (req, res) => {
 
     if (finalHeaderUrl === undefined && req.body.header_base64) {
       finalHeaderUrl = await uploadBase64ToCloudinary(
-        req.body.header_base64, 
-        "header", 
+        req.body.header_base64,
+        "header",
         branchId,
         "settings"
       );
@@ -107,8 +107,8 @@ exports.upsertSettings = async (req, res) => {
 
     if (finalFooterUrl === undefined && req.body.footer_base64) {
       finalFooterUrl = await uploadBase64ToCloudinary(
-        req.body.footer_base64, 
-        "footer", 
+        req.body.footer_base64,
+        "footer",
         branchId,
         "settings"
       );
@@ -148,9 +148,9 @@ exports.upsertSettings = async (req, res) => {
 
     let letterheadMarginsAuto = req.body.letterhead_margins_auto;
     const hasMargins = req.body.report_margin_top !== undefined ||
-                       req.body.report_margin_bottom !== undefined ||
-                       req.body.report_margin_left !== undefined ||
-                       req.body.report_margin_right !== undefined;
+      req.body.report_margin_bottom !== undefined ||
+      req.body.report_margin_left !== undefined ||
+      req.body.report_margin_right !== undefined;
 
     if (letterheadMarginsAuto === undefined) {
       if (hasMargins) {
@@ -182,6 +182,8 @@ exports.upsertSettings = async (req, res) => {
     const settings = await SettingsService.upsertSettings(branchId, {
       letterhead_url: finalLetterheadUrl,
       owner_signature_url: finalOwnerSignatureUrl,
+      owner_signature_label: req.body.owner_signature_label !== undefined ? req.body.owner_signature_label : undefined,
+      owner_signature_description: req.body.owner_signature_description !== undefined ? req.body.owner_signature_description : undefined,
       header_url: finalHeaderUrl,
       footer_url: finalFooterUrl,
       report_margin_top: req.body.report_margin_top,
@@ -280,7 +282,7 @@ exports.uploadLetterhead = async (req, res) => {
     const marginsAutoReq = req.body.letterhead_margins_auto || req.query.letterhead_margins_auto;
 
     const currentSettings = await SettingsService.getSettingsByBranch(branchId);
-    
+
     let marginsAuto = true;
     if (marginsAutoReq !== undefined) {
       marginsAuto = marginsAutoReq === "true" || marginsAutoReq === true || marginsAutoReq === "1";
@@ -404,7 +406,7 @@ exports.updateSignatureLabel = async (req, res) => {
     const branchId = req.query?.branch_id || req.body?.branch_id || req.user?.branch_id;
     const { index } = req.params;
     const sigIndex = parseInt(index);
-    const { label } = req.body;
+    const { label, description } = req.body;
 
     if (!branchId) {
       return res.status(400).json({ error: "Branch ID not found in request" });
@@ -415,7 +417,8 @@ exports.updateSignatureLabel = async (req, res) => {
     }
 
     const updateData = {};
-    updateData[`signature_${sigIndex}_label`] = label || "";
+    if (label !== undefined) updateData[`signature_${sigIndex}_label`] = label || "";
+    if (description !== undefined) updateData[`signature_${sigIndex}_description`] = description || "";
 
     const settings = await SettingsService.upsertSettings(branchId, updateData);
 

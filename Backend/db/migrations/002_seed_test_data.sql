@@ -1783,6 +1783,282 @@ UPDATE tests SET clinical_significance = 'HDL Cholesterol measures "good" choles
 
 UPDATE tests SET clinical_significance = 'Sputum Routine & Microscopy evaluates macroscopic properties and microscopic features of respiratory secretions. Used to detect inflammatory cells, alveolar macrophages, elastic fibers, and pathogenic organisms (via Gram and AFB staining) to diagnose pulmonary infections like pneumonia, bronchitis, or tuberculosis.' WHERE test_code = 'SPUTUM-RM';
 
+-- Additional custom updates for clinical significance
+UPDATE tests SET clinical_significance = '• The degree of prolongation of PTT / APTT is neither predictive of bleeding risk nor underlying diagnosis
+• Results should be clinically correlated
+• Test conducted on Citrated plasma
+• Heparin therapeutic range is not established. For heparin monitoring, Anti-Xa is recommended.
+Causes of prolonged PTT / APTT:
+·Liver disease ·Consumptive coagulopathy
+·Circulating anticoagulants including Lupus anticoagulants
+·Oral Anticoagulant therapy.
+·Factor deficiencies' WHERE test_code = 'APTT';
+
+UPDATE tests SET clinical_significance = 'Clinical Significance
+This is a screening test. Positive or negative result of the screen test is considered "preliminary" and requires confirmation by definitive, specific testing, like HIV-RNA PCR assay.
+
+Limitation
+• False-negative results can occur due to acute infection and failure to detect certain HIV subtypes.
+• Indeterminate results may occur due to partial seroconversion during acute HIV infection, advanced HIV infection with decreased titers of p24 antibodies, or infection with HIV-2.
+• Other causes for an indeterminate test result in persons who are not infected with HIV include Cross-reacting alloantibodies from' WHERE test_code = 'HIV-01';
+
+UPDATE tests SET clinical_significance = 'Clinical Significance
+This is a screening test. Positive or negative result of the screen test is considered "preliminary" and requires confirmation by definitive, specific testing, like HIV-RNA PCR assay.
+Limitation
+• False-negative results can occur due to acute infection and failure to detect certain HIV subtypes.
+• Indeterminate results may occur due to partial seroconversion during acute HIV infection, advanced HIV infection with decreased titers of p24 antibodies, or infection with HIV-2.' WHERE test_code = 'HIV-RAPID-01';
+
+UPDATE tests SET clinical_significance = 'Clinical Significance
+• Hepatitis B surface antigen (HBsAg) appears several days to several weeks after contact with the virus and can persist for several months.
+• Acute hepatitis- Diagnosis relies on the presence of HBsAg and Anti-HBc IgM with absence of anti-HBs total Ab.
+• Chronic Hepatitis- HbsAg test remain positive over 6 month & absence of anti-HBc IgM. Disappearance of the HBeAg is normally followed by the appearance of anti-HBs antibodies, which is a sign of recovery.' WHERE test_code = 'HBSAG-RAPID-01';
+
+UPDATE tests SET clinical_significance = '
+1. Measurement of CRP is useful for the detection and evaluation of infection, tissue injury, inflammatory disorders and associated diseases .
+2. High sensitivity CRP (hsCRP) measurements may be used as an independent risk marker for the identification of individual at risk for future cardiovascular disease.
+3. Increase in CRP values are non-Specific and should not be interpreted without a complete history.' WHERE test_code = 'CRP-01';
+
+UPDATE tests SET clinical_significance = '
+• RF is found in sera of patients with Rheumatoid Arthritis and is believed to be IgM antibodies directed against the patient''s own immunoglobulin.
+• RF tests are important in distinguishing between Rheumatoid Arthritis, Autoimmune and other inflammatory disease states.
+• The test has a detection limit of 25 IU/ml.
+• Healthy individuals can give positive reaction in RF tests and the incidence is between 3 - 5 % of the population.
+• Positive reactions do occur in condition such as infectious mononucleosis, syphilis,' WHERE test_code = 'RAF-01';
+
+UPDATE tests SET clinical_significance = 'Comments:
+While sample should be collected as soon as possible after onset of illness, it is recommended that follow up of testing should be done on day 10 after the first sample to allow seroconversion, especially when the test is negative and Dengue virus infection is clinically suspected.
+
+80% of the patients may have detectable levels of IgM antibody by day 5 of illness and 99% by day 10.
+
+IgM levels rise quickly and peak by two weeks after onset of symptoms and then' WHERE test_code = 'DENGUE-RAPID';
+
+UPDATE tests SET clinical_significance = 'Note :
+1.Positive results in serum indicates ongoing or recent infection by Chikungunya virus causing rash, fever and severe joint pain (arthralgia). The test cannot be used to differentiate between primary and secondary infection.
+2.Negative results are seen in absence of Chikungunya virus infection. However, it does not rule out the disease.
+3.False positive results may be seen due to cross reactivity with other mosquito borne diseases like Dengue and Zika Virus infections, in patients with high levels of heterophile antibodies and Rheumatoid factor.' WHERE test_code = 'CHIK-IGM-01';
+
+UPDATE tests SET clinical_significance = 'Clinical Significance:
+• The lipid profile is used to evaluate risk of coronary arterial occlusion, atherosclerosis and myocardial infarction.
+• Total cholesterol & LDL-Chol. levels are increased in familial dyslipoproteinemias [type II & III], secondary to obstructive liver disease, hypothyroidism, nephrotic syndrome, primary billary cirrhosis & type 2 diabetes mellitus. They are decreased in abetalipoproteinemia, severe nutritional anemia, malnutrition, hyperthyroidism & malabsorption.
+• There is a direct relationship between LDL-C & the incidence of CAD. Intervention to decrease the LDL-C will decrease the CAD risk. Treatment decisions and therapeutic goals are also largely based on LDL-C levels.
+• It is necessary to ensure that the patient is fasting for 10 hrs for this test' WHERE test_code = 'LIPID-01';
+
+UPDATE tests SET clinical_significance = 'Clinical Significance - TSH levels are subject to circadian variation, reaching peak levels between 2-4 am and at a minimum between 6-10 pm. The variation is of the order of 50%, hence time of the day has influence on the measured serum TSH concentrations.
+• Rheumatoid factor, human antimouse antibodies, heterophile antibodies may produce spurious results, especially in patients with autoimmune disorders (=10%). - Amiodarone may interfere with TSH.
+• Non thyroidal illness like severe infections, liver disease, renal and hear failure, severe burns, trauma and surgery, pregnancy, Acute psychiatric illness, Severe dehydration may show transient variation in TSH value.' WHERE test_code = 'THYPRO-01';
+
+UPDATE tests SET clinical_significance = 'Clinical Use
+• Diagnose Hypothyroidism and Hyperthyroidism
+• Monitor T4 replacement or T4 suppressive therapy
+• Quantify TSH levels in the subnormal range
+Increased Levels:
+• Primary hypothyroidism, Subclinical hypothyroidism, TSH dependent Hyperthyroidism, Thyroid hormone resistance
+Decreased Levels:
+• Graves disease, Autonomous thyroid hormone secretion, TSH deficiency
+• Non-thyroidal illnesses like severe infections, liver disease, renal and heart failure, severe burns, trauma and surgery, Acute psychiatric illness, Severe dehydration may show transient variation in TSH value.
+• TSH levels are subject to circadian variation, reaching peak levels...' WHERE test_code = 'TSH-01';
+
+UPDATE tests SET clinical_significance = 'Comments :
+Note
+1. Free PSA values regardless of levels should not be interpreted as absolute evidence for the presence or absence of disease. All values should be correlated with clinical findings and results of other investigations
+2. False negative / positive results are observed in patients receiving mouse monoclonal antibodies for diagnosis or therapy
+3. Free PSA levels may appear consistently elevated / depressed due to the interference by heterophilic antibodies & nonspecific protein binding
+4. Immediate Free PSA testing following digital rectal examination, ejaculation, prostatic massage, ultrasonography and needle biopsy of prostate is not recommended as they falsely elevate levels
+5. Hormone therapy affects Free PSA expression
+6. The concentration of PSA,Free in a given specimen, determined with...' WHERE test_code = 'FREE-PSA-01';
+
+UPDATE tests SET clinical_significance = 'Free T3 is the active form that enters your tissues where it''s needed.
+Bound T3 is attached to certain proteins which prevent it from entering your tissues. Most of your T3 is bound.
+
+A total T3 test measures both bound and free T3 together. Medical experts think that this test is the more accurate way to measure T3.
+A free T3 test only measures free T3.' WHERE test_code = 'FT3-01';
+
+UPDATE tests SET clinical_significance = 'Free T4 is the active form of thyroxine hormone that enters your body tissues where you need it.
+Bound T4 is thyroxine that attaches or binds to certain proteins which prevent it from entering your body tissues.
+It stays in your bloodstream as a "backup supply" until your tissues need it.
+
+A free T4 test measures the amount of free T4 in your blood. Medical experts believe this test is more accurate than a total T4 test, so it''s used more often.
+
+A total T4 test measures free and bound T4 together.' WHERE test_code = 'FT4-01';
+
+UPDATE tests SET clinical_significance = 'Clinical Significance
+Increase
+• Myeloproliferative diseases (Leukemia, Polycythemia vera)
+• Vitamin B12 Therapy
+• Chronic renal failure, Congestive heart failure
+• Carcinomas with liver metastasis
+• Liver disease,
+• Drug induced cholestasis
+• Protein Malnutrition and Uremia
+Decrease
+• Dietary deficiency: strict Vegetarians
+• Deficiency of IF: Total or partial gastrectomy, Atrophic gastritis, Intrinsic factor antibodies
+• Malabsorption: Regional ileitis, resected bowel, Tropical Sprue, Celiac disease, pancreatic insufficiency, bacterial overgrowth & achlorhydria' WHERE test_code = 'VITB12-01';
+
+UPDATE tests SET clinical_significance = 'Clinical Significance :
+• The assay measures both D2 (Ergocalciferol) and D3 (Cholecalciferol) metabolites of vitamin D.
+• Vitamin D3 (cholecalciferol) and Vitamin D2 (ergocalciferol) are the most abundant Vitamin D in nature. Vitamin D3 is synthesized in the skin from 7-dehydrocholesterol in response to UV-B rays in sunlight. The best nutrition sources of D3 are oily fish primary salmon and mackerel. Vitamin D2''s nutrition sources are from some vegetables, yeast and fungi.
+• Vitamin D (D3 and D2) is hydroxylated to 25-hydroxyvitamin D by an enzyme in the liver. The measurement of total 25-OH vitamin D concentration in the serum or plasma is the best indicator of vitamin D nutritional status.
+• Vitamin D promotes absorption of calcium and phosphorus and' WHERE test_code = 'VITD-01';
+
+UPDATE tests SET clinical_significance = 'Note :
+Increase in serum ferritin due to inflammatory conditions (Acute phase response) can mask a diagnostically low result
+
+Comments :
+Serum ferritin appears to be in equilibrium with tissue ferritin and is a good indicator of storage iron in normal subjects and in most disorders. In patients with some hepatocellular diseases, malignancies and inflammatory diseases, serum ferritin is a disproportionately high estimate of storage iron because serum ferritin is an acute phase reactant. In such disorders iron deficiency anemia may exist with a normal serum ferritin concentration. In the presence of inflammation, persons with low serum ferritin are likely to' WHERE test_code = 'FERR-01';
+
+UPDATE tests SET clinical_significance = 'Clinical Use
+- Diagnosis of gonadal, pituitary, hypothalamic disorders
+- Management and treatment of infertility in both genders
+Increased Levels
+- Primary hypogonadism
+- Gonadotropin secreting pituitary tumors
+- Precocious puberty (secondary to a CNS lesion or idiopathic)
+- The luteal phase of the menstrual cycle
+Decreased Levels
+- Hypothalamic GnRH deficiency
+- Pituitary FSH deficiency
+- Ectopic steroid hormone production' WHERE test_code = 'FSH-01';
+
+UPDATE tests SET clinical_significance = 'Clinical Use
+• Diagnosis of gonadal function disorders
+• Diagnosis of pituitary disorders
+
+Increased levels
+• Primary hypogonadism
+• Gonadotropin secreting pituitary tumors
+
+Decreased levels
+• Hypothalamic GnRH deficiency
+• Pituitary LH deficiency
+• Ectopic steroid hormone production
+• GnRH analog treatment' WHERE test_code = 'LH-01';
+
+UPDATE tests SET clinical_significance = 'Note
+• Since prolactin is secreted in a pulsatile manner and is also influenced by a variety of Physiologic stimuli, it is recommended to test 3 specimens at 20-30 minute intervals after pooling.
+• The primary circulating form of Prolactin is a nonglycosylated monomer, but several forms of prolactin linked with immunoglobulin can give falsely high Prolactin results.
+• Prolactin levels in normal individuals tend to rise in response to physiologic stimuli including sleep, exercise, nipple stimulation, sexual intercourse, hypoglycemia, pregnancy, and surgical stress.' WHERE test_code = 'PROL-01';
+
+UPDATE tests SET clinical_significance = 'Increased:
+• Congential adrenal hyperplasia
+• Lipoid ovarian tumor
+• Molar preganancy
+• Chorionepithelioma of ovary
+• Ovarian tumor
+• Adrenal tumor
+• Selected steroid hormone biosynthetic defects
+Decreased:
+• Thretened spontaneous abortion
+• Galactorrhea-amenorrhea syndrome (Primary or secondary hypogonadism)
+• Short luteal phase syndrome.' WHERE test_code = 'PROG-01';
+
+UPDATE tests SET clinical_significance = 'Method : Electrochemiluminescence lmmunoassay "ECLIA"
+• Anti-Mullerian Hormone (AMH) is produced directly by the ovarian follicles, AMH levels correlate with the number of antral follicles in the ovaries. Women with lower AMH have lower antral follicular counts and produce a lower number of oocytes compared with women with higher levels.
+
+• AMH can be used for:
+• Evaluating Fertility Potential and ovarian response in IVF - Serum AMH levels correlate with the number of early antral follicles. This makes is useful for prediciting your ovarian response in an IVF cycle. Women with low AMH levels are more likely to be poor ovarian responders.' WHERE test_code = 'AMH-01';
+
+UPDATE tests SET clinical_significance = 'Comment :
+• HCG is staloglycoprotein secreted by trophoblastic cells of Placenta. Rapid rise of HCG serum level after conception makes it an excellent marker for early confirmation & monitoring of pregnancy.
+• B-HCG is useful in predicting spontaneous abortion, aiding in detection of ectopic pregnancy and multiple gestation.
+• B-HCG aid in monitoring & diagnosis of trophoblastic tumor.' WHERE test_code IN ('BHCG-Q-01', 'BHCG-QL-01', 'BHCG-TM-01');
+
+UPDATE tests SET clinical_significance = 'Generally found elevated in carcinoma of ovary, uterine tumour and some times even in endometriosis.
+Schedule for tumour marker determination
+
+Pre-operatively
+Post operatively - At regular intervas until the values have shown a marked decrease.
+Potential clinical applications of tumour markers are :
+Prognosis - The level of tumour marker corresponds to the mass of tumour. Moderate elevations are suggestive of better prognosis than persistent high levels.
+Monitoring - The profile of tumour marker concentration against time can mirror the condition of patients diagnosed to have cancer.' WHERE test_code = 'CA125-01';
+
+UPDATE tests SET clinical_significance = 'Note :
+• Homocysteine is an amino acid resulting from the synthesis of cysteine from methionine with enzyme reaction of cobalamin and folate.
+• Certain drugs, such as anticonvulsants, methotrexate, or nitrous oxide, may interfere with the assay.
+• Cigarette smoking and coffee consumption increase Homocysteine levels.
+
+Use :
+• Elevated levels of Hcy may be used to exclude or confirm deficiencies of vitamin B12 or folate.
+• Elevation in Hcy levels have also been used as an independent risk factor of coronary or cerebral vascular disease.' WHERE test_code = 'HCYS-01';
+
+UPDATE tests SET clinical_significance = 'Clinical Significance
+D-Dimer is one of the measurable byproducts of activation of the fibrinolytic system. It assesses fibrinolytic activation and intravascular thrombosis. D-dimer assays are characteristic for Disseminated Intravascular Coagulation (DIC) as this test demonstrates simultaneous presence of thrombin and plasmin formation.
+
+Increased
+• large vessel thrombosis, soft tissue hematomas, Pulmonary embolism, recent surgery, active or recent bleeding, pregnancy, - liver disease, malignancy and hypercoagulable states, Renal failure, disseminated cancer, Covid-19 and cardiac failure.' WHERE test_code = 'DD-01';
+
+UPDATE tests SET clinical_significance = '
+• The current high-sensitivity troponin (hsTn) assay can detect low levels upto 0.003 &mu;g/L (3 ng/L). (Following are the conversion factors- Concentration in pg/ml x 0.001= µg/L, Concentration in pg/ml x1.0 =ng/L)
+• Reporting in many decimal point placements causes confusion and potentially can lead to misinterpretations, hence it has been recommended (IFCC2014) that the results are expressed in whole numbers by using ng/L as the unit of measurement.
+• the high tissue specificity of cTnI measurements is beneficial for identifying cardiac injury in clinical conditions involving skeletal muscle injury resulting from surgery, trauma, extensive exercise, or muscular disease.
+• Highly sensitive troponin (cTn) assay allows earlier detection of acute Myocardial Infarction (MI), with shortening of time' WHERE test_code = 'TROP-01';
+
+UPDATE tests SET clinical_significance = 'Clinical Significance :
+
+CK-MB (Creatine Kinase-Myocardial Band) is a heart enzyme indicating heart muscle damage, historically crucial for diagnosing heart attacks (myocardial infarction) by showing elevated levels after injury, though now often supplemented or replaced by more specific troponin tests, but still useful for monitoring reinfarction or when troponins aren''t available, helping differentiate heart from skeletal muscle issues. 
+Heart Attack Diagnosis: CK-MB rises 4-6 hours post-heart attack, peaks around 10-24 hours, and returns to normal in 48-72 hours, helping confirm myocardial damage, especially in early stages.
+Differentiating Muscle Injury: Helps distinguish heart damage from skeletal muscle damage, as CK-MB is more concentrated in heart tissue than other CK isoenzymes (CK-MM).' WHERE test_code = 'CKMB-01';
+
+UPDATE tests SET clinical_significance = '• Generally recommended in : prostatic malignancy 
+
+• Schedule for tumour marker determination
+Pre-operatively
+Post operatively - At regular intervas until the values have shown a marked decrease.
+
+• Potential clinical applications of tumour markers are :
+
+Prognosis - The level of tumour marker corresponds to the mass of tumour. Moderate elevations are suggestive of better prognosis than persistent high levels.
+Monitoring - The profile of tumour marker concentration against time can mirror the condition of patients diagnosed to have cancer.' WHERE test_code = 'PSA-01';
+
+UPDATE tests SET clinical_significance = 'Comments :
+• Pancreas is the major and primary source of serum lipase though lipases are also present in liver, stomach, intestine, WBC, fat cells and milk.
+• In acute pancreatitis, serum lipase becomes elevated at the same time as amylase and remains high for 7-10 days.
+• Increased lipase activity rarely lasts longer than 14 days.
+• Prolonged increase suggests poor prognosis or presence of a cyst.
+• The combined use of serum lipase and serum amylase is effective in ruling out acute pancreatitis.
+
+Increased levels :
+• Acute & Chronic pancreatitis.
+• Obstruction of pancreatic duct.
+• Non pancreatic conditions like renal diseases, acute cholecystitis, intestinal obstruction, duodenal ulcer, alcoholism, diabetic ketoacidosis and…' WHERE test_code = 'LIPAS-01';
+
+UPDATE tests SET clinical_significance = 'An amylase test measures the amount of amylase in blood or urine (pee). Amylase is an enzyme made by your pancreas and salivary glands that helps your body break down carbohydrates. If an amylase test finds too much amylase in your blood or urine, it may indicate a pancreas disorder or other health condition.' WHERE test_code = 'AMYL-01';
+
+UPDATE tests SET clinical_significance = '• Generally recommended in : Ca lung, liver, stomach, Colorectal, prostate and less frequently in Ca. breast.
+• Schedule for tumour marker determination
+Pre-operatively
+Post operatively - At regular intervas until the values have shown a marked decrease.
+• Potential clinical applications of tumour markers are :
+Prognosis - The level of tumour marker corresponds to the mass of tumour. Moderate elevation is suggestive of better prognosis than persistent high levels.
+Monitoring - The profile of tumour marker concentration against time can mirror the condition of patients diagnosed to have cancer.
+• Tumour marker profile usually reflects one of the following classica…' WHERE test_code = 'CEA-01';
+
+UPDATE tests SET clinical_significance = 'Note
+1. Test results should be interpreted in conjunction with serum calcium and phosphorus levels, and clinical findings.
+2. Elevated PTH with normal serum calcium levels may be indicative of Secondary causes of hyperparathyroidism like vitamin D deficiency. It may not always be indicative of Primary hyperparathyroidism.
+3. PTH is secreted in a pulsatile manner with an overall circadian rhythm characterized by a nocturnal rise.
+
+Use
+• Diagnose hyperparathyroidism
+• Monitor severity of secondary hyperparathyroidism in chronic renal failure
+• Discriminate primary hyperparathyroidism from tumor hypercalcemia' WHERE test_code = 'PTH-01';
+
+UPDATE tests SET clinical_significance = 'Comment : Interpretation guide:
+Anti-CCP is an autoantibodies against the citruline, highly specific markers for rheumatoid arthritis with specificity of 92% and sensitivity of 68% in a control group of overlapping rheumatic disease.' WHERE test_code = 'ANTICCP-01';
+
+UPDATE tests SET clinical_significance = 'Comment : 
+
+The CA 19.9 assay is frequently elevated in the serum subjects with various gastrointestinal malignancies, such as pancreatic, colorectal, gastric and hepatic carcinomas.
+Increased serum CA - 19.9 values have also been observed in patients with metastasis and in nonmalignant conditions such as hepatitis, cirrhosis, pancreatitis and in cystic fibrosis.
+
+To determine preoperative resectability of pancreatic cancer very high concentrations predict unresectable cancer-only 5% of patients with concentration >1000 U/ml have surgically resectable disease; 50% of patients with concentration <1000 U/ml have surgically resectable cancers. Postsurgical recurrence correlates with increased concentrations in 1-7 months. May be a useful adjunct of CEA for diagnosis and detection of early…' WHERE test_code = 'CA199-01';
+
+UPDATE tests SET clinical_significance = 'Clinical Significance :
+
+Serum Calcium Decreases in Hypoparathyrodism, Surgical/Idiopathic/Herediatary/ Infiltration, Insufficient Intake (Starvation/ Rickets/Osteomalacia), Chronic Renal Disease with Uremia and Phosphate retention ,Renal tubular acidosis, Malabsorption of Vitamin D & Calcium, Psedohypoparathyrodism, Dialysis with citrate anticoagulation, Hyperphosphatemia, Chemotherapeutic Drugs, Toxic shock syndrome and Maternal Hypoparathyrodism
+
+Serum Calcium Increases in Primary /Secondary Hyper-parathyroidism, Acute /chronic Renal failure, Malignant tumors (Breast,Lung,Kindney,Lymphoma), Granulomatous Disease(like TB,Sarcoidosis), VitaminD & VitaminA Intoxication, Drugs (like Diurectics and Tamoxifane, androgens), Paget''s Disease, Rhabdomyolysis with Acute renal failure, Dehydration with Hyperprotenemia and Idiopathic Hypercalcemia of Infancy.' WHERE test_code = 'CALC-01';
+
 -- Generic fallback to ensure no test has empty clinical significance
 UPDATE tests SET clinical_significance = 'Clinical significance provides diagnostic context. Results should be interpreted by a qualified clinician in correlation with clinical history, other diagnostic findings, and physical symptoms.' WHERE clinical_significance IS NULL OR clinical_significance = '';
 

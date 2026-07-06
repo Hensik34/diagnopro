@@ -1036,9 +1036,14 @@ export function PublicReportDownload() {
                     );
                   }
 
+                  const pathologySigUrl = (report as any).pathology_signature_url;
+                  const pathologySigLabel = (report as any).pathology_signature_label;
+                  const pathologySigDesc = (report as any).pathology_signature_description;
+                  const hasDoctorSignature = !!(pathologySigUrl || pathologySigLabel);
+
                   return (
                     <section key={`s-${idx}`} style={{ marginTop: '8px' }}>
-                      <div style={{ display: 'flex', justifyContent: report.is_self_report ? 'flex-start' : 'space-between' }}>
+                      <div style={{ display: 'flex', justifyContent: hasDoctorSignature ? 'space-between' : 'flex-start' }}>
                         <div>
                           <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
                             {report.owner_signature_url && (
@@ -1053,16 +1058,16 @@ export function PublicReportDownload() {
                             <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
                               {report.owner_signature_label || (report.technician_firstname ? `${report.technician_firstname} ${report.technician_lastname || ''}` : 'Lab Technician')}
                             </p>
-                            <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>Lab Owner / Incharge</p>
+                            <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>{(report as any).owner_signature_description || 'Lab Owner / Incharge'}</p>
                           </div>
                         </div>
 
-                        {!report.is_self_report && (
+                        {hasDoctorSignature && (
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
-                              {report.doctor_signature_url && (
+                              {pathologySigUrl && (
                                 <img
-                                  src={getImageUrl(report.doctor_signature_url) || ''}
+                                  src={getImageUrl(pathologySigUrl) || ''}
                                   alt="Doctor Signature"
                                   style={{ maxHeight: 40, objectFit: 'contain' }}
                                 />
@@ -1070,10 +1075,10 @@ export function PublicReportDownload() {
                             </div>
                             <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
                               <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
-                                {referringDoctorName}
+                                {pathologySigLabel || 'Authorized Signatory'}
                               </p>
                               <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>
-                                Referring Physician
+                                {pathologySigDesc || 'Pathologist'}
                               </p>
                             </div>
                           </div>
@@ -1403,9 +1408,14 @@ export function PublicReportDownload() {
                     );
                   }
 
+                  const pathologySigUrl = (report as any).pathology_signature_url;
+                  const pathologySigLabel = (report as any).pathology_signature_label;
+                  const pathologySigDesc = (report as any).pathology_signature_description;
+                  const hasDoctorSignature = !!(pathologySigUrl || pathologySigLabel);
+
                   return (
                     <section key={`s-${idx}`} style={{ marginTop: '8px' }}>
-                      <div style={{ display: 'flex', justifyContent: report.is_self_report ? 'flex-start' : 'space-between' }}>
+                      <div style={{ display: 'flex', justifyContent: hasDoctorSignature ? 'space-between' : 'flex-start' }}>
                         <div>
                           <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
                             {report.owner_signature_url && (
@@ -1420,16 +1430,16 @@ export function PublicReportDownload() {
                             <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
                               {report.owner_signature_label || (report.technician_firstname ? `${report.technician_firstname} ${report.technician_lastname || ''}` : 'Lab Technician')}
                             </p>
-                            <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>Lab Owner / Incharge</p>
+                            <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>{(report as any).owner_signature_description || 'Lab Owner / Incharge'}</p>
                           </div>
                         </div>
 
-                        {!report.is_self_report && (
+                        {hasDoctorSignature && (
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
-                              {report.doctor_signature_url && (
+                              {pathologySigUrl && (
                                 <img
-                                  src={getImageUrl(report.doctor_signature_url) || ''}
+                                  src={getImageUrl(pathologySigUrl) || ''}
                                   alt="Doctor Signature"
                                   style={{ maxHeight: 40, objectFit: 'contain' }}
                                 />
@@ -1437,10 +1447,10 @@ export function PublicReportDownload() {
                             </div>
                             <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
                               <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
-                                {referringDoctorName}
+                                {pathologySigLabel || 'Authorized Signatory'}
                               </p>
                               <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>
-                                Referring Physician
+                                {pathologySigDesc || 'Pathologist'}
                               </p>
                             </div>
                           </div>

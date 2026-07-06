@@ -26,7 +26,7 @@ interface SettingsState {
   ) => Promise<Settings | null>;
   uploadOwnerSignature: (branchId: string, file: File) => Promise<Settings | null>;
   uploadLabSignature: (branchId: string, index: number, file: File, label?: string) => Promise<Settings | null>;
-  updateSignatureLabel: (branchId: string, index: number, label: string) => Promise<Settings | null>;
+  updateSignatureLabel: (branchId: string, index: number, label: string, description?: string) => Promise<Settings | null>;
   updateDefaultSignature: (branchId: string, index: number) => Promise<Settings | null>;
   uploadDoctorSignature: (branchId: string, doctorId: string, file: File) => Promise<boolean>;
   clearError: () => void;
@@ -197,11 +197,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   /**
    * Update a signature label
    */
-  updateSignatureLabel: async (branchId: string, index: number, label: string) => {
+  updateSignatureLabel: async (branchId: string, index: number, label: string, description?: string) => {
     set({ isLoading: true, error: null });
 
     try {
-      const response = await settingsApi.updateSignatureLabel(branchId, index, label);
+      const response = await settingsApi.updateSignatureLabel(branchId, index, label, description);
       set({
         settings: response.data,
         isLoading: false,
