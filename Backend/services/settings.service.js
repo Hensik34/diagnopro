@@ -32,6 +32,8 @@ const SettingsService = {
         branch_id: branchId,
         letterhead_url: data.letterhead_url,
         owner_signature_url: data.owner_signature_url,
+        owner_signature_label: data.owner_signature_label,
+        owner_signature_description: data.owner_signature_description,
         header_url: data.header_url,
         footer_url: data.footer_url,
         report_margin_top: data.report_margin_top,
@@ -47,19 +49,23 @@ const SettingsService = {
         letterhead_margins_auto: data.letterhead_margins_auto,
         signature_1_url: data.signature_1_url,
         signature_1_label: data.signature_1_label,
+        signature_1_description: data.signature_1_description,
         signature_2_url: data.signature_2_url,
         signature_2_label: data.signature_2_label,
+        signature_2_description: data.signature_2_description,
         signature_3_url: data.signature_3_url,
         signature_3_label: data.signature_3_label,
+        signature_3_description: data.signature_3_description,
         signature_4_url: data.signature_4_url,
         signature_4_label: data.signature_4_label,
+        signature_4_description: data.signature_4_description,
         default_signature_index: data.default_signature_index,
         sample_id_format: data.sample_id_format,
         sample_id_reset_policy: data.sample_id_reset_policy,
         sample_id_fy_start_month: data.sample_id_fy_start_month,
         sample_id_start_number: data.sample_id_start_number,
       };
-      
+
       const settings = await Settings.upsert(settingsData);
       return settings;
     } catch (error) {

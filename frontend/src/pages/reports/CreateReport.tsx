@@ -143,6 +143,7 @@ export function CreateReport() {
   const testSearchInputRef = useRef<HTMLInputElement>(null);
   const doctorSearchRef = useRef<HTMLDivElement>(null);
   const doctorSearchInputRef = useRef<HTMLInputElement>(null);
+  const isClearingDoctorRef = useRef(false);
 
   // Fetch initial data
   useEffect(() => {
@@ -220,6 +221,27 @@ export function CreateReport() {
       );
     }).slice(0, 10);
   }, [doctors, doctorSearch]);
+
+  const doctorDropdownOptions = useMemo(() => {
+    const options: ({ type: 'self' } | { type: 'doctor'; data: Doctor })[] = [];
+    const isSelfVisible = !doctorSearch || 'self'.includes(doctorSearch.toLowerCase());
+    if (isSelfVisible) {
+      options.push({ type: 'self' as const });
+    }
+    filteredDoctors.forEach(doc => {
+      options.push({ type: 'doctor' as const, data: doc });
+    });
+    return options;
+  }, [doctorSearch, filteredDoctors]);
+
+  useEffect(() => {
+    if (!showDoctorDropdown || doctorDropdownOptions.length === 0) {
+      setActiveDoctorIndex(0);
+      return;
+    }
+
+    setActiveDoctorIndex((currentIndex) => Math.min(currentIndex, doctorDropdownOptions.length - 1));
+  }, [doctorDropdownOptions, showDoctorDropdown]);
 
   useEffect(() => {
     if (!showPatientDropdown || filteredPatients.length === 0) {
@@ -651,11 +673,15 @@ export function CreateReport() {
   };
 
   const handleClearDoctor = () => {
+    isClearingDoctorRef.current = true;
     setSelectedDoctor(null);
     setReferringDoctorName("");
     setDoctorSearch("");
     setShowDoctorDropdown(false);
     setActiveDoctorIndex(0);
+    setTimeout(() => {
+      isClearingDoctorRef.current = false;
+    }, 300);
   };
 
   const handleSelectSelf = () => {
@@ -669,6 +695,7 @@ export function CreateReport() {
   // Handle blur on doctor search — if text was typed but no doctor selected, use as referring_doctor_name
   const handleDoctorBlur = () => {
     setTimeout(() => {
+      if (isClearingDoctorRef.current) return;
       const trimmed = doctorSearch.trim();
       const isSelf = trimmed.toLowerCase() === 'self' || trimmed === 'Self (No Doctor)';
       if (!selectedDoctor && trimmed && !isSelf) {
@@ -689,25 +716,27 @@ export function CreateReport() {
   const handleDoctorSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown') {
       event.preventDefault();
+      event.stopPropagation();
       if (!showDoctorDropdown) {
         setShowDoctorDropdown(true);
         return;
       }
-      if (filteredDoctors.length > 0) {
-        setActiveDoctorIndex((currentIndex) => (currentIndex + 1) % filteredDoctors.length);
+      if (doctorDropdownOptions.length > 0) {
+        setActiveDoctorIndex((currentIndex) => (currentIndex + 1) % doctorDropdownOptions.length);
       }
       return;
     }
 
     if (event.key === 'ArrowUp') {
       event.preventDefault();
+      event.stopPropagation();
       if (!showDoctorDropdown) {
         setShowDoctorDropdown(true);
         return;
       }
-      if (filteredDoctors.length > 0) {
+      if (doctorDropdownOptions.length > 0) {
         setActiveDoctorIndex((currentIndex) =>
-          currentIndex === 0 ? filteredDoctors.length - 1 : currentIndex - 1
+          currentIndex === 0 ? doctorDropdownOptions.length - 1 : currentIndex - 1
         );
       }
       return;
@@ -715,10 +744,15 @@ export function CreateReport() {
 
     if (event.key === 'Enter') {
       event.preventDefault();
-      if (filteredDoctors.length > 0 && showDoctorDropdown) {
-        const doctorToSelect = filteredDoctors[activeDoctorIndex] ?? filteredDoctors[0];
-        if (doctorToSelect) {
-          handleSelectDoctor(doctorToSelect);
+      event.stopPropagation();
+      if (doctorDropdownOptions.length > 0 && showDoctorDropdown) {
+        const opt = doctorDropdownOptions[activeDoctorIndex] ?? doctorDropdownOptions[0];
+        if (opt) {
+          if (opt.type === 'self') {
+            handleSelectSelf();
+          } else {
+            handleSelectDoctor(opt.data);
+          }
         }
         return;
       }
@@ -986,6 +1020,9 @@ export function CreateReport() {
         return;
       }
 
+      // Reset the reports page date filter to today/current date
+      sessionStorage.removeItem('diagnopro_reports_date_filter');
+
       // Navigate to report entry page
       if (report.id) {
         navigate(`/reports/${report.id}/entry`);
@@ -1049,7 +1086,11 @@ export function CreateReport() {
   const handleFormNavigation = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
       const target = e.target as HTMLElement;
-      if (target === patientSearchInputRef.current || target === testSearchInputRef.current) return;
+      if (
+        target === patientSearchInputRef.current ||
+        target === testSearchInputRef.current ||
+        target === doctorSearchInputRef.current
+      ) return;
       if (target.tagName === 'SELECT' && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) return;
 
       const focusable = Array.from(document.querySelectorAll(
@@ -1386,37 +1427,51 @@ export function CreateReport() {
                     </div>
 
                     {/* Doctor Dropdown */}
-                    {showDoctorDropdown && (filteredDoctors.length > 0 || !doctorSearch || 'self'.includes(doctorSearch.toLowerCase())) && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg max-h-56 overflow-y-auto z-50">
-                        {(!doctorSearch || 'self'.includes(doctorSearch.toLowerCase())) && (
-                          <button
-                            type="button"
-                            onClick={handleSelectSelf}
-                            className="w-full px-3 py-2 text-left hover:bg-accent transition-colors border-b border-border text-[11px] text-muted-foreground"
-                          >
-                            Self (No Doctor)
-                          </button>
-                        )}
-                        {filteredDoctors.map((doc, index) => (
-                          <button
-                            key={doc.id}
-                            type="button"
-                            onClick={() => handleSelectDoctor(doc)}
-                            onMouseEnter={() => setActiveDoctorIndex(index)}
-                            className={`w-full px-3 py-2 text-left transition-colors border-b border-border last:border-0 text-[11px] ${
-                              index === activeDoctorIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
-                            }`}
-                          >
-                            <div className="font-medium text-foreground">
-                              {doc.title || 'Dr'}. {doc.name}
-                            </div>
-                            {doc.specialization || doc.phone ? (
-                              <div className="text-[9px] text-muted-foreground mt-0.5">
-                                {doc.specialization} {doc.specialization && doc.phone ? '•' : ''} {doc.phone}
-                              </div>
-                            ) : null}
-                          </button>
-                        ))}
+                    {showDoctorDropdown && doctorDropdownOptions.length > 0 && (
+                      <div
+                        onMouseDown={(e) => e.preventDefault()}
+                        className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg max-h-56 overflow-y-auto z-50"
+                      >
+                        {doctorDropdownOptions.map((opt, index) => {
+                          const isActive = index === activeDoctorIndex;
+                          if (opt.type === 'self') {
+                            return (
+                              <button
+                                key="self-option"
+                                type="button"
+                                onClick={handleSelectSelf}
+                                onMouseEnter={() => setActiveDoctorIndex(index)}
+                                className={`w-full px-3 py-2 text-left transition-colors border-b border-border text-[11px] ${
+                                  isActive ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-accent text-muted-foreground'
+                                }`}
+                              >
+                                Self (No Doctor)
+                              </button>
+                            );
+                          } else {
+                            const doc = opt.data;
+                            return (
+                              <button
+                                key={doc.id}
+                                type="button"
+                                onClick={() => handleSelectDoctor(doc)}
+                                onMouseEnter={() => setActiveDoctorIndex(index)}
+                                className={`w-full px-3 py-2 text-left transition-colors border-b border-border last:border-0 text-[11px] ${
+                                  isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
+                                }`}
+                              >
+                                <div className="font-medium text-foreground">
+                                  {doc.title || 'Dr'}. {doc.name}
+                                </div>
+                                {doc.specialization || doc.phone ? (
+                                  <div className="text-[9px] text-muted-foreground mt-0.5">
+                                    {doc.specialization} {doc.specialization && doc.phone ? '•' : ''} {doc.phone}
+                                  </div>
+                                ) : null}
+                              </button>
+                            );
+                          }
+                        })}
                       </div>
                     )}
                     {/* Indicator showing what will be saved */}

@@ -464,6 +464,24 @@ export interface Report {
   price_list_id?: string;
   price_locked?: boolean;
   pricing_snapshot?: ReportTestPriceSnapshot[];
+  // Virtual/Joined fields from backend
+  collection_date?: string;
+  doctor_signature_url?: string | null;
+  letterhead_url?: string | null;
+  header_url?: string | null;
+  footer_url?: string | null;
+  report_margin_top?: string | number | null;
+  report_margin_bottom?: string | number | null;
+  report_margin_left?: string | number | null;
+  report_margin_right?: string | number | null;
+  header_safe_area?: string | number | null;
+  footer_safe_area?: string | number | null;
+  owner_signature_url?: string | null;
+  owner_signature_label?: string | null;
+  owner_signature_description?: string | null;
+  pathology_signature_url?: string | null;
+  pathology_signature_label?: string | null;
+  pathology_signature_description?: string | null;
 }
 
 export interface CreateReportData {

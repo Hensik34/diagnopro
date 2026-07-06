@@ -64,6 +64,10 @@ export function Settings() {
 
   // Lab Signatures state (up to 4)
   const [sigLabels, setSigLabels] = useState<Record<number, string>>({});
+  const [ownerSigLabel, setOwnerSigLabel] = useState('');
+  const [ownerSigDesc, setOwnerSigDesc] = useState('');
+  const [isSavingOwnerDetails, setIsSavingOwnerDetails] = useState(false);
+  const [sigDescriptions, setSigDescriptions] = useState<Record<number, string>>({});
   const [sigEditingLabel, setEditingLabel] = useState<number | null>(null);
   const [labSignatureFiles, setLabSignatureFiles] = useState<Record<number, File | null>>({ 1: null, 2: null, 3: null, 4: null });
   const [labSignaturePreviews, setLabSignaturePreviews] = useState<Record<number, string | null>>({ 1: null, 2: null, 3: null, 4: null });
@@ -144,6 +148,9 @@ export function Settings() {
       setOwnerSignaturePreview(settings.owner_signature_url || null);
     }
     if (settings) {
+      setOwnerSigLabel(settings.owner_signature_label || '');
+      setOwnerSigDesc(settings.owner_signature_description || '');
+
       // Initialize lab signature labels
       const labels: Record<number, string> = {};
       if (settings.signature_1_label) labels[1] = settings.signature_1_label;
@@ -151,6 +158,14 @@ export function Settings() {
       if (settings.signature_3_label) labels[3] = settings.signature_3_label;
       if (settings.signature_4_label) labels[4] = settings.signature_4_label;
       setSigLabels(labels);
+
+      // Initialize lab signature descriptions
+      const descriptions: Record<number, string> = {};
+      if (settings.signature_1_description) descriptions[1] = settings.signature_1_description;
+      if (settings.signature_2_description) descriptions[2] = settings.signature_2_description;
+      if (settings.signature_3_description) descriptions[3] = settings.signature_3_description;
+      if (settings.signature_4_description) descriptions[4] = settings.signature_4_description;
+      setSigDescriptions(descriptions);
 
       // Initialize lab signature previews
       const previews: Record<number, string | null> = { 1: null, 2: null, 3: null, 4: null };
@@ -463,15 +478,35 @@ export function Settings() {
     });
   };
 
-  const handleUpdateSignatureLabel = async (index: number, newLabel: string) => {
+  const handleSaveOwnerDetails = async () => {
+    if (!activeBranchId) return;
+    setIsSavingOwnerDetails(true);
+    try {
+      const result = await useSettingsStore.getState().updateSettings({
+        branch_id: activeBranchId,
+        owner_signature_label: ownerSigLabel,
+        owner_signature_description: ownerSigDesc,
+      });
+      if (result) {
+        showSuccess('Owner details updated successfully');
+      }
+    } catch (err: any) {
+      showError(err.message || 'Failed to update owner details');
+    } finally {
+      setIsSavingOwnerDetails(false);
+    }
+  };
+
+  const handleUpdateSignatureLabel = async (index: number, newLabel: string, newDescription: string) => {
     if (!activeBranchId) return;
 
     try {
-      const result = await updateSignatureLabel(activeBranchId, index, newLabel);
+      const result = await updateSignatureLabel(activeBranchId, index, newLabel, newDescription);
       if (result) {
         setSigLabels({ ...sigLabels, [index]: newLabel });
+        setSigDescriptions({ ...sigDescriptions, [index]: newDescription });
         setEditingLabel(null);
-        showSuccess(`Signature ${index} label updated`);
+        showSuccess(`Signature ${index} details updated`);
       }
     } catch (err) {
       console.error(err);
@@ -1201,6 +1236,40 @@ export function Settings() {
                           </div>
                         )}
                         <p className="text-xs text-muted-foreground">Upload a transparent PNG for best results. This signature authorizes all tests.</p>
+                        
+                        {/* Owner Name and Description Input */}
+                        <div className="mt-4 pt-4 border-t border-border/50 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Lab Owner / Incharge Name</label>
+                            <input
+                              type="text"
+                              value={ownerSigLabel}
+                              onChange={(e) => setOwnerSigLabel(e.target.value)}
+                              placeholder="e.g. Dr. Amit Patel"
+                              className="w-full h-8 px-2.5 bg-transparent border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description / Title</label>
+                            <input
+                              type="text"
+                              value={ownerSigDesc}
+                              onChange={(e) => setOwnerSigDesc(e.target.value)}
+                              placeholder="e.g. Lab Owner / Incharge"
+                              className="w-full h-8 px-2.5 bg-transparent border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                            />
+                          </div>
+                          <div className="sm:col-span-2 flex justify-end">
+                            <button
+                              onClick={handleSaveOwnerDetails}
+                              disabled={isSavingOwnerDetails}
+                              className="h-8 px-4 bg-primary text-primary-foreground rounded text-xs font-medium hover:bg-primary/90 flex items-center gap-1.5 disabled:opacity-50 transition-colors shadow-sm"
+                            >
+                              {isSavingOwnerDetails ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                              Save Owner Details
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1238,32 +1307,56 @@ export function Settings() {
                           )}
                         </div>
 
-                        {/* Label Input */}
-                        <div className="mb-4">
-                          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Label</label>
+                        {/* Label & Description Input */}
+                        <div className="mb-4 space-y-3">
                           {sigEditingLabel === index ? (
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                value={sigLabels[index] || ''}
-                                onChange={(e) => setSigLabels({ ...sigLabels, [index]: e.target.value })}
-                                placeholder={`Signature ${index} label`}
-                                className="flex-1 h-8 px-2.5 bg-transparent border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                              <button
-                                onClick={() => handleUpdateSignatureLabel(index, sigLabels[index] || '')}
-                                disabled={uploadingField === `label_${index}`}
-                                className="h-8 px-2.5 bg-primary text-primary-foreground rounded text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
-                              >
-                                Save
-                              </button>
+                            <div className="space-y-2">
+                              <div>
+                                <label className="block text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1">Name (Label)</label>
+                                <input
+                                  type="text"
+                                  value={sigLabels[index] || ''}
+                                  onChange={(e) => setSigLabels({ ...sigLabels, [index]: e.target.value })}
+                                  placeholder={`Signature ${index} name (e.g. Dr. Amit Patel)`}
+                                  className="w-full h-8 px-2.5 bg-transparent border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1">Description (e.g. MD Pathologist)</label>
+                                <input
+                                  type="text"
+                                  value={sigDescriptions[index] || ''}
+                                  onChange={(e) => setSigDescriptions({ ...sigDescriptions, [index]: e.target.value })}
+                                  placeholder={`Signature ${index} description (e.g. MD Pathologist)`}
+                                  className="w-full h-8 px-2.5 bg-transparent border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                                />
+                              </div>
+                              <div className="flex justify-end gap-2 pt-1">
+                                <button
+                                  onClick={() => setEditingLabel(null)}
+                                  className="h-8 px-3 bg-secondary text-foreground border border-border rounded text-xs font-medium hover:bg-secondary/80"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => handleUpdateSignatureLabel(index, sigLabels[index] || '', sigDescriptions[index] || '')}
+                                  disabled={uploadingField === `label_${index}`}
+                                  className="h-8 px-3 bg-primary text-primary-foreground rounded text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+                                >
+                                  Save
+                                </button>
+                              </div>
                             </div>
                           ) : (
-                            <div
-                              onClick={() => setEditingLabel(index)}
-                              className="h-8 px-2.5 border border-border rounded bg-card flex items-center text-sm text-muted-foreground cursor-pointer hover:bg-secondary/30 transition-colors"
-                            >
-                              {sigLabels[index] || `Signature ${index}`}
+                            <div onClick={() => setEditingLabel(index)} className="cursor-pointer hover:bg-secondary/20 p-2 rounded border border-dashed border-border transition-colors">
+                              <div>
+                                <label className="block text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Name (Label)</label>
+                                <div className="text-sm font-medium text-foreground">{sigLabels[index] || `Signature ${index}`}</div>
+                              </div>
+                              <div className="mt-1">
+                                <label className="block text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Description</label>
+                                <div className="text-xs text-muted-foreground">{sigDescriptions[index] || 'No description set'}</div>
+                              </div>
                             </div>
                           )}
                         </div>

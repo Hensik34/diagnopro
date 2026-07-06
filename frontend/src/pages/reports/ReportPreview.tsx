@@ -319,7 +319,7 @@ export function ReportPreview() {
     }
   }, [id, fetchReportById, fetchBranches]);
 
-  const reportBranchId = (rawReport as any)?.branch_id || currentBranchId;
+  const reportBranchId = rawReport?.branch_id || currentBranchId;
 
   useEffect(() => {
     if (!reportBranchId) return;
@@ -354,7 +354,7 @@ export function ReportPreview() {
   useEffect(() => {
     if (!rawReport) return;
 
-    const branch = branches.find(b => b.id === (rawReport as any).branch_id);
+    const branch = branches.find(b => b.id === rawReport.branch_id);
     const age = formatAge(rawReport.patient_age, rawReport.patient_age_unit) || 'N/A';
     const doctorName = rawReport.is_self_report
       ? 'Self'
@@ -449,7 +449,7 @@ export function ReportPreview() {
       params.push(...filteredParams);
     }
 
-    const collectionDate = (rawReport as any).collection_date || rawReport.created_at;
+    const collectionDate = rawReport.collection_date || rawReport.created_at;
     const reportedAt = rawReport.approved_at || rawReport.created_at;
 
     const nextData: ReportData = {
@@ -777,13 +777,14 @@ export function ReportPreview() {
   const pathologySignature = (() => {
     if (!settings) {
       return {
-        url: rawReport?.doctor_signature_url || null,
-        label: null as string | null,
+        url: rawReport?.pathology_signature_url || rawReport?.doctor_signature_url || null,
+        label: rawReport?.pathology_signature_label || null,
+        description: rawReport?.pathology_signature_description || null,
       };
     }
 
-    const getSigValue = (index: number, field: 'url' | 'label') => {
-      const key = field === 'url' ? `signature_${index}_url` : `signature_${index}_label`;
+    const getSigValue = (index: number, field: 'url' | 'label' | 'description') => {
+      const key = `signature_${index}_${field}`;
       return settings[key as keyof typeof settings] as string | null | undefined;
     };
 
@@ -791,25 +792,30 @@ export function ReportPreview() {
     if ([1, 2, 3, 4].includes(index || 0)) {
       const url = getSigValue(index!, 'url');
       const label = getSigValue(index!, 'label');
-      if (url) return { url, label: label || null };
+      const description = getSigValue(index!, 'description');
+      if (url) return { url, label: label || null, description: description || null };
     }
 
     for (let i = 1; i <= 4; i += 1) {
       const url = getSigValue(i, 'url');
       if (url) {
         const label = getSigValue(i, 'label');
-        return { url, label: label || null };
+        const description = getSigValue(i, 'description');
+        return { url, label: label || null, description: description || null };
       }
     }
 
     return {
-      url: rawReport?.doctor_signature_url || null,
-      label: null,
+      url: rawReport?.pathology_signature_url || rawReport?.doctor_signature_url || null,
+      label: rawReport?.pathology_signature_label || null,
+      description: rawReport?.pathology_signature_description || null,
     };
   })();
 
   const doctorSignatureUrl = pathologySignature.url;
-  const doctorSignatureName = pathologySignature.label || 'MD Pathologist';
+  const doctorSignatureName = pathologySignature.label || (doctorSignatureUrl ? 'Authorized Signatory' : '');
+  const doctorSignatureDescription = pathologySignature.description || (doctorSignatureUrl ? 'Pathologist' : '');
+  const hasDoctorSignature = !!(doctorSignatureUrl || pathologySignature.label);
 
   const generatePDF = useCallback(async (): Promise<File | null> => {
     if (!reportData || pages.length === 0) return null;
@@ -1004,20 +1010,24 @@ export function ReportPreview() {
   const ownerSignature = (() => {
     let url: string | null = null;
     let label: string | null = null;
+    let description: string | null = null;
 
     if (settings) {
       url = settings.owner_signature_url || null;
-      label = (rawReport as any)?.owner_signature_label || null;
+      label = settings.owner_signature_label || rawReport?.owner_signature_label || null;
+      description = settings.owner_signature_description || rawReport?.owner_signature_description || null;
     } else {
       url = rawReport?.owner_signature_url || null;
-      label = (rawReport as any)?.owner_signature_label || null;
+      label = rawReport?.owner_signature_label || null;
+      description = rawReport?.owner_signature_description || null;
     }
 
-    return { url, label };
+    return { url, label, description };
   })();
 
   const ownerSigUrl = ownerSignature.url;
-  const ownerSigLabel = ownerSignature.label || (user ? `${user.firstname} ${user.lastname}` : (rawReport?.technician_firstname ? `${rawReport.technician_firstname} ${rawReport?.technician_lastname || ''}` : reportData.technician.name));
+  const ownerSigLabel = ownerSignature.label || (rawReport?.technician_firstname ? `${rawReport.technician_firstname} ${rawReport?.technician_lastname || ''}` : (user ? `${user.firstname} ${user.lastname}` : reportData.technician.name));
+  const ownerSigDesc = ownerSignature.description || 'Lab Owner / Incharge';
 
   const letterheadActive = showLetterhead && !!settings?.letterhead_url;
   const headerActive = showLetterhead && !!settings?.header_url && !settings?.letterhead_url;
@@ -1373,10 +1383,9 @@ export function ReportPreview() {
                           }
 
 
-
                           return (
                             <section key={`s-${idx}`} style={{ marginTop: '8px' }}>
-                              <div style={{ display: 'flex', justifyContent: doctorSignatureUrl ? 'space-between' : 'flex-start' }}>
+                              <div style={{ display: 'flex', justifyContent: hasDoctorSignature ? 'space-between' : 'flex-start' }}>
                                 <div>
                                   <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 6 }}>
                                     {ownerSigUrl && (
@@ -1391,24 +1400,26 @@ export function ReportPreview() {
                                     <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
                                       {ownerSigLabel}
                                     </p>
-                                    <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>Lab Owner / Incharge</p>
+                                    <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>{ownerSigDesc}</p>
                                   </div>
                                 </div>
-
-                                {doctorSignatureUrl && (
+ 
+                                {hasDoctorSignature && (
                                   <div style={{ textAlign: 'right' }}>
                                     <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
-                                      <img
-                                        src={getImageUrl(doctorSignatureUrl) || ''}
-                                        alt="Doctor Signature"
-                                        style={{ maxHeight: 40, objectFit: 'contain' }}
-                                      />
+                                      {doctorSignatureUrl && (
+                                        <img
+                                          src={getImageUrl(doctorSignatureUrl) || ''}
+                                          alt="Doctor Signature"
+                                          style={{ maxHeight: 40, objectFit: 'contain' }}
+                                        />
+                                      )}
                                     </div>
                                     <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
                                       <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
-                                        {doctorSignatureName}
+                                        {doctorSignatureName || 'Doctor'}
                                       </p>
-                                      <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>Pathologist</p>
+                                      <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>{doctorSignatureDescription || 'Consultant'}</p>
                                     </div>
                                   </div>
                                 )}

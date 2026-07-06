@@ -10,6 +10,8 @@ export interface Settings {
   branch_id: string;
   letterhead_url?: string | null;
   owner_signature_url?: string | null;
+  owner_signature_label?: string | null;
+  owner_signature_description?: string | null;
   header_url?: string | null;
   footer_url?: string | null;
   report_margin_top?: number | string;
@@ -26,12 +28,16 @@ export interface Settings {
   // Lab signatures (up to 4)
   signature_1_url?: string | null;
   signature_1_label?: string | null;
+  signature_1_description?: string | null;
   signature_2_url?: string | null;
   signature_2_label?: string | null;
+  signature_2_description?: string | null;
   signature_3_url?: string | null;
   signature_3_label?: string | null;
+  signature_3_description?: string | null;
   signature_4_url?: string | null;
   signature_4_label?: string | null;
+  signature_4_description?: string | null;
   default_signature_index?: number;
   sample_id_format?: 'numeric' | 'sm_prefix';
   sample_id_reset_policy?: 'yearly' | 'monthly';
@@ -45,6 +51,8 @@ export interface SettingsUpdateData {
   branch_id?: string;
   letterhead_url?: string | null;
   owner_signature_url?: string | null;
+  owner_signature_label?: string | null;
+  owner_signature_description?: string | null;
   letterhead_base64?: string;
   owner_signature_base64?: string;
   header_url?: string | null;
@@ -163,8 +171,8 @@ export const settingsApi = {
   /**
    * Update signature label
    */
-  updateSignatureLabel: async (branchId: string, index: number, label: string): Promise<ApiResponse<Settings>> => {
-    const response = await api.put<ApiResponse<Settings>>(`/settings/signature/${index}/label?branch_id=${branchId}`, { label });
+  updateSignatureLabel: async (branchId: string, index: number, label: string, description?: string): Promise<ApiResponse<Settings>> => {
+    const response = await api.put<ApiResponse<Settings>>(`/settings/signature/${index}/label?branch_id=${branchId}`, { label, description });
     return response.data;
   },
 
