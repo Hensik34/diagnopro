@@ -15,7 +15,7 @@ import { Patients } from '../pages/patients';
 // Samples
 import { SampleCollection } from '../pages/samples';
 // Tests
-import { TestManagement, TemplateEditor, PriceListManagement } from '../pages/tests';
+import { TestManagement, TemplateEditor, PriceListManagement, TestConfiguration } from '../pages/tests';
 // Doctors
 import { DoctorManagement, DoctorDetail } from '../pages/doctors';
 // Branches
@@ -143,6 +143,7 @@ export const router = createBrowserRouter([
       { path: 'settings', Component: withPermission(Settings, PERMISSIONS.SETTINGS_VIEW) },
       { path: 'tests/pricing', Component: withPermission(PriceListManagement, PERMISSIONS.SETTINGS_VIEW) },
       { path: 'tests/templates/:testId', Component: withPermission(TemplateEditor, PERMISSIONS.TEST_UPDATE) },
+      { path: 'tests/configure/:testId', Component: withPermission(TestConfiguration, PERMISSIONS.TEST_UPDATE) },
       { path: 'doctor-dashboard', Component: DoctorDashboard },
       { path: 'doctor-reports', Component: DoctorReports },
       { path: 'profile', Component: DoctorProfile },

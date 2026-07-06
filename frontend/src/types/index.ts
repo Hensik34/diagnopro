@@ -249,10 +249,10 @@ export type FieldType = 'input' | 'calculated' | 'flag';
 // Reference range rule (age/gender-specific)
 export interface ReferenceRule {
   age_group?: string;   // 'adult' | 'pediatric' | 'neonatal' | 'all' | custom
-  age_min?: number;
-  age_max?: number;
-  age_min_unit?: string;
-  age_max_unit?: string;
+  age_min?: number | null;
+  age_max?: number | null;
+  age_min_unit?: string | null;
+  age_max_unit?: string | null;
   sex?: string;         // 'male' | 'female' | 'any'
   low?: number | null;
   high?: number | null;

@@ -167,7 +167,7 @@ export function InvestigationTableRow({
   compact?: boolean;
 }) {
   const fontSize = compact ? `${ReportLayoutConfig.fontSize.value - 0.5}px` : `${ReportLayoutConfig.fontSize.value}px`;
-  const vPad = compact ? '2px' : '3px';
+  const vPad = compact ? '1px' : '1.5px';
 
   return (
     <tr>
@@ -276,12 +276,12 @@ export function SectionGroupHeader({
       <td
         colSpan={5}
         style={{
-          paddingTop: compact ? '2px' : '5px',
-          paddingBottom: compact ? '2px' : '2px',
+          paddingTop: compact ? '1px' : '2px',
+          paddingBottom: compact ? '1px' : '2px',
           paddingLeft: 0,
           paddingRight: 0,
-          fontWeight: 700,
-          fontSize: '10.5px',
+          fontWeight: 800,
+          fontSize: '11.5px',
           color: '#222',
           letterSpacing: '0.2px',
         }}

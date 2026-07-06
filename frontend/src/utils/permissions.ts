@@ -166,28 +166,49 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 
   // Lab Technician: Sample collection, test processing, report creation and review
   [ROLES.TECHNICIAN]: [
+    // Patient Management - full access
+    PERMISSIONS.PATIENT_CREATE,
     PERMISSIONS.PATIENT_READ,
+    PERMISSIONS.PATIENT_UPDATE,
+    PERMISSIONS.PATIENT_DELETE,
+
+    // Report Management - all except delete
     PERMISSIONS.REPORT_READ,
     PERMISSIONS.REPORT_CREATE,
     PERMISSIONS.REPORT_UPDATE,
     PERMISSIONS.REPORT_APPROVE,
     PERMISSIONS.REPORT_REVIEW,
     PERMISSIONS.REPORT_DOWNLOAD,
+    PERMISSIONS.REPORT_ASSIGN_TECHNICIAN,
+
+    // Sample Management - full access
     PERMISSIONS.SAMPLE_CREATE,
     PERMISSIONS.SAMPLE_READ,
     PERMISSIONS.SAMPLE_UPDATE,
+    PERMISSIONS.SAMPLE_DELETE,
     PERMISSIONS.SAMPLE_COLLECT,
+
+    // Test Management - full access
+    PERMISSIONS.TEST_CREATE,
     PERMISSIONS.TEST_READ,
-    PERMISSIONS.TEST_RESULT_UPDATE,
     PERMISSIONS.TEST_UPDATE,
+    PERMISSIONS.TEST_DELETE,
+    PERMISSIONS.TEST_RESULT_UPDATE,
+
+    // Branch Management - read only (branches is excluded from all rights)
     PERMISSIONS.BRANCH_READ,
+
+    // Inventory Management - full access
     PERMISSIONS.INVENTORY_CREATE,
     PERMISSIONS.INVENTORY_READ,
     PERMISSIONS.INVENTORY_UPDATE,
+    PERMISSIONS.INVENTORY_DELETE,
+
     // Collection Tracking
     PERMISSIONS.COLLECTION_CREATE,
     PERMISSIONS.COLLECTION_READ,
     PERMISSIONS.COLLECTION_UPDATE,
+
     // Settings - can manage WhatsApp and notifications
     PERMISSIONS.SETTINGS_VIEW,
     PERMISSIONS.SETTINGS_UPDATE,
@@ -219,7 +240,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.TIMELOG_TRACK,
   ],
 
-  // Staff: Front desk operations - patient registration, report generation, basic reads
+  // Staff: Front desk operations - patient registration, report generation, basic reads, sample collection
   [ROLES.STAFF]: [
     PERMISSIONS.PATIENT_CREATE,
     PERMISSIONS.PATIENT_READ,
@@ -230,6 +251,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.REPORT_DOWNLOAD,
     PERMISSIONS.SAMPLE_CREATE,
     PERMISSIONS.SAMPLE_READ,
+    PERMISSIONS.SAMPLE_COLLECT,
     PERMISSIONS.TEST_READ,
     PERMISSIONS.BRANCH_READ,
     PERMISSIONS.INVENTORY_READ,

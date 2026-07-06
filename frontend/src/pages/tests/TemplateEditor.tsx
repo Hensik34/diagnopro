@@ -1183,19 +1183,16 @@ export function TemplateEditor() {
             {/* Clinical Significance Preview */}
             {clinicalSignificance && (
               <div style={{
-                marginTop: '24px',
-                border: `1px solid ${colorTokens.borderLight}`,
-                borderRadius: '4px',
-                padding: '8px 10px',
-                backgroundColor: '#FFFDE7',
-                fontSize: '9px',
-                color: '#546E7A',
-                lineHeight: 1.5
+                marginTop: '8px',
+                fontSize: '9.5px',
+                color: '#222',
+                lineHeight: 1.45,
+                textAlign: 'left'
               }}>
-                <span style={{ fontWeight: 800, color: '#37474F', textTransform: 'uppercase' as const }}>
+                <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase' as const, marginBottom: '2px' }}>
                   Clinical Significance
-                </span>
-                <p style={{ marginTop: '3px', whiteSpace: 'pre-line' }}>
+                </div>
+                <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
                   {clinicalSignificance}
                 </p>
               </div>

@@ -95,6 +95,7 @@ type ReportData = {
   footer_safe_area?: string | number;
   report_type?: string;
   owner_signature_url?: string;
+  owner_signature_label?: string;
   doctor_signature_url?: string;
   download_token?: string;
 };
@@ -737,14 +738,14 @@ export function PublicReportDownload() {
 
         const imgData = canvas.toDataURL('image/jpeg', 0.95);
         pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-        
+
         setDownloadProgress(Math.min(90, Math.round(30 + ((i + 1) / pagesCount) * 60)));
       }
 
       const fileName = `Report-${report.patient_name.replace(/\s+/g, '_')}-${report.sample_id_code}.pdf`;
       pdf.save(fileName);
       setDownloadProgress(100);
-      
+
       setTimeout(() => {
         setDownloading(false);
         setDownloadProgress(0);
@@ -784,8 +785,8 @@ export function PublicReportDownload() {
             {error || 'This report is unavailable or has not been fully verified/approved by the lab head.'}
           </p>
           <div className="space-y-2">
-            <a 
-              href="mailto:support@diagno.pro" 
+            <a
+              href="mailto:support@diagno.pro"
               className="block w-full py-2.5 px-4 bg-slate-800 text-white rounded-xl text-sm font-medium hover:bg-slate-900 transition cursor-pointer"
             >
               Contact Laboratory Support
@@ -981,59 +982,51 @@ export function PublicReportDownload() {
                     );
                   }
 
-                   // Render inline clinical significance box
-                   if (item.type === 'interpretation') {
-                     return (
-                       <div
-                         key={`i-${idx}`}
-                         style={{
-                           marginTop: '24px',
-                           border: `1px solid ${C.borderLight}`,
-                           borderRadius: '4px',
-                           padding: '8px 10px',
-                           backgroundColor: '#FFFDE7',
-                           fontSize: '9px',
-                           color: '#546E7A',
-                           lineHeight: 1.5,
-                           textAlign: 'left'
-                         }}
-                       >
-                         <span style={{ fontWeight: 800, color: '#37474F', textTransform: 'uppercase' }}>
-                           Clinical Significance
-                         </span>
-                         <p style={{ margin: '3px 0 0 0', whiteSpace: 'pre-line' }}>
-                           {item.text}
-                         </p>
-                       </div>
-                     );
-                   }
+                  // Render inline clinical significance box
+                  if (item.type === 'interpretation') {
+                    return (
+                      <div
+                        key={`i-${idx}`}
+                        style={{
+                          marginTop: '8px',
+                          fontSize: '9.5px',
+                          color: '#222',
+                          lineHeight: 1.45,
+                          textAlign: 'left'
+                        }}
+                      >
+                        <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                          Clinical Significance
+                        </div>
+                        <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                          {item.text}
+                        </p>
+                      </div>
+                    );
+                  }
 
-                   // Render inline general/technician notes box
-                   if (item.type === 'generalNotes') {
-                     return (
-                       <div
-                         key={`gnotes-${idx}`}
-                         style={{
-                           marginTop: '24px',
-                           border: `1px solid ${C.borderLight}`,
-                           borderRadius: '4px',
-                           padding: '8px 10px',
-                           backgroundColor: '#FFFDE7',
-                           fontSize: '9px',
-                           color: '#546E7A',
-                           lineHeight: 1.5,
-                           textAlign: 'left'
-                         }}
-                       >
-                         <span style={{ fontWeight: 800, color: '#37474F', textTransform: 'uppercase' }}>
-                           Technician Notes / Interpretation
-                         </span>
-                         <p style={{ margin: '3px 0 0 0', whiteSpace: 'pre-line' }}>
-                           {item.text}
-                         </p>
-                       </div>
-                     );
-                   }
+                  // Render inline general/technician notes box
+                  if (item.type === 'generalNotes') {
+                    return (
+                      <div
+                        key={`gnotes-${idx}`}
+                        style={{
+                          marginTop: '8px',
+                          fontSize: '9.5px',
+                          color: '#222',
+                          lineHeight: 1.45,
+                          textAlign: 'left'
+                        }}
+                      >
+                        <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                          Technician Notes / Interpretation
+                        </div>
+                        <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                          {item.text}
+                        </p>
+                      </div>
+                    );
+                  }
 
                   if (item.type === 'endMarker') {
                     return (
@@ -1159,7 +1152,7 @@ export function PublicReportDownload() {
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
               <span>Generating PDF ({downloadProgress}%)</span>
-              <div 
+              <div
                 className="absolute bottom-0 left-0 h-1 bg-emerald-400 transition-all duration-300"
                 style={{ width: `${downloadProgress}%` }}
               />
@@ -1178,10 +1171,10 @@ export function PublicReportDownload() {
       </div>
 
       {/* Off-screen hidden render target for html2canvas generation */}
-      <div 
-        style={{ 
-          position: 'absolute', 
-          top: '-9999px', 
+      <div
+        style={{
+          position: 'absolute',
+          top: '-9999px',
           left: '-9999px',
           visibility: 'hidden',
           pointerEvents: 'none'
@@ -1356,59 +1349,51 @@ export function PublicReportDownload() {
                     );
                   }
 
-                   // Render inline clinical significance box
-                   if (item.type === 'interpretation') {
-                     return (
-                       <div
-                         key={`i-${idx}`}
-                         style={{
-                           marginTop: '24px',
-                           border: `1px solid ${C.borderLight}`,
-                           borderRadius: '4px',
-                           padding: '8px 10px',
-                           backgroundColor: '#FFFDE7',
-                           fontSize: '9px',
-                           color: '#546E7A',
-                           lineHeight: 1.5,
-                           textAlign: 'left'
-                         }}
-                       >
-                         <span style={{ fontWeight: 800, color: '#37474F', textTransform: 'uppercase' }}>
-                           Clinical Significance
-                         </span>
-                         <p style={{ margin: '3px 0 0 0', whiteSpace: 'pre-line' }}>
-                           {item.text}
-                         </p>
-                       </div>
-                     );
-                   }
+                  // Render inline clinical significance box
+                  if (item.type === 'interpretation') {
+                    return (
+                      <div
+                        key={`i-${idx}`}
+                        style={{
+                          marginTop: '8px',
+                          fontSize: '9.5px',
+                          color: '#222',
+                          lineHeight: 1.45,
+                          textAlign: 'left'
+                        }}
+                      >
+                        <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                          Clinical Significance
+                        </div>
+                        <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                          {item.text}
+                        </p>
+                      </div>
+                    );
+                  }
 
-                   // Render inline general/technician notes box
-                   if (item.type === 'generalNotes') {
-                     return (
-                       <div
-                         key={`gnotes-${idx}`}
-                         style={{
-                           marginTop: '24px',
-                           border: `1px solid ${C.borderLight}`,
-                           borderRadius: '4px',
-                           padding: '8px 10px',
-                           backgroundColor: '#FFFDE7',
-                           fontSize: '9px',
-                           color: '#546E7A',
-                           lineHeight: 1.5,
-                           textAlign: 'left'
-                         }}
-                       >
-                         <span style={{ fontWeight: 800, color: '#37474F', textTransform: 'uppercase' }}>
-                           Technician Notes / Interpretation
-                         </span>
-                         <p style={{ margin: '3px 0 0 0', whiteSpace: 'pre-line' }}>
-                           {item.text}
-                         </p>
-                       </div>
-                     );
-                   }
+                  // Render inline general/technician notes box
+                  if (item.type === 'generalNotes') {
+                    return (
+                      <div
+                        key={`gnotes-${idx}`}
+                        style={{
+                          marginTop: '8px',
+                          fontSize: '9.5px',
+                          color: '#222',
+                          lineHeight: 1.45,
+                          textAlign: 'left'
+                        }}
+                      >
+                        <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                          Technician Notes / Interpretation
+                        </div>
+                        <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                          {item.text}
+                        </p>
+                      </div>
+                    );
+                  }
 
                   if (item.type === 'endMarker') {
                     return (

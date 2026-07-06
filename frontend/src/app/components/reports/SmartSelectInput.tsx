@@ -51,6 +51,7 @@ export const SmartSelectInput = forwardRef<HTMLInputElement, SmartSelectInputPro
     }, [value]);
 
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const isHoveringDropdown = useRef(false);
     const [alignLeft, setAlignLeft] = useState(false);
     const [alignBottom, setAlignBottom] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0 });
@@ -117,7 +118,7 @@ export const SmartSelectInput = forwardRef<HTMLInputElement, SmartSelectInputPro
       
       // Delay closing dropdown slightly so click events on options have time to register (though onMouseDown is safer)
       setTimeout(() => {
-        if (!containerRef.current?.contains(document.activeElement)) {
+        if (!containerRef.current?.contains(document.activeElement) && !isHoveringDropdown.current) {
           setIsOpen(false);
         }
       }, 100);
@@ -180,10 +181,16 @@ export const SmartSelectInput = forwardRef<HTMLInputElement, SmartSelectInputPro
           autoComplete="off"
         />
         
-        {/* Floating Dropdown */}
-        {isOpen && !disabled && filteredOptions.length > 0 && createPortal(
+        {isOpen && !disabled && filteredOptions.length > 0 && (createPortal(
           <div
             ref={dropdownRef}
+            onMouseEnter={() => { isHoveringDropdown.current = true; }}
+            onMouseLeave={() => {
+              isHoveringDropdown.current = false;
+              if (!containerRef.current?.contains(document.activeElement)) {
+                setIsOpen(false);
+              }
+            }}
             className="fixed z-[9999] w-52 max-h-[80vh] overflow-y-auto rounded-lg border border-neutral-800 bg-[#1E1B18] text-white shadow-xl pointer-events-auto"
             style={{
               top: coords.top,
@@ -222,7 +229,7 @@ export const SmartSelectInput = forwardRef<HTMLInputElement, SmartSelectInputPro
             </ul>
           </div>,
           document.body
-        )}
+        ) as any)}
       </div>
     );
   }

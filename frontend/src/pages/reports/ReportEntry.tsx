@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Fragment } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useNavigate, useLocation, useSearchParams, Link } from "react-router";
 import {
   Save,
@@ -52,8 +53,8 @@ function normalizeReferenceRules(raw: any): ReferenceRule[] {
       high: r.high ?? r.max ?? null,
       age_min: r.age_min != null ? Number(r.age_min) : null,
       age_max: r.age_max != null ? Number(r.age_max) : null,
-      age_min_unit: r.age_min_unit || 'years',
-      age_max_unit: r.age_max_unit || 'years',
+      age_min_unit: r.age_min_unit || r.age_max_unit || 'years',
+      age_max_unit: r.age_max_unit || r.age_min_unit || 'years',
       note: r.note,
     }));
   }
@@ -274,11 +275,12 @@ function getPatientReferenceRange(
 }
 
 function formatReferenceRange(range: MatchedRange): string {
-  if (range.note) return range.note;
-  if (range.low == null && range.high == null) return '-';
-  const lo = range.low != null ? range.low : '—';
-  const hi = range.high != null ? range.high : '—';
-  return `${lo} - ${hi}`;
+  if (range.low != null || range.high != null) {
+    const lo = range.low != null ? range.low : '—';
+    const hi = range.high != null ? range.high : '—';
+    return `${lo} - ${hi}`;
+  }
+  return range.note || '-';
 }
 
 export function ReportEntry() {
@@ -512,8 +514,67 @@ export function ReportEntry() {
   const [showNotesSection, setShowNotesSection] = useState(false);
   const [showAiSection, setShowAiSection] = useState(false);
   const [activeTextareaId, setActiveTextareaId] = useState<string | null>(null);
+  const [textareaCoords, setTextareaCoords] = useState({ top: 0, left: 0 });
+  const [textareaAlignLeft, setTextareaAlignLeft] = useState(false);
+  const [textareaAlignBottom, setTextareaAlignBottom] = useState(false);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const inputRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>>({});
+  const isHoveringTextareaDropdown = useRef(false);
+
+  useEffect(() => {
+    const updatePosition = () => {
+      if (activeTextareaId) {
+        const textareaEl = inputRefs.current[activeTextareaId];
+        if (textareaEl) {
+          const rect = textareaEl.getBoundingClientRect();
+          const dropdownWidth = 208; // width of w-52 is 13rem = 208px
+          const param = dynamicParams.find(p => p.id === activeTextareaId);
+          if (!param) return;
+          const currentVal = values[activeTextareaId] || '';
+          const lastPart = currentVal.split(/,\s*/).pop()?.trim() || '';
+          const filteredOpts = param.options.split(',').filter(opt =>
+            !lastPart || opt.toLowerCase().includes(lastPart.toLowerCase())
+          );
+          const dropdownHeight = Math.min(filteredOpts.length * 32 + 12, window.innerHeight * 0.8);
+          
+          let showLeft = false;
+          const spaceOnRight = window.innerWidth - rect.right;
+          if (spaceOnRight < dropdownWidth && rect.left > dropdownWidth) {
+            showLeft = true;
+          }
+          setTextareaAlignLeft(showLeft);
+
+          let showBottom = false;
+          const spaceBelow = window.innerHeight - rect.bottom;
+          if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+            showBottom = true;
+          }
+          setTextareaAlignBottom(showBottom);
+
+          // Calculate viewport absolute placement coords for fixed position rendering
+          const leftCoord = showLeft
+            ? rect.left - dropdownWidth - 14
+            : rect.right + 14;
+
+          const topCoord = showBottom
+            ? rect.bottom - dropdownHeight
+            : rect.top;
+
+          setTextareaCoords({ top: topCoord, left: leftCoord });
+        }
+      }
+    };
+
+    updatePosition();
+    if (activeTextareaId) {
+      window.addEventListener('resize', updatePosition);
+      window.addEventListener('scroll', updatePosition, true);
+    }
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [activeTextareaId, values, dynamicParams]);
 
   // Fetch report data when reportId is provided
   useEffect(() => {
@@ -657,8 +718,6 @@ export function ReportEntry() {
         if (param.input_type === 'select') {
           const defaultValue = param.options.split(',')[0].trim();
           existingValues[param.id] = defaultValue;
-        } else {
-          existingValues[param.id] = param.options.trim();
         }
       }
     });
@@ -676,6 +735,10 @@ export function ReportEntry() {
             ? dynamicParams.find(dp => dp.test_id === groupTestId && dp.name === p.name)
             : dynamicParams.find(dp => dp.name === p.name);
           if (matchedParam) {
+            // Backward-compatibility: if the stored value is exactly the option lists string, treat it as empty
+            if (matchedParam.input_type === 'textarea' && p.value.toString().trim() === matchedParam.options?.trim()) {
+              continue;
+            }
             existingValues[matchedParam.id] = p.value.toString();
           }
         }
@@ -686,6 +749,10 @@ export function ReportEntry() {
         if (p.value == null || p.value === '') continue;
         const matchedParam = dynamicParams.find(dp => dp.name === p.name);
         if (matchedParam) {
+          // Backward-compatibility: if the stored value is exactly the option lists string, treat it as empty
+          if (matchedParam.input_type === 'textarea' && p.value.toString().trim() === matchedParam.options?.trim()) {
+            continue;
+          }
           existingValues[matchedParam.id] = p.value.toString();
         }
       }
@@ -1437,6 +1504,16 @@ export function ReportEntry() {
 
   const handleParameterKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>, fieldId: string, inputType: string) => {
     if (inputType === 'textarea') {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        moveParameterFocus(fieldId, 1);
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        moveParameterFocus(fieldId, -1);
+        return;
+      }
       return;
     }
     if (event.key === 'Enter') {
@@ -2337,9 +2414,12 @@ export function ReportEntry() {
                                                 onFocus={() => setActiveTextareaId(param.id)}
                                                 onBlur={() => {
                                                   setTimeout(() => {
-                                                    setActiveTextareaId(null);
+                                                    if (!isHoveringTextareaDropdown.current) {
+                                                      setActiveTextareaId(prev => prev === param.id ? null : prev);
+                                                    }
                                                   }, 150);
                                                 }}
+                                                onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
                                                 tabIndex={isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
                                                 disabled={!isEditable || isFieldBlockedBySum100(param.id)}
                                               />
@@ -2353,42 +2433,70 @@ export function ReportEntry() {
 
                                                   if (filteredOpts.length === 0) return null;
 
-                                                  return (
-                                                    <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border rounded shadow-lg max-h-48 overflow-y-auto p-1 divide-y divide-border/30 flex flex-col">
-                                                      {filteredOpts.map((opt: string) => (
-                                                        <button
-                                                          key={opt}
-                                                          type="button"
-                                                          onMouseDown={(e) => {
-                                                            e.preventDefault();
-                                                            const trimmed = currentVal.trim();
-                                                            if (!trimmed) {
-                                                              handleValueChange(param.id, opt + ', ');
-                                                            } else {
-                                                              const parts = currentVal.split(/,\s*/);
-                                                              const last = parts[parts.length - 1] || '';
-                                                              if (last && opt.toLowerCase().includes(last.toLowerCase())) {
-                                                                parts.pop();
-                                                                parts.push(opt);
-                                                                handleValueChange(param.id, parts.join(', ') + ', ');
+                                                  return createPortal(
+                                                    <div
+                                                      onMouseEnter={() => { isHoveringTextareaDropdown.current = true; }}
+                                                      onMouseLeave={() => {
+                                                        isHoveringTextareaDropdown.current = false;
+                                                        if (document.activeElement !== inputRefs.current[param.id]) {
+                                                          setActiveTextareaId(null);
+                                                        }
+                                                      }}
+                                                      className="fixed z-[9999] w-52 max-h-[80vh] overflow-y-auto rounded-lg border border-neutral-800 bg-[#1E1B18] text-white shadow-xl pointer-events-auto"
+                                                      style={{
+                                                        top: textareaCoords.top,
+                                                        left: textareaCoords.left,
+                                                      }}
+                                                    >
+                                                      {/* Popover Arrow */}
+                                                      {textareaAlignLeft ? (
+                                                        <div className={`absolute left-full w-0 h-0 border-y-[6px] border-y-transparent border-l-[6px] border-l-[#1E1B18] ${textareaAlignBottom ? 'bottom-2.5' : 'top-2.5'}`} />
+                                                      ) : (
+                                                        <div className={`absolute right-full w-0 h-0 border-y-[6px] border-y-transparent border-r-[6px] border-r-[#1E1B18] ${textareaAlignBottom ? 'bottom-2.5' : 'top-2.5'}`} />
+                                                      )}
+                                                      
+                                                      <ul className="py-1.5 px-1.5 space-y-0.5">
+                                                        {filteredOpts.map((opt: string) => (
+                                                          <li
+                                                            key={opt}
+                                                            onMouseDown={(e) => {
+                                                              e.preventDefault();
+                                                              const trimmed = currentVal.trim();
+                                                              if (!trimmed) {
+                                                                handleValueChange(param.id, opt + ', ');
                                                               } else {
-                                                                if (currentVal.endsWith(', ')) {
-                                                                  handleValueChange(param.id, currentVal + opt + ', ');
-                                                                } else if (currentVal.endsWith(',')) {
-                                                                  handleValueChange(param.id, currentVal + ' ' + opt + ', ');
+                                                                const parts = currentVal.split(/,\s*/);
+                                                                const last = parts[parts.length - 1] || '';
+                                                                if (last && opt.toLowerCase().includes(last.toLowerCase())) {
+                                                                  parts.pop();
+                                                                  parts.push(opt);
+                                                                  handleValueChange(param.id, parts.join(', ') + ', ');
                                                                 } else {
-                                                                  handleValueChange(param.id, currentVal + ', ' + opt + ', ');
+                                                                  if (currentVal.endsWith(', ')) {
+                                                                    handleValueChange(param.id, currentVal + opt + ', ');
+                                                                  } else if (currentVal.endsWith(',')) {
+                                                                    handleValueChange(param.id, currentVal + ' ' + opt + ', ');
+                                                                  } else {
+                                                                    handleValueChange(param.id, currentVal + ', ' + opt + ', ');
+                                                                  }
                                                                 }
                                                               }
-                                                            }
-                                                          }}
-                                                          className="w-full text-left px-2.5 py-1.5 hover:bg-accent text-[11px] md:text-[12px] font-normal text-foreground transition-colors rounded whitespace-normal"
-                                                        >
-                                                          {opt}
-                                                        </button>
-                                                      ))}
-                                                    </div>
-                                                  );
+                                                              setTimeout(() => {
+                                                                const textareaEl = inputRefs.current[param.id];
+                                                                if (textareaEl) {
+                                                                  textareaEl.focus();
+                                                                }
+                                                              }, 0);
+                                                            }}
+                                                            className="px-3 py-2 cursor-pointer text-left text-[11px] md:text-[12px] leading-tight select-none transition-colors rounded-md text-neutral-300 hover:bg-neutral-800 hover:text-white hover:font-semibold"
+                                                          >
+                                                            {opt}
+                                                          </li>
+                                                        ))}
+                                                      </ul>
+                                                    </div>,
+                                                    document.body
+                                                  ) as any;
                                                 })()
                                               )}
                                             </div>
