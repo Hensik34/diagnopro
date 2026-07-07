@@ -42,6 +42,7 @@ const Settings = sequelize.define("Settings", {
   sample_id_reset_policy: { type: DataTypes.STRING(30), defaultValue: "yearly" },
   sample_id_fy_start_month: { type: DataTypes.INTEGER, defaultValue: 3 },
   sample_id_start_number: { type: DataTypes.INTEGER, defaultValue: 1001 },
+  marketing_pages: { type: DataTypes.TEXT, defaultValue: "[]" },
 }, {
   tableName: "settings",
 });

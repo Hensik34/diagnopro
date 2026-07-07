@@ -113,6 +113,14 @@ exports.getReportById = async (id) => {
     letterhead_url: settings?.letterhead_url,
     header_url: settings?.header_url,
     footer_url: settings?.footer_url,
+    attach_marketing_pages: row.attach_marketing_pages || false,
+    marketing_pages: (() => {
+      try {
+        return settings?.marketing_pages ? JSON.parse(settings.marketing_pages) : [];
+      } catch (e) {
+        return [];
+      }
+    })(),
     report_margin_top: settings?.report_margin_top,
     report_margin_bottom: settings?.report_margin_bottom,
     report_margin_left: settings?.report_margin_left,
@@ -178,7 +186,7 @@ exports.createReport = async (reportData) => {
     delivery_preferences = {}, base_amount, lab_discount_type = "percent",
     lab_discount_value = 0, doctor_discount = 0, final_amount,
     b2b_lab_id = null, b2b_charge = 0,
-    price_list_id = null,
+    price_list_id = null, attach_marketing_pages,
   } = reportData;
 
   const parsedB2bCharge = parseFloat(b2b_charge) || 0;
@@ -209,6 +217,7 @@ exports.createReport = async (reportData) => {
     b2b_lab_id: b2b_lab_id || null, b2b_charge: parsedB2bCharge, branch_id,
     price_list_id,
     price_locked: ["under_review", "approved"].includes(status),
+    attach_marketing_pages: attach_marketing_pages !== undefined ? attach_marketing_pages : (is_self_report ? true : false),
   });
 };
 
@@ -221,7 +230,7 @@ exports.updateReport = async (id, reportData) => {
     "rejection_reason", "doctor_id", "referring_doctor_name", "report_type", "report_amount", "is_self_report",
     "delivery_preferences", "base_amount", "lab_discount_type", "lab_discount_value",
     "doctor_discount", "final_amount", "payment_status", "doctor_commission",
-    "b2b_lab_id", "b2b_charge", "price_list_id", "price_locked",
+    "b2b_lab_id", "b2b_charge", "price_list_id", "price_locked", "attach_marketing_pages",
   ];
 
   const updateObj = {};

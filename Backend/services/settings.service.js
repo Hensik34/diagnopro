@@ -64,6 +64,7 @@ const SettingsService = {
         sample_id_reset_policy: data.sample_id_reset_policy,
         sample_id_fy_start_month: data.sample_id_fy_start_month,
         sample_id_start_number: data.sample_id_start_number,
+        marketing_pages: data.marketing_pages,
       };
 
       const settings = await Settings.upsert(settingsData);

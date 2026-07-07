@@ -179,6 +179,33 @@ exports.upsertSettings = async (req, res) => {
       letterheadMarginsAuto = letterheadMarginsAuto === "true" || letterheadMarginsAuto === true || letterheadMarginsAuto === 1;
     }
 
+    let finalMarketingPages;
+    if (req.body.marketing_pages) {
+      try {
+        const pages = typeof req.body.marketing_pages === 'string'
+          ? JSON.parse(req.body.marketing_pages)
+          : req.body.marketing_pages;
+
+        const processedPages = [];
+        for (const page of pages) {
+          if (page.base64) {
+            const uploadedUrl = await uploadBase64ToCloudinary(
+              page.base64,
+              `marketing_page_${page.id || Date.now()}`,
+              branchId,
+              "settings"
+            );
+            page.url = uploadedUrl;
+            delete page.base64;
+          }
+          processedPages.push(page);
+        }
+        finalMarketingPages = JSON.stringify(processedPages);
+      } catch (err) {
+        console.error("Error processing marketing pages base64 uploads:", err);
+      }
+    }
+
     const settings = await SettingsService.upsertSettings(branchId, {
       letterhead_url: finalLetterheadUrl,
       owner_signature_url: finalOwnerSignatureUrl,
@@ -202,6 +229,7 @@ exports.upsertSettings = async (req, res) => {
       sample_id_reset_policy: sampleIdResetPolicy,
       sample_id_fy_start_month: sampleIdFyStartMonth,
       sample_id_start_number: sampleIdStartNumber,
+      marketing_pages: finalMarketingPages,
     });
 
     res.json({
@@ -228,6 +256,7 @@ exports.removeImage = async (req, res) => {
     const allowedFields = [
       'letterhead_url', 'header_url', 'footer_url', 'owner_signature_url',
       'signature_1_url', 'signature_2_url', 'signature_3_url', 'signature_4_url',
+      'marketing_page_url',
     ];
     if (!allowedFields.includes(field)) {
       return res.status(400).json({ error: `Invalid field: ${field}. Allowed: ${allowedFields.join(', ')}` });

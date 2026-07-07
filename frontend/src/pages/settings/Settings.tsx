@@ -96,6 +96,10 @@ export function Settings() {
   });
   const [isSavingSampleId, setIsSavingSampleId] = useState(false);
 
+  // Marketing Pages State
+  const [marketingPages, setMarketingPages] = useState<any[]>([]);
+  const [isSavingMarketing, setIsSavingMarketing] = useState(false);
+
   // Profile Form State
   const [formFirstname, setFormFirstname] = useState('');
   const [formLastname, setFormLastname] = useState('');
@@ -199,6 +203,19 @@ export function Settings() {
         sample_id_fy_start_month: settings.sample_id_fy_start_month ?? 3,
         sample_id_start_number: settings.sample_id_start_number ?? 1001,
       });
+
+      if (settings.marketing_pages) {
+        try {
+          const parsed = typeof settings.marketing_pages === 'string'
+            ? JSON.parse(settings.marketing_pages)
+            : settings.marketing_pages;
+          setMarketingPages(Array.isArray(parsed) ? parsed : []);
+        } catch (e) {
+          setMarketingPages([]);
+        }
+      } else {
+        setMarketingPages([]);
+      }
     }
   }, [settings, pendingLetterheadFile, pendingOwnerSignatureFile]);
 
@@ -628,6 +645,95 @@ export function Settings() {
     }
   };
 
+  // ==========================================
+  // Marketing Pages Handlers
+  // ==========================================
+
+  const handleAddMarketingPage = () => {
+    const newPage = {
+      id: Math.random().toString(36).substr(2, 9),
+      url: null,
+      active: true,
+      width: '100%',
+      height: 'auto',
+      position: 'center',
+      x_offset: '0px',
+      y_offset: '0px'
+    };
+    setMarketingPages(prev => [...prev, newPage]);
+  };
+
+  const handleDeleteMarketingPage = (pageId: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Marketing Page',
+      message: 'Are you sure you want to delete this marketing page?',
+      type: 'danger',
+      onConfirm: () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setMarketingPages(prev => prev.filter(p => p.id !== pageId));
+      }
+    });
+  };
+
+  const handleMovePage = (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === marketingPages.length - 1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    const updated = [...marketingPages];
+    const temp = updated[index];
+    updated[index] = updated[targetIndex];
+    updated[targetIndex] = temp;
+    setMarketingPages(updated);
+  };
+
+  const handleUpdatePageProp = (pageId: string, prop: string, value: any) => {
+    setMarketingPages(prev => prev.map(p => {
+      if (p.id === pageId) {
+        return { ...p, [prop]: value };
+      }
+      return p;
+    }));
+  };
+
+  const handleMarketingFileSelect = (e: React.ChangeEvent<HTMLInputElement>, pageId: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      handleUpdatePageProp(pageId, 'base64', base64String);
+      handleUpdatePageProp(pageId, 'previewUrl', base64String);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveMarketingPages = async () => {
+    if (!activeBranchId) return;
+
+    setIsSavingMarketing(true);
+    try {
+      // Prepare payload: filter out temp properties like previewUrl
+      const pagesPayload = marketingPages.map(({ previewUrl, ...rest }) => rest);
+
+      const result = await useSettingsStore.getState().updateSettings({
+        branch_id: activeBranchId,
+        marketing_pages: pagesPayload
+      });
+
+      if (result) {
+        showSuccess('Marketing pages configurations saved successfully');
+        if (activeBranchId) fetchSettings(activeBranchId);
+      }
+    } catch (err) {
+      console.error("Failed to save marketing pages:", err);
+    } finally {
+      setIsSavingMarketing(false);
+    }
+  };
+
   const handleSaveProfile = async () => {
     if (!formFirstname.trim() || !formLastname.trim()) {
       setProfileError('First name and last name are required');
@@ -720,6 +826,18 @@ export function Settings() {
             </button>
 
             <button
+              onClick={() => setActiveTab('marketing')}
+              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'marketing'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                }`}
+            >
+              <ImageIcon className="w-4 h-4 flex-shrink-0" />
+              <span>Marketing Pages</span>
+              {activeTab === 'marketing' && <ChevronRight className="w-4 h-4 ml-auto opacity-50 hidden md:block" />}
+            </button>
+
+            <button
               onClick={() => setActiveTab('profile')}
               className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'profile'
                 ? 'bg-primary/10 text-primary'
@@ -764,6 +882,298 @@ export function Settings() {
             <div className="m-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-3 text-destructive">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <p className="text-sm">{error}</p>
+            </div>
+          )}
+
+          {activeTab === 'marketing' && (
+            <div className="p-8 max-w-5xl">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div>
+                  <h2 className="text-2xl font-semibold text-foreground tracking-tight">Marketing Pages & PDF Posters</h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Upload poster/flyer designs and configure them to append at the end of report PDFs.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleAddMarketingPage}
+                    className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-secondary cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Blank Page
+                  </button>
+                  <button
+                    onClick={handleSaveMarketingPages}
+                    disabled={isSavingMarketing}
+                    className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSavingMarketing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                    Save Configurations
+                  </button>
+                </div>
+              </div>
+
+              {marketingPages.length === 0 ? (
+                <div className="border-2 border-dashed border-border rounded-xl p-12 text-center bg-secondary/5">
+                  <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
+                    <ImageIcon className="w-8 h-8 text-muted-foreground/50" />
+                  </div>
+                  <p className="text-base font-semibold text-foreground mb-1">No marketing pages configured</p>
+                  <p className="text-sm text-muted-foreground mb-6">Create promotional content sheets to automatically attach to report downloads.</p>
+                  <button
+                    onClick={handleAddMarketingPage}
+                    className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Your First Page
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {marketingPages.map((page, index) => {
+                    const previewUrl = page.previewUrl || getImageUrl(page.url);
+
+                    return (
+                      <div key={page.id} className="border border-border rounded-xl p-6 bg-secondary/5 flex flex-col xl:flex-row gap-6 relative shadow-sm">
+
+                        {/* Left Side: Live Mini Preview Canvas */}
+                        <div className="flex-shrink-0 flex flex-col items-center gap-2">
+                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            Page {index + 1} Preview (A4 Scale)
+                          </span>
+
+                          {/* Mini Canvas (Aspect ratio 794:1123, scaled to 200px width, 283px height) */}
+                          <div
+                            className="w-[200px] h-[283px] bg-white border border-border rounded shadow-sm relative overflow-hidden flex-shrink-0"
+                            style={{ zIndex: 1 }}
+                          >
+                            {previewUrl ? (
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  inset: 0,
+                                  display: page.position === 'custom' ? 'block' : 'flex',
+                                  flexDirection: 'column',
+                                  justifyContent: page.position === 'top' ? 'flex-start' : page.position === 'bottom' ? 'flex-end' : 'center',
+                                  alignItems: 'center',
+                                }}
+                              >
+                                <img
+                                  src={previewUrl}
+                                  alt={`Page ${index + 1} preview`}
+                                  style={{
+                                    objectFit: 'contain',
+                                    width: page.width || '100%',
+                                    height: page.height || 'auto',
+                                    position: page.position === 'custom' ? 'absolute' : 'relative',
+                                    left: page.position === 'custom' ? (parseFloat(page.x_offset || '0px') * (200 / 794)) + 'px' : undefined,
+                                    top: page.position === 'custom' ? (parseFloat(page.y_offset || '0px') * (283 / 1123)) + 'px' : undefined,
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-gray-50/50">
+                                <ImageIcon className="w-8 h-8 text-muted-foreground/30 mb-2" />
+                                <span className="text-[10px] text-muted-foreground italic">No image uploaded</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Right Side: Page Layout Controls */}
+                        <div className="flex-1 space-y-4 pt-6 xl:pt-0">
+                          <div className="flex items-center justify-between border-b border-border/50 pb-2 mb-4 flex-wrap gap-2">
+                            <span className="font-semibold text-foreground text-sm">Layout & Size Controls</span>
+
+                            <div className="flex items-center gap-3">
+                              {/* Page Active Toggle */}
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <span className="text-xs text-muted-foreground font-medium">Page Active</span>
+                                <input
+                                  type="checkbox"
+                                  checked={page.active}
+                                  onChange={(e) => handleUpdatePageProp(page.id, 'active', e.target.checked)}
+                                  className="w-8 h-4 bg-gray-200 rounded-full appearance-none checked:bg-primary relative transition-colors cursor-pointer before:content-[''] before:absolute before:w-4 before:h-4 before:bg-white before:rounded-full before:transition-transform checked:before:translate-x-4 border border-border"
+                                />
+                              </label>
+
+                              {/* Divider */}
+                              <div className="w-px h-4 bg-border hidden sm:block" />
+
+                              {/* Re-ordering & Delete Actions */}
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleMovePage(index, 'up')}
+                                  disabled={index === 0}
+                                  className="p-1.5 rounded hover:bg-secondary text-muted-foreground disabled:opacity-40 cursor-pointer"
+                                  title="Move Up"
+                                >
+                                  <ChevronRight className="w-4 h-4 -rotate-90" />
+                                </button>
+                                <button
+                                  onClick={() => handleMovePage(index, 'down')}
+                                  disabled={index === marketingPages.length - 1}
+                                  className="p-1.5 rounded hover:bg-secondary text-muted-foreground disabled:opacity-40 cursor-pointer"
+                                  title="Move Down"
+                                >
+                                  <ChevronRight className="w-4 h-4 rotate-90" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteMarketingPage(page.id)}
+                                  className="p-1.5 rounded hover:bg-destructive/10 text-destructive cursor-pointer"
+                                  title="Delete Page"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Image File Selector */}
+                          <div>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">
+                              Upload Poster Image
+                            </label>
+                            <div className="flex items-center gap-4">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleMarketingFileSelect(e, page.id)}
+                                className="hidden"
+                                id={`marketing-upload-${page.id}`}
+                              />
+                              <label
+                                htmlFor={`marketing-upload-${page.id}`}
+                                className="inline-flex h-8 items-center gap-2 px-3 rounded bg-secondary border border-border hover:bg-accent text-foreground text-xs font-medium cursor-pointer transition-colors shadow-xs"
+                              >
+                                <Upload className="w-3.5 h-3.5" />
+                                {page.url || page.previewUrl ? 'Change Design' : 'Upload Design'}
+                              </label>
+
+                              {previewUrl && (
+                                <button
+                                  onClick={() => {
+                                    handleUpdatePageProp(page.id, 'url', null);
+                                    handleUpdatePageProp(page.id, 'previewUrl', null);
+                                    handleUpdatePageProp(page.id, 'base64', null);
+                                  }}
+                                  className="inline-flex h-8 items-center gap-2 px-3 rounded bg-destructive/10 text-destructive hover:bg-destructive/20 text-xs font-medium cursor-pointer transition-colors"
+                                >
+                                  Clear Image
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-1">JPEG, PNG, or WEBP. High resolution flyers work best.</p>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Width Selector */}
+                            <div>
+                              <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">Width</label>
+                              <div className="flex items-center gap-3">
+                                <select
+                                  value={page.width && page.width.endsWith('%') ? 'percent' : 'custom'}
+                                  onChange={(e) => {
+                                    if (e.target.value === 'percent') {
+                                      handleUpdatePageProp(page.id, 'width', '100%');
+                                    } else {
+                                      handleUpdatePageProp(page.id, 'width', '500px');
+                                    }
+                                  }}
+                                  className="h-8 px-2 bg-transparent border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                >
+                                  <option value="percent">Percent (%)</option>
+                                  <option value="custom">Pixels (px)</option>
+                                </select>
+                                <input
+                                  type="text"
+                                  value={page.width || ''}
+                                  onChange={(e) => handleUpdatePageProp(page.id, 'width', e.target.value)}
+                                  placeholder="e.g. 100% or 600px"
+                                  className="w-full h-8 px-2.5 bg-transparent border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Height Selector */}
+                            <div>
+                              <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">Height</label>
+                              <div className="flex items-center gap-3">
+                                <select
+                                  value={page.height === 'auto' ? 'auto' : 'custom'}
+                                  onChange={(e) => {
+                                    if (e.target.value === 'auto') {
+                                      handleUpdatePageProp(page.id, 'height', 'auto');
+                                    } else {
+                                      handleUpdatePageProp(page.id, 'height', '400px');
+                                    }
+                                  }}
+                                  className="h-8 px-2 bg-transparent border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                >
+                                  <option value="auto">Auto (Keep Aspect)</option>
+                                  <option value="custom">Custom (px)</option>
+                                </select>
+                                {page.height !== 'auto' && (
+                                  <input
+                                    type="text"
+                                    value={page.height || ''}
+                                    onChange={(e) => handleUpdatePageProp(page.id, 'height', e.target.value)}
+                                    placeholder="e.g. 500px"
+                                    className="w-full h-8 px-2.5 bg-transparent border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                  />
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Position Selector */}
+                            <div>
+                              <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">Vertical Position</label>
+                              <select
+                                value={page.position || 'center'}
+                                onChange={(e) => handleUpdatePageProp(page.id, 'position', e.target.value)}
+                                className="w-full h-8 px-2 bg-transparent border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                              >
+                                <option value="top">Top</option>
+                                <option value="center">Center</option>
+                                <option value="bottom">Bottom</option>
+                                <option value="custom">Custom Canvas Position</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Custom Positions Offsets */}
+                          {page.position === 'custom' && (
+                            <div className="grid grid-cols-2 gap-4 p-4 border border-border rounded-lg bg-card/50">
+                              <div>
+                                <label className="block text-xs font-medium text-muted-foreground mb-1">X Offset (Left)</label>
+                                <input
+                                  type="text"
+                                  value={page.x_offset || '0px'}
+                                  onChange={(e) => handleUpdatePageProp(page.id, 'x_offset', e.target.value)}
+                                  placeholder="e.g. 50px"
+                                  className="w-full h-8 px-2.5 bg-transparent border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                />
+                                <span className="text-[10px] text-muted-foreground">Standard A4 width is 794px</span>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-muted-foreground mb-1">Y Offset (Top)</label>
+                                <input
+                                  type="text"
+                                  value={page.y_offset || '0px'}
+                                  onChange={(e) => handleUpdatePageProp(page.id, 'y_offset', e.target.value)}
+                                  placeholder="e.g. 100px"
+                                  className="w-full h-8 px-2.5 bg-transparent border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                />
+                                <span className="text-[10px] text-muted-foreground">Standard A4 height is 1123px</span>
+                              </div>
+                            </div>
+                          )}
+
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

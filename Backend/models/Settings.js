@@ -34,6 +34,7 @@ module.exports = {
       "signature_3_url", "signature_3_label", "signature_3_description", "signature_4_url", "signature_4_label", "signature_4_description",
       "default_signature_index",
       "sample_id_format", "sample_id_reset_policy", "sample_id_fy_start_month", "sample_id_start_number",
+      "marketing_pages",
     ];
 
     for (const field of fields) {
@@ -89,6 +90,7 @@ module.exports = {
       "signature_4_url", "signature_4_label", "signature_4_description",
       "default_signature_index",
       "sample_id_format", "sample_id_reset_policy", "sample_id_fy_start_month", "sample_id_start_number",
+      "marketing_pages",
     ];
 
     const updateObj = {};
