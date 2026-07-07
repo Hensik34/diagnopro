@@ -22,7 +22,7 @@ import {
   ChevronsLeft,
   ChevronsRight
 } from 'lucide-react';
-import { useBranchStore, useDoctorStore } from '../../stores';
+import { useBranchStore, useDoctorStore, useCan, PERMISSIONS } from '../../stores';
 import { testApi } from '../../api/tests';
 import { priceListApi } from '../../api/priceLists';
 import type { PriceList, PriceListItem, Test, Doctor } from '../../types';
@@ -32,6 +32,8 @@ export function PriceListManagement() {
   const { currentBranchId } = useBranchStore();
   const activeBranchId = currentBranchId || '';
   const { doctors, fetchDoctors } = useDoctorStore();
+
+  const canUpdate = useCan(PERMISSIONS.TEST_UPDATE);
 
   // Lists
   const [priceLists, setPriceLists] = useState<PriceList[]>([]);
@@ -481,13 +483,15 @@ export function PriceListManagement() {
         <div className="bg-card border border-border rounded-xl shadow-sm p-4 h-fit">
           <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
             <h2 className="font-semibold text-lg">Price Lists</h2>
-            <button
-              onClick={handleOpenCreateModal}
-              className="p-1.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/95 transition-colors flex items-center gap-1 text-sm px-2.5 font-medium"
-            >
-              <Plus className="w-4 h-4" />
-              Add List
-            </button>
+            {canUpdate && (
+              <button
+                onClick={handleOpenCreateModal}
+                className="p-1.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/95 transition-colors flex items-center gap-1 text-sm px-2.5 font-medium"
+              >
+                <Plus className="w-4 h-4" />
+                Add List
+              </button>
+            )}
           </div>
 
           {isLoadingLists ? (
@@ -583,20 +587,22 @@ export function PriceListManagement() {
                               <Star className="w-4 h-4 fill-amber-400 text-amber-500 drop-shadow-xs" />
                             </button>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSetAsDefault(list.id);
-                              }}
-                              className="p-1 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded text-muted-foreground/45 hover:text-amber-500 cursor-pointer shrink-0 transition-colors focus:outline-none group/star"
-                              title="Set as Branch Default Price List"
-                            >
-                              <Star className="w-4 h-4 transition-transform group-hover/star:scale-110" />
-                            </button>
+                            canUpdate && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSetAsDefault(list.id);
+                                }}
+                                className="p-1 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded text-muted-foreground/45 hover:text-amber-500 cursor-pointer shrink-0 transition-colors focus:outline-none group/star"
+                                title="Set as Branch Default Price List"
+                              >
+                                <Star className="w-4 h-4 transition-transform group-hover/star:scale-110" />
+                              </button>
+                            )
                           )}
 
-                          {list.id !== 'default-lab-price' && (
+                          {list.id !== 'default-lab-price' && canUpdate && (
                             <div className="flex gap-0.5 mt-1 border-t border-border/50 pt-1">
                               <button
                                 type="button"
@@ -642,21 +648,25 @@ export function PriceListManagement() {
                     Customize Prices: <span className="text-primary">{selectedList.name}</span>
                   </h2>
                   <p className="text-xs text-muted-foreground">
-                    Customize branch test rates with flat custom prices or discount adjustments.
+                    {canUpdate
+                      ? 'Customize branch test rates with flat custom prices or discount adjustments.'
+                      : 'View branch test rates and custom prices for the selected list.'}
                   </p>
                 </div>
-                <button
-                  onClick={handleSaveItems}
-                  disabled={isSaving || isLoadingItems}
-                  className="flex items-center gap-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors px-4 py-2 font-medium disabled:opacity-50 text-sm shadow-sm flex-shrink-0 cursor-pointer"
-                >
-                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Save Custom Prices
-                </button>
+                {canUpdate && (
+                  <button
+                    onClick={handleSaveItems}
+                    disabled={isSaving || isLoadingItems}
+                    className="flex items-center gap-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors px-4 py-2 font-medium disabled:opacity-50 text-sm shadow-sm flex-shrink-0 cursor-pointer"
+                  >
+                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Save Custom Prices
+                  </button>
+                )}
               </div>
 
               {/* Bulk pricing modifier settings */}
-              {selectedList.id !== 'default-lab-price' && (
+              {selectedList.id !== 'default-lab-price' && canUpdate && (
                 <div className="bg-muted/40 border border-border rounded-lg p-3 mb-4 flex flex-wrap items-center justify-between gap-3 text-sm">
                   <div className="flex items-center gap-2">
                     <TrendingDown className="w-4 h-4 text-primary" />
@@ -766,7 +776,7 @@ export function PriceListManagement() {
                             <th className="p-3">Base Price</th>
                             <th className="p-3">Custom Price</th>
                             <th className="p-3">Final Price (₹)</th>
-                            <th className="p-3 text-right">Action</th>
+                            {canUpdate && <th className="p-3 text-right">Action</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -819,12 +829,13 @@ export function PriceListManagement() {
                                     <input
                                       type="number"
                                       value={override?.price ?? ''}
+                                      disabled={!canUpdate}
                                       onChange={(e) => {
                                         const val = e.target.value === '' ? null : Number(e.target.value);
                                         handleItemOverrideChange(test.id, 'price', val);
                                       }}
                                       placeholder="Auto"
-                                      className="pl-5 pr-1.5 py-1 text-xs w-full bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                                      className="pl-5 pr-1.5 py-1 text-xs w-full bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:bg-muted disabled:cursor-not-allowed"
                                     />
                                   </div>
                                 </td>
@@ -833,16 +844,18 @@ export function PriceListManagement() {
                                     ₹{calculatedPrice}
                                   </span>
                                 </td>
-                                <td className="p-3 text-right">
-                                  {hasOverride && (
-                                    <button
-                                      onClick={() => handleClearItemOverride(test.id)}
-                                      className="text-xs text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 border border-red-200 dark:border-red-900 rounded"
-                                    >
-                                      Reset
-                                    </button>
-                                  )}
-                                </td>
+                                {canUpdate && (
+                                  <td className="p-3 text-right">
+                                    {hasOverride && (
+                                      <button
+                                        onClick={() => handleClearItemOverride(test.id)}
+                                        className="text-xs text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 border border-red-200 dark:border-red-900 rounded"
+                                      >
+                                        Reset
+                                      </button>
+                                    )}
+                                  </td>
+                                )}
                               </tr>
                             );
                           })}

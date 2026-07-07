@@ -44,6 +44,7 @@ const Report = sequelize.define("Report", {
   // Multi-tier pricing
   price_list_id: { type: DataTypes.UUID },
   price_locked: { type: DataTypes.BOOLEAN, defaultValue: false },
+  attach_marketing_pages: { type: DataTypes.BOOLEAN, defaultValue: false },
 }, {
   tableName: "reports",
 });

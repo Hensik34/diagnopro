@@ -98,6 +98,8 @@ type ReportData = {
   owner_signature_label?: string;
   doctor_signature_url?: string;
   download_token?: string;
+  attach_marketing_pages?: boolean;
+  marketing_pages?: any[];
 };
 
 type PageItem =
@@ -106,7 +108,8 @@ type PageItem =
   | { type: 'interpretation'; testId?: string; text: string }
   | { type: 'generalNotes'; text: string }
   | { type: 'endMarker' }
-  | { type: 'signature' };
+  | { type: 'signature' }
+  | { type: 'marketing'; pageConfig: any };
 
 function clamp(num: number, min: number, max: number) {
   return Math.min(max, Math.max(min, num));
@@ -547,6 +550,14 @@ export function PublicReportDownload() {
     out[out.length - 1].push({ type: 'endMarker' });
     out[out.length - 1].push({ type: 'signature' });
 
+    const shouldAttachMarketing = report?.is_self_report || report?.attach_marketing_pages;
+    if (shouldAttachMarketing && report?.marketing_pages && Array.isArray(report.marketing_pages)) {
+      const activeMarketingPages = report.marketing_pages.filter((p: any) => p.active && p.url);
+      for (const mPage of activeMarketingPages) {
+        out.push([{ type: 'marketing', pageConfig: mPage }]);
+      }
+    }
+
     return out;
   }, [report, mappedSectionsAndParams, safeZones, density]);
 
@@ -814,10 +825,12 @@ export function PublicReportDownload() {
           .report-page { margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         `}</style>
         <div ref={previewContainerRef}>
-          {reportPages.map((page, pageIndex) => (
-            <div
-              key={pageIndex}
-              className="report-page bg-white"
+          {reportPages.map((page, pageIndex) => {
+            const isMarketingPage = page[0]?.type === 'marketing';
+            return (
+              <div
+                key={pageIndex}
+                className="report-page bg-white"
               style={{
                 width: A4_WIDTH_PX,
                 height: A4_HEIGHT_PX,
@@ -828,7 +841,7 @@ export function PublicReportDownload() {
               }}
             >
               {/* Optional letterhead */}
-              {letterheadActive && report.letterhead_url && (
+              {!isMarketingPage && letterheadActive && report.letterhead_url && (
                 <img
                   src={getImageUrl(report.letterhead_url) || ''}
                   alt="Letterhead"
@@ -844,7 +857,7 @@ export function PublicReportDownload() {
               )}
 
               {/* Optional Header artwork */}
-              {headerActive && report.header_url && (
+              {!isMarketingPage && headerActive && report.header_url && (
                 <img
                   src={getImageUrl(report.header_url) || ''}
                   alt="Header"
@@ -860,7 +873,7 @@ export function PublicReportDownload() {
               )}
 
               {/* Optional Footer artwork */}
-              {footerActive && report.footer_url && (
+              {!isMarketingPage && footerActive && report.footer_url && (
                 <img
                   src={getImageUrl(report.footer_url) || ''}
                   alt="Footer"
@@ -875,9 +888,33 @@ export function PublicReportDownload() {
                 />
               )}
 
-              {/* Page Contents */}
-              <div
-                data-content-area="true"
+              {isMarketingPage ? (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: page[0].pageConfig.position === 'custom' ? 'block' : 'flex',
+                    flexDirection: 'column',
+                    justifyContent: page[0].pageConfig.position === 'top' ? 'flex-start' : page[0].pageConfig.position === 'bottom' ? 'flex-end' : 'center',
+                    alignItems: 'center',
+                  }}
+                >
+                  <img
+                    src={getImageUrl(page[0].pageConfig.url) || ''}
+                    alt="Marketing Poster"
+                    style={{
+                      objectFit: 'contain',
+                      width: page[0].pageConfig.width || '100%',
+                      height: page[0].pageConfig.height || 'auto',
+                      position: page[0].pageConfig.position === 'custom' ? 'absolute' : 'relative',
+                      left: page[0].pageConfig.position === 'custom' ? page[0].pageConfig.x_offset : undefined,
+                      top: page[0].pageConfig.position === 'custom' ? page[0].pageConfig.y_offset : undefined,
+                    }}
+                  />
+                </div>
+              ) : (
+                <div
+                  data-content-area="true"
                 style={{
                   position: 'absolute',
                   top: safeZones.top,
@@ -1088,8 +1125,10 @@ export function PublicReportDownload() {
                   );
                 })}
               </div>
+            )}
             </div>
-          ))}
+          );
+        })}
         </div>
       </div>
     );
@@ -1186,10 +1225,12 @@ export function PublicReportDownload() {
         }}
       >
         <div ref={previewContainerRef}>
-          {reportPages.map((page, pageIndex) => (
-            <div
-              key={pageIndex}
-              className="report-page bg-white"
+          {reportPages.map((page, pageIndex) => {
+            const isMarketingPage = page[0]?.type === 'marketing';
+            return (
+              <div
+                key={pageIndex}
+                className="report-page bg-white"
               style={{
                 width: A4_WIDTH_PX,
                 height: A4_HEIGHT_PX,
@@ -1200,7 +1241,7 @@ export function PublicReportDownload() {
               }}
             >
               {/* Optional letterhead */}
-              {letterheadActive && report.letterhead_url && (
+              {!isMarketingPage && letterheadActive && report.letterhead_url && (
                 <img
                   src={getImageUrl(report.letterhead_url) || ''}
                   alt="Letterhead"
@@ -1216,7 +1257,7 @@ export function PublicReportDownload() {
               )}
 
               {/* Optional Header artwork */}
-              {headerActive && report.header_url && (
+              {!isMarketingPage && headerActive && report.header_url && (
                 <img
                   src={getImageUrl(report.header_url) || ''}
                   alt="Header"
@@ -1232,7 +1273,7 @@ export function PublicReportDownload() {
               )}
 
               {/* Optional Footer artwork */}
-              {footerActive && report.footer_url && (
+              {!isMarketingPage && footerActive && report.footer_url && (
                 <img
                   src={getImageUrl(report.footer_url) || ''}
                   alt="Footer"
@@ -1247,9 +1288,33 @@ export function PublicReportDownload() {
                 />
               )}
 
-              {/* Page Contents */}
-              <div
-                data-content-area="true"
+              {isMarketingPage ? (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: page[0].pageConfig.position === 'custom' ? 'block' : 'flex',
+                    flexDirection: 'column',
+                    justifyContent: page[0].pageConfig.position === 'top' ? 'flex-start' : page[0].pageConfig.position === 'bottom' ? 'flex-end' : 'center',
+                    alignItems: 'center',
+                  }}
+                >
+                  <img
+                    src={getImageUrl(page[0].pageConfig.url) || ''}
+                    alt="Marketing Poster"
+                    style={{
+                      objectFit: 'contain',
+                      width: page[0].pageConfig.width || '100%',
+                      height: page[0].pageConfig.height || 'auto',
+                      position: page[0].pageConfig.position === 'custom' ? 'absolute' : 'relative',
+                      left: page[0].pageConfig.position === 'custom' ? page[0].pageConfig.x_offset : undefined,
+                      top: page[0].pageConfig.position === 'custom' ? page[0].pageConfig.y_offset : undefined,
+                    }}
+                  />
+                </div>
+              ) : (
+                <div
+                  data-content-area="true"
                 style={{
                   position: 'absolute',
                   top: safeZones.top,
@@ -1460,8 +1525,10 @@ export function PublicReportDownload() {
                   );
                 })}
               </div>
+            )}
             </div>
-          ))}
+          );
+        })}
         </div>
       </div>
     </div>

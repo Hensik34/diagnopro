@@ -43,6 +43,7 @@ export interface Settings {
   sample_id_reset_policy?: 'yearly' | 'monthly';
   sample_id_fy_start_month?: number;
   sample_id_start_number?: number;
+  marketing_pages?: string | any[];
   created_at?: string;
   updated_at?: string;
 }
@@ -75,6 +76,7 @@ export interface SettingsUpdateData {
   sample_id_reset_policy?: 'yearly' | 'monthly';
   sample_id_fy_start_month?: number;
   sample_id_start_number?: number;
+  marketing_pages?: string | any[];
 }
 
 // ==========================================
