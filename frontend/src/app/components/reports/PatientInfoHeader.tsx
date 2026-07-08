@@ -86,86 +86,92 @@ export function PatientInfoHeader({
               <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
                 {patient?.name || 'Loading...'}
               </span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mt-1.5">
-                {patient ? `${formatAge(patient.age, patient.age_unit)} / ${patient.gender || 'Unknown'}` : ''}
-              </span>
+              {mode !== 'preview' && (
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mt-1.5">
+                  {patient ? `${formatAge(patient.age, patient.age_unit)} / ${patient.gender || 'Unknown'}` : ''}
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block flex-shrink-0" />
+          {mode !== 'preview' && (
+            <>
+              <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block flex-shrink-0" />
 
-          {/* Sample ID */}
-          <div className="hidden sm:flex flex-col leading-tight">
-            <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider">Sample ID</span>
-            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-1.5">
-              {selectedReport?.sample_id_code || '—'}
-            </span>
-          </div>
+              {/* Sample ID */}
+              <div className="hidden sm:flex flex-col leading-tight">
+                <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider">Sample ID</span>
+                <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-1.5">
+                  {selectedReport?.sample_id_code || '—'}
+                </span>
+              </div>
 
-          {/* Patient ID */}
-          <div className="hidden md:flex flex-col leading-tight">
-            <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider">Patient ID</span>
-            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-1.5">
-              {patient?.id ? patient.id.slice(0, 8).toUpperCase() : '—'}
-            </span>
-          </div>
+              {/* Patient ID */}
+              <div className="hidden md:flex flex-col leading-tight">
+                <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider">Patient ID</span>
+                <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-1.5">
+                  {patient?.id ? patient.id.slice(0, 8).toUpperCase() : '—'}
+                </span>
+              </div>
 
-          {/* Phone */}
-          <div className="hidden md:flex flex-col leading-tight">
-            <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider">Phone</span>
-            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-1.5">
-              {patient?.phone || '—'}
-            </span>
-          </div>
+              {/* Phone */}
+              <div className="hidden md:flex flex-col leading-tight">
+                <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider">Phone</span>
+                <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-1.5">
+                  {patient?.phone || '—'}
+                </span>
+              </div>
 
-          {/* Doctor */}
-          <div className="hidden lg:flex flex-col leading-tight">
-            <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider">Doctor</span>
-            <span
-              className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-1.5 truncate max-w-[120px]"
-              title={
-                selectedDoctor
-                  ? `${selectedDoctor.title || 'Dr'}. ${selectedDoctor.name}`
-                  : referringDoctorName
-                  ? referringDoctorName
-                  : 'Self'
-              }
-            >
-              {selectedDoctor
-                ? `${selectedDoctor.title || 'Dr'}. ${selectedDoctor.name}`
-                : referringDoctorName
-                ? referringDoctorName.toLowerCase().startsWith('dr')
-                  ? referringDoctorName
-                  : `Dr. ${referringDoctorName}`
-                : selectedReport?.is_self_report
-                ? 'Self'
-                : 'Self (No Doctor)'}
-            </span>
-          </div>
+              {/* Doctor */}
+              <div className="hidden lg:flex flex-col leading-tight">
+                <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider">Doctor</span>
+                <span
+                  className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-1.5 truncate max-w-[120px]"
+                  title={
+                    selectedDoctor
+                      ? `${selectedDoctor.title || 'Dr'}. ${selectedDoctor.name}`
+                      : referringDoctorName
+                      ? referringDoctorName
+                      : 'Self'
+                  }
+                >
+                  {selectedDoctor
+                    ? `${selectedDoctor.title || 'Dr'}. ${selectedDoctor.name}`
+                    : referringDoctorName
+                    ? referringDoctorName.toLowerCase().startsWith('dr')
+                      ? referringDoctorName
+                      : `Dr. ${referringDoctorName}`
+                    : selectedReport?.is_self_report
+                    ? 'Self'
+                    : 'Self (No Doctor)'}
+                </span>
+              </div>
 
-          {/* Collection Date */}
-          <div className="hidden lg:flex flex-col leading-tight">
-            <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider">Collection Date</span>
-            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-1.5 whitespace-nowrap">
-              {formattedCollectionDate}
-            </span>
-          </div>
+              {/* Collection Date */}
+              <div className="hidden lg:flex flex-col leading-tight">
+                <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider">Collection Date</span>
+                <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-1.5 whitespace-nowrap">
+                  {formattedCollectionDate}
+                </span>
+              </div>
 
-          {/* Payment */}
-          <div className="hidden lg:flex flex-col leading-tight">
-            <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider">Payment</span>
-            <span
-              className={`text-[11px] font-bold mt-1.5 capitalize ${
-                selectedReport?.payment_status === 'paid'
-                  ? 'text-success'
-                  : selectedReport?.payment_status === 'partial'
-                  ? 'text-warning'
-                  : 'text-destructive'
-              }`}
-            >
-              {selectedReport?.payment_status || 'Pending'}
-            </span>
-          </div>
+              {/* Payment */}
+              <div className="hidden lg:flex flex-col leading-tight">
+                <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider">Payment</span>
+                <span
+                  className={`text-[11px] font-bold mt-1.5 capitalize ${
+                    selectedReport?.payment_status === 'paid'
+                      ? 'text-success'
+                      : selectedReport?.payment_status === 'partial'
+                      ? 'text-warning'
+                      : 'text-destructive'
+                  }`}
+                >
+                  {selectedReport?.payment_status || 'Pending'}
+                </span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
