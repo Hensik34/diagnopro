@@ -66,7 +66,29 @@ const printStyles = `
   html, body { margin: 0; padding: 0; }
   body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff !important; }
   .no-print { display: none !important; }
-  .report-viewer-shell { padding: 0 !important; background: #fff !important; display: block !important; }
+  .report-viewer-shell {
+    padding: 0 !important;
+    background: #fff !important;
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .report-workbench {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .report-viewer-container {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+  }
   .report-print-wrapper {
     height: auto !important;
     position: static !important;
@@ -1417,7 +1439,7 @@ export function ReportPreview() {
   const effectiveScale = clamp(baseScale * zoom, 0.3, 2);
   const stackHeight = pages.length * A4_HEIGHT_PX + Math.max(0, pages.length - 1) * PAGE_GAP_PX;
   return (
-    <div className="flex flex-col h-[calc(100vh-76px)] overflow-hidden space-y-2.5 w-full px-1.5 sm:px-2 pb-1.5 bg-slate-50/50 dark:bg-slate-950/20">
+    <div className="report-viewer-shell flex flex-col h-[calc(100vh-76px)] overflow-hidden space-y-2.5 w-full px-1.5 sm:px-2 pb-1.5 bg-slate-50/50 dark:bg-slate-950/20">
       <style>{printStyles}</style>
 
       {/* Top Patient Info Bar */}
@@ -1448,10 +1470,10 @@ export function ReportPreview() {
       </div>
 
       {/* Main workbench */}
-      <div className="flex-1 flex gap-3 min-h-0 overflow-hidden mb-1 w-full">
+      <div className="report-workbench flex-1 flex gap-3 min-h-0 overflow-hidden mb-1 w-full">
 
         {/* Left Column: Test Order Management */}
-        <aside className="hidden lg:block w-[308px] shrink-0 h-full overflow-hidden">
+        <aside className="no-print hidden lg:block w-[308px] shrink-0 h-full overflow-hidden">
           <OrderManagementPanel
             sections={sectionOrder.map(id => reportData!.testSections.find(s => s.id === id)).filter(Boolean) as TestSection[]}
             visibleSections={visibleSections}
@@ -1470,7 +1492,7 @@ export function ReportPreview() {
         {/* Center Column: A4 Report Pages Stack (the ONLY scrolling container) */}
         <div
           ref={viewerRef}
-          className="flex-1 h-full overflow-y-auto overflow-x-auto flex justify-center bg-[#EEF1F6] dark:bg-slate-900/10 border border-slate-200 dark:border-slate-800 rounded-xl p-3 scrollbar-thin"
+          className="report-viewer-container flex-1 h-full overflow-y-auto overflow-x-auto flex justify-center bg-[#EEF1F6] dark:bg-slate-900/10 border border-slate-200 dark:border-slate-800 rounded-xl p-3 scrollbar-thin"
         >
           <div
             className="report-print-wrapper"
@@ -1522,7 +1544,7 @@ export function ReportPreview() {
         </div>
 
         {/* Right Column: Page Thumbnails */}
-        <aside className="hidden lg:block w-[124px] shrink-0 h-full overflow-hidden">
+        <aside className="no-print hidden lg:block w-[124px] shrink-0 h-full overflow-hidden">
           <PageThumbnailPanel
             pages={pages}
             activePageIndex={activePageIndex}
