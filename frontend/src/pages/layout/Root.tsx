@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router';
+import { Outlet, useNavigate, useLocation } from 'react-router';
 import { Building2 } from 'lucide-react';
 import { Sidebar } from '../../app/components/layout/Sidebar';
 import { TopNav } from '../../app/components/layout/TopNav';
@@ -13,6 +13,11 @@ const SIDEBAR_STATE_KEY = 'diagnopro_sidebar_state';
 
 
 export function Root() {
+  const location = useLocation();
+  const isReportEntry = location.pathname.includes('/reports/entry') || 
+    /\/reports\/[^/]+\/entry/.test(location.pathname) || 
+    location.pathname.includes('/reports/preview');
+
   // Initialize from localStorage, default to true (collapsed) for mobile
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     const isMobile = window.innerWidth < 768;
@@ -146,16 +151,23 @@ export function Root() {
           </div>
         )}
 
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        {!isReportEntry && (
+          <Sidebar
+            collapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+          />
+        )}
+        <TopNav
+          sidebarCollapsed={sidebarCollapsed}
+          onSidebarToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+          sidebarHidden={isReportEntry}
         />
-        <TopNav sidebarCollapsed={sidebarCollapsed} onSidebarToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
         <main
-          className={`pt-12 transition-all duration-200 print:ml-0 print:pt-0 print:p-0 ${sidebarCollapsed ? 'ml-0 md:ml-14' : 'ml-0 md:ml-56'
-            } ${isDoctor ? 'pb-16 md:pb-0' : ''}`}
+          className={`pt-12 transition-all duration-200 print:ml-0 print:pt-0 print:p-0 ${
+            isReportEntry ? 'ml-0' : (sidebarCollapsed ? 'ml-0 md:ml-14' : 'ml-0 md:ml-56')
+          } ${isDoctor ? 'pb-16 md:pb-0' : ''}`}
         >
-          <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 max-w-full lg:max-w-7xl xl:max-w-[1920px] mx-auto print:p-0 print:max-w-none">
+          <div className={`${isReportEntry ? 'px-3 py-2 w-full max-w-full mx-auto print:p-0' : 'px-4 py-4 md:px-6 md:py-6 lg:px-8 max-w-full lg:max-w-7xl xl:max-w-[1920px] mx-auto print:p-0 print:max-w-none'}`}>
             <Outlet />
           </div>
         </main>

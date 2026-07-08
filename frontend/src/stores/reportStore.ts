@@ -26,7 +26,7 @@ interface ReportState {
 
   // Actions
   fetchReports: (filters?: ReportFilters) => Promise<void>;
-  fetchReportById: (id: string) => Promise<void>;
+  fetchReportById: (id: string) => Promise<Report | null>;
   fetchReportsByPatient: (patientId: string) => Promise<void>;
   fetchSummary: (branchId?: string) => Promise<void>;
   createReport: (data: CreateReportData) => Promise<Report | null>;
@@ -97,7 +97,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
   /**
    * Fetch single report by ID
    */
-  fetchReportById: async (id: string) => {
+  fetchReportById: async (id: string): Promise<Report | null> => {
     set({ isLoading: true, error: null });
     
     try {
@@ -106,9 +106,11 @@ export const useReportStore = create<ReportState>((set, get) => ({
         selectedReport: response.data,
         isLoading: false,
       });
+      return response.data;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch report';
       set({ error: errorMessage, isLoading: false });
+      return null;
     }
   },
 

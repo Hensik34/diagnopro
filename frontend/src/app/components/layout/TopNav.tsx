@@ -7,9 +7,10 @@ import { useAuthStore, useBranchStore } from '../../../stores';
 interface TopNavProps {
   sidebarCollapsed: boolean;
   onSidebarToggle: () => void;
+  sidebarHidden?: boolean;
 }
 
-export function TopNav({ sidebarCollapsed, onSidebarToggle }: TopNavProps) {
+export function TopNav({ sidebarCollapsed, onSidebarToggle, sidebarHidden }: TopNavProps) {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -48,8 +49,9 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle }: TopNavProps) {
 
   return (
     <header
-      className={`fixed top-0 right-0 h-12 bg-card border-b border-border z-30 transition-all duration-200 print:hidden ${sidebarCollapsed ? 'left-0 md:left-14' : 'left-0 md:left-56'
-        }`}
+      className={`fixed top-0 right-0 h-12 bg-card border-b border-border z-30 transition-all duration-200 print:hidden ${
+        sidebarHidden ? 'left-0' : (sidebarCollapsed ? 'left-0 md:left-14' : 'left-0 md:left-56')
+      }`}
     >
       <div className="h-full flex items-center justify-between px-3 md:px-4 gap-2 md:gap-4">
         {/* Mobile Menu Button */}

@@ -826,7 +826,8 @@ export function PublicReportDownload() {
         `}</style>
         <div ref={previewContainerRef}>
           {reportPages.map((page, pageIndex) => {
-            const isMarketingPage = page[0]?.type === 'marketing';
+            const marketingItem = page[0]?.type === 'marketing' ? page[0] : null;
+            const isMarketingPage = !!marketingItem;
             return (
               <div
                 key={pageIndex}
@@ -888,27 +889,27 @@ export function PublicReportDownload() {
                 />
               )}
 
-              {isMarketingPage ? (
+              {marketingItem ? (
                 <div
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    display: page[0].pageConfig.position === 'custom' ? 'block' : 'flex',
+                    display: marketingItem.pageConfig.position === 'custom' ? 'block' : 'flex',
                     flexDirection: 'column',
-                    justifyContent: page[0].pageConfig.position === 'top' ? 'flex-start' : page[0].pageConfig.position === 'bottom' ? 'flex-end' : 'center',
+                    justifyContent: marketingItem.pageConfig.position === 'top' ? 'flex-start' : marketingItem.pageConfig.position === 'bottom' ? 'flex-end' : 'center',
                     alignItems: 'center',
                   }}
                 >
                   <img
-                    src={getImageUrl(page[0].pageConfig.url) || ''}
+                    src={getImageUrl(marketingItem.pageConfig.url) || ''}
                     alt="Marketing Poster"
                     style={{
                       objectFit: 'contain',
-                      width: page[0].pageConfig.width || '100%',
-                      height: page[0].pageConfig.height || 'auto',
-                      position: page[0].pageConfig.position === 'custom' ? 'absolute' : 'relative',
-                      left: page[0].pageConfig.position === 'custom' ? page[0].pageConfig.x_offset : undefined,
-                      top: page[0].pageConfig.position === 'custom' ? page[0].pageConfig.y_offset : undefined,
+                      width: marketingItem.pageConfig.width || '100%',
+                      height: marketingItem.pageConfig.height || 'auto',
+                      position: marketingItem.pageConfig.position === 'custom' ? 'absolute' : 'relative',
+                      left: marketingItem.pageConfig.position === 'custom' ? marketingItem.pageConfig.x_offset : undefined,
+                      top: marketingItem.pageConfig.position === 'custom' ? marketingItem.pageConfig.y_offset : undefined,
                     }}
                   />
                 </div>
@@ -1226,7 +1227,8 @@ export function PublicReportDownload() {
       >
         <div ref={previewContainerRef}>
           {reportPages.map((page, pageIndex) => {
-            const isMarketingPage = page[0]?.type === 'marketing';
+            const marketingItem = page[0]?.type === 'marketing' ? page[0] : null;
+            const isMarketingPage = !!marketingItem;
             return (
               <div
                 key={pageIndex}
@@ -1288,27 +1290,27 @@ export function PublicReportDownload() {
                 />
               )}
 
-              {isMarketingPage ? (
+              {marketingItem ? (
                 <div
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    display: page[0].pageConfig.position === 'custom' ? 'block' : 'flex',
+                    display: marketingItem.pageConfig.position === 'custom' ? 'block' : 'flex',
                     flexDirection: 'column',
-                    justifyContent: page[0].pageConfig.position === 'top' ? 'flex-start' : page[0].pageConfig.position === 'bottom' ? 'flex-end' : 'center',
+                    justifyContent: marketingItem.pageConfig.position === 'top' ? 'flex-start' : marketingItem.pageConfig.position === 'bottom' ? 'flex-end' : 'center',
                     alignItems: 'center',
                   }}
                 >
                   <img
-                    src={getImageUrl(page[0].pageConfig.url) || ''}
+                    src={getImageUrl(marketingItem.pageConfig.url) || ''}
                     alt="Marketing Poster"
                     style={{
                       objectFit: 'contain',
-                      width: page[0].pageConfig.width || '100%',
-                      height: page[0].pageConfig.height || 'auto',
-                      position: page[0].pageConfig.position === 'custom' ? 'absolute' : 'relative',
-                      left: page[0].pageConfig.position === 'custom' ? page[0].pageConfig.x_offset : undefined,
-                      top: page[0].pageConfig.position === 'custom' ? page[0].pageConfig.y_offset : undefined,
+                      width: marketingItem.pageConfig.width || '100%',
+                      height: marketingItem.pageConfig.height || 'auto',
+                      position: marketingItem.pageConfig.position === 'custom' ? 'absolute' : 'relative',
+                      left: marketingItem.pageConfig.position === 'custom' ? marketingItem.pageConfig.x_offset : undefined,
+                      top: marketingItem.pageConfig.position === 'custom' ? marketingItem.pageConfig.y_offset : undefined,
                     }}
                   />
                 </div>
