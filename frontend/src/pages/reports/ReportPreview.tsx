@@ -18,12 +18,14 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import { Link, useParams, useSearchParams } from 'react-router';
+import { Link, useParams, useSearchParams, useNavigate } from 'react-router';
+import { PatientInfoHeader } from '../../app/components/reports/PatientInfoHeader';
 import { format } from 'date-fns';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { QRCodeSVG } from 'qrcode.react';
 import JsBarcode from 'jsbarcode';
+import * as pdfjsLib from 'pdfjs-dist';
 import { ShareReportModal } from '../../app/components/WhatsAppModal';
 import {
   ImprovedPatientBox,
@@ -273,6 +275,7 @@ function moveItem<T>(arr: T[], from: number, to: number) {
 export function ReportPreview() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { reports, selectedReport, fetchReportById, updateReport, isLoading, error } = useReportStore();
   const { branches, fetchBranches, currentBranchId } = useBranchStore();
   const { testFields, fetchTestFieldsMulti } = useTestStore();
@@ -295,6 +298,7 @@ export function ReportPreview() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [isOrderDrawerOpen, setIsOrderDrawerOpen] = useState(false);
   const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set());
+  const [activePageIndex, setActivePageIndex] = useState(0);
 
   const viewerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -304,6 +308,32 @@ export function ReportPreview() {
     () => (selectedReport?.id === id ? selectedReport : reports.find(r => r.id === id)),
     [selectedReport, reports, id],
   );
+
+  const allSelected = visibleSections.size === sectionOrder.length;
+  const toggleSelectAll = useCallback(() => {
+    if (allSelected) {
+      setVisibleSections(new Set());
+    } else {
+      setVisibleSections(new Set(sectionOrder));
+    }
+  }, [allSelected, sectionOrder]);
+
+  const patientProp = useMemo(() => {
+    if (!rawReport) return null;
+    return {
+      id: rawReport.patient_id,
+      name: rawReport.patient_name || 'Unknown Patient',
+      age: rawReport.patient_age,
+      age_unit: rawReport.patient_age_unit,
+      gender: rawReport.patient_gender || 'Unknown',
+      phone: rawReport.patient_phone || '—',
+    };
+  }, [rawReport]);
+
+  const patientInitials = useMemo(() => {
+    if (!reportData?.patient.name) return 'P';
+    return reportData.patient.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  }, [reportData]);
 
   const getImageUrl = useCallback((path: string | null | undefined) => {
     if (!path) return null;
@@ -781,6 +811,44 @@ export function ReportPreview() {
     return (overflow > 0 && overflow <= 120) ? overflow : 0;
   }, [reportData, orderedSections, safeZones, rawReport, density]);
 
+  // Scroll-spying to update active page index
+  useEffect(() => {
+    if (!viewerRef.current) return;
+
+    const observerOptions = {
+      root: viewerRef.current,
+      threshold: 0.25,
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && viewerRef.current) {
+          const pagesList = Array.from(viewerRef.current.querySelectorAll('.report-page'));
+          const index = pagesList.indexOf(entry.target);
+          if (index !== -1) {
+            setActivePageIndex(index);
+          }
+        }
+      });
+    }, observerOptions);
+
+    const pagesList = viewerRef.current.querySelectorAll('.report-page');
+    pagesList.forEach((el) => observer.observe(el));
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [pages, reportData]);
+
+  const handleSelectPage = (index: number) => {
+    setActivePageIndex(index);
+    if (!viewerRef.current) return;
+    const pagesList = viewerRef.current.querySelectorAll('.report-page');
+    if (pagesList && pagesList[index]) {
+      pagesList[index].scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   const isSelfReport = reportData?.patient.referringDoctor === 'Self' || rawReport?.is_self_report;
   const refDoctor = doctors.find(d => d.id === rawReport?.doctor_id);
   const pathologySignature = (() => {
@@ -1043,459 +1111,426 @@ export function ReportPreview() {
   const footerActive = showLetterhead && !!settings?.footer_url && !settings?.letterhead_url;
   const hasBranding = !!(settings?.letterhead_url || settings?.header_url || settings?.footer_url);
 
+  const isDense = density !== 'comfortable';
+  const signatureHeight = 72;
+  const endMarkerHeight = 20;
+
+  const renderPageContent = (pageIndex: number) => {
+    const page = pages[pageIndex];
+    if (!page) return null;
+    const marketingItem = page[0]?.type === 'marketing' ? page[0] : null;
+    const isMarketingPage = !!marketingItem;
+
+    return (
+      <>
+        {!isMarketingPage && letterheadActive && settings?.letterhead_url && (
+          <img
+            src={getImageUrl(settings.letterhead_url) || ''}
+            alt="Letterhead"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              zIndex: 0,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
+
+        {!isMarketingPage && headerActive && settings?.header_url && (
+          <img
+            src={getImageUrl(settings.header_url) || ''}
+            alt="Header"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              objectFit: 'contain',
+              zIndex: 0,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
+
+        {!isMarketingPage && footerActive && settings?.footer_url && (
+          <img
+            src={getImageUrl(settings.footer_url) || ''}
+            alt="Footer"
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              width: '100%',
+              objectFit: 'contain',
+              zIndex: 0,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
+
+        {/* Centered Page Footer inside A4 paper */}
+        <div className="absolute bottom-4 left-0 right-0 text-center text-[10px] text-slate-400 font-medium select-none pointer-events-none z-10 print:block">
+          Page {pageIndex + 1} of {pages.length}
+        </div>
+
+        {marketingItem ? (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: marketingItem.pageConfig.position === 'custom' ? 'block' : 'flex',
+              flexDirection: 'column',
+              justifyContent: marketingItem.pageConfig.position === 'top' ? 'flex-start' : marketingItem.pageConfig.position === 'bottom' ? 'flex-end' : 'center',
+              alignItems: 'center',
+            }}
+          >
+            <img
+              src={getImageUrl(marketingItem.pageConfig.url || marketingItem.pageConfig.previewUrl) || ''}
+              alt="Marketing Poster"
+              style={{
+                objectFit: 'contain',
+                width: marketingItem.pageConfig.width || '100%',
+                height: marketingItem.pageConfig.height || 'auto',
+                position: marketingItem.pageConfig.position === 'custom' ? 'absolute' : 'relative',
+                left: marketingItem.pageConfig.position === 'custom' ? marketingItem.pageConfig.x_offset : undefined,
+                top: marketingItem.pageConfig.position === 'custom' ? marketingItem.pageConfig.y_offset : undefined,
+              }}
+            />
+          </div>
+        ) : (
+          <div
+            data-content-area="true"
+            style={{
+              position: 'absolute',
+              top: safeZones.top,
+              bottom: safeZones.bottom,
+              left: safeZones.left,
+              right: safeZones.right,
+              zIndex: 1,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: compactAdjustment > 0 ? 1 : 3,
+              fontSize: compactAdjustment > 60 ? 10.5 : 11,
+              lineHeight: compactAdjustment > 60 ? 1.35 : 1.45,
+              color: '#222',
+              fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
+            }}
+          >
+            {page.map((item, idx) => {
+              if (item.type === 'patient') {
+                return (
+                  <div key={`p-${idx}`} className="patient-info-box">
+                    <ImprovedPatientBox
+                      patientName={reportData.patient.name}
+                      age={reportData.patient.age as any}
+                      gender={reportData.patient.gender}
+                      patientId={reportData.patient.id}
+                      sampleId={reportData.patient.sampleId}
+                      referringDoctor={reportData.patient.referringDoctor}
+                      reportDate={reportData.report.date}
+                      reportTime={reportData.report.time}
+                      collectionDate={reportData.patient.collectionDate}
+                      reportedDate={reportData.patient.reportedDate}
+                      collectionAddress={`${reportData.lab.address}${reportData.lab.city ? `, ${reportData.lab.city}` : ''}`}
+                      qrCode={
+                        <QRCodeSVG
+                          value={rawReport?.download_token ? `${window.location.origin}/public/report/${id}/download?token=${rawReport.download_token}` : `${window.location.origin}/public/report/${id}/download`}
+                          size={68}
+                          level="Q"
+                          bgColor="#ffffff"
+                          fgColor="#000000"
+                        />
+                      }
+                      barcode={<Barcode value={reportData.patient.sampleId} />}
+                      colorTokens={C}
+                    />
+                  </div>
+                );
+              }
+
+              if (item.type === 'test') {
+                let lastGroup: string | undefined;
+                return (
+                  <TestSectionBlock
+                    key={`t-${idx}`}
+                    testName={item.chunk.continuation ? `${item.chunk.title} (cont.)` : item.chunk.title}
+                    isFirstSection={false}
+                    colorTokens={C}
+                  >
+                    <table style={{
+                      width: '100%',
+                      borderCollapse: 'separate',
+                      borderSpacing: 0,
+                      tableLayout: 'fixed',
+                      marginTop: compactAdjustment > 0 ? '1px' : '2px'
+                    }}><InvestigationTableHeader colorTokens={C} /><tbody>
+                        {item.chunk.parameters.map((param, rowIdx) => {
+                          const status = (param.status || '').toLowerCase();
+                          const isHigh = status === 'high' || status === 'critical';
+                          const isLow = status === 'low';
+                          const isAbnormal = isHigh || isLow;
+                          const statusColor = isHigh ? C.high : isLow ? C.low : C.text;
+                          const showGroupHeader = !!param.group && param.group !== lastGroup;
+                          if (param.group) lastGroup = param.group;
+
+                          return (
+                            <React.Fragment key={`${param.name}-${rowIdx}`}>
+                              {showGroupHeader && (
+                                <SectionGroupHeader
+                                  title={param.group || ''}
+                                  colorTokens={C}
+                                  compact={compactAdjustment > 0}
+                                />
+                              )}
+                              <InvestigationTableRow
+                                investigation={param.name}
+                                result={param.result}
+                                status={isHigh ? 'High' : isLow ? 'Low' : ''}
+                                refRange={param.refRange}
+                                unit={param.unit}
+                                isAbnormal={isAbnormal}
+                                statusColor={statusColor}
+                                rowIndex={rowIdx}
+                                indented={!!param.group}
+                                colorTokens={C}
+                                compact={compactAdjustment > 0}
+                              />
+
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </TestSectionBlock>
+                );
+              }
+
+              // Render inline clinical significance box
+              if (item.type === 'interpretation') {
+                return (
+                  <div
+                    key={`i-${idx}`}
+                    style={{
+                      marginTop: '8px',
+                      fontSize: '9.5px',
+                      color: '#222',
+                      lineHeight: 1.45,
+                      textAlign: 'left'
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                      Clinical Significance
+                    </div>
+                    <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                      {item.text}
+                    </p>
+                  </div>
+                );
+              }
+
+              // Render inline general/technician notes box
+              if (item.type === 'generalNotes') {
+                return (
+                  <div
+                    key={`gnotes-${idx}`}
+                    style={{
+                      marginTop: '8px',
+                      fontSize: '9.5px',
+                      color: '#222',
+                      lineHeight: 1.45,
+                      textAlign: 'left'
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                      Technician Notes / Interpretation
+                    </div>
+                    <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                      {item.text}
+                    </p>
+                  </div>
+                );
+              }
+
+              // Find item.type === 'endMarker' block, replace with:
+              if (item.type === 'endMarker') {
+                return (
+                  <div key={`e-${idx}`} style={{ textAlign: 'center', fontSize: '9px', color: '#999', letterSpacing: '2px', margin: '6px 0' }}>
+                    *** End of Report ***
+                  </div>
+                );
+              }
+
+              return (
+                <section key={`s-${idx}`} style={{ marginTop: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: hasDoctorSignature ? 'space-between' : 'flex-start' }}>
+                    <div>
+                      <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 6 }}>
+                        {ownerSigUrl && (
+                          <img
+                            src={getImageUrl(ownerSigUrl) || ''}
+                            alt="Owner Signature"
+                            style={{ maxHeight: 40, objectFit: 'contain' }}
+                          />
+                        )}
+                      </div>
+                      <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
+                        <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
+                          {ownerSigLabel}
+                        </p>
+                        <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>{ownerSigDesc}</p>
+                      </div>
+                    </div>
+
+                    {hasDoctorSignature && (
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
+                          {doctorSignatureUrl && (
+                            <img
+                              src={getImageUrl(doctorSignatureUrl) || ''}
+                              alt="Doctor Signature"
+                              style={{ maxHeight: 40, objectFit: 'contain' }}
+                            />
+                          )}
+                        </div>
+                        <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
+                          <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
+                            {doctorSignatureName || 'Doctor'}
+                          </p>
+                          <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>{doctorSignatureDescription || 'Consultant'}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        )}
+      </>
+    );
+  };
+
   const effectiveScale = clamp(baseScale * zoom, 0.3, 2);
   const stackHeight = pages.length * A4_HEIGHT_PX + Math.max(0, pages.length - 1) * PAGE_GAP_PX;
-
   return (
-    <>
+    <div className="flex flex-col h-[calc(100vh-76px)] overflow-hidden space-y-2.5 w-full px-1.5 sm:px-2 pb-1.5 bg-slate-50/50 dark:bg-slate-950/20">
       <style>{printStyles}</style>
 
-      <div className="no-print sticky top-12 z-30 bg-white/95 backdrop-blur border-b border-gray-200">
-        <div className="max-w-[1300px] mx-auto px-3 sm:px-4 py-2 flex flex-wrap items-center gap-2">
-          <Link to={backPath} className="inline-flex items-center gap-1 text-xs sm:text-sm text-gray-600 hover:text-gray-900">
-            <ArrowLeft className="w-4 h-4" /> {backLabel}
-          </Link>
-
-          <div className="flex items-center gap-2 ml-auto">
-            {hasBranding && (
-              <button
-                onClick={() => setShowLetterhead(v => !v)}
-                className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border cursor-pointer"
-                style={{
-                  borderColor: showLetterhead ? C.brand : '#D1D5DB',
-                  color: showLetterhead ? C.brand : '#6B7280',
-                  backgroundColor: showLetterhead ? C.brandLight : '#F9FAFB',
-                }}
-              >
-                <FileImage className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{showLetterhead ? 'Branding On' : 'Branding Off'}</span>
-              </button>
-            )}
-
-            {rawReport && !rawReport.is_self_report && rawReport.marketing_pages && Array.isArray(rawReport.marketing_pages) && rawReport.marketing_pages.some((p: any) => p.active && p.url) && (
-              <button
-                onClick={async () => {
-                  const newVal = !rawReport.attach_marketing_pages;
-                  try {
-                    await updateReport(rawReport.id, {
-                      attach_marketing_pages: newVal
-                    });
-                  } catch (e) {
-                    console.error("Failed to update marketing pages attachment:", e);
-                  }
-                }}
-                className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border cursor-pointer transition-colors"
-                style={{
-                  borderColor: rawReport.attach_marketing_pages ? C.brand : '#D1D5DB',
-                  color: rawReport.attach_marketing_pages ? C.brand : '#6B7280',
-                  backgroundColor: rawReport.attach_marketing_pages ? C.brandLight : '#F9FAFB',
-                }}
-              >
-                <FileImage className="w-3.5 h-3.5" />
-                <span>{rawReport.attach_marketing_pages ? 'Marketing Pages On' : 'Marketing Pages Off'}</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => setZoom(z => clamp(z - 0.1, 0.6, 2))}
-              className="inline-flex items-center justify-center w-8 h-8 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
-              title="Zoom out"
-            >
-              <ZoomOut className="w-4 h-4" />
-            </button>
-            <span className="text-xs text-gray-600 min-w-14 text-center">{Math.round(effectiveScale * 100)}%</span>
-            <button
-              onClick={() => setZoom(z => clamp(z + 0.1, 0.6, 2))}
-              className="inline-flex items-center justify-center w-8 h-8 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
-              title="Zoom in"
-            >
-              <ZoomIn className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={() => setIsOrderDrawerOpen(true)}
-              className="lg:hidden inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Arrange Tests</span>
-            </button>
-
-            <button
-              onClick={() => setShowShareModal(true)}
-              disabled={!hasVisibleTests}
-              title={!hasVisibleTests ? 'Select at least one test to share' : 'Share report'}
-              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-            >
-              <Send className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Share</span>
-            </button>
-            <button
-              onClick={handleDownloadPdf}
-              disabled={isGeneratingPdf || !hasVisibleTests}
-              title={!hasVisibleTests ? 'Select at least one test to download' : 'Download as PDF'}
-              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-            >
-              {isGeneratingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} <span className="hidden sm:inline">PDF</span>
-            </button>
-            <button
-              onClick={() => window.print()}
-              disabled={!hasVisibleTests}
-              title={!hasVisibleTests ? 'Select at least one test to print' : 'Print report'}
-              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              style={{ backgroundColor: !hasVisibleTests ? '#9CA3AF' : C.brand }}
-            >
-              <Printer className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Print</span>
-            </button>
-          </div>
-        </div>
+      {/* Top Patient Info Bar */}
+      <div className="no-print flex-shrink-0">
+        <PatientInfoHeader
+          mode="preview"
+          patient={patientProp}
+          selectedReport={rawReport}
+          selectedDoctor={refDoctor || null}
+          referringDoctorName={rawReport?.referring_doctor_name || ''}
+          formattedCollectionDate={reportData?.patient.collectionDate || ''}
+          patientInitials={patientInitials}
+          formatAge={formatAge}
+          onBack={() => navigate(backPath)}
+          onDownloadPdf={handleDownloadPdf}
+          onPrint={() => window.print()}
+          onShare={() => setShowShareModal(true)}
+          onToggleBranding={() => setShowLetterhead(v => !v)}
+          onZoomIn={() => setZoom(z => clamp(z + 0.1, 0.6, 2))}
+          onZoomOut={() => setZoom(z => clamp(z - 0.1, 0.6, 2))}
+          zoom={zoom}
+          effectiveScale={effectiveScale}
+          showLetterhead={showLetterhead}
+          hasBranding={hasBranding}
+          isGeneratingPdf={isGeneratingPdf}
+          hasVisibleTests={hasVisibleTests}
+        />
       </div>
 
-      <div className="report-viewer-shell min-h-screen bg-[#EEF1F6] px-0 sm:px-3 py-3">
-        <div className="max-w-[1500px] mx-auto flex items-start gap-4">
-          <aside className="hidden lg:block w-[308px] shrink-0 sticky top-28 max-h-[calc(100vh-120px)] overflow-y-auto">
-            <OrderManagementPanel
-              sections={sectionOrder.map(id => reportData!.testSections.find(s => s.id === id)).filter(Boolean) as TestSection[]}
-              visibleSections={visibleSections}
-              onToggleVisibility={toggleSectionVisibility}
-              moveUp={moveUp}
-              moveDown={moveDown}
-              resetOrder={resetOrder}
-              setDraggingId={setDraggingId}
-              onDropReorder={onDropReorder}
-            />
-          </aside>
+      {/* Main workbench */}
+      <div className="flex-1 flex gap-3 min-h-0 overflow-hidden mb-1 w-full">
 
-          <div ref={viewerRef} className="w-full overflow-x-auto overflow-y-auto">
+        {/* Left Column: Test Order Management */}
+        <aside className="hidden lg:block w-[308px] shrink-0 h-full overflow-hidden">
+          <OrderManagementPanel
+            sections={sectionOrder.map(id => reportData!.testSections.find(s => s.id === id)).filter(Boolean) as TestSection[]}
+            visibleSections={visibleSections}
+            onToggleVisibility={toggleSectionVisibility}
+            moveUp={moveUp}
+            moveDown={moveDown}
+            resetOrder={resetOrder}
+            setDraggingId={setDraggingId}
+            onDropReorder={onDropReorder}
+            allSelected={allSelected}
+            onToggleSelectAll={toggleSelectAll}
+            selectedCount={visibleSections.size}
+          />
+        </aside>
+
+        {/* Center Column: A4 Report Pages Stack (the ONLY scrolling container) */}
+        <div
+          ref={viewerRef}
+          className="flex-1 h-full overflow-y-auto overflow-x-auto flex justify-center bg-[#EEF1F6] dark:bg-slate-900/10 border border-slate-200 dark:border-slate-800 rounded-xl p-3 scrollbar-thin"
+        >
+          <div
+            className="report-print-wrapper"
+            style={{
+              height: stackHeight * effectiveScale,
+              width: A4_WIDTH_PX * effectiveScale,
+              position: 'relative',
+              margin: '0 auto',
+              overflow: 'hidden',
+            }}
+          >
             <div
-              className="report-print-wrapper"
+              className="report-print-container"
               style={{
-                height: stackHeight * effectiveScale,
-                width: A4_WIDTH_PX * effectiveScale,
-                position: 'relative',
-                margin: '0 auto',
-                overflow: 'hidden',
+                width: A4_WIDTH_PX,
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                transform: `scale(${effectiveScale})`,
+                transformOrigin: 'top left',
               }}
             >
-              <div
-                className="report-print-container"
-                style={{
-                  width: A4_WIDTH_PX,
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  transform: `scale(${effectiveScale})`,
-                  transformOrigin: 'top left',
-                }}
-              >
-                {pages.map((page, pageIndex) => {
-                  pageRefs.current.length = pages.length;
-                  const isMarketingPage = page[0]?.type === 'marketing';
+              {pages.map((page, pageIndex) => {
+                pageRefs.current.length = pages.length;
 
-                  return (
-                    <div
-                      key={pageIndex}
-                      ref={el => {
-                        pageRefs.current[pageIndex] = el;
-                      }}
-                      className="report-page bg-white border border-gray-200"
-                      style={{
-                        width: A4_WIDTH_PX,
-                        height: A4_HEIGHT_PX,
-                        marginBottom: pageIndex === pages.length - 1 ? 0 : PAGE_GAP_PX,
-                        boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-                        position: 'relative',
-                        overflow: 'hidden',
-                        fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
-                      }}
-                    >
-                      {!isMarketingPage && letterheadActive && settings?.letterhead_url && (
-                        <img
-                          src={getImageUrl(settings.letterhead_url) || ''}
-                          alt="Letterhead"
-                          style={{
-                            position: 'absolute',
-                            inset: 0,
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                            zIndex: 0,
-                            pointerEvents: 'none',
-                          }}
-                        />
-                      )}
-
-                      {!isMarketingPage && headerActive && settings?.header_url && (
-                        <img
-                          src={getImageUrl(settings.header_url) || ''}
-                          alt="Header"
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            objectFit: 'contain',
-                            zIndex: 0,
-                            pointerEvents: 'none',
-                          }}
-                        />
-                      )}
-
-                      {!isMarketingPage && footerActive && settings?.footer_url && (
-                        <img
-                          src={getImageUrl(settings.footer_url) || ''}
-                          alt="Footer"
-                          style={{
-                            position: 'absolute',
-                            bottom: 0,
-                            left: 0,
-                            width: '100%',
-                            objectFit: 'contain',
-                            zIndex: 0,
-                            pointerEvents: 'none',
-                          }}
-                        />
-                      )}
-
-                      {isMarketingPage ? (
-                        <div
-                          style={{
-                            position: 'absolute',
-                            inset: 0,
-                            display: page[0].pageConfig.position === 'custom' ? 'block' : 'flex',
-                            flexDirection: 'column',
-                            justifyContent: page[0].pageConfig.position === 'top' ? 'flex-start' : page[0].pageConfig.position === 'bottom' ? 'flex-end' : 'center',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <img
-                            src={getImageUrl(page[0].pageConfig.url || page[0].pageConfig.previewUrl) || ''}
-                            alt="Marketing Poster"
-                            style={{
-                              objectFit: 'contain',
-                              width: page[0].pageConfig.width || '100%',
-                              height: page[0].pageConfig.height || 'auto',
-                              position: page[0].pageConfig.position === 'custom' ? 'absolute' : 'relative',
-                              left: page[0].pageConfig.position === 'custom' ? page[0].pageConfig.x_offset : undefined,
-                              top: page[0].pageConfig.position === 'custom' ? page[0].pageConfig.y_offset : undefined,
-                            }}
-                          />
-                        </div>
-                      ) : (
-                        <div
-                          data-content-area="true"
-                          style={{
-                            position: 'absolute',
-                            top: safeZones.top,
-                            bottom: safeZones.bottom,
-                            left: safeZones.left,
-                            right: safeZones.right,
-                            zIndex: 1,
-                            overflow: 'hidden',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: compactAdjustment > 0 ? 1 : 3,
-                            fontSize: compactAdjustment > 60 ? 10.5 : 11,
-                            lineHeight: compactAdjustment > 60 ? 1.35 : 1.45,
-                            color: '#222',
-                            fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
-                          }}
-                        >
-                          {page.map((item, idx) => {
-                            if (item.type === 'patient') {
-                              return (
-                                <div key={`p-${idx}`} className="patient-info-box">
-                                  <ImprovedPatientBox
-                                    patientName={reportData.patient.name}
-                                    age={reportData.patient.age as any}
-                                    gender={reportData.patient.gender}
-                                    patientId={reportData.patient.id}
-                                    sampleId={reportData.patient.sampleId}
-                                    referringDoctor={reportData.patient.referringDoctor}
-                                    reportDate={reportData.report.date}
-                                    reportTime={reportData.report.time}
-                                    collectionDate={reportData.patient.collectionDate}
-                                    reportedDate={reportData.patient.reportedDate}
-                                    collectionAddress={`${reportData.lab.address}${reportData.lab.city ? `, ${reportData.lab.city}` : ''}`}
-                                    qrCode={
-                                      <QRCodeSVG
-                                        value={rawReport?.download_token ? `${window.location.origin}/public/report/${id}/download?token=${rawReport.download_token}` : `${window.location.origin}/public/report/${id}/download`}
-                                        size={68}
-                                        level="Q"
-                                        bgColor="#ffffff"
-                                        fgColor="#000000"
-                                      />
-                                    }
-                                    barcode={<Barcode value={reportData.patient.sampleId} />}
-                                    colorTokens={C}
-                                  />
-                                </div>
-                              );
-                            }
-
-                            if (item.type === 'test') {
-                              let lastGroup: string | undefined;
-                              return (
-                                <TestSectionBlock
-                                  key={`t-${idx}`}
-                                  testName={item.chunk.continuation ? `${item.chunk.title} (cont.)` : item.chunk.title}
-                                  isFirstSection={false}
-                                  colorTokens={C}
-                                >
-                                  <table style={{
-                                    width: '100%',
-                                    borderCollapse: 'separate',
-                                    borderSpacing: 0,
-                                    tableLayout: 'fixed',
-                                    marginTop: compactAdjustment > 0 ? '1px' : '2px'
-                                  }}><InvestigationTableHeader colorTokens={C} /><tbody>
-                                      {item.chunk.parameters.map((param, rowIdx) => {
-                                        const status = (param.status || '').toLowerCase();
-                                        const isHigh = status === 'high' || status === 'critical';
-                                        const isLow = status === 'low';
-                                        const isAbnormal = isHigh || isLow;
-                                        const statusColor = isHigh ? C.high : isLow ? C.low : C.text;
-                                        const showGroupHeader = !!param.group && param.group !== lastGroup;
-                                        if (param.group) lastGroup = param.group;
-
-                                        return (
-                                          <React.Fragment key={`${param.name}-${rowIdx}`}>
-                                            {showGroupHeader && (
-                                              <SectionGroupHeader
-                                                title={param.group || ''}
-                                                colorTokens={C}
-                                                compact={compactAdjustment > 0}
-                                              />
-                                            )}
-                                            <InvestigationTableRow
-                                              investigation={param.name}
-                                              result={param.result}
-                                              status={isHigh ? 'High' : isLow ? 'Low' : ''}
-                                              refRange={param.refRange}
-                                              unit={param.unit}
-                                              isAbnormal={isAbnormal}
-                                              statusColor={statusColor}
-                                              rowIndex={rowIdx}
-                                              indented={!!param.group}
-                                              colorTokens={C}
-                                              compact={compactAdjustment > 0}
-                                            />
-
-                                          </React.Fragment>
-                                        );
-                                      })}
-                                    </tbody>
-                                  </table>
-                                </TestSectionBlock>
-                              );
-                            }
-
-                            // Render inline clinical significance box
-                            if (item.type === 'interpretation') {
-                              return (
-                                <div
-                                  key={`i-${idx}`}
-                                  style={{
-                                    marginTop: '8px',
-                                    fontSize: '9.5px',
-                                    color: '#222',
-                                    lineHeight: 1.45,
-                                    textAlign: 'left'
-                                  }}
-                                >
-                                  <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
-                                    Clinical Significance
-                                  </div>
-                                  <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
-                                    {item.text}
-                                  </p>
-                                </div>
-                              );
-                            }
-
-                            // Render inline general/technician notes box
-                            if (item.type === 'generalNotes') {
-                              return (
-                                <div
-                                  key={`gnotes-${idx}`}
-                                  style={{
-                                    marginTop: '8px',
-                                    fontSize: '9.5px',
-                                    color: '#222',
-                                    lineHeight: 1.45,
-                                    textAlign: 'left'
-                                  }}
-                                >
-                                  <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
-                                    Technician Notes / Interpretation
-                                  </div>
-                                  <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
-                                    {item.text}
-                                  </p>
-                                </div>
-                              );
-                            }
-
-
-                            // Find item.type === 'endMarker' block, replace with:
-                            if (item.type === 'endMarker') {
-                              return (
-                                <div key={`e-${idx}`} style={{ textAlign: 'center', fontSize: '9px', color: '#999', letterSpacing: '2px', margin: '6px 0' }}>
-                                  *** End of Report ***
-                                </div>
-                              );
-                            }
-
-
-                            return (
-                              <section key={`s-${idx}`} style={{ marginTop: '8px' }}>
-                                <div style={{ display: 'flex', justifyContent: hasDoctorSignature ? 'space-between' : 'flex-start' }}>
-                                  <div>
-                                    <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 6 }}>
-                                      {ownerSigUrl && (
-                                        <img
-                                          src={getImageUrl(ownerSigUrl) || ''}
-                                          alt="Owner Signature"
-                                          style={{ maxHeight: 40, objectFit: 'contain' }}
-                                        />
-                                      )}
-                                    </div>
-                                    <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
-                                      <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
-                                        {ownerSigLabel}
-                                      </p>
-                                      <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>{ownerSigDesc}</p>
-                                    </div>
-                                  </div>
-
-                                  {hasDoctorSignature && (
-                                    <div style={{ textAlign: 'right' }}>
-                                      <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
-                                        {doctorSignatureUrl && (
-                                          <img
-                                            src={getImageUrl(doctorSignatureUrl) || ''}
-                                            alt="Doctor Signature"
-                                            style={{ maxHeight: 40, objectFit: 'contain' }}
-                                          />
-                                        )}
-                                      </div>
-                                      <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
-                                        <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
-                                          {doctorSignatureName || 'Doctor'}
-                                        </p>
-                                        <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>{doctorSignatureDescription || 'Consultant'}</p>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </section>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                return (
+                  <div
+                    key={pageIndex}
+                    ref={el => {
+                      pageRefs.current[pageIndex] = el;
+                    }}
+                    className="report-page bg-white border border-gray-200"
+                    style={{
+                      width: A4_WIDTH_PX,
+                      height: A4_HEIGHT_PX,
+                      marginBottom: pageIndex === pages.length - 1 ? 0 : PAGE_GAP_PX,
+                      boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
+                    }}
+                  >
+                    {renderPageContent(pageIndex)}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
+
+        {/* Right Column: Page Thumbnails */}
+        <aside className="hidden lg:block w-[124px] shrink-0 h-full overflow-hidden">
+          <PageThumbnailPanel
+            pages={pages}
+            activePageIndex={activePageIndex}
+            onSelectPage={handleSelectPage}
+            renderPage={renderPageContent}
+          />
+        </aside>
+
       </div>
 
       {isOrderDrawerOpen && (
@@ -1521,6 +1556,9 @@ export function ReportPreview() {
               setDraggingId={setDraggingId}
               onDropReorder={onDropReorder}
               compact
+              allSelected={allSelected}
+              onToggleSelectAll={toggleSelectAll}
+              selectedCount={visibleSections.size}
             />
           </div>
         </div>
@@ -1541,10 +1579,9 @@ export function ReportPreview() {
           hasDoctorRef={!!rawReport?.doctor_id}
         />
       )}
-    </>
+    </div>
   );
 }
-
 function OrderManagementPanel({
   sections,
   visibleSections,
@@ -1555,6 +1592,9 @@ function OrderManagementPanel({
   setDraggingId,
   onDropReorder,
   compact = false,
+  allSelected,
+  onToggleSelectAll,
+  selectedCount,
 }: {
   sections: TestSection[];
   visibleSections: Set<string>;
@@ -1565,10 +1605,13 @@ function OrderManagementPanel({
   setDraggingId: (id: string | null) => void;
   onDropReorder: (id: string) => void;
   compact?: boolean;
+  allSelected: boolean;
+  onToggleSelectAll: () => void;
+  selectedCount: number;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/70 p-3 sm:p-3.5 shadow-sm">
-      <div className="flex items-center justify-between mb-2">
+    <div className="rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/70 p-3 sm:p-3.5 shadow-sm h-full flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between mb-2 flex-shrink-0">
         <p className="text-xs sm:text-sm font-semibold text-slate-800">Test Order Management</p>
         <button
           onClick={resetOrder}
@@ -1577,8 +1620,25 @@ function OrderManagementPanel({
           <RotateCcw className="w-3.5 h-3.5" /> Reset
         </button>
       </div>
-      <p className="text-[11px] text-slate-500 mb-2.5">Check to include tests in preview. Drag and drop or use controls to reorder.</p>
-      <div className={`grid ${compact ? 'grid-cols-1' : 'grid-cols-1'} gap-2`}>
+      <p className="text-[11px] text-slate-500 mb-3 flex-shrink-0">Select tests to include in preview and drag to reorder</p>
+
+      {/* Select All Checkbox & Count Badge */}
+      <div className="flex items-center justify-between px-2 py-1.5 bg-slate-50/50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800 rounded-lg mb-3 flex-shrink-0">
+        <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={onToggleSelectAll}
+            className="w-4 h-4 rounded border-slate-300 cursor-pointer"
+          />
+          Select All
+        </label>
+        <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-0.5 rounded-full select-none">
+          {selectedCount} Selected
+        </span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto flex flex-col gap-2 pr-1 scrollbar-thin">
         {sections.map((section, idx) => (
           <div
             key={section.id}
@@ -1587,7 +1647,7 @@ function OrderManagementPanel({
             onDragEnd={() => setDraggingId(null)}
             onDragOver={e => e.preventDefault()}
             onDrop={() => onDropReorder(section.id)}
-            className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 transition ${visibleSections.has(section.id) ? 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm' : 'border-gray-200 bg-gray-50 opacity-60'}`}
+            className={`flex items-center gap-2 rounded-lg border px-2 h-11 transition shrink-0 ${visibleSections.has(section.id) ? 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 hover:border-slate-300 hover:shadow-sm' : 'border-gray-250 bg-gray-50 dark:bg-slate-950/20 opacity-60'}`}
           >
             <input
               type="checkbox"
@@ -1597,22 +1657,203 @@ function OrderManagementPanel({
               title="Show in preview"
             />
             <GripVertical className="w-4 h-4 text-slate-400 shrink-0 cursor-grab active:cursor-grabbing" />
-            <span className="text-xs font-semibold text-slate-700 min-w-6 shrink-0">{idx + 1}.</span>
-            <span className="text-xs sm:text-sm text-slate-800 min-w-0 truncate" title={section.testName}>{section.testName}</span>
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-400 min-w-6 shrink-0">{idx + 1}.</span>
+            <span className="text-xs sm:text-sm text-slate-800 dark:text-slate-300 min-w-0 truncate" title={section.testName}>{section.testName}</span>
             <button
               onClick={() => moveUp(section.id)}
-              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 hover:bg-slate-50 cursor-pointer shrink-0"
+              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shrink-0"
               title="Move up"
             >
-              <ArrowUp className="w-3.5 h-3.5" />
+              <ArrowUp className="w-3.5 h-3.5 text-slate-500" />
             </button>
             <button
               onClick={() => moveDown(section.id)}
-              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 hover:bg-slate-50 cursor-pointer shrink-0"
+              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shrink-0"
               title="Move down"
             >
-              <ArrowDown className="w-3.5 h-3.5" />
+              <ArrowDown className="w-3.5 h-3.5 text-slate-500" />
             </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer message checkbox */}
+      <div className="flex items-center gap-2 text-[10px] text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg p-2 mt-3 border border-blue-100/50 dark:border-blue-900/40 select-none shrink-0">
+        <input
+          type="checkbox"
+          checked={true}
+          disabled
+          className="w-3.5 h-3.5 rounded border-blue-300 text-blue-600 bg-blue-100 shrink-0 opacity-80"
+        />
+        <span>Only selected tests will appear in preview</span>
+      </div>
+    </div>
+  );
+}
+
+// Set up pdf.js worker globally
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString();
+
+const isPdfPage = (page: any) => {
+  if (typeof page === 'string') {
+    return page.toLowerCase().endsWith('.pdf') || page.startsWith('data:application/pdf');
+  }
+  if (page instanceof File || page instanceof Blob) {
+    return page.type === 'application/pdf';
+  }
+  return false;
+};
+
+function PdfThumbnail({
+  pdfSource,
+  pageNumber,
+}: {
+  pdfSource: string | File | Blob;
+  pageNumber: number;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let renderTask: any = null;
+
+    async function renderPdfPage() {
+      try {
+        let source: any;
+        if (pdfSource instanceof File || pdfSource instanceof Blob) {
+          const arrayBuffer = await pdfSource.arrayBuffer();
+          source = { data: new Uint8Array(arrayBuffer) };
+        } else {
+          source = { url: pdfSource };
+        }
+
+        const loadingTask = pdfjsLib.getDocument(source);
+        const pdf = await loadingTask.promise;
+        if (!active) return;
+
+        const page = await pdf.getPage(pageNumber);
+        if (!active) return;
+
+        const viewport = page.getViewport({ scale: 0.15 });
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const context = canvas.getContext('2d');
+        if (!context) return;
+
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        renderTask = page.render({
+          canvasContext: context,
+          viewport: viewport,
+        });
+
+        await renderTask.promise;
+      } catch (err: any) {
+        console.error('Error rendering PDF thumbnail:', err);
+        if (active) {
+          setError(err.message || 'Error rendering PDF');
+        }
+      }
+    }
+
+    renderPdfPage();
+
+    return () => {
+      active = false;
+      if (renderTask) {
+        renderTask.cancel();
+      }
+    };
+  }, [pdfSource, pageNumber]);
+
+  if (error) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-[10px] text-red-500 p-1 text-center select-none">
+        Failed to render PDF
+      </div>
+    );
+  }
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="w-full h-full object-contain pointer-events-none select-none"
+    />
+  );
+}
+
+function PageThumbnailPanel({
+  pages,
+  activePageIndex,
+  onSelectPage,
+  renderPage,
+}: {
+  pages: any[];
+  activePageIndex: number;
+  onSelectPage: (idx: number) => void;
+  renderPage?: (idx: number) => React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm select-none h-full flex flex-col overflow-hidden">
+      <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3 flex items-center justify-between flex-shrink-0">
+        <span>Pages</span>
+        <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded text-[11px] font-bold">
+          {pages.length}
+        </span>
+      </p>
+      <div className="flex-1 flex flex-col gap-4 overflow-y-auto pr-1 scrollbar-thin">
+        {pages.map((page, idx) => (
+          <div
+            key={idx}
+            onClick={() => onSelectPage(idx)}
+            className="flex flex-col items-center gap-1.5 cursor-pointer group"
+          >
+            {/* Miniature Page representation */}
+            <div
+              className={`w-[76px] h-[107px] bg-slate-50 dark:bg-slate-950 border rounded shadow-sm transition-all overflow-hidden relative ${activePageIndex === idx
+                  ? 'border-blue-500 ring-2 ring-blue-100 dark:ring-blue-950'
+                  : 'border-slate-200 dark:border-slate-800 group-hover:border-slate-300 dark:group-hover:border-slate-700'
+                }`}
+            >
+              {isPdfPage(page) ? (
+                <PdfThumbnail pdfSource={page} pageNumber={idx + 1} />
+              ) : renderPage ? (
+                <div
+                  style={{
+                    width: `${A4_WIDTH_PX}px`,
+                    height: `${A4_HEIGHT_PX}px`,
+                    transform: `scale(${76 / A4_WIDTH_PX})`,
+                    transformOrigin: 'top left',
+                    pointerEvents: 'none',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                  }}
+                  className="bg-white"
+                >
+                  {renderPage(idx)}
+                </div>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-400">
+                  Page {idx + 1}
+                </div>
+              )}
+            </div>
+            {/* Circle badge page indicator */}
+            <span
+              className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors ${activePageIndex === idx
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-700'
+                }`}
+            >
+              {idx + 1}
+            </span>
           </div>
         ))}
       </div>

@@ -5,12 +5,8 @@ import {
   Save,
   CheckCircle,
   AlertCircle,
-  Clock,
-  ChevronLeft,
   ArrowLeft,
   FileText,
-  Plus,
-  User,
   Calendar,
   Microscope,
   Info,
@@ -24,6 +20,7 @@ import {
   Sparkles,
   BrainCircuit,
   ChevronDown as ChevronDownIcon,
+  History,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -37,6 +34,8 @@ import { BillingSection } from "../../app/components/reports/BillingSection";
 import { SmartSelectInput } from "../../app/components/reports/SmartSelectInput";
 import { formatAge, getAgeMax, normalizeAgeUnit } from "../../utils/age";
 import { SUM_100_GROUPS, isQualitativeValueHigh, isMicroscopicRangeHigh } from "./reportSpecialCases";
+import { CustomConfirmModal } from "../../app/components/ui/CustomConfirmModal";
+import { PatientInfoHeader } from "../../app/components/reports/PatientInfoHeader";
 
 // ============================================
 // Reference Rules Utility Functions for Reports
@@ -463,6 +462,105 @@ export function ReportEntry() {
   // Patient & Doctor state
   const [patient, setPatient] = useState<Patient | null>(initialData?.patient || null);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
+
+  // Previous values state for inline comparison
+  const [previousValues, setPreviousValues] = useState<Record<string, { value: number | string; date: string }>>({});
+  const hasPreviousData = Object.keys(previousValues).length > 0;
+
+  // Active Test & Navigation
+  const [activeTestId, setActiveTestId] = useState<string | null>(null);
+
+  // Modals state
+  const [showEditPatientModal, setShowEditPatientModal] = useState(false);
+  const [showAddTestModal, setShowAddTestModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type?: 'confirm' | 'alert' | 'warning' | 'danger';
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+  });
+  const [testIdToRemove, setTestIdToRemove] = useState<string | null>(null);
+  const [historyReports, setHistoryReports] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Auto-select first test when testSections load
+  useEffect(() => {
+    if (testSections.length > 0 && !activeTestId) {
+      setActiveTestId(testSections[0].testId);
+    } else if (testSections.length > 0 && activeTestId) {
+      const exists = testSections.some(s => s.testId === activeTestId);
+      if (!exists) {
+        setActiveTestId(testSections[0].testId);
+      }
+    }
+  }, [testSections, activeTestId]);
+
+  // Fetch previous values for inline comparison (same-test-only)
+  useEffect(() => {
+    if (!patient?.id || testSections.length === 0) {
+      setPreviousValues({});
+      return;
+    }
+
+    const fetchPreviousValues = async () => {
+      try {
+        const res = await reportApi.getByPatient(patient.id);
+        if (res && res.data) {
+          // Filter to only completed/approved/under-review reports (non-draft)
+          // Also sort them descending by created_at date
+          const otherReports = res.data
+            .filter(r => r.id !== reportId && r.status !== 'draft')
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+          if (otherReports.length === 0) {
+            setPreviousValues({});
+            return;
+          }
+
+          const currentTestIds = new Set(testSections.map(s => s.testId));
+          const prevMap: Record<string, { value: number | string; date: string }> = {};
+
+          for (const report of otherReports) {
+            const td = typeof report.test_data === 'string'
+              ? JSON.parse(report.test_data)
+              : report.test_data;
+
+            if (!td || !td.tests) continue;
+
+            for (const testGroup of td.tests) {
+              const tid = testGroup.testId || testGroup.id;
+              if (!tid || !currentTestIds.has(tid)) continue; // SAME TEST ONLY
+
+              if (testGroup.parameters) {
+                for (const param of testGroup.parameters) {
+                  const key = `${tid}::${param.name}`;
+                  if (prevMap[key]) continue; // already have the most recent value
+                  if (param.value == null || param.value === '') continue;
+
+                  prevMap[key] = {
+                    value: param.value,
+                    date: report.created_at
+                  };
+                }
+              }
+            }
+          }
+
+          setPreviousValues(prevMap);
+        }
+      } catch (e) {
+        console.error("Failed to fetch patient reports for comparison:", e);
+      }
+    };
+
+    fetchPreviousValues();
+  }, [patient?.id, testSections, reportId]);
+
   const [doctorSearch, setDoctorSearch] = useState("");
   const [showDoctorDropdown, setShowDoctorDropdown] = useState(false);
   const [referringDoctorName, setReferringDoctorName] = useState("");
@@ -538,7 +636,7 @@ export function ReportEntry() {
             !lastPart || opt.toLowerCase().includes(lastPart.toLowerCase())
           );
           const dropdownHeight = Math.min(filteredOpts.length * 32 + 12, window.innerHeight * 0.8);
-          
+
           let showLeft = false;
           const spaceOnRight = window.innerWidth - rect.right;
           if (spaceOnRight < dropdownWidth && rect.left > dropdownWidth) {
@@ -1089,9 +1187,9 @@ export function ReportEntry() {
     const selectedTestIds = parsedTestData?.testIds || [];
     return tests.filter(
       (t) =>
-         !selectedTestIds.includes(t.id) &&
-         ((t.test_name || '').toLowerCase().includes(testSearch.toLowerCase()) ||
-           (t.category || '').toLowerCase().includes(testSearch.toLowerCase()))
+        !selectedTestIds.includes(t.id) &&
+        ((t.test_name || '').toLowerCase().includes(testSearch.toLowerCase()) ||
+          (t.category || '').toLowerCase().includes(testSearch.toLowerCase()))
     ).slice(0, 15);
   }, [tests, parsedTestData, testSearch]);
 
@@ -1102,7 +1200,7 @@ export function ReportEntry() {
     if (currentTestIds.includes(test.id)) return;
 
     const newTestIds = [...currentTestIds, test.id];
-    
+
     // Find all test names for these testIds
     const matchedTests = newTestIds.map(id => tests.find(t => t.id === id)).filter(Boolean) as Test[];
     const newReportType = matchedTests.map(t => t.test_name).join(', ');
@@ -1132,6 +1230,28 @@ export function ReportEntry() {
     setShowTestDropdown(false);
     setActiveTestIndex(0);
     setReportStatus("draft");
+
+    if (reportId) {
+      try {
+        const success = await updateReport(reportId, {
+          report_type: newReportType,
+          report_amount: newAmount,
+          base_amount: newAmount,
+          final_amount: newAmount,
+          test_data: updatedTestData,
+          pricing_items: resolvedSnapshot.length > 0 ? resolvedSnapshot : selectedReport.pricing_snapshot,
+        });
+        if (success) {
+          toast.success("Test added successfully.");
+          await fetchReportById(reportId);
+        } else {
+          toast.error("Failed to update test list in database.");
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error("Error saving updated test list to server.");
+      }
+    }
   };
 
   const handleRemoveTest = async (testId: string) => {
@@ -1144,7 +1264,24 @@ export function ReportEntry() {
       return;
     }
 
-    const matchedTests = newTestIds.map(id => tests.find(t => t.id === id)).filter(Boolean) as Test[];
+    const matchedTests = newTestIds.map(id => {
+      const found = tests.find(t => t.id === id);
+      if (found) return found;
+      // Fallback: try to find in existing parsedTestData.tests
+      const existing = (parsedTestData?.tests || []).find((t: any) => (t.testId || t.id) === id);
+      if (existing) {
+        return {
+          id,
+          test_name: existing.testName || existing.test_name || `Test ${id.slice(0, 8)}`,
+          category: existing.testType || existing.category || 'General',
+        } as unknown as Test;
+      }
+      return {
+        id,
+        test_name: `Test ${id.slice(0, 8)}`,
+        category: 'General',
+      } as unknown as Test;
+    });
     const newReportType = matchedTests.map(t => t.test_name).join(', ');
 
     const { amount: newAmount, snapshot: resolvedSnapshot } = await resolvePricingForTestIds(newTestIds);
@@ -1154,6 +1291,11 @@ export function ReportEntry() {
       testIds: newTestIds,
       testName: newReportType,
       testType: matchedTests.map(t => t.category || 'General').join(', '),
+      tests: (parsedTestData?.tests || []).filter((t: any) => newTestIds.includes(t.testId || t.id)),
+      parameters: (parsedTestData?.parameters || []).filter((p: any) => {
+        const paramTestId = dynamicParams.find(dp => dp.name === p.name)?.test_id;
+        return paramTestId ? newTestIds.includes(paramTestId) : true;
+      })
     };
 
     const updatedReport = {
@@ -1164,11 +1306,41 @@ export function ReportEntry() {
       pricing_snapshot: resolvedSnapshot.length > 0 ? resolvedSnapshot : selectedReport.pricing_snapshot,
     };
 
+    if (activeTestId === testId) {
+      if (newTestIds.length > 0) {
+        setActiveTestId(newTestIds[0]);
+      } else {
+        setActiveTestId(null);
+      }
+    }
+
     setSelectedReport(updatedReport);
     setTestName(newReportType);
     setReportAmount(newAmount);
     setBaseAmount(newAmount);
     setReportStatus("draft");
+
+    if (reportId) {
+      try {
+        const success = await updateReport(reportId, {
+          report_type: newReportType,
+          report_amount: newAmount,
+          base_amount: newAmount,
+          final_amount: newAmount,
+          test_data: updatedTestData,
+          pricing_items: resolvedSnapshot.length > 0 ? resolvedSnapshot : selectedReport.pricing_snapshot,
+        });
+        if (success) {
+          toast.success("Test removed successfully.");
+          await fetchReportById(reportId);
+        } else {
+          toast.error("Failed to update test list in database.");
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error("Error saving updated test list to server.");
+      }
+    }
   };
 
   const handleTestSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1298,7 +1470,7 @@ export function ReportEntry() {
         newStatuses[param.id] = "high";
       } else {
         newStatuses[param.id] = "normal";
-        }
+      }
     });
 
     setStatuses(newStatuses);
@@ -1618,7 +1790,7 @@ export function ReportEntry() {
         const localStatus = statuses[param.id];
         const mappedStatus = localStatus === 'empty' ? undefined : localStatus as 'normal' | 'high' | 'low' | 'critical' | undefined;
         const rawValue = values[param.id];
-        
+
         // If select type, default to first option if not entered
         // If select type, default to Negative if not entered
         const finalRawValue = (rawValue === undefined || rawValue === '') && param.input_type === 'select'
@@ -1695,6 +1867,70 @@ export function ReportEntry() {
     await saveBilling(reportId);
     setLastSaved(new Date());
     return true;
+  };
+
+  const handleSavePatientDetails = async () => {
+    if (!patient) return;
+    try {
+      const updatedPat = await updatePatient(patient.id, {
+        name: patient.name,
+        phone: patient.phone,
+        gender: patient.gender,
+        age: patient.age,
+        age_unit: patient.age != null ? normalizeAgeUnit(patient.age_unit) : undefined,
+      });
+
+      if (!updatedPat) {
+        toast.error("Failed to update patient details");
+        return;
+      }
+
+      if (reportId) {
+        const result = await updateReport(reportId, {
+          doctor_id: selectedDoctor?.id || null,
+          referring_doctor_name: !selectedDoctor && referringDoctorName ? referringDoctorName : null,
+          is_self_report: !selectedDoctor && !referringDoctorName,
+        });
+
+        if (!result) {
+          toast.error("Failed to update doctor details on report");
+          return;
+        }
+
+        const refreshedReport = await fetchReportById(reportId);
+        if (refreshedReport && refreshedReport.patient_name) {
+          setPatient({
+            id: refreshedReport.patient_id,
+            name: refreshedReport.patient_name || '',
+            phone: refreshedReport.patient_phone || '',
+            gender: refreshedReport.patient_gender || '',
+            age: refreshedReport.patient_age,
+            age_unit: normalizeAgeUnit(refreshedReport.patient_age_unit),
+            address: '',
+            branch_id: '',
+            created_by: '',
+            created_at: '',
+            updated_at: '',
+          });
+        }
+      }
+
+      toast.success("Patient details saved successfully");
+      setShowEditPatientModal(false);
+    } catch (err) {
+      toast.error("An error occurred while saving patient details");
+      console.error(err);
+    }
+  };
+
+  const handleConfirmRemoveTest = (testId: string, testName: string) => {
+    setTestIdToRemove(testId);
+    setConfirmModal({
+      isOpen: true,
+      title: 'Remove Test',
+      message: `Are you sure you want to remove "${testName}"?\n\nAny unsaved results entered for this test will be lost.`,
+      type: 'danger',
+    });
   };
 
   // Save draft functionality - saves to backend
@@ -1818,10 +2054,47 @@ export function ReportEntry() {
         e.preventDefault();
         if (isEditable) handleSubmitForReview();
       }
+      if (e.key === 'F10') {
+        e.preventDefault();
+        if (isEditable) handleSaveDraft();
+      }
+      if (e.key === 'Escape') {
+        // Guard: check if any modals or dropdowns are active/open
+        if (
+          showEditPatientModal ||
+          showAddTestModal ||
+          showHistoryModal ||
+          confirmModal.isOpen ||
+          showDoctorDropdown ||
+          showTestDropdown
+        ) {
+          return;
+        }
+
+        e.preventDefault();
+        if (isEditable) {
+          handleSaveDraft();
+        } else {
+          navigate('/reports');
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [reportId, values, selectedDoctor, referringDoctorName, isEditable]);
+  }, [
+    reportId,
+    values,
+    selectedDoctor,
+    referringDoctorName,
+    isEditable,
+    showEditPatientModal,
+    showAddTestModal,
+    showHistoryModal,
+    confirmModal,
+    showDoctorDropdown,
+    showTestDropdown,
+    navigate
+  ]);
 
   // Preview report (navigate to preview page)
   const handlePreview = async () => {
@@ -1891,8 +2164,8 @@ export function ReportEntry() {
         name: patient.name,
         id: patient.id.slice(0, 8),
         age: formatAge(patient.age, patient.age_unit) || 'N/A',
- gender: patient.gender || 'Unknown',
-        referringDoctor: selectedDoctor 
+        gender: patient.gender || 'Unknown',
+        referringDoctor: selectedDoctor
           ? `${selectedDoctor.title || 'Dr'}. ${selectedDoctor.name}`
           : referringDoctorName
             ? (referringDoctorName.toLowerCase().startsWith('dr') ? referringDoctorName : `Dr. ${referringDoctorName}`)
@@ -1924,6 +2197,40 @@ export function ReportEntry() {
     });
   };
 
+  const handlePrevTest = () => {
+    const currentIndex = testSections.findIndex(s => s.testId === activeTestId);
+    if (currentIndex > 0) {
+      setActiveTestId(testSections[currentIndex - 1].testId);
+    }
+  };
+
+  const handleNextTest = () => {
+    const currentIndex = testSections.findIndex(s => s.testId === activeTestId);
+    if (currentIndex < testSections.length - 1) {
+      setActiveTestId(testSections[currentIndex + 1].testId);
+    }
+  };
+
+
+
+  const handleOpenHistory = async () => {
+    if (!patient) return;
+    setShowHistoryModal(true);
+    setHistoryLoading(true);
+    try {
+      const res = await reportApi.getByPatient(patient.id);
+      if (res && res.data) {
+        const filtered = res.data.filter(r => r.id !== reportId);
+        setHistoryReports(filtered);
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to load patient history.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   // Loading state
   if (loadingReport) {
     return (
@@ -1933,11 +2240,33 @@ export function ReportEntry() {
       </div>
     );
   }
+
+  // Calculate initials for the avatar badge
+  const patientInitials = patient?.name
+    ? patient.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : 'PT';
+
+  // Format collection date
+  const formattedCollectionDate = selectedReport?.created_at
+    ? format(new Date(selectedReport.created_at), "dd MMM yyyy, hh:mm a")
+    : format(new Date(), "dd MMM yyyy, hh:mm a");
+
+  // Get active test section
+  const activeSection = testSections.find(s => s.testId === activeTestId) || testSections[0];
+
+  // Helper to compute summary counts
+  const summaryCounts = {
+    total: testSections.length,
+    completed: Object.values(sectionCompletion).filter(c => c.done).length,
+    inProgress: Object.values(sectionCompletion).filter(c => c.filled > 0 && !c.done).length,
+    pending: Object.values(sectionCompletion).filter(c => c.filled === 0).length,
+  };
+
   return (
-    <div className="space-y-2 w-full px-2 sm:px-3 pb-3">
+    <div className="flex flex-col h-[calc(100vh-76px)] overflow-hidden space-y-2.5 w-full px-1.5 sm:px-2 pb-1.5 bg-slate-50/50 dark:bg-slate-950/20">
       {/* Non-editable warning banner */}
       {!isEditable && (
-        <div className="bg-warning/10 border border-warning/20 rounded p-3 flex items-center gap-2">
+        <div className="bg-warning/10 border border-warning/20 rounded-xl p-3 flex items-center gap-2">
           <Lock className="w-4 h-4 text-warning" />
           <span className="text-sm text-warning">
             This report is in <strong>{reportStatus}</strong> status and cannot be edited.
@@ -1949,7 +2278,7 @@ export function ReportEntry() {
 
       {/* Rejection reason banner */}
       {reportStatus === 'rejected' && selectedReport?.rejection_reason && (
-        <div className="bg-destructive/10 border border-destructive/20 rounded p-3 flex items-start gap-2">
+        <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-3 flex items-start gap-2">
           <AlertCircle className="w-4 h-4 text-destructive mt-0.5" />
           <div>
             <span className="text-sm font-medium text-destructive">Report Rejected</span>
@@ -1958,333 +2287,798 @@ export function ReportEntry() {
         </div>
       )}
 
-      {/* Header / Actions */}
-      <div className="sticky top-12 z-30 bg-background/95 backdrop-blur py-1.5 border-b border-border/70 flex flex-wrap items-center justify-between gap-1.5">
-        <div className="flex items-center gap-2 min-w-0">
-          <button
-            onClick={() => navigate(-1)}
-            className="h-7 px-2.5 flex items-center gap-1.5 bg-card border border-border rounded hover:bg-accent hover:text-foreground text-muted-foreground transition-colors text-[11px] font-medium mr-1"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Back
-          </button>
-          <div className="min-w-0">
-            <h1 className="text-foreground text-base leading-none mb-0.5 truncate">
-              Report Entry
-            </h1>
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground leading-none">
-              <span className="tabular-nums">
-                {reportId ? `#${reportId.slice(0, 8)}` : '#NEW'}
-              </span>
-              <span className="w-1 h-1 bg-border rounded-full"></span>
-              <span
-                className="flex items-center gap-1"
-                style={{
-                  color: reportStatus === "draft" ? "var(--warning)" :
-                    reportStatus === "under_review" ? "var(--info)" :
-                      reportStatus === "approved" ? "var(--success)" :
-                        reportStatus === "rejected" ? "var(--destructive)" : "var(--muted-foreground)"
-                }}
-              >
-                {reportStatus === "draft" && <><Clock className="w-3 h-3" /> Draft</>}
-                {reportStatus === "under_review" && <><Clock className="w-3 h-3" /> Under Review</>}
-                {reportStatus === "approved" && <><CheckCircle className="w-3 h-3" /> Approved</>}
-                {reportStatus === "rejected" && <><AlertCircle className="w-3 h-3" /> Rejected</>}
-              </span>
-              {abnormalCount > 0 && (
-                <>
-                  <span className="w-1 h-1 bg-border rounded-full"></span>
-                  <span
-                    className="flex items-center gap-1"
-                    style={{ color: "var(--destructive)" }}
-                  >
-                    <AlertCircle className="w-3 h-3" />{" "}
-                    {abnormalCount} Abnormal
-                  </span>
-                </>
-              )}
-            </div>
+      {/* Compact Patient Header (60px) */}
+      <PatientInfoHeader
+        patient={patient}
+        selectedReport={selectedReport}
+        selectedDoctor={selectedDoctor}
+        referringDoctorName={referringDoctorName}
+        formattedCollectionDate={formattedCollectionDate}
+        isEditable={isEditable}
+        onBack={() => navigate('/reports')}
+        onEditPatient={() => setShowEditPatientModal(true)}
+        onAddTest={() => setShowAddTestModal(true)}
+        onOpenHistory={handleOpenHistory}
+        patientInitials={patientInitials}
+        formatAge={formatAge}
+      />
+
+      {/* Three Column Workbench Grid */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[16%_61%_21%] gap-3 items-stretch min-h-0 overflow-hidden mb-1">
+        {/* Left Column: Plain list of tests */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm h-full flex flex-col overflow-hidden">
+          <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 px-1 flex-shrink-0">Tests</h3>
+          <div className="flex-1 overflow-y-auto scrollbar-hide space-y-1">
+            {testSections.map((section) => {
+              const isActive = section.testId === activeTestId;
+              return (
+                <div
+                  key={section.testId}
+                  onClick={() => setActiveTestId(section.testId)}
+                  className={`group flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all ${isActive
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/50'
+                    }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    <span className="truncate">{section.testName}</span>
+                  </div>
+                  {isEditable && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleConfirmRemoveTest(section.testId, section.testName);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 w-4 h-4 rounded-full flex items-center justify-center text-slate-400 hover:text-destructive hover:bg-destructive/10 transition-all flex-shrink-0"
+                      title="Remove test"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            {testSections.length === 0 && (
+              <p className="text-xs text-muted-foreground p-2 italic text-center">No tests selected</p>
+            )}
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-1.5">
-          {isEditable && (
-            <>
-              {reportId && (
-                <button
-                  onClick={() => navigate('/reports')}
-                  className="h-7 px-2.5 flex items-center gap-1.5 bg-card border border-border rounded hover:bg-accent transition-colors text-[11px]"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  Cancel
-                </button>
-              )}
+        {/* Center Column: Parameter entry table */}
+        <div className="h-full flex flex-col overflow-hidden">
+          {activeSection ? (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm h-full flex flex-col min-h-0">
+              <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <Microscope className="w-4 h-4 text-primary" />
+                  <h2 className="text-xs font-bold text-slate-800 dark:text-slate-100">{activeSection.testName}</h2>
+                  {activeSection.testCode && (
+                    <span className="text-[10px] font-bold text-muted-foreground bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded uppercase">
+                      {activeSection.testCode}
+                    </span>
+                  )}
+                </div>
+
+                {/* Status legend */}
+                <div className="flex items-center gap-4 text-[10px] text-slate-600 dark:text-slate-500 justify-end px-1 flex-shrink-0 mt-1">
+                  <div className="flex items-center gap-1">
+                    <span className="text-info font-bold">↓</span> Low
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-success font-bold">✓</span> Normal
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-destructive font-bold">↑</span> High
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto min-h-0 overflow-x-auto">
+                <table className="w-full table-fixed text-[11px] md:text-[12px] border-collapse">
+                  {hasPreviousData ? (
+                    <colgroup>
+                      <col className="w-[25%]" />
+                      <col className="w-[8%]" />
+                      <col className="w-[25%]" />
+                      <col className="w-[12%]" />
+                      <col className="w-[20%]" />
+                      <col className="w-[10%]" />
+                    </colgroup>
+                  ) : (
+                    <colgroup>
+                      <col className="w-[28%]" />
+                      <col className="w-[30%]" />
+                      <col className="w-[12%]" />
+                      <col className="w-[20%]" />
+                      <col className="w-[10%]" />
+                    </colgroup>
+                  )}
+                  <thead className="bg-slate-50/70 dark:bg-slate-900/30 border-b border-slate-200 dark:border-slate-800">
+                    <tr>
+                      <th className="px-3 py-2.5 text-left text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]">Parameter</th>
+                      {hasPreviousData && (
+                        <th className="px-3 py-2.5 text-center text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]" title="Previous History">
+                          <History className="w-4 h-4 mx-auto text-slate-500" />
+                        </th>
+                      )}
+                      <th className="px-3 py-2.5 text-left text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]">Result</th>
+                      <th className="px-3 py-2.5 text-left text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]">Unit</th>
+                      <th className="px-3 py-2.5 text-left text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]">Reference Range</th>
+                      <th className="px-3 py-2.5 text-center text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]">Flag</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700 bg-background">
+                    {(() => {
+                      const renderedSumAlerts = new Set<string>();
+                      return activeSection.params.map((param, paramIndex) => {
+                        const groupLabel = sumValidation.paramToGroup[param.id];
+                        const groupInfo = groupLabel ? sumValidation.groupSums[groupLabel] : null;
+                        const isInInvalidGroup = isParamInInvalidSumGroup(param.id);
+
+                        let showSumAlert = false;
+                        if (groupLabel && groupInfo && !renderedSumAlerts.has(groupLabel)) {
+                          const remainingGroupParams = activeSection.params.slice(paramIndex + 1).filter(
+                            p => sumValidation.paramToGroup[p.id] === groupLabel
+                          );
+                          if (remainingGroupParams.length === 0) {
+                            showSumAlert = true;
+                            renderedSumAlerts.add(groupLabel);
+                          }
+                        }
+
+                        return (
+                          <Fragment key={param.id}>
+                            <tr className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${isInInvalidGroup ? 'bg-amber-500/5' : ''}`}>
+                              <td className="px-3 py-1 align-middle text-slate-800 dark:text-slate-200">
+                                <div className="font-bold text-sm leading-tight break-words flex flex-wrap items-center gap-1.5">
+                                  <span>{param.name}</span>
+                                  {param.field_type === 'calculated' && (
+                                    <span className="inline-flex items-center rounded bg-primary/10 px-1 py-0.5 text-[8px] font-bold text-primary uppercase tracking-wide">calc</span>
+                                  )}
+                                  {isInInvalidGroup && (
+                                    <span className="inline-flex items-center rounded bg-amber-500/15 px-1 py-0.5 text-[8px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide">Σ≠100</span>
+                                  )}
+                                </div>
+                              </td>
+                              {hasPreviousData && (
+                                <td className="px-3 py-1 align-middle text-center text-slate-600 dark:text-slate-400 text-xs">
+                                  {(() => {
+                                    const key = `${activeSection.testId}::${param.name}`;
+                                    const prev = previousValues[key];
+                                    if (!prev) return <span className="text-slate-300">—</span>;
+
+                                    const currentVal = parseFloat(values[param.id]);
+                                    const prevVal = parseFloat(String(prev.value));
+
+                                    if (isNaN(prevVal)) {
+                                      // Non-numeric previous value
+                                      return (
+                                        <span 
+                                          className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-500 font-bold cursor-default"
+                                          title={`Previous: ${prev.value} (${format(new Date(prev.date), 'dd MMM yyyy')})`}
+                                        >
+                                          {prev.value}
+                                        </span>
+                                      );
+                                    }
+
+                                    const diff = isNaN(currentVal) ? null : currentVal - prevVal;
+                                    const arrow = diff === null ? '' : diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
+                                    const arrowColor = diff === null ? '' : diff > 0 ? 'text-emerald-500 font-bold' : diff < 0 ? 'text-rose-500 font-bold' : 'text-slate-400';
+
+                                    return (
+                                      <span 
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-500 font-bold cursor-default"
+                                        title={`Previous: ${prev.value} on ${format(new Date(prev.date), 'dd MMM yyyy')}${diff !== null ? `\nChange: ${diff > 0 ? '+' : ''}${Math.round(diff * 100) / 100}` : ''}`}
+                                      >
+                                        <span>{prev.value}</span>
+                                        {arrow && <span className={`${arrowColor} font-bold text-xs`}>{arrow}</span>}
+                                      </span>
+                                    );
+                                  })()}
+                                </td>
+                              )}
+                              <td className="px-3 py-1 align-middle">
+                                {param.input_type === 'select' ? (
+                                  <SmartSelectInput
+                                    ref={(node) => {
+                                      inputRefs.current[param.id] = node;
+                                    }}
+                                    className={`${getInputClass(statuses[param.id])} h-8 text-xs${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}${isInInvalidGroup ? ' !ring-1 !ring-amber-500 !border-amber-500' : ''}${isFieldBlockedBySum100(param.id) ? ' opacity-40 bg-neutral-100 dark:bg-neutral-800 cursor-not-allowed' : ''} !text-left bg-background !py-0`}
+                                    value={values[param.id] !== undefined && values[param.id] !== null ? values[param.id] : (param.options ? param.options.split(',')[0].trim() : "Negative")}
+                                    onChange={(val) => handleValueChange(param.id, val)}
+                                    onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
+                                    tabIndex={param.field_type === 'calculated' || isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
+                                    disabled={!isEditable || isFieldBlockedBySum100(param.id)}
+                                    options={param.options ? param.options.split(',').map((opt: string) => opt.trim()) : ["Negative", "Positive"]}
+                                  />
+                                ) : param.input_type === 'textarea' ? (
+                                  <div className="relative py-1">
+                                    <textarea
+                                      ref={(node) => {
+                                        inputRefs.current[param.id] = node;
+                                      }}
+                                      className={`${getInputClass(statuses[param.id])} min-h-[4rem] py-1 px-2 text-xs w-full resize-y font-normal bg-background${isFieldBlockedBySum100(param.id) ? ' opacity-40 bg-neutral-100 dark:bg-neutral-800 cursor-not-allowed' : ''}`}
+                                      placeholder="Enter description..."
+                                      value={values[param.id] || ""}
+                                      onChange={(e) => handleValueChange(param.id, e.target.value)}
+                                      onFocus={() => setActiveTextareaId(param.id)}
+                                      onBlur={() => {
+                                        setTimeout(() => {
+                                          if (!isHoveringTextareaDropdown.current) {
+                                            setActiveTextareaId(prev => prev === param.id ? null : prev);
+                                          }
+                                        }, 150);
+                                      }}
+                                      onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
+                                      tabIndex={isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
+                                      disabled={!isEditable || isFieldBlockedBySum100(param.id)}
+                                    />
+                                    {param.options && activeTextareaId === param.id && (
+                                      (() => {
+                                        const currentVal = values[param.id] || '';
+                                        const lastPart = currentVal.split(/,\s*/).pop()?.trim() || '';
+                                        const filteredOpts = param.options.split(',').filter(opt =>
+                                          !lastPart || opt.toLowerCase().includes(lastPart.toLowerCase())
+                                        );
+
+                                        if (filteredOpts.length === 0) return null;
+
+                                        return createPortal(
+                                          <div
+                                            onMouseEnter={() => { isHoveringTextareaDropdown.current = true; }}
+                                            onMouseLeave={() => {
+                                              isHoveringTextareaDropdown.current = false;
+                                              if (document.activeElement !== inputRefs.current[param.id]) {
+                                                setActiveTextareaId(null);
+                                              }
+                                            }}
+                                            className="fixed z-[9999] w-52 max-h-[80vh] overflow-y-auto rounded-lg border border-neutral-800 bg-[#1E1B18] text-white shadow-xl pointer-events-auto"
+                                            style={{
+                                              top: textareaCoords.top,
+                                              left: textareaCoords.left,
+                                            }}
+                                          >
+                                            {/* Popover Arrow */}
+                                            {textareaAlignLeft ? (
+                                              <div className={`absolute left-full w-0 h-0 border-y-[6px] border-y-transparent border-l-[6px] border-l-[#1E1B18] ${textareaAlignBottom ? 'bottom-2.5' : 'top-2.5'}`} />
+                                            ) : (
+                                              <div className={`absolute right-full w-0 h-0 border-y-[6px] border-y-transparent border-r-[6px] border-r-[#1E1B18] ${textareaAlignBottom ? 'bottom-2.5' : 'top-2.5'}`} />
+                                            )}
+
+                                            <ul className="py-1.5 px-1.5 space-y-0.5">
+                                              {filteredOpts.map((opt: string) => (
+                                                <li
+                                                  key={opt}
+                                                  onMouseDown={(e) => {
+                                                    e.preventDefault();
+                                                    const trimmed = currentVal.trim();
+                                                    if (!trimmed) {
+                                                      handleValueChange(param.id, opt + ', ');
+                                                    } else {
+                                                      const parts = currentVal.split(/,\s*/);
+                                                      const last = parts[parts.length - 1] || '';
+                                                      if (last && opt.toLowerCase().includes(last.toLowerCase())) {
+                                                        parts.pop();
+                                                        parts.push(opt);
+                                                        handleValueChange(param.id, parts.join(', ') + ', ');
+                                                      } else {
+                                                        if (currentVal.endsWith(', ')) {
+                                                          handleValueChange(param.id, currentVal + opt + ', ');
+                                                        } else if (currentVal.endsWith(',')) {
+                                                          handleValueChange(param.id, currentVal + ' ' + opt + ', ');
+                                                        } else {
+                                                          handleValueChange(param.id, currentVal + ', ' + opt + ', ');
+                                                        }
+                                                      }
+                                                    }
+                                                    setTimeout(() => {
+                                                      const textareaEl = inputRefs.current[param.id];
+                                                      if (textareaEl) {
+                                                        textareaEl.focus();
+                                                      }
+                                                    }, 0);
+                                                  }}
+                                                  className="px-3 py-2 cursor-pointer text-left text-xs leading-tight select-none transition-colors rounded-md text-neutral-300 hover:bg-neutral-800 hover:text-white hover:font-semibold"
+                                                >
+                                                  {opt}
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </div>,
+                                          document.body
+                                        ) as any;
+                                      })()
+                                    )}
+                                  </div>
+                                ) : (
+                                  <input
+                                    ref={(node) => {
+                                      inputRefs.current[param.id] = node;
+                                    }}
+                                    type={param.input_type === 'text' ? 'text' : 'number'}
+                                    step={param.step}
+                                    className={`${getInputClass(statuses[param.id])} h-8 text-xs${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}${isInInvalidGroup ? ' !ring-1 !ring-amber-500 !border-amber-500' : ''}${isFieldBlockedBySum100(param.id) ? ' opacity-40 bg-neutral-100 dark:bg-neutral-800 cursor-not-allowed' : ''}`}
+                                    placeholder={param.field_type === 'calculated' ? 'Auto' : ''}
+                                    value={values[param.id] || ""}
+                                    onChange={(e) => handleValueChange(param.id, e.target.value)}
+                                    onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
+                                    onFocus={(event) => event.currentTarget.select()}
+                                    tabIndex={param.field_type === 'calculated' || isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
+                                    disabled={!isEditable || isFieldBlockedBySum100(param.id)}
+                                    readOnly={param.field_type === 'calculated'}
+                                  />
+                                )}
+                              </td>
+                              <td className="px-3 py-1 align-middle text-left text-slate-600 dark:text-slate-400 font-bold text-xs">
+                                {param.unit || '-'}
+                              </td>
+                              <td className="px-3 py-1 align-middle text-left text-slate-600 dark:text-slate-400 font-bold text-xs break-words">
+                                {formatReferenceRange(getPatientReferenceRange(param, patient))}
+                              </td>
+                              <td className="px-3 py-1 align-middle text-center">{getStatusBadge(statuses[param.id])}</td>
+                            </tr>
+
+                            {showSumAlert && groupInfo && groupInfo.hasAnyValue && groupInfo.sum !== 100 && (
+                              <tr>
+                                <td colSpan={hasPreviousData ? 6 : 5} className="px-0 py-0">
+                                  <div className="mx-3 my-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300">
+                                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                    <span className="text-xs font-medium">
+                                      {groupLabel} total is <strong className="font-bold">{groupInfo.sum}%</strong> — must equal <strong className="font-bold">100%</strong>.
+                                      {groupInfo.sum < 100
+                                        ? ` Add ${Math.round((100 - groupInfo.sum) * 100) / 100}% more.`
+                                        : ` Remove ${Math.round((groupInfo.sum - 100) * 100) / 100}%.`}
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground text-xs shadow-sm h-full flex items-center justify-center">
+              No active test parameter selected. Please choose a test.
+            </div>
+          )}
+        </div>
+
+        {/* Right Column: Summary, Quick Actions, Notes, AIInterpretation */}
+        <div className="h-full flex flex-col gap-3 overflow-hidden flex-shrink-0">
+          {/* Report Summary Card */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm space-y-2 flex-shrink-0">
+            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 px-0.5">Report Summary</h3>
+            <div className="bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-900 rounded-xl p-3 space-y-2.5 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Total Tests</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">{summaryCounts.total}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Completed</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">{summaryCounts.completed}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">In Progress</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">{summaryCounts.inProgress}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Pending</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">{summaryCounts.pending}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions Card */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm space-y-2 flex-shrink-0">
+            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 px-0.5">Quick Actions</h3>
+            <div className="space-y-2">
               <button
                 onClick={handleSaveDraft}
                 disabled={isSaving || !reportId}
-                className="h-7 px-2.5 flex items-center gap-1.5 bg-card border border-border rounded hover:bg-accent transition-colors text-[11px] disabled:opacity-50"
+                className="w-full h-9 flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-900/50 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-xs font-bold text-blue-600 dark:text-blue-400 rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
               >
-                {isSaving ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Save className="w-3.5 h-3.5" />
-                )}
-                {isEditMode ? 'Save' : 'Save Draft'}
-                <span className="text-muted-foreground ml-1">
-                  Ctrl+S
-                </span>
+                <FileText className="w-4 h-4" />
+                Save as Draft
+              </button>
+
+              <button
+                onClick={handlePreview}
+                disabled={!patient || Object.keys(values).length === 0}
+                className="w-full h-9 flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-900/50 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-xs font-bold text-blue-600 dark:text-blue-400 rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+              >
+                <FileText className="w-4 h-4" />
+                Preview Report
               </button>
 
               {reportStatus === 'draft' && (
                 <button
                   onClick={handleSubmitForReview}
                   disabled={isSubmitting || !reportId || Object.keys(values).length === 0 || hasAnyInvalidSumGroup}
-                  className="h-7 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-[11px] disabled:opacity-50"
+                  className="w-full h-9 flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100/70 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
                   title={hasAnyInvalidSumGroup ? "Resolve sum to 100% validation errors first" : undefined}
                 >
-                  {isSubmitting ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Send className="w-3.5 h-3.5" />
-                  )}
-                  {canAutoApprove ? 'Submit & Approve' : 'Submit for Review'}
+                  <CheckCircle className="w-4 h-4" />
+                  {canAutoApprove ? 'Approve Report' : 'Submit for Review'}
                 </button>
               )}
-            </>
-          )}
+            </div>
+          </div>
 
-          {allRequiredFilled && (
+          {/* Report Notes Card */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm space-y-1.5 flex flex-col flex-1 min-h-0 overflow-hidden">
+            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex-shrink-0">Report Notes</h3>
+            <textarea
+              className="w-full flex-1 min-h-[50px] border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary bg-background dark:bg-slate-950 resize-none"
+              placeholder="Add any note for this report..."
+              value={technicianNotes}
+              onChange={(e) => setTechnicianNotes(e.target.value)}
+              disabled={!isEditable}
+            />
+          </div>
+
+          {/* AI Clinical Significance Card */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm flex-shrink-0">
             <button
-              onClick={handlePreview}
-              disabled={!patient}
-              className="h-7 px-2.5 flex items-center gap-1.5 bg-success text-white rounded hover:opacity-90 transition-opacity text-[11px] disabled:opacity-50"
+              type="button"
+              onClick={() => setShowAiSection((prev) => !prev)}
+              className="w-full px-4 py-2.5 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50 text-left border-b border-slate-100 dark:border-slate-800"
+              aria-expanded={showAiSection}
             >
-              <FileText className="w-3.5 h-3.5" />
-              Preview
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <BrainCircuit className="w-3.5 h-3.5 text-primary" />
+                AI Interpretation
+              </span>
+              <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showAiSection ? 'rotate-90' : ''}`} />
             </button>
-          )}
+
+            {showAiSection && (
+              <div className="p-3 space-y-3">
+                <button
+                  onClick={handleGenerateInterpretation}
+                  disabled={isGeneratingAI || !reportId || Object.values(values).filter(v => v).length === 0}
+                  className="w-full h-8 flex items-center justify-center gap-1.5 bg-primary hover:bg-primary/95 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                >
+                  {isGeneratingAI ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3 h-3" />
+                  )}
+                  {isGeneratingAI ? 'Generating...' : aiInterpretation ? 'Regenerate' : 'Generate AI Report'}
+                </button>
+
+                {aiError && (
+                  <div className="p-2 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-1.5">
+                    <AlertCircle className="w-3 h-3 text-destructive flex-shrink-0" />
+                    <span className="text-[10px] text-destructive leading-tight">{aiError}</span>
+                  </div>
+                )}
+
+                {aiInterpretation ? (
+                  <div className="space-y-2.5 max-h-[160px] overflow-y-auto pr-1">
+                    {aiInterpretation.summary && (
+                      <div className="p-2 bg-primary/5 border border-primary/10 rounded-lg">
+                        <p className="text-[9px] text-primary font-bold uppercase tracking-wider mb-0.5">Summary</p>
+                        <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.summary}</p>
+                      </div>
+                    )}
+                    {aiInterpretation.keyFindings && (
+                      <div className="p-2 bg-warning/5 border border-warning/10 rounded-lg">
+                        <p className="text-[9px] text-warning font-bold uppercase tracking-wider mb-0.5">Key Findings</p>
+                        <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.keyFindings}</p>
+                      </div>
+                    )}
+                    {aiInterpretation.clinicalIndications && (
+                      <div className="p-2 bg-info/5 border border-info/10 rounded-lg">
+                        <p className="text-[9px] text-info font-bold uppercase tracking-wider mb-0.5">Clinical Indications</p>
+                        <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.clinicalIndications}</p>
+                      </div>
+                    )}
+                    {aiInterpretation.recommendation && (
+                      <div className="p-2 bg-success/5 border border-success/10 rounded-lg">
+                        <p className="text-[9px] text-success font-bold uppercase tracking-wider mb-0.5">Recommendation</p>
+                        <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.recommendation}</p>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => {
+                        const text = [
+                          aiInterpretation.summary && `Summary: ${aiInterpretation.summary}`,
+                          aiInterpretation.keyFindings && `Key Findings: ${aiInterpretation.keyFindings}`,
+                          aiInterpretation.clinicalIndications && `Clinical Indications: ${aiInterpretation.clinicalIndications}`,
+                          aiInterpretation.recommendation && `Recommendation: ${aiInterpretation.recommendation}`,
+                        ].filter(Boolean).join('\n');
+                        setTechnicianNotes(prev => prev ? `${prev}\n\n--- AI Interpretation ---\n${text}` : text);
+                      }}
+                      className="w-full h-7 flex items-center justify-center gap-1.5 bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 rounded-lg hover:bg-slate-100 transition-colors text-[10px] font-bold text-slate-600 dark:text-slate-300"
+                    >
+                      <FileText className="w-3 h-3" />
+                      Copy to Notes
+                    </button>
+                  </div>
+                ) : !isGeneratingAI ? (
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center py-2">
+                    Enter values and click "Generate" to receive AI Clinical insights.
+                  </p>
+                ) : null}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="space-y-2">
-        <div className="bg-card border border-border rounded px-2.5 py-2 space-y-2">
-          <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground leading-none">
-            <span className="inline-flex items-center gap-1"><FileText className="w-3 h-3" />{reportId ? `#${reportId.slice(0, 8)}` : '#NEW'}</span>
-            <span className="inline-flex items-center gap-1"><Microscope className="w-3 h-3" />{testName}</span>
-            <span className="inline-flex items-center gap-1"><Calendar className="w-3 h-3" />{format(new Date(), "MMM dd HH:mm")}</span>
-            {(selectedDoctor || referringDoctorName) && (
-              <span className="inline-flex items-center gap-1">
-                <Stethoscope className="w-3 h-3" />
-                {selectedDoctor 
-                  ? `Dr. ${selectedDoctor.name}` 
-                  : (referringDoctorName.toLowerCase().startsWith('dr') ? referringDoctorName : `Dr. ${referringDoctorName}`)}
-              </span>
-            )}
-          </div>
-
-          {patient ? (
-            <div className="grid grid-cols-1 xl:grid-cols-[minmax(220px,2.1fr)_minmax(110px,0.9fr)_minmax(170px,1.2fr)_minmax(170px,1.2fr)_minmax(240px,1.8fr)] gap-1.5 text-[11px] items-center">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <label className="text-[10px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">Patient</label>
-                <input
-                  type="text"
-                  value={patient.name}
-                  onChange={(e) => setPatient({ ...patient, name: e.target.value })}
-                  disabled={!isEditable}
-                  className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
-                />
-              </div>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <label className="text-[10px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">Gender</label>
-                <select
-                  value={patient.gender || ''}
-                  onChange={(e) => setPatient({ ...patient, gender: e.target.value })}
-                  disabled={!isEditable}
-                  className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
-                >
-                  <option value="">Select</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <label className="text-[10px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">Age</label>
-                <div className="grid grid-cols-[minmax(0,1fr)_82px] gap-1 w-full">
-                  <input
-                    type="number"
-                    min={0}
-                    max={getAgeMax(patient.age_unit)}
-                    value={patient.age ?? ''}
-                    onChange={(e) => setPatient({ ...patient, age: e.target.value ? Number(e.target.value) : undefined as any })}
-                    disabled={!isEditable}
-                    className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary tabular-nums disabled:opacity-60"
-                  />
-                  <select
-                    value={normalizeAgeUnit(patient.age_unit)}
-                    onChange={(e) => setPatient({ ...patient, age_unit: e.target.value as AgeUnit })}
-                    disabled={!isEditable}
-                    className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
-                  >
-                    <option value="years">Years</option>
-                    <option value="months">Months</option>
-                    <option value="days">Days</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <label className="text-[10px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">Contact</label>
-                <input
-                  type="tel"
-                  value={patient.phone || ''}
-                  onChange={(e) => setPatient({ ...patient, phone: e.target.value })}
-                  disabled={!isEditable}
-                  className="w-full h-8 px-2 border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary tabular-nums disabled:opacity-60"
-                />
-              </div>
-              <div className="flex items-center gap-1.5 min-w-0 w-full" ref={doctorSearchRef}>
-                <label className="text-[10px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">Doctor</label>
-                <div className="relative w-full">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-                  <input
-                    ref={doctorSearchInputRef}
-                    type="text"
-                    placeholder="Search doctor by name or mobile..."
-                    className="w-full h-8 pl-7 pr-8 bg-background border border-border rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
-                    value={doctorSearch}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setDoctorSearch(val);
-                      // If user edits after selecting a doctor, clear the selection
-                      if (selectedDoctor) {
-                        setSelectedDoctor(null);
-                        setReferringDoctorName("");
-                      }
-                      setShowDoctorDropdown(true);
-                      setActiveDoctorIndex(0);
-                    }}
-                    onFocus={() => isEditable && setShowDoctorDropdown(true)}
-                    onBlur={handleDoctorBlur}
-                    onKeyDown={handleDoctorSearchKeyDown}
-                    disabled={!isEditable}
-                  />
-                  {doctorSearch && isEditable && (
-                    <button
-                      type="button"
-                      onClick={handleClearDoctor}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors focus:outline-none"
-                      title="Clear doctor"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-
-                  {showDoctorDropdown && isEditable && doctorDropdownOptions.length > 0 && (
-                    <div
-                      onMouseDown={(e) => e.preventDefault()}
-                      className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg max-h-56 overflow-y-auto z-50"
-                    >
-                      {doctorsLoading ? (
-                        <div className="px-3 py-3 text-center">
-                          <Loader2 className="w-4 h-4 animate-spin mx-auto text-muted-foreground" />
-                        </div>
-                      ) : (
-                        doctorDropdownOptions.map((opt, index) => {
-                          const isActive = index === activeDoctorIndex;
-                          if (opt.type === 'self') {
-                            return (
-                              <button
-                                key="self-option"
-                                type="button"
-                                onClick={handleSelectSelf}
-                                onMouseEnter={() => setActiveDoctorIndex(index)}
-                                className={`w-full px-3 py-2 text-left transition-colors border-b border-border text-[11px] ${
-                                  isActive ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-accent text-muted-foreground'
-                                }`}
-                              >
-                                Self (No Doctor)
-                              </button>
-                            );
-                          } else {
-                            const doc = opt.data;
-                            return (
-                              <button
-                                key={doc.id}
-                                type="button"
-                                onClick={() => handleSelectDoctor(doc)}
-                                onMouseEnter={() => setActiveDoctorIndex(index)}
-                                className={`w-full px-3 py-2 text-left transition-colors border-b border-border last:border-0 text-[11px] ${
-                                  isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
-                                }`}
-                              >
-                                <div className="font-medium text-foreground">
-                                  {doc.title || 'Dr'}. {doc.name}
-                                </div>
-                                {doc.specialization || doc.phone ? (
-                                  <div className="text-[9px] text-muted-foreground mt-0.5">
-                                    {doc.specialization} {doc.specialization && doc.phone ? '•' : ''} {doc.phone}
-                                  </div>
-                                ) : null}
-                              </button>
-                            );
-                          }
-                        })
-                      )}
-                    </div>
-                  )}
-                  {/* Indicator showing what will be saved */}
-                  {!selectedDoctor && referringDoctorName && (
-                    <div className="text-[9px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                      <Stethoscope className="w-2.5 h-2.5" />
-                      Ref. Doctor: {referringDoctorName}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-xs text-muted-foreground">No patient selected</div>
-          )}
+      {/* Compact Bottom Action Bar */}
+      <div className="flex-shrink-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-2 px-4 flex items-center justify-between shadow-[0_-2px_10px_rgba(0,0,0,0.03)] rounded-xl">
+        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+          <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+          <span>Auto Saved • {lastSaved ? format(lastSaved, "hh:mm a") : format(new Date(), "hh:mm a")}</span>
         </div>
 
-        {/* Main Content */}
-        <div className="space-y-2">
-          {/* Manage Tests Section */}
-          {isEditable && (
-            <div className="bg-card border border-border rounded px-2.5 py-2 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Selected Tests</label>
-                <span className="text-[10px] text-muted-foreground">Add or remove tests for this report</span>
-              </div>
-              
-              <div className="flex flex-wrap gap-1.5 items-center">
-                {/* Render selected tests as badges */}
-                {(parsedTestData?.testIds || []).map((tid: string) => {
-                  const masterTest = tests.find(t => t.id === tid);
-                  const testDisplayName = masterTest?.test_name || `Test ${tid.slice(0, 8)}`;
-                  const testDisplayCode = masterTest?.test_code || '';
-                  return (
-                    <div 
-                      key={tid} 
-                      className="inline-flex items-center gap-1.5 px-2 py-1 bg-primary/10 border border-primary/20 rounded text-xs text-foreground font-medium animate-fade-in"
-                    >
-                      <span>{testDisplayName}</span>
-                      {testDisplayCode && <span className="text-[10px] text-muted-foreground uppercase font-semibold">({testDisplayCode})</span>}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveTest(tid)}
-                        className="w-4 h-4 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                        title="Remove test"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  );
-                })}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handlePrevTest}
+            disabled={testSections.findIndex(s => s.testId === activeTestId) <= 0}
+            className="h-8 px-3.5 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Previous Test
+          </button>
 
-                {/* Search input to add more tests */}
-                <div className="relative flex-1 min-w-[200px]" ref={testSearchRef}>
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            disabled={isSaving || !isEditable}
+            className="h-8 px-4 bg-primary text-white rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity shadow-sm"
+            title="Save Draft (F10)"
+          >
+            {isSaving ? "Saving..." : "Save Draft (F10)"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleNextTest}
+            disabled={testSections.findIndex(s => s.testId === activeTestId) >= testSections.length - 1 || testSections.length === 0}
+            className="h-8 px-3.5 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Next Test
+          </button>
+        </div>
+      </div>
+
+      {/* Edit Patient Modal */}
+      {showEditPatientModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-lg overflow-visible animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-slate-50 dark:bg-slate-900/50 rounded-t-xl">
+              <h3 className="text-sm font-bold text-foreground">Edit Patient Details</h3>
+              <button
+                onClick={() => setShowEditPatientModal(false)}
+                className="w-6 h-6 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 flex items-center justify-center text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4 overflow-visible">
+              {patient && (
+                <div className="space-y-3 text-left">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1">Patient Name</label>
+                    <input
+                      type="text"
+                      value={patient.name}
+                      onChange={(e) => setPatient({ ...patient, name: e.target.value })}
+                      className="w-full h-9 px-3 border border-border rounded-lg bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1">Age</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={getAgeMax(patient.age_unit)}
+                        value={patient.age ?? ''}
+                        onChange={(e) => setPatient({ ...patient, age: e.target.value ? Number(e.target.value) : undefined as any })}
+                        className="w-full h-9 px-3 border border-border rounded-lg bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1">Age Unit</label>
+                      <select
+                        value={normalizeAgeUnit(patient.age_unit)}
+                        onChange={(e) => setPatient({ ...patient, age_unit: e.target.value as AgeUnit })}
+                        className="w-full h-9 px-3 border border-border rounded-lg bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                      >
+                        <option value="years">Years</option>
+                        <option value="months">Months</option>
+                        <option value="days">Days</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1">Gender</label>
+                      <select
+                        value={patient.gender || ''}
+                        onChange={(e) => setPatient({ ...patient, gender: e.target.value })}
+                        className="w-full h-9 px-3 border border-border rounded-lg bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                      >
+                        <option value="">Select</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1">Contact Phone</label>
+                      <input
+                        type="tel"
+                        value={patient.phone || ''}
+                        onChange={(e) => setPatient({ ...patient, phone: e.target.value })}
+                        className="w-full h-9 px-3 border border-border rounded-lg bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Doctor selection block */}
+                  <div className="relative" ref={doctorSearchRef}>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1">Referring Doctor</label>
+                    <div className="relative w-full">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <input
+                        ref={doctorSearchInputRef}
+                        type="text"
+                        placeholder="Search doctor by name or mobile..."
+                        className="w-full h-9 pl-9 pr-8 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                        value={doctorSearch}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setDoctorSearch(val);
+                          if (selectedDoctor) {
+                            setSelectedDoctor(null);
+                            setReferringDoctorName("");
+                          }
+                          setShowDoctorDropdown(true);
+                          setActiveDoctorIndex(0);
+                        }}
+                        onFocus={() => isEditable && setShowDoctorDropdown(true)}
+                        onBlur={handleDoctorBlur}
+                        onKeyDown={handleDoctorSearchKeyDown}
+                      />
+                      {doctorSearch && isEditable && (
+                        <button
+                          type="button"
+                          onClick={handleClearDoctor}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors focus:outline-none"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      {showDoctorDropdown && isEditable && doctorDropdownOptions.length > 0 && (
+                        <div
+                          onMouseDown={(e) => e.preventDefault()}
+                          className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto z-50"
+                        >
+                          {doctorDropdownOptions.map((opt, index) => {
+                            const isActive = index === activeDoctorIndex;
+                            if (opt.type === 'self') {
+                              return (
+                                <button
+                                  key="self-option"
+                                  type="button"
+                                  onClick={handleSelectSelf}
+                                  onMouseEnter={() => setActiveDoctorIndex(index)}
+                                  className={`w-full px-3 py-2 text-left transition-colors border-b border-border text-xs ${isActive ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-accent text-muted-foreground'
+                                    }`}
+                                >
+                                  Self (No Doctor)
+                                </button>
+                              );
+                            } else {
+                              const doc = opt.data;
+                              return (
+                                <button
+                                  key={doc.id}
+                                  type="button"
+                                  onClick={() => handleSelectDoctor(doc)}
+                                  onMouseEnter={() => setActiveDoctorIndex(index)}
+                                  className={`w-full px-3 py-2 text-left transition-colors border-b border-border last:border-0 text-xs ${isActive ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-accent'
+                                    }`}
+                                >
+                                  <div className="font-semibold text-foreground">
+                                    {doc.title || 'Dr'}. {doc.name}
+                                  </div>
+                                  {doc.specialization || doc.phone ? (
+                                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                                      {doc.specialization} {doc.specialization && doc.phone ? '•' : ''} {doc.phone}
+                                    </div>
+                                  ) : null}
+                                </button>
+                              );
+                            }
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-border bg-slate-50 dark:bg-slate-900/50 rounded-b-xl">
+              <button
+                type="button"
+                onClick={handleSavePatientDetails}
+                className="px-4 py-1.5 bg-primary text-white rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer"
+              >
+                Save & Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Test Modal */}
+      {showAddTestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-lg overflow-visible animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-slate-50 dark:bg-slate-900/50 rounded-t-xl">
+              <h3 className="text-sm font-bold text-foreground">Manage Tests</h3>
+              <button
+                onClick={() => setShowAddTestModal(false)}
+                className="w-6 h-6 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 flex items-center justify-center text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4 text-left overflow-visible">
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-muted-foreground">Selected Tests</label>
+                <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-1 border border-border rounded-lg bg-slate-50/50 dark:bg-slate-950/20">
+                  {(parsedTestData?.testIds || []).map((tid: string) => {
+                    const masterTest = tests.find(t => t.id === tid);
+                    const testDisplayName = masterTest?.test_name || `Test ${tid.slice(0, 8)}`;
+                    const testDisplayCode = masterTest?.test_code || '';
+                    return (
+                      <div
+                        key={tid}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 border border-primary/20 rounded-lg text-xs text-foreground font-medium"
+                      >
+                        <span>{testDisplayName}</span>
+                        {testDisplayCode && <span className="text-[10px] text-muted-foreground uppercase font-semibold">({testDisplayCode})</span>}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTest(tid)}
+                          className="w-4 h-4 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          title="Remove test"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {(parsedTestData?.testIds || []).length === 0 && (
+                    <span className="text-xs text-muted-foreground p-1">No tests selected yet.</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="relative" ref={testSearchRef}>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">Add New Test</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <input
                     type="text"
                     value={testSearch}
@@ -2294,25 +3088,23 @@ export function ReportEntry() {
                     }}
                     onFocus={() => setShowTestDropdown(true)}
                     onKeyDown={handleTestSearchKeyDown}
-                    className="w-full h-8 pl-8 pr-3 bg-background border border-border rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-primary"
-                    placeholder="Search and add more tests..."
+                    className="w-full h-9 pl-9 pr-3 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                    placeholder="Search by test name or category..."
                   />
-
                   {showTestDropdown && filteredTests.length > 0 && (
-                    <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded shadow-lg max-h-56 overflow-y-auto">
+                    <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
                       {filteredTests.map((test, index) => (
                         <button
                           key={test.id}
                           onClick={() => handleAddTest(test)}
-                          className={`w-full px-2.5 py-2 text-left hover:bg-accent transition-colors flex items-center justify-between ${
-                            index === activeTestIndex ? 'bg-accent/50' : ''
-                          }`}
+                          className={`w-full px-3 py-2 text-left hover:bg-accent transition-colors flex items-center justify-between text-xs border-b border-border/50 last:border-0 ${index === activeTestIndex ? 'bg-accent/50' : ''
+                            }`}
                         >
                           <div>
-                            <div className="text-xs text-foreground font-medium">{test.test_name}</div>
-                            <div className="text-[10px] text-muted-foreground">{test.category || 'General'}</div>
+                            <div className="font-semibold text-foreground">{test.test_name}</div>
+                            <div className="text-[10px] text-muted-foreground mt-0.5">{test.category || 'General'}</div>
                           </div>
-                          <div className="text-xs text-primary font-semibold">
+                          <div className="font-semibold text-primary">
                             ₹{test.price}
                           </div>
                         </button>
@@ -2322,440 +3114,112 @@ export function ReportEntry() {
                 </div>
               </div>
             </div>
-          )}
 
-          {/* ─── TEST PARAMETERS: Full-width primary focus ─── */}
-          <div className="space-y-2">
-            {/* Last saved indicator */}
-            <div className="flex justify-end">
-              <span className="text-[10px] text-muted-foreground">
-                {lastSaved ? `Last saved: ${format(lastSaved, "HH:mm")}` : 'Not saved yet'}
-              </span>
-            </div>
-
-            {testSections.length === 0 ? (
-              <div className="bg-card border border-border rounded p-8 text-center text-muted-foreground text-xs">
-                No test parameters configured. Please configure fields for your tests in Test Management.
-              </div>
-            ) : (
-              <>
-                {hasQuickNavigation && (
-                  <div className="sticky top-[3.8rem] z-20 bg-background/95 backdrop-blur py-1">
-                    <div className="bg-card border border-border rounded px-2 py-1.5 overflow-x-auto">
-                      <div className="flex gap-1.5 min-w-max text-[11px] leading-none">
-                        {testSections.map((section) => {
-                          const completion = sectionCompletion[section.testId] || { filled: 0, total: 0, done: false };
-                          return (
-                            <button
-                              key={section.testId}
-                              onClick={() => handleScrollToSection(section.testId)}
-                              className={`h-7 px-2.5 rounded border transition-colors whitespace-nowrap ${completion.done
-                                ? 'border-success/40 bg-success/10 text-success'
-                                : 'border-border bg-background text-foreground hover:bg-accent'
-                                }`}
-                            >
-                              <span className="font-medium">{section.testCode || section.testName}</span>
-                              <span className="text-muted-foreground ml-1">({completion.filled}/{completion.total})</span>
-                              {completion.done && <span className="ml-1">✓</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {testSections.map((section) => {
-                  const completion = sectionCompletion[section.testId] || { filled: 0, total: 0, done: false };
-                  const isExpanded = expandedSections[section.testId] ?? true;
-
-                  return (
-                    <div
-                      key={section.testId}
-                      ref={(node) => {
-                        sectionRefs.current[section.testId] = node;
-                      }}
-                      className="bg-card border border-border rounded overflow-hidden scroll-mt-28"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => toggleSection(section.testId)}
-                        className="w-full px-3 py-2 border-b border-border bg-primary/5 flex items-center gap-2 text-left hover:bg-primary/10 transition-colors"
-                        aria-expanded={isExpanded}
-                      >
-                        <ChevronDownIcon className={`w-3.5 h-3.5 text-primary transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
-                        <Microscope className="w-3.5 h-3.5 text-primary" />
-                        <span className="text-sm text-foreground font-semibold truncate">{section.testName}</span>
-                        {section.testCode && <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{section.testCode}</span>}
-                        <span className="ml-auto text-[11px] text-muted-foreground tabular-nums">
-                          {completion.filled}/{completion.total}
-                        </span>
-                        {completion.done && <span className="text-[11px] font-semibold text-success">Complete</span>}
-                      </button>
-
-                      {isExpanded && (
-                        <div className="overflow-x-auto">
-                          <table className="w-full table-fixed text-[11px] md:text-[12px] border border-border/80 rounded-lg overflow-hidden">
-                            <colgroup>
-                              <col className="w-[28%]" />
-                              <col className="w-[30%]" />
-                              <col className="w-[12%]" />
-                              <col className="w-[20%]" />
-                              <col className="w-[10%]" />
-                            </colgroup>
-                            <thead className="bg-secondary/40 border-b border-border">
-                              <tr>
-                                <th className="px-2 py-2 text-left text-foreground text-[13px] md:text-[15px] font-bold uppercase tracking-wider">Parameter</th>
-                                <th className="px-2 py-2 text-left text-foreground text-[13px] md:text-[15px] font-bold uppercase tracking-wider">Result</th>
-                                <th className="px-2 py-2 text-left text-foreground text-[13px] md:text-[15px] font-bold uppercase tracking-wider">Unit</th>
-                                <th className="px-2 py-2 text-left text-foreground text-[13px] md:text-[15px] font-bold uppercase tracking-wider">Reference Range</th>
-                                <th className="px-2 py-2 text-center text-foreground text-[13px] md:text-[15px] font-bold uppercase tracking-wider">Flag</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border/70 bg-background">
-                              {(() => {
-                                // Track which sum-100 groups we've already rendered alerts for
-                                const renderedSumAlerts = new Set<string>();
-                                return section.params.map((param, paramIndex) => {
-                                  const groupLabel = sumValidation.paramToGroup[param.id];
-                                  const groupInfo = groupLabel ? sumValidation.groupSums[groupLabel] : null;
-                                  const isInInvalidGroup = isParamInInvalidSumGroup(param.id);
-
-                                  // Check if this is the last param in its sum-100 group within this section
-                                  let showSumAlert = false;
-                                  if (groupLabel && groupInfo && !renderedSumAlerts.has(groupLabel)) {
-                                    const remainingGroupParams = section.params.slice(paramIndex + 1).filter(
-                                      p => sumValidation.paramToGroup[p.id] === groupLabel
-                                    );
-                                    if (remainingGroupParams.length === 0) {
-                                      showSumAlert = true;
-                                      renderedSumAlerts.add(groupLabel);
-                                    }
-                                  }
-
-                                  return (
-                                    <Fragment key={param.id}>
-                                      <tr className={`hover:bg-accent/20 transition-colors ${isInInvalidGroup ? 'bg-amber-500/5' : ''}`}>
-                                        <td className="px-2 py-1.5 align-middle text-foreground">
-                                          <div className="font-semibold text-[12px] md:text-[13px] leading-tight break-words flex flex-wrap items-center gap-1.5">
-                                            <span>{param.name}</span>
-                                            {param.field_type === 'calculated' && (
-                                              <span className="inline-flex items-center rounded bg-primary/10 px-1 py-0.5 text-[8px] font-bold text-primary uppercase tracking-wide">calc</span>
-                                            )}
-                                            {isInInvalidGroup && (
-                                              <span className="inline-flex items-center rounded bg-amber-500/15 px-1 py-0.5 text-[8px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide">Σ≠100</span>
-                                            )}
-                                          </div>
-                                        </td>
-                                        <td className="px-2 py-1.5 align-middle">
-                                          {param.input_type === 'select' ? (
-                                            <SmartSelectInput
-                                              ref={(node) => {
-                                                inputRefs.current[param.id] = node;
-                                              }}
-                                              className={`${getInputClass(statuses[param.id])} h-8 text-[11px] md:text-[12px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}${isInInvalidGroup ? ' !ring-1 !ring-amber-500 !border-amber-500' : ''}${isFieldBlockedBySum100(param.id) ? ' opacity-40 bg-neutral-100 dark:bg-neutral-800 cursor-not-allowed' : ''} !text-left bg-background !py-0`}
-                                              value={values[param.id] !== undefined && values[param.id] !== null ? values[param.id] : (param.options ? param.options.split(',')[0].trim() : "Negative")}
-                                              onChange={(val) => handleValueChange(param.id, val)}
-                                              onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
-                                              tabIndex={param.field_type === 'calculated' || isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
-                                              disabled={!isEditable || isFieldBlockedBySum100(param.id)}
-                                              options={param.options ? param.options.split(',').map((opt: string) => opt.trim()) : ["Negative", "Positive"]}
-                                            />
-                                          ) : param.input_type === 'textarea' ? (
-                                            <div className="relative py-1">
-                                              <textarea
-                                                ref={(node) => {
-                                                  inputRefs.current[param.id] = node;
-                                                }}
-                                                className={`${getInputClass(statuses[param.id])} min-h-[4rem] py-1 px-2 text-[11px] md:text-[12px] w-full resize-y font-normal bg-background${isFieldBlockedBySum100(param.id) ? ' opacity-40 bg-neutral-100 dark:bg-neutral-800 cursor-not-allowed' : ''}`}
-                                                placeholder="Enter description..."
-                                                value={values[param.id] || ""}
-                                                onChange={(e) => handleValueChange(param.id, e.target.value)}
-                                                onFocus={() => setActiveTextareaId(param.id)}
-                                                onBlur={() => {
-                                                  setTimeout(() => {
-                                                    if (!isHoveringTextareaDropdown.current) {
-                                                      setActiveTextareaId(prev => prev === param.id ? null : prev);
-                                                    }
-                                                  }, 150);
-                                                }}
-                                                onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
-                                                tabIndex={isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
-                                                disabled={!isEditable || isFieldBlockedBySum100(param.id)}
-                                              />
-                                              {param.options && activeTextareaId === param.id && (
-                                                (() => {
-                                                  const currentVal = values[param.id] || '';
-                                                  const lastPart = currentVal.split(/,\s*/).pop()?.trim() || '';
-                                                  const filteredOpts = param.options.split(',').filter(opt =>
-                                                    !lastPart || opt.toLowerCase().includes(lastPart.toLowerCase())
-                                                  );
-
-                                                  if (filteredOpts.length === 0) return null;
-
-                                                  return createPortal(
-                                                    <div
-                                                      onMouseEnter={() => { isHoveringTextareaDropdown.current = true; }}
-                                                      onMouseLeave={() => {
-                                                        isHoveringTextareaDropdown.current = false;
-                                                        if (document.activeElement !== inputRefs.current[param.id]) {
-                                                          setActiveTextareaId(null);
-                                                        }
-                                                      }}
-                                                      className="fixed z-[9999] w-52 max-h-[80vh] overflow-y-auto rounded-lg border border-neutral-800 bg-[#1E1B18] text-white shadow-xl pointer-events-auto"
-                                                      style={{
-                                                        top: textareaCoords.top,
-                                                        left: textareaCoords.left,
-                                                      }}
-                                                    >
-                                                      {/* Popover Arrow */}
-                                                      {textareaAlignLeft ? (
-                                                        <div className={`absolute left-full w-0 h-0 border-y-[6px] border-y-transparent border-l-[6px] border-l-[#1E1B18] ${textareaAlignBottom ? 'bottom-2.5' : 'top-2.5'}`} />
-                                                      ) : (
-                                                        <div className={`absolute right-full w-0 h-0 border-y-[6px] border-y-transparent border-r-[6px] border-r-[#1E1B18] ${textareaAlignBottom ? 'bottom-2.5' : 'top-2.5'}`} />
-                                                      )}
-                                                      
-                                                      <ul className="py-1.5 px-1.5 space-y-0.5">
-                                                        {filteredOpts.map((opt: string) => (
-                                                          <li
-                                                            key={opt}
-                                                            onMouseDown={(e) => {
-                                                              e.preventDefault();
-                                                              const trimmed = currentVal.trim();
-                                                              if (!trimmed) {
-                                                                handleValueChange(param.id, opt + ', ');
-                                                              } else {
-                                                                const parts = currentVal.split(/,\s*/);
-                                                                const last = parts[parts.length - 1] || '';
-                                                                if (last && opt.toLowerCase().includes(last.toLowerCase())) {
-                                                                  parts.pop();
-                                                                  parts.push(opt);
-                                                                  handleValueChange(param.id, parts.join(', ') + ', ');
-                                                                } else {
-                                                                  if (currentVal.endsWith(', ')) {
-                                                                    handleValueChange(param.id, currentVal + opt + ', ');
-                                                                  } else if (currentVal.endsWith(',')) {
-                                                                    handleValueChange(param.id, currentVal + ' ' + opt + ', ');
-                                                                  } else {
-                                                                    handleValueChange(param.id, currentVal + ', ' + opt + ', ');
-                                                                  }
-                                                                }
-                                                              }
-                                                              setTimeout(() => {
-                                                                const textareaEl = inputRefs.current[param.id];
-                                                                if (textareaEl) {
-                                                                  textareaEl.focus();
-                                                                }
-                                                              }, 0);
-                                                            }}
-                                                            className="px-3 py-2 cursor-pointer text-left text-[11px] md:text-[12px] leading-tight select-none transition-colors rounded-md text-neutral-300 hover:bg-neutral-800 hover:text-white hover:font-semibold"
-                                                          >
-                                                            {opt}
-                                                          </li>
-                                                        ))}
-                                                      </ul>
-                                                    </div>,
-                                                    document.body
-                                                  ) as any;
-                                                })()
-                                              )}
-                                            </div>
-                                          ) : (
-                                            <input
-                                              ref={(node) => {
-                                                inputRefs.current[param.id] = node;
-                                              }}
-                                              type={param.input_type === 'text' ? 'text' : 'number'}
-                                              step={param.step}
-                                              className={`${getInputClass(statuses[param.id])} h-8 text-[11px] md:text-[12px]${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}${isInInvalidGroup ? ' !ring-1 !ring-amber-500 !border-amber-500' : ''}${isFieldBlockedBySum100(param.id) ? ' opacity-40 bg-neutral-100 dark:bg-neutral-800 cursor-not-allowed' : ''}`}
-                                              placeholder={param.field_type === 'calculated' ? 'Auto' : ''}
-                                              value={values[param.id] || ""}
-                                              onChange={(e) => handleValueChange(param.id, e.target.value)}
-                                              onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
-                                              onFocus={(event) => event.currentTarget.select()}
-                                              tabIndex={param.field_type === 'calculated' || isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
-                                              disabled={!isEditable || isFieldBlockedBySum100(param.id)}
-                                              readOnly={param.field_type === 'calculated'}
-                                            />
-                                          )}
-                                        </td>
-                                        <td className="px-2 py-1.5 align-middle text-left text-muted-foreground font-medium text-[11px] md:text-[12px] leading-tight">
-                                          {param.unit || '-'}
-                                        </td>
-                                        <td className="px-2 py-1.5 align-middle text-left text-muted-foreground font-medium text-[11px] md:text-[12px] leading-tight break-words">
-                                          {formatReferenceRange(getPatientReferenceRange(param, patient))}
-                                        </td>
-                                        <td className="px-2 py-1.5 align-middle text-center">{getStatusBadge(statuses[param.id])}</td>
-                                      </tr>
-
-                                      {/* Sum-100 validation alert row */}
-                                      {showSumAlert && groupInfo && groupInfo.hasAnyValue && groupInfo.sum !== 100 && (
-                                        <tr>
-                                          <td colSpan={5} className="px-0 py-0">
-                                            <div className="mx-2 my-1.5 flex items-center gap-2 px-3 py-2 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300">
-                                              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                                              <span className="text-[11px] md:text-[12px] font-medium">
-                                                {groupLabel} total is <strong className="font-bold">{groupInfo.sum}%</strong> — must equal <strong className="font-bold">100%</strong>. 
-                                                {groupInfo.sum < 100
-                                                  ? ` Add ${Math.round((100 - groupInfo.sum) * 100) / 100}% more.`
-                                                  : ` Remove ${Math.round((groupInfo.sum - 100) * 100) / 100}%.`}
-                                              </span>
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      )}
-                                    </Fragment>
-                                  );
-                                });
-                              })()}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </>
-            )}
-
-            {/* Status legend */}
-            <div className="flex items-center gap-3 text-[10px] text-muted-foreground justify-end">
-              <div className="flex items-center gap-1">
-                <span className="text-info font-semibold">↓</span> Low
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-success font-semibold">✓</span> Normal
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-destructive font-semibold">↑</span> High
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="font-semibold text-red-700 dark:text-red-400">!!</span> Critical
-              </div>
-            </div>
-
-            {/* Technician Notes - Compact */}
-            <div className="bg-card border border-border rounded overflow-hidden">
+            <div className="flex justify-end px-4 py-3 border-t border-border bg-slate-50 dark:bg-slate-900/50 rounded-b-xl">
               <button
                 type="button"
-                onClick={() => setShowNotesSection((prev) => !prev)}
-                className="w-full px-3 py-2 flex items-center justify-between bg-secondary/30 hover:bg-accent transition-colors text-left"
-                aria-expanded={showNotesSection}
+                onClick={() => setShowAddTestModal(false)}
+                className="px-4 py-1.5 bg-primary text-white rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity"
               >
-                <span className="text-xs text-foreground font-semibold flex items-center gap-1.5">
-                  <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showNotesSection ? 'rotate-90' : ''}`} />
-                  Technician Notes
-                </span>
-                {technicianNotes.trim() && <span className="text-[10px] text-muted-foreground">Filled</span>}
+                Done
               </button>
-              {showNotesSection && (
-                <textarea
-                  className="w-full border-0 rounded-b p-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary min-h-[64px] bg-background disabled:opacity-50 disabled:cursor-not-allowed resize-y"
-                  placeholder="Add notes..."
-                  value={technicianNotes}
-                  onChange={(e) => setTechnicianNotes(e.target.value)}
-                  disabled={!isEditable}
-                ></textarea>
-              )}
-            </div>
-
-            {/* AI Clinical Significance Section */}
-            <div className="bg-card border border-border rounded overflow-hidden">
-              <div className="px-3 py-2 flex items-center justify-between gap-2 bg-secondary/30">
-                <button
-                  type="button"
-                  onClick={() => setShowAiSection((prev) => !prev)}
-                  className="flex items-center gap-1.5 text-left"
-                  aria-expanded={showAiSection}
-                >
-                  <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showAiSection ? 'rotate-90' : ''}`} />
-                  <h4 className="text-xs text-foreground flex items-center gap-1.5 font-semibold">
-                    <BrainCircuit className="w-3.5 h-3.5 text-primary" />
-                    AI Clinical Significance
-                  </h4>
-                </button>
-                <button
-                  onClick={handleGenerateInterpretation}
-                  disabled={isGeneratingAI || !reportId || Object.values(values).filter(v => v).length === 0}
-                  className="h-7 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-[11px] disabled:opacity-50"
-                >
-                  {isGeneratingAI ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <Sparkles className="w-3 h-3" />
-                  )}
-                  {isGeneratingAI ? 'Generating...' : aiInterpretation ? 'Regenerate' : 'Generate'}
-                </button>
-              </div>
-
-              {showAiSection && (
-                <div className="p-3 space-y-2">
-                  {aiError && (
-                    <div className="p-2 bg-destructive/10 border border-destructive/20 rounded flex items-center gap-1.5">
-                      <AlertCircle className="w-3 h-3 text-destructive flex-shrink-0" />
-                      <span className="text-[11px] text-destructive">{aiError}</span>
-                    </div>
-                  )}
-
-                  {aiInterpretation ? (
-                    <div className="space-y-2">
-                      {aiInterpretation.summary && (
-                        <div className="p-2 bg-primary/5 border border-primary/10 rounded">
-                          <p className="text-[10px] text-primary font-semibold uppercase tracking-wider mb-0.5">Summary</p>
-                          <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.summary}</p>
-                        </div>
-                      )}
-
-                      {aiInterpretation.keyFindings && (
-                        <div className="p-2 bg-warning/5 border border-warning/10 rounded">
-                          <p className="text-[10px] text-warning font-semibold uppercase tracking-wider mb-0.5">Key Findings</p>
-                          <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.keyFindings}</p>
-                        </div>
-                      )}
-
-                      {aiInterpretation.clinicalIndications && (
-                        <div className="p-2 bg-info/5 border border-info/10 rounded">
-                          <p className="text-[10px] text-info font-semibold uppercase tracking-wider mb-0.5">Possible Clinical Indications</p>
-                          <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.clinicalIndications}</p>
-                        </div>
-                      )}
-
-                      {aiInterpretation.recommendation && (
-                        <div className="p-2 bg-success/5 border border-success/10 rounded">
-                          <p className="text-[10px] text-success font-semibold uppercase tracking-wider mb-0.5">Recommendation</p>
-                          <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.recommendation}</p>
-                        </div>
-                      )}
-
-                      <button
-                        onClick={() => {
-                          const text = [
-                            aiInterpretation.summary && `Summary: ${aiInterpretation.summary}`,
-                            aiInterpretation.keyFindings && `Key Findings: ${aiInterpretation.keyFindings}`,
-                            aiInterpretation.clinicalIndications && `Clinical Indications: ${aiInterpretation.clinicalIndications}`,
-                            aiInterpretation.recommendation && `Recommendation: ${aiInterpretation.recommendation}`,
-                          ].filter(Boolean).join('\n');
-                          setTechnicianNotes(prev => prev ? `${prev}\n\n--- AI Interpretation ---\n${text}` : text);
-                          setShowNotesSection(true);
-                        }}
-                        className="w-full h-7 flex items-center justify-center gap-1.5 bg-secondary border border-border rounded hover:bg-accent transition-colors text-[11px] text-muted-foreground"
-                      >
-                        <FileText className="w-3 h-3" />
-                        Copy to Notes
-                      </button>
-                    </div>
-                  ) : !isGeneratingAI ? (
-                    <p className="text-[11px] text-muted-foreground text-center py-3">
-                      Enter test values and click "Generate" to get AI-powered clinical interpretation.
-                    </p>
-                  ) : null}
-                </div>
-              )}
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      )}
 
+      {/* History Modal */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-slate-50 dark:bg-slate-900/50">
+              <h3 className="text-sm font-bold text-foreground">Patient Test History</h3>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="w-6 h-6 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 flex items-center justify-center text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto max-h-[60vh] text-left">
+              {historyLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
+                  <span className="text-xs text-muted-foreground">Loading history...</span>
+                </div>
+              ) : historyReports.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-8">No previous reports found for this patient.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-border text-[10px] uppercase text-slate-400 font-bold">
+                        <th className="py-2 px-1">Date</th>
+                        <th className="py-2 px-1">Report ID</th>
+                        <th className="py-2 px-1">Tests</th>
+                        <th className="py-2 px-1 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                      {historyReports.map((rep) => (
+                        <tr key={rep.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                          <td className="py-2 px-1 whitespace-nowrap text-slate-600 dark:text-slate-300 font-medium">
+                            {rep.created_at ? format(new Date(rep.created_at), "dd MMM yyyy") : '-'}
+                          </td>
+                          <td className="py-2 px-1 font-mono text-[10px] text-slate-400">
+                            #{rep.id.slice(0, 8)}
+                          </td>
+                          <td className="py-2 px-1 truncate max-w-[200px] text-slate-600 dark:text-slate-300 font-medium" title={rep.report_type}>
+                            {rep.report_type}
+                          </td>
+                          <td className="py-2 px-1 text-center">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] uppercase font-bold ${rep.status === 'approved' ? 'bg-success/15 text-success' :
+                              rep.status === 'under_review' ? 'bg-info/15 text-info' :
+                                rep.status === 'rejected' ? 'bg-destructive/15 text-destructive' :
+                                  'bg-warning/15 text-warning'
+                              }`}>
+                              {rep.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end px-4 py-3 border-t border-border bg-slate-50 dark:bg-slate-900/50">
+              <button
+                type="button"
+                onClick={() => setShowHistoryModal(false)}
+                className="px-4 py-1.5 border border-border bg-background rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Custom Confirm Modal for Test Removal */}
+      <CustomConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+        onConfirm={() => {
+          if (testIdToRemove) {
+            handleRemoveTest(testIdToRemove);
+          }
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+          setTestIdToRemove(null);
+        }}
+        onCancel={() => {
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+          setTestIdToRemove(null);
+        }}
+      />
+    </div>
   );
 }
