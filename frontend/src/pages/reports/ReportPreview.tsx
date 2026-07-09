@@ -133,6 +133,8 @@ type TestSection = {
   testId?: string;
   testName: string;
   parameters: Parameter[];
+  isCbc?: boolean;
+  peripheralSmearText?: string | null;
 };
 
 type ReportData = {
@@ -181,10 +183,58 @@ type PageItem =
   | { type: 'patient' }
   | { type: 'test'; chunk: TestChunk }
   | { type: 'interpretation'; testId: string; text: string }
+  | { type: 'peripheralSmear'; testName: string; text: string }
   | { type: 'generalNotes'; text: string }
   | { type: 'endMarker' }
   | { type: 'signature' }
   | { type: 'marketing'; pageConfig: any };
+
+function isCbcTest(testName?: string): boolean {
+  const name = (testName || '').toLowerCase();
+  return name.includes('complete blood count') || name.includes('cbc');
+}
+
+function isPeripheralSmearParam(paramName?: string): boolean {
+  const name = (paramName || '').toLowerCase().trim();
+  return name === 'peripheral smear examination' || name.includes('peripheral smear');
+}
+
+function isPeripheralSmearGroup(groupName?: string): boolean {
+  const group = (groupName || '').toLowerCase().trim();
+  return group === 'peripheral smear examination' || group.includes('peripheral smear');
+}
+
+function extractPeripheralSmear(params: Parameter[]): { cleaned: Parameter[]; text: string | null } {
+  const cleaned: Parameter[] = [];
+  const smearLines: string[] = [];
+
+  for (const p of params) {
+    const inSmearGroup = isPeripheralSmearGroup(p.group);
+    const isSmearParam = isPeripheralSmearParam(p.name);
+    const belongsToSmear = inSmearGroup || isSmearParam;
+
+    if (!belongsToSmear) {
+      cleaned.push(p);
+      continue;
+    }
+
+    if (inSmearGroup) {
+      const value = (p.result || '').trim();
+      if (value) smearLines.push(`${p.name}: ${value}`);
+      continue;
+    }
+
+    if (isSmearParam) {
+      const value = (p.result || '').trim();
+      if (value) smearLines.push(value);
+    }
+  }
+
+  return {
+    cleaned,
+    text: smearLines.length > 0 ? smearLines.join('\n') : null,
+  };
+}
 
 function clamp(num: number, min: number, max: number) {
   return Math.min(max, Math.max(min, num));
@@ -213,6 +263,13 @@ function estimateInterpretationHeight(text: string, dense: boolean) {
   const lineHeight = dense ? 14 : 16;
   const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
   return 24 + 16 + 14 + lines * lineHeight; // margin-top (24) + padding (16) + title (14) + lines
+}
+
+function estimatePeripheralSmearHeight(text: string, dense: boolean) {
+  const charsPerLine = dense ? 95 : 85;
+  const lineHeight = dense ? 14 : 16;
+  const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
+  return 36 + lines * lineHeight;
 }
 
 function estimateSectionHeight(section: TestSection, params: Parameter[], dense: boolean) {
@@ -473,34 +530,57 @@ export function ReportPreview() {
 
           filteredParams = filterBlankOptionalParams(filteredParams);
 
+          const extracted = extractPeripheralSmear(filteredParams);
+          filteredParams = extracted.cleaned;
+          const peripheralSmearText = extracted.text;
+
           testSections.push({
             id: `${group.testId || group.testName || 'test'}-${i}`,
             testId: group.testId,
             testName: group.testName,
             parameters: filteredParams,
+            isCbc: isCbcTest(group.testName),
+            peripheralSmearText,
           });
           params.push(...filteredParams);
         } else {
           const filteredParams = filterBlankOptionalParams(sectionParams);
+          const extracted = extractPeripheralSmear(filteredParams);
+          const cleanedParams = extracted.cleaned;
+          const peripheralSmearText = extracted.text;
           testSections.push({
             id: `${group.testId || group.testName || 'test'}-${i}`,
             testId: group.testId,
             testName: group.testName,
-            parameters: filteredParams,
+            parameters: cleanedParams,
+            isCbc: isCbcTest(group.testName),
+            peripheralSmearText,
           });
-          params.push(...filteredParams);
+          params.push(...cleanedParams);
         }
       }
     } else if (testData?.parameters?.length) {
       const sectionParams = testData.parameters.map((p: any) => mapParam(p));
       const filteredParams = filterBlankOptionalParams(sectionParams);
+      const extracted = extractPeripheralSmear(filteredParams);
+      const cleanedParams = extracted.cleaned;
+      const peripheralSmearText = extracted.text;
       testSections.push({
         id: 'legacy-0',
         testName: testData.testName || rawReport.report_type || 'General Test',
-        parameters: filteredParams,
+        parameters: cleanedParams,
+        isCbc: isCbcTest(testData.testName || rawReport.report_type || 'General Test'),
+        peripheralSmearText,
       });
-      params.push(...filteredParams);
+      params.push(...cleanedParams);
     }
+
+    testSections.sort((a, b) => {
+      const aCbc = !!a.isCbc;
+      const bCbc = !!b.isCbc;
+      if (aCbc === bCbc) return 0;
+      return aCbc ? -1 : 1;
+    });
 
     const collectionDate = rawReport.collection_date || rawReport.created_at;
     const reportedAt = rawReport.approved_at || rawReport.created_at;
@@ -637,6 +717,49 @@ export function ReportPreview() {
     return null;
   }, [rawReport]);
 
+  const pathologySignature = (() => {
+    if (!settings) {
+      return {
+        url: rawReport?.pathology_signature_url || rawReport?.doctor_signature_url || null,
+        label: rawReport?.pathology_signature_label || null,
+        description: rawReport?.pathology_signature_description || null,
+      };
+    }
+
+    const getSigValue = (index: number, field: 'url' | 'label' | 'description') => {
+      const key = `signature_${index}_${field}`;
+      return settings[key as keyof typeof settings] as string | null | undefined;
+    };
+
+    const index = settings.default_signature_index;
+    if ([1, 2, 3, 4].includes(index || 0)) {
+      const url = getSigValue(index!, 'url');
+      const label = getSigValue(index!, 'label');
+      const description = getSigValue(index!, 'description');
+      if (url) return { url, label: label || null, description: description || null };
+    }
+
+    for (let i = 1; i <= 4; i += 1) {
+      const url = getSigValue(i, 'url');
+      if (url) {
+        const label = getSigValue(i, 'label');
+        const description = getSigValue(i, 'description');
+        return { url, label: label || null, description: description || null };
+      }
+    }
+
+    return {
+      url: rawReport?.pathology_signature_url || rawReport?.doctor_signature_url || null,
+      label: rawReport?.pathology_signature_label || null,
+      description: rawReport?.pathology_signature_description || null,
+    };
+  })();
+
+  const doctorSignatureUrl = pathologySignature.url;
+  const doctorSignatureName = pathologySignature.label || (doctorSignatureUrl ? 'Authorized Signatory' : '');
+  const doctorSignatureDescription = pathologySignature.description || (doctorSignatureUrl ? 'Pathologist' : '');
+  const hasDoctorSignature = !!(doctorSignatureUrl || pathologySignature.label);
+
 
   const density = useMemo(() => {
     const paramCount = orderedSections.reduce((s, sec) => s + sec.parameters.length, 0);
@@ -668,12 +791,11 @@ export function ReportPreview() {
   const pages = useMemo(() => {
     if (!reportData) return [] as PageItem[][];
 
-    const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom;
+    const signatureStripHeight = hasDoctorSignature ? 84 : 76;
+    const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom - signatureStripHeight;
     const isDense = density !== 'comfortable';
 
     const patientHeight = 100;
-    const signatureHeight = 72;
-    const endMarkerHeight = 20;
 
     const testData =
       typeof rawReport?.test_data === 'string' ? JSON.parse(rawReport.test_data) : rawReport?.test_data;
@@ -696,6 +818,9 @@ export function ReportPreview() {
             totalNeeded += estimateInterpretationHeight(sig.trim(), isDense);
           }
         }
+        if (isLastChunk && section.isCbc && section.peripheralSmearText?.trim()) {
+          totalNeeded += estimatePeripheralSmearHeight(section.peripheralSmearText.trim(), isDense);
+        }
       }
     }
 
@@ -703,9 +828,6 @@ export function ReportPreview() {
     if (rawReport?.clinical_notes?.trim()) {
       totalNeeded += estimateInterpretationHeight(rawReport.clinical_notes.trim(), isDense);
     }
-
-    totalNeeded += signatureHeight + endMarkerHeight;
-
     const overflow = totalNeeded - contentHeight;
 
     // If overflow is small (< 120px), apply micro-compaction to row heights
@@ -758,7 +880,6 @@ export function ReportPreview() {
             ? Math.floor(estimateInterpretationHeight(notes, isDense) * compactScale)
             : estimateInterpretationHeight(notes, isDense);
         }
-        trailingH += signatureHeight + endMarkerHeight;
       }
 
       const totalSectionHeight = chunkH + sigH + trailingH;
@@ -772,8 +893,21 @@ export function ReportPreview() {
       place({ type: 'test', chunk }, chunkH);
 
       if (sigH > 0) {
-        const sig = layoutSnapshots[section.testId]?.clinical_significance;
-        place({ type: 'interpretation', testId: section.testId, text: sig!.trim() }, sigH);
+        const sectionTestId = section.testId;
+        if (sectionTestId) {
+          const sig = layoutSnapshots[sectionTestId]?.clinical_significance;
+          if (sig?.trim()) {
+            place({ type: 'interpretation', testId: sectionTestId, text: sig.trim() }, sigH);
+          }
+        }
+      }
+
+      if (isLastChunk && section.isCbc && section.peripheralSmearText?.trim()) {
+        const smearText = section.peripheralSmearText.trim();
+        const smearH = needsCompact
+          ? Math.floor(estimatePeripheralSmearHeight(smearText, isDense) * compactScale)
+          : estimatePeripheralSmearHeight(smearText, isDense);
+        place({ type: 'peripheralSmear', testName: section.testName || 'CBC', text: smearText }, smearH);
       }
     }
 
@@ -785,14 +919,6 @@ export function ReportPreview() {
       place({ type: 'generalNotes', text: notes }, notesH);
     }
 
-    const tailHeight = signatureHeight + endMarkerHeight;
-    if (currentHeight + tailHeight > contentHeight && out[out.length - 1].length > 0) {
-      out.push([]);
-      currentHeight = 0;
-    }
-    out[out.length - 1].push({ type: 'endMarker' });
-    out[out.length - 1].push({ type: 'signature' });
-
     const shouldAttachMarketing = rawReport?.is_self_report || rawReport?.attach_marketing_pages;
     if (shouldAttachMarketing && rawReport?.marketing_pages && Array.isArray(rawReport.marketing_pages)) {
       const activeMarketingPages = rawReport.marketing_pages.filter((p: any) => p.active && (p.url || p.previewUrl));
@@ -802,12 +928,13 @@ export function ReportPreview() {
     }
 
     return out;
-  }, [reportData, orderedSections, safeZones, rawReport, density]);
+  }, [reportData, orderedSections, safeZones, rawReport, density, hasDoctorSignature]);
 
   // Derive compactAdjustment from pages for rendering
   const compactAdjustment = useMemo(() => {
     if (!reportData) return 0;
-    const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom;
+    const signatureStripHeight = hasDoctorSignature ? 84 : 76;
+    const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom - signatureStripHeight;
     const isDense = density !== 'comfortable';
 
     const testData =
@@ -827,11 +954,14 @@ export function ReportPreview() {
     if (rawReport?.clinical_notes?.trim()) {
       totalNeeded += estimateInterpretationHeight(rawReport.clinical_notes.trim(), isDense);
     }
-    totalNeeded += 92; // signature + end marker
-
+    for (const section of orderedSections) {
+      if (section.isCbc && section.peripheralSmearText?.trim()) {
+        totalNeeded += estimatePeripheralSmearHeight(section.peripheralSmearText.trim(), isDense);
+      }
+    }
     const overflow = totalNeeded - contentHeight;
     return (overflow > 0 && overflow <= 120) ? overflow : 0;
-  }, [reportData, orderedSections, safeZones, rawReport, density]);
+  }, [reportData, orderedSections, safeZones, rawReport, density, hasDoctorSignature]);
 
   // Scroll-spying to update active page index
   useEffect(() => {
@@ -873,48 +1003,6 @@ export function ReportPreview() {
 
   const isSelfReport = reportData?.patient.referringDoctor === 'Self' || rawReport?.is_self_report;
   const refDoctor = doctors.find(d => d.id === rawReport?.doctor_id);
-  const pathologySignature = (() => {
-    if (!settings) {
-      return {
-        url: rawReport?.pathology_signature_url || rawReport?.doctor_signature_url || null,
-        label: rawReport?.pathology_signature_label || null,
-        description: rawReport?.pathology_signature_description || null,
-      };
-    }
-
-    const getSigValue = (index: number, field: 'url' | 'label' | 'description') => {
-      const key = `signature_${index}_${field}`;
-      return settings[key as keyof typeof settings] as string | null | undefined;
-    };
-
-    const index = settings.default_signature_index;
-    if ([1, 2, 3, 4].includes(index || 0)) {
-      const url = getSigValue(index!, 'url');
-      const label = getSigValue(index!, 'label');
-      const description = getSigValue(index!, 'description');
-      if (url) return { url, label: label || null, description: description || null };
-    }
-
-    for (let i = 1; i <= 4; i += 1) {
-      const url = getSigValue(i, 'url');
-      if (url) {
-        const label = getSigValue(i, 'label');
-        const description = getSigValue(i, 'description');
-        return { url, label: label || null, description: description || null };
-      }
-    }
-
-    return {
-      url: rawReport?.pathology_signature_url || rawReport?.doctor_signature_url || null,
-      label: rawReport?.pathology_signature_label || null,
-      description: rawReport?.pathology_signature_description || null,
-    };
-  })();
-
-  const doctorSignatureUrl = pathologySignature.url;
-  const doctorSignatureName = pathologySignature.label || (doctorSignatureUrl ? 'Authorized Signatory' : '');
-  const doctorSignatureDescription = pathologySignature.description || (doctorSignatureUrl ? 'Pathologist' : '');
-  const hasDoctorSignature = !!(doctorSignatureUrl || pathologySignature.label);
 
   const generatePDF = useCallback(async (): Promise<File | null> => {
     if (!reportData || pages.length === 0) return null;
@@ -1132,10 +1220,14 @@ export function ReportPreview() {
   const headerActive = showLetterhead && !!settings?.header_url && !settings?.letterhead_url;
   const footerActive = showLetterhead && !!settings?.footer_url && !settings?.letterhead_url;
   const hasBranding = !!(settings?.letterhead_url || settings?.header_url || settings?.footer_url);
-
-  const isDense = density !== 'comfortable';
-  const signatureHeight = 72;
-  const endMarkerHeight = 20;
+  const signatureStripHeight = hasDoctorSignature ? 84 : 76;
+  let lastReportPageIndex = -1;
+  for (let i = pages.length - 1; i >= 0; i -= 1) {
+    if (pages[i]?.[0]?.type !== 'marketing') {
+      lastReportPageIndex = i;
+      break;
+    }
+  }
 
   const renderPageContent = (pageIndex: number) => {
     const page = pages[pageIndex];
@@ -1235,6 +1327,7 @@ export function ReportPreview() {
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
+              paddingBottom: signatureStripHeight,
               gap: compactAdjustment > 0 ? 1 : 3,
               fontSize: compactAdjustment > 60 ? 10.5 : 11,
               lineHeight: compactAdjustment > 60 ? 1.35 : 1.45,
@@ -1291,6 +1384,9 @@ export function ReportPreview() {
                       marginTop: compactAdjustment > 0 ? '1px' : '2px'
                     }}><InvestigationTableHeader colorTokens={C} /><tbody>
                         {item.chunk.parameters.map((param, rowIdx) => {
+                          if (isPeripheralSmearParam(param.name) || isPeripheralSmearGroup(param.group)) {
+                            return null;
+                          }
                           const status = (param.status || '').toLowerCase();
                           const isHigh = status === 'high' || status === 'critical';
                           const isLow = status === 'low';
@@ -1377,59 +1473,159 @@ export function ReportPreview() {
                 );
               }
 
-              // Find item.type === 'endMarker' block, replace with:
-              if (item.type === 'endMarker') {
+              if (item.type === 'peripheralSmear') {
+                const smearRows = item.text
+                  .split('\n')
+                  .map((line) => line.trim())
+                  .filter(Boolean)
+                  .map((line) => {
+                    const sepIdx = line.indexOf(':');
+                    if (sepIdx === -1) {
+                      return { label: '', value: line };
+                    }
+                    return {
+                      label: line.slice(0, sepIdx).trim(),
+                      value: line.slice(sepIdx + 1).trim(),
+                    };
+                  });
+
                 return (
-                  <div key={`e-${idx}`} style={{ textAlign: 'center', fontSize: '9px', color: '#999', letterSpacing: '2px', margin: '6px 0' }}>
-                    *** End of Report ***
+                  <div
+                    key={`smear-${idx}`}
+                    style={{
+                      marginTop: '8px',
+                      fontSize: '11px',
+                      color: '#222',
+                      lineHeight: 1.55,
+                      textAlign: 'left',
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '6px', fontSize: '12px' }}>
+                      {item.testName}: Peripheral Smear Examination
+                    </div>
+
+                    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
+                      <tbody>
+                        {smearRows.map((row, rowIdx) => {
+                          if (!row.label) {
+                            return (
+                              <tr key={`smear-row-${rowIdx}`}>
+                                <td colSpan={2} style={{ padding: '2px 0', fontSize: '11.5px', color: '#212121', fontWeight: 500 }}>
+                                  {row.value}
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return (
+                            <tr key={`smear-row-${rowIdx}`}>
+                              <td
+                                style={{
+                                  width: '220px',
+                                  minWidth: '220px',
+                                  maxWidth: '220px',
+                                  verticalAlign: 'top',
+                                  padding: '2px 8px 2px 0',
+                                  fontSize: '11.8px',
+                                  fontWeight: 700,
+                                  color: '#1A1A1A',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {row.label}:
+                              </td>
+                              <td
+                                style={{
+                                  verticalAlign: 'top',
+                                  padding: '2px 0',
+                                  fontSize: '11.8px',
+                                  fontWeight: 500,
+                                  color: '#212121',
+                                  whiteSpace: 'normal',
+                                  wordBreak: 'break-word',
+                                }}
+                              >
+                                {row.value}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 );
               }
 
-              return (
-                <section key={`s-${idx}`} style={{ marginTop: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: hasDoctorSignature ? 'space-between' : 'flex-start' }}>
-                    <div>
-                      <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 6 }}>
-                        {ownerSigUrl && (
-                          <img
-                            src={getImageUrl(ownerSigUrl) || ''}
-                            alt="Owner Signature"
-                            style={{ maxHeight: 40, objectFit: 'contain' }}
-                          />
-                        )}
-                      </div>
-                      <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
-                        <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
-                          {ownerSigLabel}
-                        </p>
-                        <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>{ownerSigDesc}</p>
-                      </div>
-                    </div>
+              if (item.type === 'endMarker' || item.type === 'signature') return null;
 
-                    {hasDoctorSignature && (
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
-                          {doctorSignatureUrl && (
-                            <img
-                              src={getImageUrl(doctorSignatureUrl) || ''}
-                              alt="Doctor Signature"
-                              style={{ maxHeight: 40, objectFit: 'contain' }}
-                            />
-                          )}
-                        </div>
-                        <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
-                          <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
-                            {doctorSignatureName || 'Doctor'}
-                          </p>
-                          <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>{doctorSignatureDescription || 'Consultant'}</p>
-                        </div>
-                      </div>
+              return null;
+            })}
+
+            <section
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: 0,
+                paddingTop: 4,
+                borderTop: '1px solid #D7DEE7',
+                background: (letterheadActive || headerActive || footerActive) ? 'rgba(255,255,255,0.84)' : '#FFFFFF',
+              }}
+            >
+              {pageIndex === lastReportPageIndex && (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    fontSize: '8.5px',
+                    color: '#8A99A8',
+                    letterSpacing: '1.5px',
+                    marginBottom: 3,
+                  }}
+                >
+                  *** End of Report ***
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: hasDoctorSignature ? 'space-between' : 'flex-start' }}>
+                <div>
+                  <div style={{ height: 36, display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
+                    {ownerSigUrl && (
+                      <img
+                        src={getImageUrl(ownerSigUrl) || ''}
+                        alt="Owner Signature"
+                        style={{ maxHeight: 36, objectFit: 'contain' }}
+                      />
                     )}
                   </div>
-                </section>
-              );
-            })}
+                  <div style={{ borderTop: '1px solid #333', paddingTop: 3, minWidth: '150px' }}>
+                    <p style={{ margin: 0, fontSize: '10.5px', fontWeight: 700, color: '#111' }}>
+                      {ownerSigLabel}
+                    </p>
+                    <p style={{ margin: '1px 0 0', fontSize: '8.5px', color: '#666' }}>{ownerSigDesc}</p>
+                  </div>
+                </div>
+
+                {hasDoctorSignature && (
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ height: 36, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
+                      {doctorSignatureUrl && (
+                        <img
+                          src={getImageUrl(doctorSignatureUrl) || ''}
+                          alt="Doctor Signature"
+                          style={{ maxHeight: 36, objectFit: 'contain' }}
+                        />
+                      )}
+                    </div>
+                    <div style={{ borderTop: '1px solid #333', paddingTop: 3, minWidth: '150px' }}>
+                      <p style={{ margin: 0, fontSize: '10.5px', fontWeight: 700, color: '#111' }}>
+                        {doctorSignatureName || 'Doctor'}
+                      </p>
+                      <p style={{ margin: '1px 0 0', fontSize: '8.5px', color: '#666' }}>{doctorSignatureDescription || 'Consultant'}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
         )}
       </>

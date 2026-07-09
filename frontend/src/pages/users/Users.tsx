@@ -185,7 +185,7 @@ export function Users() {
           lastname: formLastname,
           phone: formPhone || undefined,
           role: formRole,
-          petrol_price_per_km: formPetrolPrice ? Number(formPetrolPrice) : undefined,
+          petrol_price_per_km: formRole !== 'lab_technician' && formPetrolPrice ? Number(formPetrolPrice) : undefined,
         });
         setUsers(prev => prev.map(u =>
           u.id === selectedUser.id ? response.data : u
@@ -209,7 +209,7 @@ export function Users() {
           password: formPassword,
           phone: formPhone || undefined,
           role: formRole,
-          petrol_price_per_km: formPetrolPrice ? Number(formPetrolPrice) : undefined,
+          petrol_price_per_km: formRole !== 'lab_technician' && formPetrolPrice ? Number(formPetrolPrice) : undefined,
         });
         // Refetch to get the new user
         await fetchUsers();
@@ -523,6 +523,7 @@ export function Users() {
                       <option value="lab_technician">Technician — Lab operations</option>
                     </select>
                   </div>
+                  {formRole !== 'lab_technician' && (
                   <div>
                     <label className="text-xs text-foreground block mb-1">Petrol Price (₹/km)</label>
                     <input 
@@ -534,6 +535,7 @@ export function Users() {
                       placeholder="e.g. 3.50"
                     />
                   </div>
+                  )}
                 </div>
               </div>
 

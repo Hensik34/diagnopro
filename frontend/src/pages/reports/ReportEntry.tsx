@@ -283,6 +283,17 @@ function formatReferenceRange(range: MatchedRange): string {
   return range.note || '-';
 }
 
+function isCbcTest(testName?: string, testCode?: string): boolean {
+  const name = (testName || '').toLowerCase();
+  const code = (testCode || '').toLowerCase();
+  return (
+    code === 'cbc' ||
+    code.includes('cbc') ||
+    name.includes('complete blood count') ||
+    name.includes('cbc')
+  );
+}
+
 export function ReportEntry() {
   const { reportId: rawReportId } = useParams<{ reportId: string }>();
   const navigate = useNavigate();
@@ -393,7 +404,10 @@ export function ReportEntry() {
         params,
       });
     }
-    return sections;
+
+    const cbcSections = sections.filter((s) => isCbcTest(s.testName, s.testCode));
+    const otherSections = sections.filter((s) => !isCbcTest(s.testName, s.testCode));
+    return [...cbcSections, ...otherSections];
   }, [dynamicParams, parsedTestData, tests]);
 
   // Safe formula evaluator: builds a scope of field values by name, then evaluates the expression

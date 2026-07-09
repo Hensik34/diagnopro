@@ -18,14 +18,14 @@ const API_BASE = (import.meta as any).env?.VITE_API_URL?.replace('/api', '') || 
 
 export function SampleCollection() {
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'lab_technician';
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-foreground text-lg mb-0.5">Sample Collection</h1>
         <p className="text-muted-foreground text-xs">
-          {isAdmin ? 'Track staff KM and calculate payments' : 'Enter your daily KM readings'}
+        {isAdmin ? 'Track staff KM and calculate payments' : 'Enter your daily KM readings'}
         </p>
       </div>
 
