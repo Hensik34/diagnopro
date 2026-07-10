@@ -1,8 +1,10 @@
-import { Bell, Search, Moon, Sun, Building2, LogOut, Menu } from 'lucide-react';
+import { Bell, Search, Moon, Sun, Building2, Menu } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuthStore, useBranchStore } from '../../../stores';
+import { ProfileModal } from './ProfileModal';
+import { NotificationsPanel } from './NotificationsPanel';
 
 interface TopNavProps {
   sidebarCollapsed: boolean;
@@ -14,7 +16,9 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle, sidebarHidden }: Top
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const notificationsRef = useRef<HTMLDivElement>(null);
 
   // Get data from stores
   const { user, logout, getBranchRole } = useAuthStore();
@@ -37,15 +41,13 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle, sidebarHidden }: Top
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
       }
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login', { replace: true });
-  };
 
   return (
     <header
@@ -112,19 +114,25 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle, sidebarHidden }: Top
           </button>
 
           {/* Notifications - Hidden on small screens */}
-          <button
-            className="hidden sm:flex w-8 h-8 items-center justify-center rounded hover:bg-accent transition-colors relative"
-            aria-label="Notifications"
-          >
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-destructive rounded-full" />
-          </button>
+          <div className="relative" ref={notificationsRef}>
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="hidden sm:flex w-8 h-8 items-center justify-center rounded hover:bg-accent transition-colors relative group"
+              aria-label="Notifications"
+              title="Notifications"
+            >
+              <Bell className="w-4 h-4" />
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-destructive rounded-full group-hover:animate-pulse" />
+            </button>
+            <NotificationsPanel isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
+          </div>
 
           {/* User profile - Compact with dropdown */}
           <div className="relative ml-0 md:ml-1 md:pl-2 md:border-l border-border" ref={userMenuRef}>
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
               className="flex items-center gap-1.5 md:gap-2 hover:bg-accent rounded p-1 transition-colors"
+              title={`${user?.firstname} ${user?.lastname}`}
             >
               <div className="hidden md:flex flex-col items-end leading-tight">
                 <span className="text-foreground text-xs">{userDisplayName}</span>
@@ -134,23 +142,7 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle, sidebarHidden }: Top
                 {userInitials}
               </div>
             </button>
-
-            {/* User Menu Dropdown */}
-            {showUserMenu && (
-              <div className="absolute top-full right-0 mt-1 w-40 md:w-48 bg-card border border-border rounded-md shadow-lg py-1 z-50">
-                <div className="px-3 py-2 border-b border-border">
-                  <p className="text-sm font-medium text-foreground">{userDisplayName}</p>
-                  <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-accent transition-colors flex items-center gap-2"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Sign Out
-                </button>
-              </div>
-            )}
+            <ProfileModal user={user} isOpen={showUserMenu} onClose={() => setShowUserMenu(false)} />
           </div>
         </div>
       </div>

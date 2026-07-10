@@ -1,16 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, Send, FileText, User, Smartphone, MessageSquare, Mail, Loader2, Download, CheckCircle2, AlertCircle } from 'lucide-react';
-import { whatsappApi } from '../../api/whatsapp';
-import { useBranchStore } from '../../stores/branchStore';
+import { reportApi } from '../../api/reports';
 
 interface ShareReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   reportId: string;
-  generatePDF?: () => Promise<File | null>;
   sampleIdCode?: string;
   patientName?: string;
   patientPhone?: string;
+  patientEmail?: string;
   doctorName?: string;
   doctorPhone?: string;
   doctorEmail?: string;
@@ -21,76 +20,62 @@ export function ShareReportModal({
   isOpen,
   onClose,
   reportId,
-  generatePDF,
   sampleIdCode,
   patientName = '',
   patientPhone = '',
+  patientEmail = '',
   doctorName = '',
   doctorPhone = '',
   doctorEmail = '',
   hasDoctorRef = false,
 }: ShareReportModalProps) {
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [pdfDownloaded, setPdfDownloaded] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [sendingTo, setSendingTo] = useState<string | null>(null);
   const [sentItems, setSentItems] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const { currentBranchId } = useBranchStore();
+  const [patientPhoneInput, setPatientPhoneInput] = useState('');
+  const [patientEmailInput, setPatientEmailInput] = useState('');
+  const [doctorPhoneInput, setDoctorPhoneInput] = useState('');
+  const [doctorEmailInput, setDoctorEmailInput] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setPatientPhoneInput(patientPhone || '');
+    setPatientEmailInput(patientEmail || '');
+    setDoctorPhoneInput(doctorPhone || '');
+    setDoctorEmailInput(doctorEmail || '');
+  }, [isOpen, patientPhone, patientEmail, doctorPhone, doctorEmail]);
 
   if (!isOpen) return null;
 
   const displayId = sampleIdCode || reportId.slice(0, 8);
 
-  const buildMessage = (recipientName: string, recipientType: 'patient' | 'doctor') => {
-    return recipientType === 'patient'
-      ? `Hello ${recipientName},\n\nYour laboratory test report (${displayId}) is ready.\nPlease find the report PDF attached.\n\nFor any questions, please contact us.\n\nBest regards,\nDiagnoPro`
-      : `Hello ${recipientName},\n\nLaboratory test report (${displayId}) for patient ${patientName} is ready.\nPlease find the report PDF attached.\n\nBest regards,\nDiagnoPro`;
-  };
-
-  // Step 1: Generate and download PDF
+  // Download PDF directly from backend (Puppeteer generated)
   const handleDownloadPdf = async () => {
-    if (!generatePDF) return;
-    setIsGenerating(true);
+    setIsDownloading(true);
     setError(null);
     try {
-      const file = await generatePDF();
-      if (file) {
-        setPdfFile(file);
-        // Auto-download the file
-        const url = URL.createObjectURL(file);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name;
-        a.click();
-        URL.revokeObjectURL(url);
-        setPdfDownloaded(true);
-      }
+      const { blob, filename } = await reportApi.downloadPdf(reportId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error('PDF generation failed:', err);
       setError('Failed to generate PDF');
     } finally {
-      setIsGenerating(false);
+      setIsDownloading(false);
     }
   };
 
-  // Step 2: Send via WhatsApp API
+  // Send via backend (server generates PDF and sends directly)
   const handleWhatsApp = async (recipientType: 'patient' | 'doctor') => {
-    const phone = recipientType === 'patient' ? patientPhone : doctorPhone;
-    const name = recipientType === 'patient' ? patientName : doctorName;
+    const phone = (recipientType === 'patient' ? patientPhoneInput : doctorPhoneInput).trim();
     
     if (!phone) {
       setError(`${recipientType === 'patient' ? 'Patient' : 'Doctor'} phone number is not available`);
-      return;
-    }
-
-    if (!pdfFile) {
-      setError('Please generate the PDF first');
-      return;
-    }
-
-    if (!currentBranchId) {
-      setError('Branch ID not found');
       return;
     }
 
@@ -101,8 +86,9 @@ export function ShareReportModal({
     setError(null);
 
     try {
-      const message = buildMessage(name, recipientType);
-      await whatsappApi.sendMessageWithFile(currentBranchId, phone, pdfFile, message);
+      await reportApi.send(reportId, 'whatsapp', recipientType, {
+        recipient_phone: phone,
+      });
       setSentItems(prev => [...prev, channel]);
     } catch (err) {
       console.error('WhatsApp send failed:', err);
@@ -113,21 +99,33 @@ export function ShareReportModal({
   };
 
   // Step 2: Send via Email
-  const handleEmail = (recipientType: 'patient' | 'doctor') => {
-    const email = recipientType === 'doctor' ? doctorEmail : '';
-    const name = recipientType === 'patient' ? patientName : doctorName;
+  const handleEmail = async (recipientType: 'patient' | 'doctor') => {
+    const channel = `email-${recipientType}`;
+    if (sendingTo === channel) return;
+    setSendingTo(channel);
+    setError(null);
+    try {
+      const targetEmail = (recipientType === 'patient' ? patientEmailInput : doctorEmailInput).trim();
+      const response = await reportApi.send(reportId, 'email', recipientType, {
+        recipient_email: targetEmail,
+      });
+      const email = response.data?.recipient_email;
+      const subject = response.data?.subject;
+      const body = response.data?.body;
 
-    if (!email) {
-      setError(`${recipientType === 'doctor' ? 'Doctor' : 'Patient'} email is not available`);
-      return;
+      if (!email || !subject || !body) {
+        setError(`${recipientType === 'doctor' ? 'Doctor' : 'Patient'} email is not available`);
+        return;
+      }
+
+      const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      window.open(mailtoUrl, '_blank');
+      setSentItems(prev => [...prev, channel]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to prepare email');
+    } finally {
+      setSendingTo(null);
     }
-
-    const subject = `Lab Report ${displayId} - DiagnoPro`;
-    const body = buildMessage(name, recipientType);
-
-    const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.open(mailtoUrl, '_blank');
-    setSentItems(prev => [...prev, `email-${recipientType}`]);
   };
 
   const isSent = (channel: string, recipientType: string) =>
@@ -179,43 +177,22 @@ export function ShareReportModal({
             </div>
           )}
 
-          {/* Step 1: Download PDF */}
-          {generatePDF && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] flex items-center justify-center font-semibold">1</span>
-                <span className="text-xs font-medium text-foreground">Download Report PDF</span>
-              </div>
-              <button
-                onClick={handleDownloadPdf}
-                disabled={isGenerating}
-                className={`w-full h-10 flex items-center justify-center gap-2 rounded border text-sm transition-all ${
-                  pdfDownloaded
-                    ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400'
-                    : 'bg-card border-border hover:bg-accent'
-                } disabled:opacity-50`}
-              >
-                {isGenerating ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : pdfDownloaded ? (
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
-                <span>{isGenerating ? 'Generating PDF...' : pdfDownloaded ? 'PDF Downloaded' : 'Download PDF'}</span>
-              </button>
-              {pdfDownloaded && (
-                <p className="text-[10px] text-muted-foreground text-center">
-                  PDF ready. Click below to send directly via WhatsApp or Email.
-                </p>
-              )}
-            </div>
-          )}
+          {/* Optional backend PDF download */}
+          <div className="space-y-2">
+            <button
+              onClick={handleDownloadPdf}
+              disabled={isDownloading}
+              className="w-full h-10 flex items-center justify-center gap-2 rounded border text-sm transition-all bg-card border-border hover:bg-accent disabled:opacity-50"
+            >
+              {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              <span>{isDownloading ? 'Generating PDF...' : 'Download PDF (Server)'}</span>
+            </button>
+          </div>
 
           {/* Step 2: Share via channel */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] flex items-center justify-center font-semibold">{generatePDF ? '2' : '1'}</span>
+              <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] flex items-center justify-center font-semibold">1</span>
               <span className="text-xs font-medium text-foreground">Send to</span>
             </div>
 
@@ -232,14 +209,36 @@ export function ShareReportModal({
                 {patientPhone && (
                   <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                     <Smartphone className="w-3 h-3" />
-                    {patientPhone}
+                    {patientPhoneInput || 'Not set'}
                   </span>
                 )}
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                <div>
+                  <label className="block text-[10px] text-muted-foreground mb-1">WhatsApp Number</label>
+                  <input
+                    type="text"
+                    value={patientPhoneInput}
+                    onChange={(e) => setPatientPhoneInput(e.target.value)}
+                    placeholder="Enter patient WhatsApp number"
+                    className="w-full h-8 px-2 rounded border border-border bg-background text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-muted-foreground mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={patientEmailInput}
+                    onChange={(e) => setPatientEmailInput(e.target.value)}
+                    placeholder="Enter patient email"
+                    className="w-full h-8 px-2 rounded border border-border bg-background text-xs"
+                  />
+                </div>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => handleWhatsApp('patient')}
-                  disabled={!patientPhone || !pdfFile || isSending('whatsapp', 'patient')}
+                  disabled={!patientPhoneInput.trim() || isSending('whatsapp', 'patient')}
                   className={`flex-1 h-9 flex items-center justify-center gap-2 rounded border text-xs transition-all ${
                     isSent('whatsapp', 'patient')
                       ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400'
@@ -255,6 +254,7 @@ export function ShareReportModal({
                 </button>
                 <button
                   onClick={() => handleEmail('patient')}
+                  disabled={!patientEmailInput.trim() || isSending('email', 'patient')}
                   className={`flex-1 h-9 flex items-center justify-center gap-2 rounded border text-xs transition-all ${
                     isSent('email', 'patient')
                       ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400'
@@ -282,15 +282,37 @@ export function ShareReportModal({
                     {doctorPhone && (
                       <span className="flex items-center gap-1">
                         <Smartphone className="w-3 h-3" />
-                        {doctorPhone}
+                        {doctorPhoneInput || 'Not set'}
                       </span>
                     )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground mb-1">WhatsApp Number</label>
+                    <input
+                      type="text"
+                      value={doctorPhoneInput}
+                      onChange={(e) => setDoctorPhoneInput(e.target.value)}
+                      placeholder="Enter doctor WhatsApp number"
+                      className="w-full h-8 px-2 rounded border border-border bg-background text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={doctorEmailInput}
+                      onChange={(e) => setDoctorEmailInput(e.target.value)}
+                      placeholder="Enter doctor email"
+                      className="w-full h-8 px-2 rounded border border-border bg-background text-xs"
+                    />
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleWhatsApp('doctor')}
-                    disabled={!doctorPhone || !pdfFile || isSending('whatsapp', 'doctor')}
+                    disabled={!doctorPhoneInput.trim() || isSending('whatsapp', 'doctor')}
                     className={`flex-1 h-9 flex items-center justify-center gap-2 rounded border text-xs transition-all ${
                       isSent('whatsapp', 'doctor')
                         ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400'
@@ -306,7 +328,7 @@ export function ShareReportModal({
                   </button>
                   <button
                     onClick={() => handleEmail('doctor')}
-                    disabled={!doctorEmail}
+                    disabled={!doctorEmailInput.trim() || isSending('email', 'doctor')}
                     className={`flex-1 h-9 flex items-center justify-center gap-2 rounded border text-xs transition-all ${
                       isSent('email', 'doctor')
                         ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400'
@@ -320,13 +342,6 @@ export function ShareReportModal({
               </div>
             )}
           </div>
-
-          {/* Hint */}
-          {generatePDF && (
-            <div className="text-[10px] text-muted-foreground bg-secondary/50 rounded p-2 text-center leading-relaxed">
-              Generate PDF first, then send directly via WhatsApp. Email will open your email client for manual sending.
-            </div>
-          )}
         </div>
 
         {/* Footer */}

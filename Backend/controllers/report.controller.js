@@ -393,7 +393,7 @@ exports.updateReport = async (req, res) => {
     // Check if report is editable based on status
     if (!isEditable(currentReport.status)) {
       return res.status(400).json({
-        error: `Cannot edit report with status '${currentReport.status}'. Only draft or rejected reports can be edited.`,
+        error: `Cannot edit report with status '${currentReport.status}'. Only draft, rejected, or approved reports can be edited.`,
         currentStatus: currentReport.status,
       });
     }
@@ -707,10 +707,18 @@ async function triggerWhatsAppDelivery(id) {
         // Process Doctor WhatsApp
         if (prefs.doctor_whatsapp) {
           logWhatsAppDebug("Processing doctor auto-WhatsApp PDF delivery");
+          const delivery = await reportDeliveryService.markPending({
+            reportId: fullReport.id,
+            branchId,
+            recipientType: "doctor",
+          });
           if (fullReport.is_self_report || !fullReport.doctor_id) {
             logWhatsAppDebug(
               "Report is self-reported or has no doctor. Skipping doctor delivery.",
             );
+            await reportDeliveryService.updateStatus(delivery, "skipped", {
+              reason: "Self-report (No doctor referenced)",
+            });
             whatsappDelivery.doctor = {
               sent: false,
               reason: "Self-report (No doctor referenced)",
@@ -721,18 +729,25 @@ async function triggerWhatsAppDelivery(id) {
               logWhatsAppDebug(
                 "Referring doctor has no registered phone number.",
               );
+              await reportDeliveryService.updateStatus(delivery, "skipped", {
+                reason: "Referring doctor has no registered phone number",
+              });
               whatsappDelivery.doctor = {
                 sent: false,
                 reason: "Referring doctor has no registered phone number",
               };
             } else if (pdfError) {
               logWhatsAppDebug("Skipping doctor WhatsApp due to PDF error.");
+              await reportDeliveryService.updateStatus(delivery, "failed", {
+                reason: `PDF Error: ${pdfError}`,
+              });
               whatsappDelivery.doctor = {
                 sent: false,
                 reason: `PDF Error: ${pdfError}`,
               };
             } else {
               try {
+                await reportDeliveryService.updateStatus(delivery, "sending");
                 const sampleId = fullReport.sample_id_code || "N/A";
                 const docTitle = doctor.title || "Dr";
                 const docName = `${docTitle}. ${doctor.name}`;
@@ -742,7 +757,7 @@ async function triggerWhatsAppDelivery(id) {
                 logWhatsAppDebug("Sending PDF message to referring doctor", {
                   to: doctor.phone,
                 });
-                await whatsappService.sendMessage({
+                const result = await whatsappService.sendMessage({
                   branchId,
                   to: doctor.phone,
                   message,
@@ -754,12 +769,18 @@ async function triggerWhatsAppDelivery(id) {
                     report_id: fullReport.id,
                   },
                 });
+                await reportDeliveryService.updateStatus(delivery, "sent", {
+                  waMessageId: result?.wa_message_id,
+                });
 
                 whatsappDelivery.doctor = { sent: true };
                 logWhatsAppDebug(
                   "Doctor PDF WhatsApp message sent successfully!",
                 );
               } catch (err) {
+                await reportDeliveryService.updateStatus(delivery, "failed", {
+                  reason: err.message,
+                });
                 logWhatsAppDebug(
                   "Auto WhatsApp doctor send error:",
                   err.message,
@@ -800,7 +821,15 @@ exports.submitReport = async (req, res) => {
       logWhatsAppDebug(
         "Report was auto-approved upon submission. Triggering WhatsApp auto-delivery.",
       );
-      whatsappDelivery = await triggerWhatsAppDelivery(id);
+      whatsappDelivery = { queued: true };
+      setImmediate(() => {
+        triggerWhatsAppDelivery(id).catch((err) =>
+          logWhatsAppDebug("Background delivery failed after submit auto-approve", {
+            id,
+            error: err.message,
+          }),
+        );
+      });
     }
 
     res.json({
@@ -1019,7 +1048,7 @@ exports.STATUS_TRANSITIONS = STATUS_TRANSITIONS;
 exports.sendReport = async (req, res) => {
   try {
     const { id } = req.params;
-    const { channel, recipient_type } = req.body;
+    const { channel, recipient_type, recipient_phone, recipient_email } = req.body;
     // channel: 'whatsapp' | 'email'
     // recipient_type: 'patient' | 'doctor'
 
@@ -1051,11 +1080,21 @@ exports.sendReport = async (req, res) => {
     if (recipient_type === "patient") {
       recipientName = report.patient_name;
       recipientPhone = report.patient_phone;
+      recipientEmail = report.patient_email;
     } else {
       recipientName =
+        report.doctor_name ||
         `Dr. ${report.doctor_firstname || ""} ${report.doctor_lastname || ""}`.trim();
       recipientPhone = report.doctor_phone;
       recipientEmail = report.doctor_email;
+    }
+
+    // Allow caller to override destination number/email
+    if (typeof recipient_phone === "string" && recipient_phone.trim().length > 0) {
+      recipientPhone = recipient_phone.trim();
+    }
+    if (typeof recipient_email === "string" && recipient_email.trim().length > 0) {
+      recipientEmail = recipient_email.trim();
     }
 
     if (channel === "whatsapp") {
@@ -1064,27 +1103,80 @@ exports.sendReport = async (req, res) => {
           .status(400)
           .json({ error: `No phone number found for ${recipient_type}` });
       }
-      // Return WhatsApp deep link for frontend to open
+
+      const branchId = report.branch_id;
+      if (!branchId) {
+        return res.status(400).json({ error: "Report branch is missing" });
+      }
+
+      const status = await whatsappService.getBranchStatus(branchId);
+      const isConnected = status?.session?.status === "connected";
+      if (!isConnected) {
+        return res
+          .status(400)
+          .json({ error: "WhatsApp is not connected for this branch" });
+      }
+
+      const delivery = await reportDeliveryService.markPending({
+        reportId: report.id,
+        branchId,
+        recipientType: recipient_type,
+        recipientPhone,
+      });
+
       const sampleId = report.sample_id_code || "N/A";
       const message =
         recipient_type === "patient"
           ? `Hello ${recipientName},\n\nYour laboratory test report (${sampleId}) is ready. Please find the report attached.\n\nFor any questions, please contact us.\n\nBest regards,\nDiagnoPro`
           : `Hello ${recipientName},\n\nLaboratory test report (${sampleId}) for patient ${report.patient_name} is ready. Please find the report attached.\n\nBest regards,\nDiagnoPro`;
 
-      const cleanPhone = recipientPhone.replace(/[^0-9+]/g, "");
-      const whatsappUrl = `https://wa.me/${cleanPhone.replace("+", "")}?text=${encodeURIComponent(message)}`;
+      try {
+        await reportDeliveryService.updateStatus(delivery, "sending");
+        const downloadToken = jwt.sign(
+          { reportId: report.id },
+          process.env.JWT_SECRET,
+        );
+        const pdfBuffer = await pdfGenerator.generateReportPdf(
+          report.id,
+          downloadToken,
+        );
 
-      return res.json({
-        message: "WhatsApp link generated",
-        data: {
-          channel: "whatsapp",
-          recipient_type,
-          recipient_name: recipientName,
-          recipient_phone: recipientPhone,
-          whatsapp_url: whatsappUrl,
-          text_message: message,
-        },
-      });
+        const fileName = `Report-${(report.patient_name || "Patient").replace(/\s+/g, "_")}-${report.id}.pdf`;
+        const result = await whatsappService.sendMessage({
+          branchId,
+          to: recipientPhone,
+          message,
+          fileBuffer: pdfBuffer,
+          fileName,
+          mimeType: "application/pdf",
+          metadata: {
+            source: "manual_report_share",
+            report_id: report.id,
+            recipient_type,
+            actor_user_id: req.user.id,
+          },
+        });
+
+        await reportDeliveryService.updateStatus(delivery, "sent", {
+          waMessageId: result?.wa_message_id,
+        });
+
+        return res.json({
+          message: "Report sent successfully via WhatsApp",
+          data: {
+            channel: "whatsapp",
+            recipient_type,
+            recipient_name: recipientName,
+            recipient_phone: recipientPhone,
+            delivery_status: "sent",
+          },
+        });
+      } catch (sendErr) {
+        await reportDeliveryService.updateStatus(delivery, "failed", {
+          reason: sendErr.message,
+        });
+        throw sendErr;
+      }
     }
 
     if (channel === "email") {
@@ -1110,6 +1202,36 @@ exports.sendReport = async (req, res) => {
     }
   } catch (err) {
     console.error("Send report error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.downloadReportPdf = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const report = await Report.getReportById(id);
+    if (!report) {
+      return res.status(404).json({ error: "Report not found" });
+    }
+
+    const downloadToken = jwt.sign(
+      { reportId: report.id },
+      process.env.JWT_SECRET,
+    );
+    const pdfBuffer = await pdfGenerator.generateReportPdf(
+      report.id,
+      downloadToken,
+    );
+
+    const safePatient = (report.patient_name || "Patient").replace(/\s+/g, "_");
+    const fileName = `Report-${safePatient}-${report.id}.pdf`;
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error("Download report PDF error:", err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -1228,6 +1350,42 @@ exports.getDeliveryStatus = async (req, res) => {
     res.json({ message: "Delivery status retrieved", data: rows });
   } catch (err) {
     console.error("Get delivery status error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getDeliveryNotifications = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const role = req.user.role;
+    const { branch_id, limit } = req.query;
+
+    let branchIds = [];
+    if (branch_id) {
+      branchIds = [branch_id];
+    } else {
+      const userBranches =
+        req.user.source === "doctor"
+          ? await Doctor.getDoctorBranches(userId)
+          : await Branch.getUserBranches(userId);
+      branchIds = userBranches.map((b) => b.id);
+    }
+
+    const rows = await reportDeliveryService.getNotifications({
+      userId,
+      role,
+      branchIds,
+      branchId: branch_id,
+      limit,
+    });
+
+    res.json({
+      message: "Delivery notifications retrieved",
+      count: rows.length,
+      data: rows,
+    });
+  } catch (err) {
+    console.error("Get delivery notifications error:", err);
     res.status(500).json({ error: err.message });
   }
 };

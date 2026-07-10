@@ -441,6 +441,7 @@ export interface Report {
   // Joined fields
   patient_name?: string;
   patient_phone?: string;
+  patient_email?: string;
   patient_gender?: string;
   patient_age?: number;
   patient_age_unit?: AgeUnit;

@@ -18,7 +18,7 @@ const API_BASE = (import.meta as any).env?.VITE_API_URL?.replace('/api', '') || 
 
 export function SampleCollection() {
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'lab_technician';
 
   return (
     <div className="space-y-4">

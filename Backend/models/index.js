@@ -34,7 +34,7 @@ const DoctorPriceListAssignment = require("./definitions/DoctorPriceListAssignme
 const DoctorTestPrice = require("./definitions/DoctorTestPrice");
 const ReportTestPrice = require("./definitions/ReportTestPrice");
 const PriceAuditLog = require("./definitions/PriceAuditLog");
-const ReportDelivery = require("./ReportDelivery");
+const ReportDelivery = require("./definitions/ReportDelivery");
 
 // Associations
 User.belongsToMany(Branch, { through: UserBranch, foreignKey: "user_id", otherKey: "branch_id", as: "branches" });
@@ -137,6 +137,9 @@ DoctorTestPrice.belongsTo(Branch, { foreignKey: "branch_id", as: "branch" });
 
 ReportTestPrice.belongsTo(Report, { foreignKey: "report_id", as: "report" });
 ReportTestPrice.belongsTo(Test, { foreignKey: "test_id", as: "test" });
+
+ReportDelivery.belongsTo(Report, { foreignKey: "report_id", as: "report" });
+Report.hasMany(ReportDelivery, { foreignKey: "report_id", as: "deliveries" });
 
 PriceAuditLog.belongsTo(Report, { foreignKey: "report_id", as: "report" });
 PriceAuditLog.belongsTo(Test, { foreignKey: "test_id", as: "test" });

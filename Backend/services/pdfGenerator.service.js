@@ -38,7 +38,7 @@ async function generateReportPdf(reportId, downloadToken) {
   try {
     logPdfDebug("Launching Puppeteer...");
     browser = await puppeteer.launch({
-      headless: "new",
+      headless: true,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",

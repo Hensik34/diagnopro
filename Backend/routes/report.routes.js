@@ -18,11 +18,21 @@ router.get("/", authorize(PERMISSIONS.REPORT_READ), reportController.getReports)
 // Get workflow summary (counts by status)
 router.get("/summary", authorize(PERMISSIONS.REPORT_READ), reportController.getReportsSummary);
 
+// Get latest WhatsApp delivery notifications (admin/technician)
+router.get(
+	"/delivery-notifications",
+	authorize(PERMISSIONS.REPORT_READ),
+	reportController.getDeliveryNotifications,
+);
+
 // Get reports by patient (must be before /:id to avoid route conflict)
 router.get("/patient/:patientId", authorize(PERMISSIONS.REPORT_READ), reportController.getReportsByPatient);
 
 // Get report by ID
 router.get("/:id", authorize(PERMISSIONS.REPORT_READ), reportController.getReportById);
+
+// Download report PDF (server-side Puppeteer render)
+router.get("/:id/pdf", authorize(PERMISSIONS.REPORT_READ), reportController.downloadReportPdf);
 
 // Create new report (status: draft)
 router.post("/", authorize(PERMISSIONS.REPORT_CREATE), reportController.createReport);
@@ -83,6 +93,6 @@ router.delete("/:id", authorize(PERMISSIONS.REPORT_DELETE), reportController.del
 
 
 // get delivery status of a report
-router.get("/:id/delivery-status", authMiddleware, reportController.getDeliveryStatus);
+router.get("/:id/delivery-status", authorize(PERMISSIONS.REPORT_READ), reportController.getDeliveryStatus);
 
 module.exports = router;
