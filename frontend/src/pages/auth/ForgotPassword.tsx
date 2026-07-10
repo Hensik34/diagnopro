@@ -1,4 +1,5 @@
 import { useState, useRef, FormEvent, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
 import { authApi } from '../../api';
 
@@ -23,8 +24,16 @@ export function ForgotPassword() {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, _setError] = useState('');
+  const setError = (msg: string) => {
+    _setError(msg);
+    if (msg) toast.error(msg);
+  };
+  const [success, _setSuccess] = useState('');
+  const setSuccess = (msg: string) => {
+    _setSuccess(msg);
+    if (msg) toast.success(msg);
+  };
   const [resendCooldown, setResendCooldown] = useState(0);
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);

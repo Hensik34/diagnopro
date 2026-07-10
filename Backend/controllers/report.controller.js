@@ -10,6 +10,7 @@ const workflowNotificationService = require("../services/workflowNotification.se
 const { Patient, UserTest, Test } = require("../models");
 const pdfGenerator = require("../services/pdfGenerator.service");
 const whatsappService = require("../services/whatsapp.service");
+const reportDeliveryService = require("../services/reportDelivery.service");
 const fs = require("fs");
 const path = require("path");
 
@@ -26,21 +27,20 @@ function logWhatsAppDebug(message, data = null) {
   }
 }
 
-
 // Use the new status from service
 const { REPORT_STATUS, STATUS_TRANSITIONS, isEditable } = reportService;
 
 // Legacy status mapping for backward compatibility
 const REPORT_STATUSES = {
-  CREATED: 'created',
-  COLLECTED: 'collected',
-  PROCESSING: 'processing',
-  COMPLETED: 'completed',
-  APPROVED: 'approved',
+  CREATED: "created",
+  COLLECTED: "collected",
+  PROCESSING: "processing",
+  COMPLETED: "completed",
+  APPROVED: "approved",
   // New statuses
-  DRAFT: 'draft',
-  UNDER_REVIEW: 'under_review',
-  REJECTED: 'rejected'
+  DRAFT: "draft",
+  UNDER_REVIEW: "under_review",
+  REJECTED: "rejected",
 };
 
 const LEGACY_STATUS_TRANSITIONS = {
@@ -51,49 +51,55 @@ const LEGACY_STATUS_TRANSITIONS = {
   [REPORT_STATUSES.APPROVED]: [],
   // New workflow
   [REPORT_STATUSES.DRAFT]: [REPORT_STATUSES.UNDER_REVIEW],
-  [REPORT_STATUSES.UNDER_REVIEW]: [REPORT_STATUSES.APPROVED, REPORT_STATUSES.REJECTED],
-  [REPORT_STATUSES.REJECTED]: [REPORT_STATUSES.DRAFT]
+  [REPORT_STATUSES.UNDER_REVIEW]: [
+    REPORT_STATUSES.APPROVED,
+    REPORT_STATUSES.REJECTED,
+  ],
+  [REPORT_STATUSES.REJECTED]: [REPORT_STATUSES.DRAFT],
 };
 
 // Helper to inject layout config snapshots into test_data
 const injectLayoutSnapshots = async (test_data, branchId) => {
   if (!test_data) return test_data;
-  
+
   // Make a copy of test_data
   const updatedTestData = { ...test_data };
-  
+
   let testIds = [];
   if (Array.isArray(updatedTestData.testIds)) {
     testIds = updatedTestData.testIds;
   } else if (Array.isArray(updatedTestData.tests)) {
-    testIds = updatedTestData.tests.map(t => t.id || t.testId).filter(Boolean);
+    testIds = updatedTestData.tests
+      .map((t) => t.id || t.testId)
+      .filter(Boolean);
   }
-  
+
   if (testIds.length === 0) {
     return updatedTestData;
   }
-  
+
   const layoutSnapshots = {};
   for (const testId of testIds) {
     if (!testId) continue;
     try {
       const userTest = await UserTest.findOne({
         where: { test_id: testId, branch_id: branchId },
-        raw: true
+        raw: true,
       });
       const test = await Test.findByPk(testId, { raw: true });
-      const clinicalSignificance = userTest?.clinical_significance || test?.clinical_significance || '';
-      
+      const clinicalSignificance =
+        userTest?.clinical_significance || test?.clinical_significance || "";
+
       const config = userTest?.layout_config || { parameterSettings: [] };
       layoutSnapshots[testId] = {
         ...config,
-        clinical_significance: clinicalSignificance
+        clinical_significance: clinicalSignificance,
       };
     } catch (err) {
       console.error(`Failed to load layout config for test ${testId}:`, err);
     }
   }
-  
+
   updatedTestData.layout_snapshots = layoutSnapshots;
   return updatedTestData;
 };
@@ -125,7 +131,7 @@ exports.getReports = async (req, res) => {
         userBranches = await Branch.getUserBranches(userId);
       }
       if (userBranches.length > 0) {
-        filters.branch_ids = userBranches.map(b => b.id);
+        filters.branch_ids = userBranches.map((b) => b.id);
       }
     }
 
@@ -134,7 +140,7 @@ exports.getReports = async (req, res) => {
     res.json({
       message: "Reports retrieved successfully",
       count: reports.length,
-      data: reports
+      data: reports,
     });
   } catch (err) {
     console.error("Get reports error:", err);
@@ -153,16 +159,20 @@ exports.getReportById = async (req, res) => {
       return res.status(404).json({ error: "Report not found" });
     }
 
-    const downloadToken = jwt.sign({ reportId: report.id }, process.env.JWT_SECRET);
-    const reportTestPrices = await require("../models/ReportTestPrice").getPricesForReport(id);
+    const downloadToken = jwt.sign(
+      { reportId: report.id },
+      process.env.JWT_SECRET,
+    );
+    const reportTestPrices =
+      await require("../models/ReportTestPrice").getPricesForReport(id);
 
     res.json({
       message: "Report retrieved successfully",
       data: {
         ...report,
         download_token: downloadToken,
-        pricing_snapshot: reportTestPrices || []
-      }
+        pricing_snapshot: reportTestPrices || [],
+      },
     });
   } catch (err) {
     console.error("Get report error:", err);
@@ -173,15 +183,15 @@ exports.getReportById = async (req, res) => {
 // CREATE REPORT (status: draft)
 exports.createReport = async (req, res) => {
   try {
-    const { 
-      patient_id, 
-      doctor_id, 
-      referring_doctor_name, 
-      report_type, 
-      sample_id, 
-      clinical_notes, 
-      technician_id, 
-      report_amount, 
+    const {
+      patient_id,
+      doctor_id,
+      referring_doctor_name,
+      report_type,
+      sample_id,
+      clinical_notes,
+      technician_id,
+      report_amount,
       is_self_report,
       test_data,
       findings,
@@ -205,7 +215,8 @@ exports.createReport = async (req, res) => {
     }
 
     // Determine if it's a self-report (no referring doctor)
-    const selfReport = is_self_report === true || (!doctor_id && !referring_doctor_name);
+    const selfReport =
+      is_self_report === true || (!doctor_id && !referring_doctor_name);
 
     // Auto-create sample with auto-generated ID if no sample_id provided
     let linkedSampleId = sample_id || null;
@@ -224,19 +235,22 @@ exports.createReport = async (req, res) => {
     }
 
     if (!resolvedBranchId) {
-      return res.status(400).json({ error: "branch_id is required to create a report" });
+      return res
+        .status(400)
+        .json({ error: "branch_id is required to create a report" });
     }
 
     if (!linkedSampleId) {
-      const generatedSampleIdCode = await sampleService.generateSampleId(resolvedBranchId);
+      const generatedSampleIdCode =
+        await sampleService.generateSampleId(resolvedBranchId);
       const sample = await Sample.createSample({
         patient_id,
-        sample_type: 'blood',
+        sample_type: "blood",
         sample_id_code: generatedSampleIdCode,
         collection_date: new Date(),
         collected_by: req.user.id,
         branch_id: resolvedBranchId,
-        notes: ''
+        notes: "",
       });
       linkedSampleId = sample.id;
       sampleIdCode = generatedSampleIdCode;
@@ -245,7 +259,10 @@ exports.createReport = async (req, res) => {
     // Inject layout snapshots
     let enrichedTestData = test_data || {};
     if (resolvedBranchId) {
-      enrichedTestData = await injectLayoutSnapshots(enrichedTestData, resolvedBranchId);
+      enrichedTestData = await injectLayoutSnapshots(
+        enrichedTestData,
+        resolvedBranchId,
+      );
     }
 
     const report = await Report.createReport({
@@ -260,22 +277,29 @@ exports.createReport = async (req, res) => {
       report_amount: report_amount || 0,
       is_self_report: selfReport,
       test_data: enrichedTestData,
-      findings: findings || '',
-      recommendations: recommendations || '',
+      findings: findings || "",
+      recommendations: recommendations || "",
       delivery_preferences: delivery_preferences || {},
       b2b_lab_id: b2b_lab_id || null,
       b2b_charge: b2b_charge || 0,
       branch_id: resolvedBranchId,
       // Multi-tier pricing fields
       price_list_id: price_list_id || null,
-      base_amount: base_amount !== undefined ? Number(base_amount) : Number(report_amount || 0),
+      base_amount:
+        base_amount !== undefined
+          ? Number(base_amount)
+          : Number(report_amount || 0),
       lab_discount_type: lab_discount_type || "percent",
       lab_discount_value: lab_discount_value || 0,
       doctor_discount: doctor_discount || 0,
-      final_amount: final_amount !== undefined ? Number(final_amount) : Number(report_amount || 0),
+      final_amount:
+        final_amount !== undefined
+          ? Number(final_amount)
+          : Number(report_amount || 0),
     });
 
-    const reportJson = report && typeof report.toJSON === 'function' ? report.toJSON() : report;
+    const reportJson =
+      report && typeof report.toJSON === "function" ? report.toJSON() : report;
 
     // Snapshot pricing items if provided
     if (pricing_items && Array.isArray(pricing_items)) {
@@ -292,7 +316,7 @@ exports.createReport = async (req, res) => {
             newPrice: Number(item.applied_price),
             source: "manual",
             changedBy: req.user.id,
-            reason: `Manual price override at report creation (source: ${item.source || 'default'})`,
+            reason: `Manual price override at report creation (source: ${item.source || "default"})`,
           });
         }
       }
@@ -302,8 +326,11 @@ exports.createReport = async (req, res) => {
     try {
       const patientObj = await Patient.findByPk(patient_id, { raw: true });
       if (patientObj) {
-        const resolvedBranchId = branch_id || patientObj.branch_id || req.user.branch_id;
-        const branchObj = resolvedBranchId ? await Branch.getBranchById(resolvedBranchId) : null;
+        const resolvedBranchId =
+          branch_id || patientObj.branch_id || req.user.branch_id;
+        const branchObj = resolvedBranchId
+          ? await Branch.getBranchById(resolvedBranchId)
+          : null;
 
         workflowNotificationService.onPatientRegistered({
           patient: patientObj,
@@ -312,12 +339,18 @@ exports.createReport = async (req, res) => {
         });
       }
     } catch (notificationError) {
-      console.error("Failed to send patient registration notification from report creation:", notificationError.message);
+      console.error(
+        "Failed to send patient registration notification from report creation:",
+        notificationError.message,
+      );
     }
 
     res.status(201).json({
       message: "Report created successfully as draft",
-      data: { ...reportJson, sample_id_code: sampleIdCode || reportJson.sample_id_code }
+      data: {
+        ...reportJson,
+        sample_id_code: sampleIdCode || reportJson.sample_id_code,
+      },
     });
   } catch (err) {
     console.error("Create report error:", err);
@@ -329,10 +362,10 @@ exports.createReport = async (req, res) => {
 exports.updateReport = async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      findings, 
-      recommendations, 
-      clinical_notes, 
+    const {
+      findings,
+      recommendations,
+      clinical_notes,
       technician_id,
       test_data,
       doctor_id,
@@ -359,17 +392,20 @@ exports.updateReport = async (req, res) => {
 
     // Check if report is editable based on status
     if (!isEditable(currentReport.status)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: `Cannot edit report with status '${currentReport.status}'. Only draft or rejected reports can be edited.`,
-        currentStatus: currentReport.status
+        currentStatus: currentReport.status,
       });
     }
 
     // Get branch_id from current report or patient
-    let resolvedBranchId = req.body.branch_id || req.query.branch_id || currentReport.branch_id;
+    let resolvedBranchId =
+      req.body.branch_id || req.query.branch_id || currentReport.branch_id;
     if (!resolvedBranchId && currentReport.patient_id) {
       try {
-        const patientObj = await Patient.findByPk(currentReport.patient_id, { raw: true });
+        const patientObj = await Patient.findByPk(currentReport.patient_id, {
+          raw: true,
+        });
         if (patientObj) {
           resolvedBranchId = patientObj.branch_id;
         }
@@ -384,7 +420,10 @@ exports.updateReport = async (req, res) => {
     // Inject layout snapshots if we have test_data
     let enrichedTestData = test_data;
     if (test_data && resolvedBranchId) {
-      enrichedTestData = await injectLayoutSnapshots(test_data, resolvedBranchId);
+      enrichedTestData = await injectLayoutSnapshots(
+        test_data,
+        resolvedBranchId,
+      );
     }
 
     const report = await Report.updateReport(id, {
@@ -415,10 +454,13 @@ exports.updateReport = async (req, res) => {
     // Snapshot pricing items if provided
     if (pricing_items && Array.isArray(pricing_items)) {
       const pricingService = require("../services/pricing.service");
-      
+
       // Get old snapshots to compare
-      const oldSnapshots = await require("../models/ReportTestPrice").getPricesForReport(id);
-      const oldSnapshotMap = new Map(oldSnapshots.map(s => [s.test_id || s.package_id, s]));
+      const oldSnapshots =
+        await require("../models/ReportTestPrice").getPricesForReport(id);
+      const oldSnapshotMap = new Map(
+        oldSnapshots.map((s) => [s.test_id || s.package_id, s]),
+      );
 
       await pricingService.snapshotPrices(id, pricing_items);
 
@@ -426,17 +468,24 @@ exports.updateReport = async (req, res) => {
       for (const item of pricing_items) {
         const key = item.test_id || item.package_id;
         const oldVal = oldSnapshotMap.get(key);
-        if (!oldVal || Number(oldVal.applied_price) !== Number(item.applied_price)) {
+        if (
+          !oldVal ||
+          Number(oldVal.applied_price) !== Number(item.applied_price)
+        ) {
           await pricingService.logPriceChange({
             reportId: id,
             testId: item.test_id || null,
-            oldPrice: oldVal ? Number(oldVal.applied_price) : Number(item.default_price),
+            oldPrice: oldVal
+              ? Number(oldVal.applied_price)
+              : Number(item.default_price),
             newPrice: Number(item.applied_price),
-            source: item.is_manual_override ? "manual" : (item.source || "default"),
+            source: item.is_manual_override
+              ? "manual"
+              : item.source || "default",
             changedBy: req.user.id,
-            reason: item.is_manual_override 
+            reason: item.is_manual_override
               ? `Manual price override from ${oldVal ? oldVal.applied_price : item.default_price} to ${item.applied_price}`
-              : `Price recalculated automatically (source: ${item.source || 'default'})`,
+              : `Price recalculated automatically (source: ${item.source || "default"})`,
           });
         }
       }
@@ -447,7 +496,7 @@ exports.updateReport = async (req, res) => {
 
     res.json({
       message: "Report updated successfully",
-      data: refreshedReport || report
+      data: refreshedReport || report,
     });
   } catch (err) {
     console.error("Update report error:", err);
@@ -464,9 +513,9 @@ exports.updateReportStatus = async (req, res) => {
 
     // Validate status value
     if (!Object.values(REPORT_STATUSES).includes(status)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Invalid status",
-        validStatuses: Object.values(REPORT_STATUSES)
+        validStatuses: Object.values(REPORT_STATUSES),
       });
     }
 
@@ -478,9 +527,9 @@ exports.updateReportStatus = async (req, res) => {
 
     // Validate status transition
     if (!isValidTransition(currentReport.status, status)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: `Invalid status transition from '${currentReport.status}' to '${status}'`,
-        allowedTransitions: LEGACY_STATUS_TRANSITIONS[currentReport.status]
+        allowedTransitions: LEGACY_STATUS_TRANSITIONS[currentReport.status],
       });
     }
 
@@ -488,7 +537,7 @@ exports.updateReportStatus = async (req, res) => {
 
     res.json({
       message: `Report status updated to '${status}'`,
-      data: report
+      data: report,
     });
   } catch (err) {
     console.error("Update report status error:", err);
@@ -523,7 +572,7 @@ async function triggerWhatsAppDelivery(id) {
     const prefs = fullReport.delivery_preferences || {};
     let whatsappDelivery = {
       patient: { sent: false, skipped: true, reason: "Not requested" },
-      doctor: { sent: false, skipped: true, reason: "Not requested" }
+      doctor: { sent: false, skipped: true, reason: "Not requested" },
     };
 
     logWhatsAppDebug("Evaluating WhatsApp delivery preferences", { prefs });
@@ -531,16 +580,21 @@ async function triggerWhatsAppDelivery(id) {
     if (fullReport.patient_phone && !prefs.patient_whatsapp) {
       const reportLink = `${process.env.CLIENT_URL || "http://localhost:5173"}/reports/preview/${id}`;
       logWhatsAppDebug("Triggering template workflow notification (text only)");
-      workflowNotificationService.onReportApproved({
-        report: fullReport,
-        patientName: fullReport.patient_name,
-        patientPhone: fullReport.patient_phone,
-        branchName: reportBranch?.name,
-        testName: fullReport.report_type,
-        reportLink,
-      }).catch(err => {
-        logWhatsAppDebug("Workflow notification promise rejected:", err.message);
-      });
+      workflowNotificationService
+        .onReportApproved({
+          report: fullReport,
+          patientName: fullReport.patient_name,
+          patientPhone: fullReport.patient_phone,
+          branchName: reportBranch?.name,
+          testName: fullReport.report_type,
+          reportLink,
+        })
+        .catch((err) => {
+          logWhatsAppDebug(
+            "Workflow notification promise rejected:",
+            err.message,
+          );
+        });
     }
 
     if (prefs.patient_whatsapp || prefs.doctor_whatsapp) {
@@ -548,63 +602,103 @@ async function triggerWhatsAppDelivery(id) {
       let pdfBuffer = null;
       let pdfError = null;
 
-      logWhatsAppDebug("Checking WhatsApp connection status for branch", { branchId });
+      logWhatsAppDebug("Checking WhatsApp connection status for branch", {
+        branchId,
+      });
       const status = await whatsappService.getBranchStatus(branchId);
-      const isConnected = status?.session?.status === 'connected';
-      logWhatsAppDebug("WhatsApp connection check result", { isConnected, status });
+      const isConnected = status?.session?.status === "connected";
+      logWhatsAppDebug("WhatsApp connection check result", {
+        isConnected,
+        status,
+      });
 
       if (!isConnected) {
-        logWhatsAppDebug("WhatsApp is NOT connected for this branch. Skipping PDF delivery.");
         if (prefs.patient_whatsapp) {
+          const d = await reportDeliveryService.markPending({ reportId: fullReport.id, branchId, recipientType: "patient", recipientPhone: fullReport.patient_phone });
+          await reportDeliveryService.updateStatus(d, "failed", { reason: "WhatsApp is not connected for this branch" });
           whatsappDelivery.patient = { sent: false, reason: "WhatsApp is not connected for this branch" };
         }
         if (prefs.doctor_whatsapp) {
+          const d = await reportDeliveryService.markPending({ reportId: fullReport.id, branchId, recipientType: "doctor" });
+          await reportDeliveryService.updateStatus(d, "failed", { reason: "WhatsApp is not connected for this branch" });
           whatsappDelivery.doctor = { sent: false, reason: "WhatsApp is not connected for this branch" };
         }
       } else {
         // Generate PDF buffer (once)
         try {
-          const downloadToken = jwt.sign({ reportId: fullReport.id }, process.env.JWT_SECRET);
-          logWhatsAppDebug("Generating report PDF...", { reportId: fullReport.id });
-          pdfBuffer = await pdfGenerator.generateReportPdf(fullReport.id, downloadToken);
-          logWhatsAppDebug("PDF successfully generated", { size: pdfBuffer ? pdfBuffer.length : 0 });
+          const downloadToken = jwt.sign(
+            { reportId: fullReport.id },
+            process.env.JWT_SECRET,
+          );
+          logWhatsAppDebug("Generating report PDF...", {
+            reportId: fullReport.id,
+          });
+          pdfBuffer = await pdfGenerator.generateReportPdf(
+            fullReport.id,
+            downloadToken,
+          );
+          logWhatsAppDebug("PDF successfully generated", {
+            size: pdfBuffer ? pdfBuffer.length : 0,
+          });
         } catch (err) {
-          logWhatsAppDebug("PDF generation failed during approval:", err.message);
+          logWhatsAppDebug(
+            "PDF generation failed during approval:",
+            err.message,
+          );
           console.error("Auto-PDF generation failed during approval:", err);
           pdfError = err.message || "Failed to generate PDF";
         }
 
         // Process Patient WhatsApp
         if (prefs.patient_whatsapp) {
-          logWhatsAppDebug("Processing patient auto-WhatsApp PDF delivery");
+          const delivery = await reportDeliveryService.markPending({
+            reportId: fullReport.id,
+            branchId,
+            recipientType: "patient",
+            recipientPhone: fullReport.patient_phone,
+          });
           if (!fullReport.patient_phone) {
-            logWhatsAppDebug("Patient has no phone number registered.");
-            whatsappDelivery.patient = { sent: false, reason: "No phone number registered" };
+            await reportDeliveryService.updateStatus(delivery, "skipped", {
+              reason: "No phone number registered",
+            });
+            whatsappDelivery.patient = {
+              sent: false,
+              reason: "No phone number registered",
+            };
           } else if (pdfError) {
-            logWhatsAppDebug("Skipping patient WhatsApp due to PDF error.");
-            whatsappDelivery.patient = { sent: false, reason: `PDF Error: ${pdfError}` };
+            await reportDeliveryService.updateStatus(delivery, "failed", {
+              reason: `PDF Error: ${pdfError}`,
+            });
+            whatsappDelivery.patient = {
+              sent: false,
+              reason: `PDF Error: ${pdfError}`,
+            };
           } else {
             try {
-              const sampleId = fullReport.sample_id_code || 'N/A';
-              const message = `Hello ${fullReport.patient_name || 'Patient'},\n\nYour laboratory test report (${sampleId}) is ready. Please find the report PDF attached.\n\nBest regards,\nDiagnoPro`;
-              const fileName = `Report-${(fullReport.patient_name || 'Patient').replace(/\s+/g, '_')}-${fullReport.id}.pdf`;
-              
-              logWhatsAppDebug("Sending PDF message to patient", { to: fullReport.patient_phone });
-              await whatsappService.sendMessage({
+              await reportDeliveryService.updateStatus(delivery, "sending");
+              const sampleId = fullReport.sample_id_code || "N/A";
+              const message = `Hello ${fullReport.patient_name || "Patient"},\n\nYour laboratory test report (${sampleId}) is ready. Please find the report PDF attached.\n\nBest regards,\nDiagnoPro`;
+              const fileName = `Report-${(fullReport.patient_name || "Patient").replace(/\s+/g, "_")}-${fullReport.id}.pdf`;
+              const result = await whatsappService.sendMessage({
                 branchId,
                 to: fullReport.patient_phone,
                 message,
                 fileBuffer: pdfBuffer,
                 fileName,
-                mimeType: 'application/pdf',
-                metadata: { source: "auto_approve_patient", report_id: fullReport.id }
+                mimeType: "application/pdf",
+                metadata: {
+                  source: "auto_approve_patient",
+                  report_id: fullReport.id,
+                },
               });
-              
+              await reportDeliveryService.updateStatus(delivery, "sent", {
+                waMessageId: result?.wa_message_id,
+              });
               whatsappDelivery.patient = { sent: true };
-              logWhatsAppDebug("Patient PDF WhatsApp message sent successfully!");
             } catch (err) {
-              logWhatsAppDebug("Auto WhatsApp patient send error:", err.message);
-              console.error("Auto WhatsApp patient send error:", err);
+              await reportDeliveryService.updateStatus(delivery, "failed", {
+                reason: err.message,
+              });
               whatsappDelivery.patient = { sent: false, reason: err.message };
             }
           }
@@ -614,39 +708,62 @@ async function triggerWhatsAppDelivery(id) {
         if (prefs.doctor_whatsapp) {
           logWhatsAppDebug("Processing doctor auto-WhatsApp PDF delivery");
           if (fullReport.is_self_report || !fullReport.doctor_id) {
-            logWhatsAppDebug("Report is self-reported or has no doctor. Skipping doctor delivery.");
-            whatsappDelivery.doctor = { sent: false, reason: "Self-report (No doctor referenced)" };
+            logWhatsAppDebug(
+              "Report is self-reported or has no doctor. Skipping doctor delivery.",
+            );
+            whatsappDelivery.doctor = {
+              sent: false,
+              reason: "Self-report (No doctor referenced)",
+            };
           } else {
             const doctor = await Doctor.getDoctorById(fullReport.doctor_id);
             if (!doctor || !doctor.phone) {
-              logWhatsAppDebug("Referring doctor has no registered phone number.");
-              whatsappDelivery.doctor = { sent: false, reason: "Referring doctor has no registered phone number" };
+              logWhatsAppDebug(
+                "Referring doctor has no registered phone number.",
+              );
+              whatsappDelivery.doctor = {
+                sent: false,
+                reason: "Referring doctor has no registered phone number",
+              };
             } else if (pdfError) {
               logWhatsAppDebug("Skipping doctor WhatsApp due to PDF error.");
-              whatsappDelivery.doctor = { sent: false, reason: `PDF Error: ${pdfError}` };
+              whatsappDelivery.doctor = {
+                sent: false,
+                reason: `PDF Error: ${pdfError}`,
+              };
             } else {
               try {
-                const sampleId = fullReport.sample_id_code || 'N/A';
-                const docTitle = doctor.title || 'Dr';
+                const sampleId = fullReport.sample_id_code || "N/A";
+                const docTitle = doctor.title || "Dr";
                 const docName = `${docTitle}. ${doctor.name}`;
-                const message = `Hello ${docName},\n\nLaboratory test report (${sampleId}) for patient ${fullReport.patient_name || 'Patient'} is ready. Please find the report PDF attached.\n\nBest regards,\nDiagnoPro`;
-                const fileName = `Report-${(fullReport.patient_name || 'Patient').replace(/\s+/g, '_')}-${fullReport.id}.pdf`;
-                
-                logWhatsAppDebug("Sending PDF message to referring doctor", { to: doctor.phone });
+                const message = `Hello ${docName},\n\nLaboratory test report (${sampleId}) for patient ${fullReport.patient_name || "Patient"} is ready. Please find the report PDF attached.\n\nBest regards,\nDiagnoPro`;
+                const fileName = `Report-${(fullReport.patient_name || "Patient").replace(/\s+/g, "_")}-${fullReport.id}.pdf`;
+
+                logWhatsAppDebug("Sending PDF message to referring doctor", {
+                  to: doctor.phone,
+                });
                 await whatsappService.sendMessage({
                   branchId,
                   to: doctor.phone,
                   message,
                   fileBuffer: pdfBuffer,
                   fileName,
-                  mimeType: 'application/pdf',
-                  metadata: { source: "auto_approve_doctor", report_id: fullReport.id }
+                  mimeType: "application/pdf",
+                  metadata: {
+                    source: "auto_approve_doctor",
+                    report_id: fullReport.id,
+                  },
                 });
-                
+
                 whatsappDelivery.doctor = { sent: true };
-                logWhatsAppDebug("Doctor PDF WhatsApp message sent successfully!");
+                logWhatsAppDebug(
+                  "Doctor PDF WhatsApp message sent successfully!",
+                );
               } catch (err) {
-                logWhatsAppDebug("Auto WhatsApp doctor send error:", err.message);
+                logWhatsAppDebug(
+                  "Auto WhatsApp doctor send error:",
+                  err.message,
+                );
                 console.error("Auto WhatsApp doctor send error:", err);
                 whatsappDelivery.doctor = { sent: false, reason: err.message };
               }
@@ -670,23 +787,34 @@ exports.submitReport = async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role;
 
-    logWhatsAppDebug("submitReport controller started", { reportId: id, userId, userRole });
+    logWhatsAppDebug("submitReport controller started", {
+      reportId: id,
+      userId,
+      userRole,
+    });
 
     const report = await reportService.submitForReview(id, userId, userRole);
 
     let whatsappDelivery = undefined;
-    if (report && report.status === 'approved') {
-      logWhatsAppDebug("Report was auto-approved upon submission. Triggering WhatsApp auto-delivery.");
+    if (report && report.status === "approved") {
+      logWhatsAppDebug(
+        "Report was auto-approved upon submission. Triggering WhatsApp auto-delivery.",
+      );
       whatsappDelivery = await triggerWhatsAppDelivery(id);
     }
 
     res.json({
-      message: report.status === 'approved' ? "Report approved successfully" : "Report submitted for review successfully",
+      message:
+        report.status === "approved"
+          ? "Report approved successfully"
+          : "Report submitted for review successfully",
       data: report,
-      whatsapp_delivery: whatsappDelivery
+      whatsapp_delivery: whatsappDelivery,
     });
   } catch (err) {
-    logWhatsAppDebug("submitReport controller threw error", { error: err.message });
+    logWhatsAppDebug("submitReport controller threw error", {
+      error: err.message,
+    });
     console.error("Submit report error:", err);
     res.status(400).json({ error: err.message });
   }
@@ -704,11 +832,16 @@ exports.rejectReport = async (req, res) => {
       return res.status(400).json({ error: "Rejection reason is required" });
     }
 
-    const report = await reportService.rejectReport(id, userId, userRole, reason);
+    const report = await reportService.rejectReport(
+      id,
+      userId,
+      userRole,
+      reason,
+    );
 
     res.json({
       message: "Report rejected",
-      data: report
+      data: report,
     });
   } catch (err) {
     console.error("Reject report error:", err);
@@ -727,7 +860,7 @@ exports.reviseReport = async (req, res) => {
 
     res.json({
       message: "Report moved back to draft for revision",
-      data: report
+      data: report,
     });
   } catch (err) {
     console.error("Revise report error:", err);
@@ -755,16 +888,17 @@ exports.getReportsSummary = async (req, res) => {
         userBranches = await Branch.getUserBranches(userId);
       }
       if (userBranches.length > 0) {
-        filters.branch_ids = userBranches.map(b => b.id);
+        filters.branch_ids = userBranches.map((b) => b.id);
       }
     }
-    
-    const { reports, summary } = await reportService.getReportsWithSummary(filters);
+
+    const { reports, summary } =
+      await reportService.getReportsWithSummary(filters);
 
     res.json({
       message: "Reports summary retrieved successfully",
       summary,
-      totalReports: reports.length
+      totalReports: reports.length,
     });
   } catch (err) {
     console.error("Get reports summary error:", err);
@@ -790,7 +924,7 @@ exports.assignTechnician = async (req, res) => {
 
     res.json({
       message: "Technician assigned successfully",
-      data: report
+      data: report,
     });
   } catch (err) {
     console.error("Assign technician error:", err);
@@ -805,21 +939,34 @@ exports.approveReport = async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role;
 
-    logWhatsAppDebug("approveReport controller started", { reportId: id, userId, userRole });
+    logWhatsAppDebug("approveReport controller started", {
+      reportId: id,
+      userId,
+      userRole,
+    });
 
     const report = await reportService.approveReport(id, userId, userRole);
 
-    const whatsappDelivery = await triggerWhatsAppDelivery(id);
-
-    logWhatsAppDebug("approveReport controller finished successfully", { whatsappDelivery });
-
+    // Respond immediately — report is already approved in DB
     res.json({
       message: "Report approved successfully",
       data: report,
-      whatsapp_delivery: whatsappDelivery
+      whatsapp_delivery: { queued: true },
+    });
+
+    // Run PDF generation + WhatsApp send in the background (do NOT await)
+    setImmediate(() => {
+      triggerWhatsAppDelivery(id).catch((err) =>
+        logWhatsAppDebug("Background delivery failed", {
+          id,
+          error: err.message,
+        }),
+      );
     });
   } catch (err) {
-    logWhatsAppDebug("approveReport controller threw error", { error: err.message });
+    logWhatsAppDebug("approveReport controller threw error", {
+      error: err.message,
+    });
     console.error("Approve report error:", err);
     res.status(400).json({ error: err.message });
   }
@@ -835,7 +982,7 @@ exports.getReportsByPatient = async (req, res) => {
     res.json({
       message: "Patient reports retrieved successfully",
       count: reports.length,
-      data: reports
+      data: reports,
     });
   } catch (err) {
     console.error("Get patient reports error:", err);
@@ -856,7 +1003,7 @@ exports.deleteReport = async (req, res) => {
 
     res.json({
       message: "Report deleted successfully",
-      data: result
+      data: result,
     });
   } catch (err) {
     console.error("Delete report error:", err);
@@ -877,15 +1024,21 @@ exports.sendReport = async (req, res) => {
     // recipient_type: 'patient' | 'doctor'
 
     if (!channel || !recipient_type) {
-      return res.status(400).json({ error: "channel and recipient_type are required" });
+      return res
+        .status(400)
+        .json({ error: "channel and recipient_type are required" });
     }
 
-    if (!['whatsapp', 'email'].includes(channel)) {
-      return res.status(400).json({ error: "channel must be 'whatsapp' or 'email'" });
+    if (!["whatsapp", "email"].includes(channel)) {
+      return res
+        .status(400)
+        .json({ error: "channel must be 'whatsapp' or 'email'" });
     }
 
-    if (!['patient', 'doctor'].includes(recipient_type)) {
-      return res.status(400).json({ error: "recipient_type must be 'patient' or 'doctor'" });
+    if (!["patient", "doctor"].includes(recipient_type)) {
+      return res
+        .status(400)
+        .json({ error: "recipient_type must be 'patient' or 'doctor'" });
     }
 
     const report = await Report.getReportById(id);
@@ -895,59 +1048,64 @@ exports.sendReport = async (req, res) => {
 
     // Build recipient info
     let recipientName, recipientPhone, recipientEmail;
-    if (recipient_type === 'patient') {
+    if (recipient_type === "patient") {
       recipientName = report.patient_name;
       recipientPhone = report.patient_phone;
     } else {
-      recipientName = `Dr. ${report.doctor_firstname || ''} ${report.doctor_lastname || ''}`.trim();
+      recipientName =
+        `Dr. ${report.doctor_firstname || ""} ${report.doctor_lastname || ""}`.trim();
       recipientPhone = report.doctor_phone;
       recipientEmail = report.doctor_email;
     }
 
-    if (channel === 'whatsapp') {
+    if (channel === "whatsapp") {
       if (!recipientPhone) {
-        return res.status(400).json({ error: `No phone number found for ${recipient_type}` });
+        return res
+          .status(400)
+          .json({ error: `No phone number found for ${recipient_type}` });
       }
       // Return WhatsApp deep link for frontend to open
-      const sampleId = report.sample_id_code || 'N/A';
-      const message = recipient_type === 'patient'
-        ? `Hello ${recipientName},\n\nYour laboratory test report (${sampleId}) is ready. Please find the report attached.\n\nFor any questions, please contact us.\n\nBest regards,\nDiagnoPro`
-        : `Hello ${recipientName},\n\nLaboratory test report (${sampleId}) for patient ${report.patient_name} is ready. Please find the report attached.\n\nBest regards,\nDiagnoPro`;
-      
-      const cleanPhone = recipientPhone.replace(/[^0-9+]/g, '');
-      const whatsappUrl = `https://wa.me/${cleanPhone.replace('+', '')}?text=${encodeURIComponent(message)}`;
+      const sampleId = report.sample_id_code || "N/A";
+      const message =
+        recipient_type === "patient"
+          ? `Hello ${recipientName},\n\nYour laboratory test report (${sampleId}) is ready. Please find the report attached.\n\nFor any questions, please contact us.\n\nBest regards,\nDiagnoPro`
+          : `Hello ${recipientName},\n\nLaboratory test report (${sampleId}) for patient ${report.patient_name} is ready. Please find the report attached.\n\nBest regards,\nDiagnoPro`;
+
+      const cleanPhone = recipientPhone.replace(/[^0-9+]/g, "");
+      const whatsappUrl = `https://wa.me/${cleanPhone.replace("+", "")}?text=${encodeURIComponent(message)}`;
 
       return res.json({
         message: "WhatsApp link generated",
         data: {
-          channel: 'whatsapp',
+          channel: "whatsapp",
           recipient_type,
           recipient_name: recipientName,
           recipient_phone: recipientPhone,
           whatsapp_url: whatsappUrl,
           text_message: message,
-        }
+        },
       });
     }
 
-    if (channel === 'email') {
+    if (channel === "email") {
       // For now, return email data for frontend to handle via mailto
-      const sampleId = report.sample_id_code || 'N/A';
+      const sampleId = report.sample_id_code || "N/A";
       const subject = `Lab Report ${sampleId} - DiagnoPro`;
-      const body = recipient_type === 'patient'
-        ? `Dear ${recipientName},\n\nYour laboratory test report (${sampleId}) is ready.\n\nPlease find the report attached.\n\nFor any questions, please contact us.\n\nBest regards,\nDiagnoPro`
-        : `Dear ${recipientName},\n\nLaboratory test report (${sampleId}) for patient ${report.patient_name} is ready.\n\nPlease find the report attached.\n\nBest regards,\nDiagnoPro`;
+      const body =
+        recipient_type === "patient"
+          ? `Dear ${recipientName},\n\nYour laboratory test report (${sampleId}) is ready.\n\nPlease find the report attached.\n\nFor any questions, please contact us.\n\nBest regards,\nDiagnoPro`
+          : `Dear ${recipientName},\n\nLaboratory test report (${sampleId}) for patient ${report.patient_name} is ready.\n\nPlease find the report attached.\n\nBest regards,\nDiagnoPro`;
 
       return res.json({
         message: "Email data generated",
         data: {
-          channel: 'email',
+          channel: "email",
           recipient_type,
           recipient_name: recipientName,
           recipient_email: recipientEmail,
           subject,
           body,
-        }
+        },
       });
     }
   } catch (err) {
@@ -969,7 +1127,12 @@ exports.generateInterpretation = async (req, res) => {
 
     const testData = report.test_data;
     if (!testData) {
-      return res.status(400).json({ error: "No test data found in report. Please enter test values first." });
+      return res
+        .status(400)
+        .json({
+          error:
+            "No test data found in report. Please enter test values first.",
+        });
     }
 
     // Collect all parameters
@@ -985,14 +1148,25 @@ exports.generateInterpretation = async (req, res) => {
     }
 
     // Filter to only filled parameters
-    const filledParams = allParameters.filter(p => p.value != null && p.value !== '');
+    const filledParams = allParameters.filter(
+      (p) => p.value != null && p.value !== "",
+    );
     if (filledParams.length === 0) {
-      return res.status(400).json({ error: "No test values entered yet. Please fill in test results first." });
+      return res
+        .status(400)
+        .json({
+          error:
+            "No test values entered yet. Please fill in test results first.",
+        });
     }
 
-    const testName = testData.testName || report.report_type || 'Laboratory Test';
+    const testName =
+      testData.testName || report.report_type || "Laboratory Test";
 
-    const result = await aiService.generateInterpretation(testName, filledParams);
+    const result = await aiService.generateInterpretation(
+      testName,
+      filledParams,
+    );
 
     res.json({
       message: "Interpretation generated successfully",
@@ -1039,10 +1213,21 @@ exports.getPublicReport = async (req, res) => {
 
     res.json({
       message: "Public report retrieved successfully",
-      data: report
+      data: report,
     });
   } catch (err) {
     console.error("Get public report error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getDeliveryStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const rows = await reportDeliveryService.getForReport(id);
+    res.json({ message: "Delivery status retrieved", data: rows });
+  } catch (err) {
+    console.error("Get delivery status error:", err);
     res.status(500).json({ error: err.message });
   }
 };

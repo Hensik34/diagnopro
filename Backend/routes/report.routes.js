@@ -81,4 +81,8 @@ router.patch("/:id/assign-technician", authorize(PERMISSIONS.REPORT_ASSIGN_TECHN
 // Delete report
 router.delete("/:id", authorize(PERMISSIONS.REPORT_DELETE), reportController.deleteReport);
 
+
+// get delivery status of a report
+router.get("/:id/delivery-status", authMiddleware, reportController.getDeliveryStatus);
+
 module.exports = router;

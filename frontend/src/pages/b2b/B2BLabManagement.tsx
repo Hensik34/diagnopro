@@ -85,20 +85,22 @@ export function B2BLabManagement() {
   return (
     <div className="space-y-3">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-foreground text-lg mb-0.5">B2B Partner Labs</h1>
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground mb-0.5">B2B Partner Labs</h1>
           <p className="text-muted-foreground text-xs">
             Manage partner laboratories for outsourced reports
           </p>
         </div>
-        <button
-          onClick={openCreate}
-          className="h-8 px-3 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Lab
-        </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
+          <button
+            onClick={openCreate}
+            className="h-8 px-3 flex items-center justify-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs flex-1 sm:flex-none cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Lab
+          </button>
+        </div>
       </div>
 
       {/* Error */}

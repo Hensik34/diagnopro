@@ -85,55 +85,70 @@ export function Branches() {
   return (
     <div className="space-y-3 md:space-y-4">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3">
-        <div className="min-w-0">
-          <h1 className="text-base md:text-lg text-foreground mb-0.5 font-semibold">Branch Management</h1>
-          <p className="text-muted-foreground text-xs line-clamp-2">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+        <div>
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground mb-0.5">Branch Management</h1>
+          <p className="text-muted-foreground text-xs">
             Manage all laboratory locations
           </p>
         </div>
-        <button 
-          onClick={handleAdd}
-          className="h-8 px-2.5 flex items-center justify-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs w-full sm:w-auto flex-shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Add Branch</span>
-          <span className="sm:hidden">Add</span>
-        </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
+          <button 
+            onClick={handleAdd}
+            className="h-8 px-2.5 flex items-center justify-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs w-full sm:w-auto flex-shrink-0 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Branch
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
-        <div className="bg-card border border-border rounded p-2 md:p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Total Branches</span>
-            <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Total Branches</span>
+            <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </div>
-          <div className="text-foreground text-lg md:text-xl tabular-nums">{branches.length}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Locations</div>
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {branches.length}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">Locations</span>
+          </div>
         </div>
 
-        <div className="bg-card border border-border rounded p-2 md:p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Cities</span>
-            <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Cities</span>
+            <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </div>
-          <div className="text-foreground text-lg md:text-xl tabular-nums">
-            {new Set(branches.map(b => b.city).filter(Boolean)).size}
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {new Set(branches.map(b => b.city).filter(Boolean)).size}
+            </span>
           </div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Unique locations</div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">Unique locations</span>
+          </div>
         </div>
 
-        <div className="bg-card border border-border rounded p-2 md:p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Latest Added</span>
-            <Activity className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Latest Added</span>
+            <Activity className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </div>
-          <div className="text-foreground text-sm truncate">
-            {branches.length > 0 ? branches[branches.length - 1]?.name : '-'}
+          <div className="mb-2">
+            <span className="text-foreground text-lg tracking-tight font-semibold truncate block">
+              {branches.length > 0 ? branches[branches.length - 1]?.name : '-'}
+            </span>
           </div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">
-            {branches.length > 0 ? formatDate(branches[branches.length - 1]?.created_at) : '-'}
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">
+              {branches.length > 0 ? formatDate(branches[branches.length - 1]?.created_at) : '-'}
+            </span>
           </div>
         </div>
       </div>

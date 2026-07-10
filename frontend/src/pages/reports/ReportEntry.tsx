@@ -33,6 +33,7 @@ import type { AgeUnit, Doctor, Patient, Report, Test, TestField, ReferenceRule, 
 import { BillingSection } from "../../app/components/reports/BillingSection";
 import { SmartSelectInput } from "../../app/components/reports/SmartSelectInput";
 import { formatAge, getAgeMax, normalizeAgeUnit } from "../../utils/age";
+import { smartSearchFilter } from "../../utils";
 import { SUM_100_GROUPS, isQualitativeValueHigh, isMicroscopicRangeHigh } from "./reportSpecialCases";
 import { CustomConfirmModal } from "../../app/components/ui/CustomConfirmModal";
 import { PatientInfoHeader } from "../../app/components/reports/PatientInfoHeader";
@@ -357,15 +358,42 @@ export function ReportEntry() {
   // Parse test_data if it is a JSON string
   const parsedTestData = useMemo(() => {
     if (!selectedReport?.test_data) return null;
+    let data: any;
     if (typeof selectedReport.test_data === 'string') {
       try {
-        return JSON.parse(selectedReport.test_data);
+        data = JSON.parse(selectedReport.test_data);
       } catch {
         return null;
       }
+    } else {
+      data = selectedReport.test_data;
     }
-    return selectedReport.test_data;
-  }, [selectedReport]);
+    if (!data) return null;
+
+    // Ensure testIds is always present — reconstruct from fallback sources if missing
+    if (!data.testIds || !Array.isArray(data.testIds) || data.testIds.length === 0) {
+      // Try extracting from grouped tests array
+      if (data.tests && Array.isArray(data.tests) && data.tests.length > 0) {
+        const idsFromTests = data.tests
+          .map((t: any) => t.testId || t.id)
+          .filter(Boolean) as string[];
+        if (idsFromTests.length > 0) {
+          data = { ...data, testIds: idsFromTests };
+        }
+      }
+      // Fallback: match by report_type names against the tests store
+      if ((!data.testIds || data.testIds.length === 0) && selectedReport.report_type && tests.length > 0) {
+        const testNames = selectedReport.report_type.split(',').map((n: string) => n.trim().toLowerCase());
+        const matchedIds = tests
+          .filter(t => testNames.includes(t.test_name.toLowerCase()))
+          .map(t => t.id);
+        if (matchedIds.length > 0) {
+          data = { ...data, testIds: matchedIds };
+        }
+      }
+    }
+    return data;
+  }, [selectedReport, tests]);
 
   // Group parameters by test for multi-test section rendering
   const testSections = useMemo(() => {
@@ -1185,12 +1213,15 @@ export function ReportEntry() {
   // Filter tests based on search
   const filteredTests = useMemo(() => {
     const selectedTestIds = parsedTestData?.testIds || [];
-    return tests.filter(
-      (t) =>
-        !selectedTestIds.includes(t.id) &&
-        ((t.test_name || '').toLowerCase().includes(testSearch.toLowerCase()) ||
-          (t.category || '').toLowerCase().includes(testSearch.toLowerCase()))
-    ).slice(0, 15);
+    const unselected = tests.filter((t) => !selectedTestIds.includes(t.id));
+    if (!testSearch.trim()) {
+      return unselected.slice(0, 15);
+    }
+    return smartSearchFilter(unselected, testSearch, [
+      { field: (t: Test) => t.test_name, weight: 1.0 },
+      { field: (t: Test) => t.test_code, weight: 0.9 },
+      { field: (t: Test) => t.category, weight: 0.6 },
+    ]).slice(0, 15);
   }, [tests, parsedTestData, testSearch]);
 
   const handleAddTest = async (test: Test) => {
@@ -1229,7 +1260,6 @@ export function ReportEntry() {
     setTestSearch("");
     setShowTestDropdown(false);
     setActiveTestIndex(0);
-    setReportStatus("draft");
 
     if (reportId) {
       try {
@@ -1318,7 +1348,6 @@ export function ReportEntry() {
     setTestName(newReportType);
     setReportAmount(newAmount);
     setBaseAmount(newAmount);
-    setReportStatus("draft");
 
     if (reportId) {
       try {
@@ -1949,7 +1978,7 @@ export function ReportEntry() {
     try {
       const saved = await saveCurrentReportData();
       if (saved) {
-        navigate('/reports');
+        toast.success("Draft saved successfully");
       }
     } catch (error) {
       console.error("Failed to save draft:", error);
@@ -3089,7 +3118,7 @@ export function ReportEntry() {
                     onFocus={() => setShowTestDropdown(true)}
                     onKeyDown={handleTestSearchKeyDown}
                     className="w-full h-9 pl-9 pr-3 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-                    placeholder="Search by test name or category..."
+                    placeholder="Search by test name, code or category..."
                   />
                   {showTestDropdown && filteredTests.length > 0 && (
                     <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
@@ -3102,7 +3131,10 @@ export function ReportEntry() {
                         >
                           <div>
                             <div className="font-semibold text-foreground">{test.test_name}</div>
-                            <div className="text-[10px] text-muted-foreground mt-0.5">{test.category || 'General'}</div>
+                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                              {test.test_code && <span className="uppercase font-semibold mr-1.5">{test.test_code}</span>}
+                              {test.category || 'General'}
+                            </div>
                           </div>
                           <div className="font-semibold text-primary">
                             ₹{test.price}

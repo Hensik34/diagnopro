@@ -315,6 +315,7 @@ export function ReportPreview() {
   const [safeZones, setSafeZones] = useState<SafeZones>({ top: 52, bottom: 56, left: 24, right: 24 });
   const [zoom, setZoom] = useState(1);
   const [baseScale, setBaseScale] = useState(1);
+  const effectiveScale = clamp(baseScale * zoom, 0.3, 2);
   const [sectionOrder, setSectionOrder] = useState<string[]>([]);
   const [originalSectionOrder, setOriginalSectionOrder] = useState<string[]>([]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -837,22 +838,38 @@ export function ReportPreview() {
   useEffect(() => {
     if (!viewerRef.current) return;
 
-    const observerOptions = {
-      root: viewerRef.current,
-      threshold: 0.25,
-    };
+    const visiblePageRatios = new Map<Element, number>();
 
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting && viewerRef.current) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          visiblePageRatios.set(entry.target, entry.intersectionRatio);
+        });
+
+        // Find the page with the highest visibility ratio
+        let maxRatio = -1;
+        let mostVisiblePage: Element | null = null;
+        visiblePageRatios.forEach((ratio, target) => {
+          if (ratio > maxRatio) {
+            maxRatio = ratio;
+            mostVisiblePage = target;
+          }
+        });
+
+        if (mostVisiblePage && maxRatio > 0) {
+          if (!viewerRef.current) return;
           const pagesList = Array.from(viewerRef.current.querySelectorAll('.report-page'));
-          const index = pagesList.indexOf(entry.target);
+          const index = pagesList.indexOf(mostVisiblePage);
           if (index !== -1) {
             setActivePageIndex(index);
           }
         }
-      });
-    }, observerOptions);
+      },
+      {
+        root: viewerRef.current,
+        threshold: [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0],
+      }
+    );
 
     const pagesList = viewerRef.current.querySelectorAll('.report-page');
     pagesList.forEach((el) => observer.observe(el));
@@ -860,15 +877,13 @@ export function ReportPreview() {
     return () => {
       observer.disconnect();
     };
-  }, [pages, reportData]);
+  }, [pages, reportData, effectiveScale]);
 
   const handleSelectPage = (index: number) => {
     setActivePageIndex(index);
     if (!viewerRef.current) return;
-    const pagesList = viewerRef.current.querySelectorAll('.report-page');
-    if (pagesList && pagesList[index]) {
-      pagesList[index].scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    const targetScrollTop = index * (A4_HEIGHT_PX + PAGE_GAP_PX) * effectiveScale;
+    viewerRef.current.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
   };
 
   const isSelfReport = reportData?.patient.referringDoctor === 'Self' || rawReport?.is_self_report;
@@ -988,6 +1003,35 @@ export function ReportPreview() {
           scrollY: 0,
           onclone: (doc) => {
             doc.body.style.setProperty('-webkit-font-smoothing', 'antialiased');
+            
+            // html2canvas parser crashes when encountering the modern "oklch" CSS color function.
+            // We sanitize all stylesheets in the cloned document by removing rules containing "oklch".
+            const sanitizeRules = (rulesList: CSSRuleList, parent: any) => {
+              try {
+                for (let i = rulesList.length - 1; i >= 0; i--) {
+                  const rule = rulesList[i];
+                  if (rule.cssText.includes('oklch')) {
+                    if (typeof parent.deleteRule === 'function') {
+                      parent.deleteRule(i);
+                    }
+                  } else if ('cssRules' in rule && (rule as any).cssRules) {
+                    sanitizeRules((rule as any).cssRules, rule);
+                  }
+                }
+              } catch (e) {}
+            };
+
+            try {
+              const sheets = Array.from(doc.styleSheets);
+              for (const sheet of sheets) {
+                try {
+                  const rules = sheet.cssRules || sheet.rules;
+                  if (rules) {
+                    sanitizeRules(rules, sheet);
+                  }
+                } catch (err) {}
+              }
+            } catch (err) {}
           },
         });
 
@@ -1436,7 +1480,6 @@ export function ReportPreview() {
     );
   };
 
-  const effectiveScale = clamp(baseScale * zoom, 0.3, 2);
   const stackHeight = pages.length * A4_HEIGHT_PX + Math.max(0, pages.length - 1) * PAGE_GAP_PX;
   return (
     <div className="report-viewer-shell flex flex-col h-[calc(100vh-76px)] overflow-hidden space-y-2.5 w-full px-1.5 sm:px-2 pb-1.5 bg-slate-50/50 dark:bg-slate-950/20">
@@ -1821,6 +1864,15 @@ function PageThumbnailPanel({
   onSelectPage: (idx: number) => void;
   renderPage?: (idx: number) => React.ReactNode;
 }) {
+  const thumbnailRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    const activeEl = thumbnailRefs.current[activePageIndex];
+    if (activeEl) {
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [activePageIndex]);
+
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm select-none h-full flex flex-col overflow-hidden">
       <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3 flex items-center justify-between flex-shrink-0">
@@ -1833,6 +1885,7 @@ function PageThumbnailPanel({
         {pages.map((page, idx) => (
           <div
             key={idx}
+            ref={(el) => { thumbnailRefs.current[idx] = el; }}
             onClick={() => onSelectPage(idx)}
             className="flex flex-col items-center gap-1.5 cursor-pointer group"
           >

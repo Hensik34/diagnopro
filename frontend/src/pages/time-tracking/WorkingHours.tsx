@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { Clock, Users, Calendar, Timer, ChevronDown, ChevronUp, Trash2, Loader2 } from 'lucide-react';
 import { useTimeLogStore } from '../../stores';
 import { useBranchStore } from '../../stores/branchStore';
@@ -38,6 +39,12 @@ export function WorkingHours() {
   const [loadingLogs, setLoadingLogs] = useState(false);
 
   useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error]);
+
+  useEffect(() => {
     const [year, month] = selectedMonth.split('-').map(Number);
     const startDate = new Date(year, month - 1, 1).toISOString();
     const endDate = new Date(year, month, 1).toISOString();
@@ -67,12 +74,15 @@ export function WorkingHours() {
     const success = await deleteLog(logId);
     if (success) {
       setUserLogs((prev) => prev.filter((l) => l.id !== logId));
+      toast.success("Time log deleted successfully");
       // Refresh summary
       const [year, month] = selectedMonth.split('-').map(Number);
       fetchUserSummary(
         new Date(year, month - 1, 1).toISOString(),
         new Date(year, month, 1).toISOString()
       );
+    } else {
+      toast.error(error || "Failed to delete time log");
     }
   };
 
@@ -87,19 +97,21 @@ export function WorkingHours() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Working Hours</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground mb-0.5">Working Hours</h1>
+          <p className="text-muted-foreground text-xs">
             View and manage staff working hours
           </p>
         </div>
-        <input
-          type="month"
-          value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
-          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-        />
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="w-full sm:w-auto h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer text-foreground"
+          />
+        </div>
       </div>
 
       {/* Error */}
@@ -111,38 +123,49 @@ export function WorkingHours() {
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Active Staff</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{userSummary.length}</p>
-            </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Active Staff</span>
+            <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          </div>
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {userSummary.length}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">Staff tracked this month</span>
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <Timer className="w-5 h-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Hours</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalHoursAll}h</p>
-            </div>
+
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Total Hours</span>
+            <Timer className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          </div>
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {totalHoursAll}h
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">Accumulated duration</span>
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Sessions</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalSessions}</p>
-            </div>
+
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Total Sessions</span>
+            <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          </div>
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {totalSessions}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">Work periods logged</span>
           </div>
         </div>
       </div>
@@ -168,7 +191,7 @@ export function WorkingHours() {
               <div key={user.user_id}>
                 <button
                   onClick={() => handleExpandUser(user.user_id)}
-                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                  className="w-full px-4 py-1.5 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-sm font-medium text-gray-700 dark:text-gray-300">

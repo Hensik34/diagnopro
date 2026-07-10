@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useParams, useNavigate } from 'react-router';
 import { CustomConfirmModal } from '../../app/components/ui/CustomConfirmModal';
 import { SmartSelectInput } from '../../app/components/reports/SmartSelectInput';
@@ -464,9 +465,17 @@ export function TemplateEditor() {
   const [dbUpdatedAt, setDbUpdatedAt] = useState<string>('');
   const [isDirty, setIsDirty] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, _setError] = useState<string | null>(null);
+  const setError = (msg: string | null) => {
+    _setError(msg);
+    if (msg) toast.error(msg);
+  };
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
+  const [saveSuccess, _setSaveSuccess] = useState<boolean>(false);
+  const setSaveSuccess = (val: boolean) => {
+    _setSaveSuccess(val);
+    if (val) toast.success("Layout saved successfully");
+  };
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
   const [confirmModal, setConfirmModal] = useState<{

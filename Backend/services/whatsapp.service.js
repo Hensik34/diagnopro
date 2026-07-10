@@ -22,6 +22,7 @@ const SESSIONS_ROOT = path.join(__dirname, "..", "data", "whatsapp-sessions");
 const clients = new Map();
 const qrCache = new Map();
 const retryAttempts = new Map(); // Track retry attempts to prevent infinite loops
+const connecting = new Set();
 
 async function waitForQr(branchId, timeoutMs = 15000, intervalMs = 250) {
   const startedAt = Date.now();
@@ -181,25 +182,44 @@ async function handleConnectionUpdate(branchId, update, saveCreds, userId = null
   if (connection === "close") {
     const statusCode = lastDisconnect?.error?.output?.statusCode;
     const isLoggedOut = statusCode === DisconnectReason.loggedOut;
-    const errorMessage = lastDisconnect?.error?.message || lastDisconnect?.error?.toString();
-    
-    console.log(`[WhatsApp] Disconnected for branch ${branchId}`, {
-      statusCode,
-      reason: errorMessage,
-      isLoggedOut,
-    });
+    const isRestartRequired = statusCode === DisconnectReason.restartRequired; // 515
+    const errorMessage = lastDisconnect?.error?.message;
 
-    // Only clear session files on logout, not on stream errors
+    // Clean up the old socket in all cases
+    clients.delete(branchId);
+    qrCache.delete(branchId);
+
+    // 515 after QR scan is EXPECTED — reconnect immediately, stay "connecting"
+    if (isRestartRequired) {
+      console.log(`[WhatsApp] Restart required (515) for branch ${branchId} — reconnecting now`);
+      await upsertSessionRecord(branchId, {
+        status: CONNECTION_STATUS.CONNECTING,
+        failure_reason: null,
+      }, userId);
+      await emitStatus(branchId);
+      await saveCreds();
+
+      // Ensure the previous connect fully released the lock before reconnecting,
+      // and retry a few times if a concurrent connect still holds it.
+      const scheduleReconnect = (tries = 0) => {
+        if (!connecting.has(branchId)) {
+          connectBranch(branchId, { reconnect: true, userId }).catch((e) =>
+            console.error("515 reconnect failed", branchId, e.message)
+          );
+        } else if (tries < 10) {
+          setTimeout(() => scheduleReconnect(tries + 1), 300);
+        } else {
+          console.error(`[WhatsApp] 515 reconnect gave up waiting for lock on branch ${branchId}`);
+        }
+      };
+      setTimeout(() => scheduleReconnect(), 300);
+      return;
+    }
+
+
     if (isLoggedOut) {
-      console.log(`[WhatsApp] Logged out - clearing session for branch ${branchId}`);
       await clearBranchSessionFiles(branchId);
-      clients.delete(branchId);
-      qrCache.delete(branchId);
       retryAttempts.delete(branchId);
-    } else {
-      // For other errors, just clean up the socket and keep credentials
-      clients.delete(branchId);
-      qrCache.delete(branchId);
     }
 
     const nextStatus = isLoggedOut
@@ -217,20 +237,13 @@ async function handleConnectionUpdate(branchId, update, saveCreds, userId = null
       reason: errorMessage || "Connection closed",
       status: nextStatus,
     });
-
     await emitStatus(branchId);
 
-    // Don't retry if logged out
-    if (isLoggedOut) {
-      return;
-    }
+    if (isLoggedOut) return;
 
-    // Check retry count for other errors
     const attempts = (retryAttempts.get(branchId) || 0) + 1;
     retryAttempts.set(branchId, attempts);
-    
     if (attempts > 3) {
-      console.error(`[WhatsApp] Max retries (${attempts}) exceeded for branch ${branchId}. Stopping retry attempts.`);
       await upsertSessionRecord(branchId, {
         status: CONNECTION_STATUS.DISCONNECTED,
         failure_reason: 'Connection keeps failing - please generate QR again',
@@ -238,128 +251,135 @@ async function handleConnectionUpdate(branchId, update, saveCreds, userId = null
       return;
     }
 
-    // Longer retry delay for stream errors (515) to let WhatsApp stabilize
-    const retryDelayMs = statusCode === 515 ? 5000 : 3000;
-    console.log(`[WhatsApp] Retry attempt ${attempts}/3 for branch ${branchId} in ${retryDelayMs}ms`);
-    
     setTimeout(() => {
       if (!clients.has(branchId)) {
-        connectBranch(branchId, { reconnect: true }).catch((error) => {
-          console.error("WhatsApp reconnect failed", { branchId, error: error.message });
-        });
+        connectBranch(branchId, { reconnect: true, userId }).catch((error) =>
+          console.error("WhatsApp reconnect failed", { branchId, error: error.message })
+        );
       }
-    }, retryDelayMs);
+    }, 3000);
   }
+
 
   await saveCreds();
 }
 
+
 async function connectBranch(branchId, options = {}) {
-  const existing = clients.get(branchId);
-  
-  // If socket exists and is CONNECTED, reuse it
-  if (existing?.socket && existing.socket.user) {
-    console.log(`[WhatsApp] Socket already connected for branch ${branchId}`);
+  // --- LOCK: if a connect is already in progress for this branch, don't start another ---
+  if (connecting.has(branchId)) {
+    console.log(`[WhatsApp] Connect already in progress for branch ${branchId} — skipping duplicate`);
     return sanitizeSession(await WhatsappSession.findOne({ where: { branch_id: branchId } }));
   }
-  
-  // If socket exists but not connected yet, wait for it to connect
-  // Don't create a new one - let the existing one finish authenticating
-  if (existing?.socket && !existing.socket.user && !existing.isClosing) {
-    console.log(`[WhatsApp] Waiting for existing socket to authenticate for branch ${branchId}`);
-    return sanitizeSession(await WhatsappSession.findOne({ where: { branch_id: branchId } }));
-  }
-  
-  // Socket is dead/closing, remove it and create new one
-  if (existing?.socket) {
-    console.log(`[WhatsApp] Closing broken connection for branch ${branchId}`);
-    try {
-      await existing.socket.end();
-    } catch (err) {
-      // ignore error
-    }
-    clients.delete(branchId);
-    qrCache.delete(branchId);
-  }
+  connecting.add(branchId);
 
-  console.log(`[WhatsApp] Initiating new connection for branch ${branchId}...`);
-  
-  const sessionDir = ensureSessionDir(branchId);
-  const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
-  const versionInfo = await fetchLatestBaileysVersion();
-  
-  if (!versionInfo || !versionInfo.version) {
-    throw new Error('Failed to fetch Baileys version information');
-  }
-  
-  const { version } = versionInfo;
-  const versionString = Array.isArray(version) ? version.join('.') : String(version);
-  console.log(`[WhatsApp] Baileys version: ${versionString}`);
-
-  await upsertSessionRecord(branchId, {
-    status: CONNECTION_STATUS.CONNECTING,
-    failure_reason: null,
-  }, options.userId || null);
-
-  let socket;
   try {
-    socket = makeWASocket({
-      auth: state,
-      printQRInTerminal: false,
-      version,
-      syncFullHistory: false,
-      logger: pino({ level: "silent" }),
-      // Conservative settings to prevent stream errors
-      retryRequestDelayMs: 100,
-      maxRetries: 3,
-      connectionTimeoutMs: 60000,
-      keepAliveIntervalMs: 30000,
-      emitOwnEvents: false,
-      shouldSyncHistoryMessage: () => false,
-      fireInitQueries: false,
-      generateHighQualityLinkPreview: false,
-      // Disable browser detection to prevent blocking
-      browser: ["DiagnoPro", "Chrome", "4.0"],
-      // Don't try to load history
-      markOnlineOnConnect: true,
-      // Reduce load
-      maxMsgsInMemory: 20,
-    });
-    
-    if (!socket) {
-      throw new Error('Failed to create WhatsApp socket instance');
+    const existing = clients.get(branchId);
+
+    // If socket exists and is CONNECTED, reuse it
+    if (existing?.socket && existing.socket.user) {
+      console.log(`[WhatsApp] Socket already connected for branch ${branchId}`);
+      return sanitizeSession(await WhatsappSession.findOne({ where: { branch_id: branchId } }));
     }
-  } catch (err) {
-    console.error(`[WhatsApp] Socket creation failed for branch ${branchId}:`, err.message);
+
+    // If socket exists but not connected yet, wait for it to connect
+    // Don't create a new one - let the existing one finish authenticating
+    if (existing?.socket && !existing.socket.user && !existing.isClosing) {
+      console.log(`[WhatsApp] Waiting for existing socket to authenticate for branch ${branchId}`);
+      return sanitizeSession(await WhatsappSession.findOne({ where: { branch_id: branchId } }));
+    }
+
+    // Socket is dead/closing, remove it and create new one
+    if (existing?.socket) {
+      console.log(`[WhatsApp] Closing broken connection for branch ${branchId}`);
+      try {
+        await existing.socket.end();
+      } catch (err) {
+        // ignore error
+      }
+      clients.delete(branchId);
+      qrCache.delete(branchId);
+    }
+
+    console.log(`[WhatsApp] Initiating new connection for branch ${branchId}...`);
+
+    const sessionDir = ensureSessionDir(branchId);
+    const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+    const versionInfo = await fetchLatestBaileysVersion();
+
+    if (!versionInfo || !versionInfo.version) {
+      throw new Error('Failed to fetch Baileys version information');
+    }
+
+    const { version } = versionInfo;
+    const versionString = Array.isArray(version) ? version.join('.') : String(version);
+    console.log(`[WhatsApp] Baileys version: ${versionString}`);
+
     await upsertSessionRecord(branchId, {
-      status: CONNECTION_STATUS.DISCONNECTED,
-      failure_reason: `Socket creation failed: ${err.message}`,
+      status: CONNECTION_STATUS.CONNECTING,
+      failure_reason: null,
     }, options.userId || null);
-    throw err;
-  }
 
-  clients.set(branchId, { socket, createdAt: Date.now() });
-
-  // Handle socket errors early
-  socket.ev.on("ws.error", (error) => {
-    console.error(`[WhatsApp] WebSocket error for branch ${branchId}:`, error?.message);
-  });
-
-  socket.ev.on("creds.update", saveCreds);
-  socket.ev.on("connection.update", async (update) => {
+    let socket;
     try {
-      await handleConnectionUpdate(branchId, update, saveCreds, options.userId || null);
+      socket = makeWASocket({
+        auth: state,
+        printQRInTerminal: false,
+        version,
+        syncFullHistory: false,
+        logger: pino({ level: "silent" }),
+        // Conservative settings to prevent stream errors
+        retryRequestDelayMs: 100,
+        maxRetries: 3,
+        connectionTimeoutMs: 60000,
+        keepAliveIntervalMs: 30000,
+        emitOwnEvents: false,
+        shouldSyncHistoryMessage: () => false,
+        fireInitQueries: false,
+        generateHighQualityLinkPreview: false,
+        // Disable browser detection to prevent blocking
+        browser: ["DiagnoPro", "Chrome", "4.0"],
+        // Don't try to load history
+        markOnlineOnConnect: true,
+        // Reduce load
+        maxMsgsInMemory: 20,
+      });
+
+      if (!socket) {
+        throw new Error('Failed to create WhatsApp socket instance');
+      }
     } catch (err) {
-      console.error(`[WhatsApp] Connection update error for branch ${branchId}:`, err.message);
+      console.error(`[WhatsApp] Socket creation failed for branch ${branchId}:`, err.message);
+      await upsertSessionRecord(branchId, {
+        status: CONNECTION_STATUS.DISCONNECTED,
+        failure_reason: `Socket creation failed: ${err.message}`,
+      }, options.userId || null);
+      throw err;
     }
-  });
 
+    clients.set(branchId, { socket, createdAt: Date.now() });
 
+    // Handle socket errors early
+    socket.ev.on("ws.error", (error) => {
+      console.error(`[WhatsApp] WebSocket error for branch ${branchId}:`, error?.message);
+    });
 
-  await emitStatus(branchId);
-  return sanitizeSession(await WhatsappSession.findOne({ where: { branch_id: branchId } }));
+    socket.ev.on("creds.update", saveCreds);
+    socket.ev.on("connection.update", async (update) => {
+      try {
+        await handleConnectionUpdate(branchId, update, saveCreds, options.userId || null);
+      } catch (err) {
+        console.error(`[WhatsApp] Connection update error for branch ${branchId}:`, err.message);
+      }
+    });
+
+    await emitStatus(branchId);
+    return sanitizeSession(await WhatsappSession.findOne({ where: { branch_id: branchId } }));
+  } finally {
+    // --- UNLOCK: always release so future reconnects can proceed ---
+    connecting.delete(branchId);
+  }
 }
-
 async function clearBranchSessionFiles(branchId) {
   const sessionDir = path.join(SESSIONS_ROOT, String(branchId));
   if (await fs.pathExists(sessionDir)) {
@@ -415,7 +435,7 @@ async function getBranchQr(branchId) {
   }
 
   const session = await WhatsappSession.findOne({ where: { branch_id: branchId } });
-  
+
   // If already connected, no QR needed
   if (session?.status === CONNECTION_STATUS.CONNECTED) {
     console.log(`[WhatsApp] Branch ${branchId} already connected, no QR`);
@@ -466,7 +486,7 @@ async function sendMessage({ branchId, to, message, metadata = {}, templateId = 
 
   try {
     let messageContent = { text: message };
-    
+
     // If a file is provided, send it as a media message
     if (fileBuffer && fileName) {
       messageContent = {
@@ -476,7 +496,7 @@ async function sendMessage({ branchId, to, message, metadata = {}, templateId = 
         caption: message || undefined,
       };
     }
-    
+
     const response = await instance.socket.sendMessage(jid, messageContent);
     return { success: true, wa_message_id: response?.key?.id || null };
   } catch (error) {

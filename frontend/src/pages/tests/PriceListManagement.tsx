@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { toast } from 'sonner';
 import { CustomConfirmModal } from '../../app/components/ui/CustomConfirmModal';
 import {
   Plus,
@@ -46,8 +47,16 @@ export function PriceListManagement() {
   const [isLoadingLists, setIsLoadingLists] = useState(false);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, _setErrorMessage] = useState<string | null>(null);
+  const setErrorMessage = (msg: string | null) => {
+    _setErrorMessage(msg);
+    if (msg) toast.error(msg);
+  };
+  const [successMessage, _setSuccessMessage] = useState<string | null>(null);
+  const setSuccessMessage = (msg: string | null) => {
+    _setSuccessMessage(msg);
+    if (msg) toast.success(msg);
+  };
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');

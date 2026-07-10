@@ -168,17 +168,17 @@ export function ReportReview() {
       )}
 
       {/* Page Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-foreground text-lg mb-0.5">Report Review</h1>
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground mb-0.5">Report Review</h1>
           <p className="text-muted-foreground text-xs">
             Review and approve or reject submitted reports
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
           <button
             onClick={() => fetchReports({ status: 'under_review' })}
-            className="h-8 px-3 flex items-center gap-1.5 rounded text-xs bg-secondary border border-border hover:bg-accent transition-colors"
+            className="h-8 px-3 flex items-center justify-center gap-1.5 rounded text-xs bg-secondary border border-border hover:bg-accent transition-colors flex-1 sm:flex-none cursor-pointer"
             disabled={isLoading}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -188,44 +188,49 @@ export function ReportReview() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-card border border-border rounded p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded bg-warning/20 flex items-center justify-center">
-              <Clock className="w-4 h-4 text-warning" />
-            </div>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-              Pending Review
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Pending Review</span>
+            <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          </div>
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {underReviewReports.length}
             </span>
           </div>
-          <div className="text-2xl text-foreground font-semibold">
-            {underReviewReports.length}
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">Awaiting approval</span>
           </div>
         </div>
-        <div className="bg-card border border-border rounded p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded bg-success/20 flex items-center justify-center">
-              <CheckCircle className="w-4 h-4 text-success" />
-            </div>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-              Approved Today
+
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Approved Today</span>
+            <CheckCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          </div>
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              -
             </span>
           </div>
-          <div className="text-2xl text-foreground font-semibold">
-            -
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">Successfully processed</span>
           </div>
         </div>
-        <div className="bg-card border border-border rounded p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded bg-destructive/20 flex items-center justify-center">
-              <XCircle className="w-4 h-4 text-destructive" />
-            </div>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-              Rejected Today
+
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Rejected Today</span>
+            <XCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          </div>
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              -
             </span>
           </div>
-          <div className="text-2xl text-foreground font-semibold">
-            -
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">Requires revision</span>
           </div>
         </div>
       </div>
@@ -244,7 +249,7 @@ export function ReportReview() {
             {underReviewReports.map((report) => (
               <div 
                 key={report.id}
-                className="p-4 hover:bg-accent/30 transition-colors"
+                className="p-2.5 hover:bg-accent/30 transition-colors"
               >
                 <div className="flex items-start justify-between">
                   {/* Report Info */}

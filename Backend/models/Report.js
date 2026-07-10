@@ -249,23 +249,30 @@ exports.updateReport = async (id, reportData) => {
   if (current) {
     // If report is locked, prevent modifying any pricing-related fields
     if (current.price_locked) {
-      const pricingFields = ["report_amount", "base_amount", "lab_discount_type", "lab_discount_value", "doctor_discount", "final_amount", "price_list_id"];
-      const changingPricingFields = Object.keys(updateObj).filter(key => {
-        if (!pricingFields.includes(key)) return false;
-        const currentVal = current[key];
-        const newVal = updateObj[key];
-        if (currentVal === newVal) return false;
-        
-        // Handle numeric comparisons (strings vs numbers from database decimal/float types)
-        if (currentVal !== null && currentVal !== undefined && newVal !== null && newVal !== undefined) {
-          if (!isNaN(Number(currentVal)) && !isNaN(Number(newVal))) {
-            return Number(currentVal) !== Number(newVal);
+      // Allow pricing changes when tests are being added/removed (test_data is changing)
+      const isTestListChange = updateObj.test_data !== undefined;
+      if (isTestListChange) {
+        // Keep price locked after this update completes
+        updateObj.price_locked = true;
+      } else {
+        const pricingFields = ["report_amount", "base_amount", "lab_discount_type", "lab_discount_value", "doctor_discount", "final_amount", "price_list_id"];
+        const changingPricingFields = Object.keys(updateObj).filter(key => {
+          if (!pricingFields.includes(key)) return false;
+          const currentVal = current[key];
+          const newVal = updateObj[key];
+          if (currentVal === newVal) return false;
+          
+          // Handle numeric comparisons (strings vs numbers from database decimal/float types)
+          if (currentVal !== null && currentVal !== undefined && newVal !== null && newVal !== undefined) {
+            if (!isNaN(Number(currentVal)) && !isNaN(Number(newVal))) {
+              return Number(currentVal) !== Number(newVal);
+            }
           }
+          return currentVal !== newVal;
+        });
+        if (changingPricingFields.length > 0) {
+          throw new Error(`Cannot modify prices — report is locked (status: ${current.status})`);
         }
-        return currentVal !== newVal;
-      });
-      if (changingPricingFields.length > 0) {
-        throw new Error(`Cannot modify prices — report is locked (status: ${current.status})`);
       }
     }
 

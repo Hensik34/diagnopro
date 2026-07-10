@@ -34,6 +34,7 @@ const DoctorPriceListAssignment = require("./definitions/DoctorPriceListAssignme
 const DoctorTestPrice = require("./definitions/DoctorTestPrice");
 const ReportTestPrice = require("./definitions/ReportTestPrice");
 const PriceAuditLog = require("./definitions/PriceAuditLog");
+const ReportDelivery = require("./ReportDelivery");
 
 // Associations
 User.belongsToMany(Branch, { through: UserBranch, foreignKey: "user_id", otherKey: "branch_id", as: "branches" });
@@ -217,4 +218,5 @@ module.exports = {
   DoctorTestPrice,
   ReportTestPrice,
   PriceAuditLog,
+  ReportDelivery,
 };

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { Loader2, QrCode, Unplug, Send, RefreshCw, AlertTriangle, Save } from 'lucide-react';
 import { whatsappApi, getWhatsAppSocket, closeWhatsAppSocket, type WhatsAppSession, type WhatsAppTemplate } from '../../api/whatsapp';
 import { useBranchStore } from '../../stores';
@@ -26,7 +27,11 @@ export function WhatsAppIntegration() {
   const [connection, setConnection] = useState<WhatsAppSession | null>(null);
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, _setError] = useState<string | null>(null);
+  const setError = (msg: string | null) => {
+    _setError(msg);
+    if (msg) toast.error(msg);
+  };
 
   const [recipient, setRecipient] = useState('');
   const [messageText, setMessageText] = useState('Hello from DiagnoPro WhatsApp integration.');
@@ -238,6 +243,7 @@ export function WhatsAppIntegration() {
     try {
       await whatsappApi.sendMessage(activeBranchId, recipient, messageText);
       setRecipient('');
+      toast.success('Test message sent successfully');
       await loadAll(activeBranchId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send message');
@@ -276,6 +282,7 @@ export function WhatsAppIntegration() {
         template_body: draft.template_body,
         is_enabled: true,
       });
+      toast.success('Template saved successfully');
       await loadAll(activeBranchId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save template');
@@ -290,6 +297,7 @@ export function WhatsAppIntegration() {
     try {
       await whatsappApi.saveNotificationSetting(activeBranchId, eventKey, nextValue);
       setSettingsMap((prev) => ({ ...prev, [eventKey]: nextValue }));
+      toast.success(`Notification ${nextValue ? 'enabled' : 'disabled'} successfully`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update notification setting');
     }
