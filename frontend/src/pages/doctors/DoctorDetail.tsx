@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { useParams, useNavigate } from 'react-router';
 import { 
   ArrowLeft,
@@ -41,7 +42,11 @@ export function DoctorDetail() {
   const [statement, setStatement] = useState<DoctorStatement | null>(null);
   const [isLoadingDoctor, setIsLoadingDoctor] = useState(true);
   const [isLoadingStatement, setIsLoadingStatement] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, _setError] = useState<string | null>(null);
+  const setError = (msg: string | null) => {
+    _setError(msg);
+    if (msg) toast.error(msg);
+  };
 
   const [startDate, setStartDate] = useState(toDateStr(firstOfMonth));
   const [endDate, setEndDate] = useState(toDateStr(lastOfMonth));
@@ -81,7 +86,11 @@ export function DoctorDetail() {
     }
   };
 
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [successMessage, _setSuccessMessage] = useState<string | null>(null);
+  const setSuccessMessage = (msg: string | null) => {
+    _setSuccessMessage(msg);
+    if (msg) toast.success(msg);
+  };
   const [activeTab, setActiveTab] = useState<'statement' | 'pricing'>('statement');
   
   // Pricing states

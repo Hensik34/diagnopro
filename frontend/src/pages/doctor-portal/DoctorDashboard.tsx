@@ -108,20 +108,25 @@ export function DoctorDashboard() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-foreground text-lg mb-0.5">
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground mb-0.5">
             {greeting()}, {doctor.name}
           </h1>
+          <p className="text-muted-foreground text-xs">
+            Monitor and manage referred patients and reports
+          </p>
         </div>
-        <button
-          onClick={fetchDashboard}
-          disabled={isLoading}
-          className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs disabled:opacity-50"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
+          <button
+            onClick={fetchDashboard}
+            disabled={isLoading}
+            className="h-8 px-2.5 flex items-center justify-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs disabled:opacity-50 flex-1 sm:flex-none cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* This Month Highlight */}

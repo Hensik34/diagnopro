@@ -562,10 +562,10 @@ export function Reports() {
       )}
 
       {/* Page Header */}
-      <div className="sticky top-12 z-20 bg-background/95 backdrop-blur py-2 md:py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8">
-        <div className="min-w-0">
-          <h1 className="text-base md:text-lg text-foreground mb-0.5 font-semibold">Reports</h1>
-          <p className="text-muted-foreground text-xs line-clamp-2">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+        <div>
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground mb-0.5">Reports</h1>
+          <p className="text-muted-foreground text-xs">
             View and manage all laboratory reports
           </p>
         </div>
@@ -574,56 +574,82 @@ export function Reports() {
             onClick={() => {
               refreshReportsData();
             }}
-            className="h-8 px-2 md:px-3 flex items-center gap-1.5 rounded text-xs bg-secondary border border-border hover:bg-accent transition-colors flex-1 sm:flex-none justify-center sm:justify-start cursor-pointer"
+            className="h-8 px-2.5 flex items-center justify-center gap-1.5 rounded text-xs bg-secondary border border-border hover:bg-accent transition-colors flex-1 sm:flex-none cursor-pointer"
             disabled={isLoading}
           >
-            <RefreshCw className={`w-3.5 h-3.5 flex-shrink-0 ${isLoading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
           </button>
           <Link
             to="/reports/new"
-            className="h-8 px-2 md:px-3 flex items-center gap-1.5 rounded text-xs text-white hover:opacity-90 transition-opacity flex-1 sm:flex-none justify-center sm:justify-start"
+            className="h-8 px-2.5 flex items-center justify-center gap-1.5 rounded text-xs text-white hover:opacity-90 transition-opacity flex-1 sm:flex-none cursor-pointer"
             style={{ backgroundColor: 'var(--primary)' }}
           >
-            <FileText className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="hidden sm:inline">Create New Report</span>
-            <span className="sm:hidden">New</span>
+            <FileText className="w-3.5 h-3.5" />
+            Create New Report
           </Link>
         </div>
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
-        <div className="bg-card border border-border rounded p-2 md:p-3">
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
-            Total Reports
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Total Reports</span>
+            <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </div>
-          <div className="text-lg md:text-xl text-foreground font-semibold">
-            {dateSpecificSummary.total}
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {dateSpecificSummary.total}
+            </span>
           </div>
-        </div>
-        <div className="bg-card border border-border rounded p-2 md:p-3">
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
-            Draft
-          </div>
-          <div className="text-lg md:text-xl text-foreground font-semibold">
-            {dateSpecificSummary.draft}
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">All report entries</span>
           </div>
         </div>
-        <div className="bg-card border border-border rounded p-2 md:p-3">
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
-            Under Review
+
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Draft</span>
+            <Edit className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </div>
-          <div className="text-lg md:text-xl text-foreground font-semibold">
-            {dateSpecificSummary.under_review}
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {dateSpecificSummary.draft}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">In progress</span>
           </div>
         </div>
-        <div className="bg-card border border-border rounded p-2 md:p-3">
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
-            Approved
+
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Under Review</span>
+            <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </div>
-          <div className="text-lg md:text-xl text-foreground font-semibold">
-            {dateSpecificSummary.approved}
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {dateSpecificSummary.under_review}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">Awaiting validation</span>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Approved</span>
+            <CheckCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          </div>
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {dateSpecificSummary.approved}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">Ready & finalized</span>
           </div>
         </div>
       </div>
@@ -769,7 +795,7 @@ export function Reports() {
                       className="border-b border-border hover:bg-accent transition-colors cursor-pointer"
                       onDoubleClick={() => handleRowDoubleClick(report)}
                     >
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5">
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-foreground font-medium font-mono">
                             {report.sample_id_code}
@@ -784,22 +810,22 @@ export function Reports() {
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5">
                         <div className="text-sm text-foreground">
                           {getPatientName(report)}
                         </div>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5">
                         <span className="text-xs text-foreground font-medium">
                           {getDoctorName(report)}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5">
                         <span className="text-xs text-foreground">
                           {getTestCodes(report)}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5">
                         <span
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px]"
                           style={{
@@ -811,7 +837,7 @@ export function Reports() {
                           {statusConfig.label}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5">
                         <div className="flex items-center gap-1.5">
                           <Calendar className="w-3 h-3 text-muted-foreground" />
                           <span className="text-xs text-foreground">
@@ -819,12 +845,12 @@ export function Reports() {
                           </span>
                         </div>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5">
                         <span className="text-xs text-foreground">
                           {getTechnicianName(report)}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 text-center">
+                      <td className="px-3 py-1.5 text-center">
                         {(() => {
                           const ps = report.payment_status || 'pending';
                           const cfg: Record<string, { bg: string; text: string; label: string }> = {
@@ -845,7 +871,7 @@ export function Reports() {
                         })()}
                       </td>
                       {hasAnyAction && (
-                        <td className="px-3 py-2.5">
+                        <td className="px-3 py-1.5">
                           <div className="flex items-center justify-center gap-1">
                             {/* Edit/Enter Results - for draft or rejected reports */}
                             {isEditable(report) && canEdit && (

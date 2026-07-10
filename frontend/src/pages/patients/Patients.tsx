@@ -82,21 +82,21 @@ export function Patients() {
   return (
     <div className="space-y-4">
       {/* Page Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-foreground text-lg mb-0.5">Patients</h1>
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground mb-0.5">Patients</h1>
           <p className="text-muted-foreground text-xs">
             Manage patient records and information
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button className="h-8 px-2.5 flex items-center gap-1.5 bg-card border border-border rounded hover:bg-accent transition-colors text-xs">
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
+          <button className="h-8 px-2.5 flex items-center justify-center gap-1.5 bg-card border border-border rounded hover:bg-accent transition-colors text-xs flex-1 sm:flex-none cursor-pointer">
             <Download className="w-3.5 h-3.5" />
             Export
           </button>
           <button 
             onClick={() => setShowAddModal(true)}
-            className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs"
+            className="h-8 px-2.5 flex items-center justify-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs flex-1 sm:flex-none cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             Add Patient

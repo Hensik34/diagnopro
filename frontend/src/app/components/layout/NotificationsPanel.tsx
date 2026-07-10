@@ -1,10 +1,14 @@
 import { Bell, CheckCircle, AlertCircle, FileText, User, Clock, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { reportApi, type ReportDeliveryNotification } from '../../../api/reports';
+import { getWhatsAppSocket } from '../../../api/whatsapp';
+import { getAuthToken } from '../../../api/client';
+import { useBranchStore, useAuthStore } from '../../../stores';
 
 export interface Notification {
   id: string;
   type: 'whatsapp_pdf_sent' | 'whatsapp_pdf_failed';
-  status: 'success' | 'failed';
+  status: 'success' | 'failed' | 'pending';
   recipient_type: 'patient' | 'doctor' | 'staff';
   recipient_name: string;
   document_name: string;
@@ -17,59 +21,23 @@ interface NotificationsPanelProps {
   onClose: () => void;
 }
 
-// Static data for UI design
-const STATIC_NOTIFICATIONS: Notification[] = [
-  {
-    id: '1',
-    type: 'whatsapp_pdf_sent',
-    status: 'success',
-    recipient_type: 'patient',
-    recipient_name: 'Rajesh Kumar',
-    document_name: 'Lab Report - COVID-19 Test',
-    timestamp: new Date(Date.now() - 5 * 60000).toISOString(),
-    message: 'PDF sent successfully via WhatsApp',
-  },
-  {
-    id: '2',
-    type: 'whatsapp_pdf_failed',
-    status: 'failed',
-    recipient_type: 'doctor',
-    recipient_name: 'Dr. Priya Sharma',
-    document_name: 'Pathology Report - Thyroid Panel',
-    timestamp: new Date(Date.now() - 15 * 60000).toISOString(),
-    message: 'Failed to send: Invalid phone number',
-  },
-  {
-    id: '3',
-    type: 'whatsapp_pdf_sent',
-    status: 'success',
-    recipient_type: 'staff',
-    recipient_name: 'Amit Patel',
-    document_name: 'Batch Report - Daily Summary',
-    timestamp: new Date(Date.now() - 1 * 3600000).toISOString(),
-    message: 'PDF sent successfully via WhatsApp',
-  },
-  {
-    id: '4',
-    type: 'whatsapp_pdf_sent',
-    status: 'success',
-    recipient_type: 'patient',
-    recipient_name: 'Neha Singh',
-    document_name: 'Lab Report - Blood Test',
-    timestamp: new Date(Date.now() - 2 * 3600000).toISOString(),
-    message: 'PDF sent successfully via WhatsApp',
-  },
-  {
-    id: '5',
-    type: 'whatsapp_pdf_failed',
-    status: 'failed',
-    recipient_type: 'patient',
-    recipient_name: 'Mohit Gupta',
-    document_name: 'Lab Report - Ultrasound',
-    timestamp: new Date(Date.now() - 4 * 3600000).toISOString(),
-    message: 'Failed to send: Network timeout',
-  },
-];
+function mapNotification(row: ReportDeliveryNotification): Notification {
+  const normalizedStatus: Notification['status'] =
+    row.status === 'sent' ? 'success' : row.status === 'failed' ? 'failed' : 'pending';
+  return {
+    id: row.id,
+    type: normalizedStatus === 'success' ? 'whatsapp_pdf_sent' : 'whatsapp_pdf_failed',
+    status: normalizedStatus,
+    recipient_type: (row.recipient_type === 'technician' ? 'staff' : row.recipient_type) as Notification['recipient_type'],
+    recipient_name: row.recipient_name || 'Recipient',
+    document_name: row.document_name || 'Lab Report',
+    timestamp: row.created_at,
+    message:
+      normalizedStatus === 'success'
+        ? 'PDF sent successfully via WhatsApp'
+        : row.reason || (normalizedStatus === 'pending' ? 'Delivery in progress' : 'Failed to send report via WhatsApp'),
+  };
+}
 
 function formatTimeAgo(timestamp: string): string {
   const date = new Date(timestamp);
@@ -96,12 +64,87 @@ function getRecipientBadgeColor(type: string) {
 }
 
 export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps) {
-  const [notifications, setNotifications] = useState<Notification[]>(STATIC_NOTIFICATIONS);
+  const { currentBranchId } = useBranchStore();
+  const { user } = useAuthStore();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !user) return;
+
+    let mounted = true;
+    const loadNotifications = async () => {
+      setIsLoading(true);
+      try {
+        const response = await reportApi.getDeliveryNotifications(currentBranchId ?? undefined, 30);
+        if (!mounted) return;
+        setNotifications((response.data || []).map(mapNotification));
+      } catch (error) {
+        console.error('Failed to load delivery notifications:', error);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadNotifications();
+    return () => {
+      mounted = false;
+    };
+  }, [isOpen, currentBranchId, user]);
+
+  useEffect(() => {
+    if (!user || !currentBranchId) return;
+    const token = getAuthToken();
+    if (!token) return;
+
+    const socket = getWhatsAppSocket(token);
+
+    socket.emit('whatsapp:subscribe', { branch_id: currentBranchId });
+
+    const onDeliveryEvent = (event: {
+      report_id: string;
+      recipient_type: 'patient' | 'doctor' | 'technician' | 'staff';
+      status: 'pending' | 'sending' | 'sent' | 'failed' | 'skipped';
+      reason?: string;
+    }) => {
+      if (!event?.report_id) return;
+
+      const normalizedStatus: Notification['status'] =
+        event.status === 'sent' ? 'success' : event.status === 'failed' ? 'failed' : 'pending';
+
+      const liveId = `${event.report_id}-${event.recipient_type}-${Date.now()}`;
+      const liveNotification: Notification = {
+        id: liveId,
+        type: normalizedStatus === 'success' ? 'whatsapp_pdf_sent' : 'whatsapp_pdf_failed',
+        status: normalizedStatus,
+        recipient_type: (event.recipient_type === 'technician' ? 'staff' : event.recipient_type) as Notification['recipient_type'],
+        recipient_name: event.recipient_type === 'doctor' ? 'Doctor' : event.recipient_type === 'patient' ? 'Patient' : 'Technician',
+        document_name: 'Lab Report',
+        timestamp: new Date().toISOString(),
+        message:
+          normalizedStatus === 'success'
+            ? 'PDF sent successfully via WhatsApp'
+            : event.reason || (normalizedStatus === 'pending' ? 'Delivery in progress' : 'Failed to send report via WhatsApp'),
+      };
+
+      setNotifications((prev) => [liveNotification, ...prev].slice(0, 50));
+    };
+
+    socket.on('report:delivery', onDeliveryEvent);
+
+    return () => {
+      socket.off('report:delivery', onDeliveryEvent);
+      socket.emit('whatsapp:unsubscribe', { branch_id: currentBranchId });
+    };
+  }, [currentBranchId, user]);
+
+  const visibleNotifications = notifications.filter(n => !dismissedIds.has(n.id));
 
   if (!isOpen) return null;
 
-  const visibleNotifications = notifications.filter(n => !dismissedIds.has(n.id));
   const successCount = visibleNotifications.filter(n => n.status === 'success').length;
   const failedCount = visibleNotifications.filter(n => n.status === 'failed').length;
 
@@ -150,7 +193,11 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
 
       {/* Notifications List */}
       <div className="flex-1 overflow-y-auto space-y-2 p-3">
-        {visibleNotifications.length === 0 ? (
+        {isLoading ? (
+          <div className="py-12 text-center">
+            <p className="text-sm text-muted-foreground">Loading notifications...</p>
+          </div>
+        ) : visibleNotifications.length === 0 ? (
           <div className="py-12 text-center">
             <Bell className="w-12 h-12 text-muted-foreground/30 mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">No notifications</p>
@@ -162,7 +209,9 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
               className={`p-3 rounded-lg border transition-all ${
                 notification.status === 'success'
                   ? 'bg-green-500/5 border-green-500/20 hover:bg-green-500/10'
-                  : 'bg-red-500/5 border-red-500/20 hover:bg-red-500/10'
+                  : notification.status === 'failed'
+                    ? 'bg-red-500/5 border-red-500/20 hover:bg-red-500/10'
+                    : 'bg-amber-500/5 border-amber-500/20 hover:bg-amber-500/10'
               }`}
             >
               <div className="flex gap-3">
@@ -172,9 +221,13 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
                     <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center">
                       <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
                     </div>
-                  ) : (
+                  ) : notification.status === 'failed' ? (
                     <div className="w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center">
                       <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                    </div>
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center">
+                      <Clock className="w-4 h-4 text-amber-700 dark:text-amber-400" />
                     </div>
                   )}
                 </div>

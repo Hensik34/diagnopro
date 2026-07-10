@@ -210,58 +210,84 @@ export function Inventory() {
       )}
 
       {/* Page Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-foreground text-lg mb-0.5">Stock Management</h1>
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground mb-0.5">Stock Management</h1>
           <p className="text-muted-foreground text-xs">
             Track reagents, kits, and laboratory supplies inventory
           </p>
         </div>
-        <button 
-          onClick={handleAdd}
-          className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Stock
-        </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
+          <button 
+            onClick={handleAdd}
+            className="h-8 px-2.5 flex items-center justify-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs w-full sm:w-auto flex-shrink-0 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Stock
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-3">
-        <div className="bg-card border border-border rounded p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Total Items</span>
-            <Package className="w-3.5 h-3.5 text-muted-foreground" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Total Items</span>
+            <Package className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">{items.length}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Items tracked</div>
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {items.length}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">Items tracked</span>
+          </div>
         </div>
 
-        <div className="bg-card border border-success/20 rounded p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">In Stock</span>
-            <CheckCircle className="w-3.5 h-3.5 text-success" />
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">In Stock</span>
+            <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">{inStockCount}</div>
-          <div className="text-[10px] text-success mt-0.5">Available</div>
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {inStockCount}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-success">Available</span>
+          </div>
         </div>
 
-        <div className="bg-card border border-warning/20 rounded p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Low Stock</span>
-            <TrendingDown className="w-3.5 h-3.5 text-warning" />
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Low Stock</span>
+            <TrendingDown className="w-4 h-4 text-warning flex-shrink-0" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">{lowStockCount}</div>
-          <div className="text-[10px] text-warning mt-0.5">Need restock</div>
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {lowStockCount}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-warning">Need restock</span>
+          </div>
         </div>
 
-        <div className="bg-card border border-destructive/20 rounded p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Out of Stock</span>
-            <AlertCircle className="w-3.5 h-3.5 text-destructive" />
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Out of Stock</span>
+            <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">{outOfStockCount}</div>
-          <div className="text-[10px] text-destructive mt-0.5">Urgent</div>
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {outOfStockCount}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-destructive">Urgent</span>
+          </div>
         </div>
       </div>
 

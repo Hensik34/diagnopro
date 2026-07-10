@@ -101,7 +101,11 @@ function canPerformTransition(userRole, fromStatus, toStatus) {
  * @returns {boolean}
  */
 function isEditable(status) {
-  return true;
+  return (
+    status === REPORT_STATUS.DRAFT ||
+    status === REPORT_STATUS.REJECTED ||
+    status === REPORT_STATUS.APPROVED
+  );
 }
 
 /**

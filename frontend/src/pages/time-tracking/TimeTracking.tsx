@@ -89,11 +89,13 @@ export function TimeTracking() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Time Tracking</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Track your working hours with clock in/out
-        </p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+        <div>
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground mb-0.5">Time Tracking</h1>
+          <p className="text-muted-foreground text-xs">
+            Track your working hours with clock in/out
+          </p>
+        </div>
       </div>
 
       {/* Error */}

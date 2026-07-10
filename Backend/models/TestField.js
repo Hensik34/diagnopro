@@ -7,6 +7,11 @@ function isMissingColumnError(err) {
 
 // Get all fields for a test with optional branch-specific overrides
 exports.getFieldsByTestId = async (testId, branchId = null) => {
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!testId || typeof testId !== "string" || !UUID_REGEX.test(testId)) {
+    return [];
+  }
+
   const defaultFields = await TestField.findAll({
     where: { test_id: testId },
     order: [["order_index", "ASC"], ["created_at", "ASC"]],
@@ -75,8 +80,12 @@ exports.getFieldsByTestId = async (testId, branchId = null) => {
 exports.getFieldsByTestIds = async (testIds, branchId = null) => {
   if (!testIds || testIds.length === 0) return [];
 
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const validTestIds = testIds.filter(id => typeof id === "string" && UUID_REGEX.test(id));
+  if (validTestIds.length === 0) return [];
+
   const defaultFields = await TestField.findAll({
-    where: { test_id: { [Op.in]: testIds } },
+    where: { test_id: { [Op.in]: validTestIds } },
     order: [["test_id", "ASC"], ["order_index", "ASC"], ["created_at", "ASC"]],
     raw: true,
   });
@@ -86,7 +95,7 @@ exports.getFieldsByTestIds = async (testIds, branchId = null) => {
   let branchFields = [];
   try {
     branchFields = await UserTestField.findAll({
-      where: { test_id: { [Op.in]: testIds }, branch_id: branchId },
+      where: { test_id: { [Op.in]: validTestIds }, branch_id: branchId },
       order: [["test_id", "ASC"], ["order_index", "ASC"], ["created_at", "ASC"]],
       raw: true,
     });
@@ -151,6 +160,10 @@ exports.getFieldById = async (id) => {
 
 // Bulk set fields for a test (replace all)
 exports.setFieldsForTest = async (testId, fields, branchId = null, userRole = null) => {
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!testId || typeof testId !== "string" || !UUID_REGEX.test(testId)) {
+    throw new Error("Invalid UUID format for testId");
+  }
   const t = await sequelize.transaction();
   try {
     // Only modify global test_fields when admin AND no branch context

@@ -33,6 +33,7 @@ import type { AgeUnit, Doctor, Patient, Report, Test, TestField, ReferenceRule, 
 import { BillingSection } from "../../app/components/reports/BillingSection";
 import { SmartSelectInput } from "../../app/components/reports/SmartSelectInput";
 import { formatAge, getAgeMax, normalizeAgeUnit } from "../../utils/age";
+import { smartSearchFilter } from "../../utils";
 import { SUM_100_GROUPS, isQualitativeValueHigh, isMicroscopicRangeHigh } from "./reportSpecialCases";
 import { CustomConfirmModal } from "../../app/components/ui/CustomConfirmModal";
 import { PatientInfoHeader } from "../../app/components/reports/PatientInfoHeader";
@@ -294,6 +295,36 @@ function isCbcTest(testName?: string, testCode?: string): boolean {
   );
 }
 
+function isWorkflowEditable(status?: string): boolean {
+  return status === 'draft' || status === 'rejected' || status === 'approved';
+}
+
+function stableSerialize(value: unknown): string {
+  if (value === null || value === undefined) return 'null';
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableSerialize(item)).join(',')}]`;
+  }
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    return `{${Object.keys(obj)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableSerialize(obj[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function sameNumberish(a: unknown, b: unknown): boolean {
+  if (a == null && b == null) return true;
+  if (a == null || b == null) return false;
+  const aNum = Number(a);
+  const bNum = Number(b);
+  if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) {
+    return aNum === bNum;
+  }
+  return false;
+}
+
 export function ReportEntry() {
   const { reportId: rawReportId } = useParams<{ reportId: string }>();
   const navigate = useNavigate();
@@ -324,7 +355,18 @@ export function ReportEntry() {
   const { can } = useAuthStore();
   const { tests, testFields, fetchTests, fetchTestFields, fetchTestFieldsMulti } = useTestStore();
   const canAutoApprove = can('report:approve');
-  const { loadFromReport, reset: resetBilling, saveBilling, setBaseAmount, baseAmount } = useBillingStore();
+  const {
+    loadFromReport,
+    reset: resetBilling,
+    saveBilling,
+    setBaseAmount,
+    baseAmount,
+    labDiscountType,
+    labDiscountValue,
+    doctorDiscount,
+    finalAmount,
+    pricingSnapshot,
+  } = useBillingStore();
   const reportId = rawReportId && rawReportId !== 'undefined' && rawReportId !== 'null' ? rawReportId : undefined;
 
   useEffect(() => {
@@ -368,15 +410,42 @@ export function ReportEntry() {
   // Parse test_data if it is a JSON string
   const parsedTestData = useMemo(() => {
     if (!selectedReport?.test_data) return null;
+    let data: any;
     if (typeof selectedReport.test_data === 'string') {
       try {
-        return JSON.parse(selectedReport.test_data);
+        data = JSON.parse(selectedReport.test_data);
       } catch {
         return null;
       }
+    } else {
+      data = selectedReport.test_data;
     }
-    return selectedReport.test_data;
-  }, [selectedReport]);
+    if (!data) return null;
+
+    // Ensure testIds is always present — reconstruct from fallback sources if missing
+    if (!data.testIds || !Array.isArray(data.testIds) || data.testIds.length === 0) {
+      // Try extracting from grouped tests array
+      if (data.tests && Array.isArray(data.tests) && data.tests.length > 0) {
+        const idsFromTests = data.tests
+          .map((t: any) => t.testId || t.id)
+          .filter(Boolean) as string[];
+        if (idsFromTests.length > 0) {
+          data = { ...data, testIds: idsFromTests };
+        }
+      }
+      // Fallback: match by report_type names against the tests store
+      if ((!data.testIds || data.testIds.length === 0) && selectedReport.report_type && tests.length > 0) {
+        const testNames = selectedReport.report_type.split(',').map((n: string) => n.trim().toLowerCase());
+        const matchedIds = tests
+          .filter(t => testNames.includes(t.test_name.toLowerCase()))
+          .map(t => t.id);
+        if (matchedIds.length > 0) {
+          data = { ...data, testIds: matchedIds };
+        }
+      }
+    }
+    return data;
+  }, [selectedReport, tests]);
 
   // Group parameters by test for multi-test section rendering
   const testSections = useMemo(() => {
@@ -772,7 +841,7 @@ export function ReportEntry() {
 
       // Set report status
       setReportStatus(selectedReport.status);
-      setIsEditable(true);
+      setIsEditable(isWorkflowEditable(selectedReport.status));
 
       // Set test name and amount
       if (selectedReport.report_type) setTestName(selectedReport.report_type);
@@ -1199,12 +1268,15 @@ export function ReportEntry() {
   // Filter tests based on search
   const filteredTests = useMemo(() => {
     const selectedTestIds = parsedTestData?.testIds || [];
-    return tests.filter(
-      (t) =>
-        !selectedTestIds.includes(t.id) &&
-        ((t.test_name || '').toLowerCase().includes(testSearch.toLowerCase()) ||
-          (t.category || '').toLowerCase().includes(testSearch.toLowerCase()))
-    ).slice(0, 15);
+    const unselected = tests.filter((t) => !selectedTestIds.includes(t.id));
+    if (!testSearch.trim()) {
+      return unselected.slice(0, 15);
+    }
+    return smartSearchFilter(unselected, testSearch, [
+      { field: (t: Test) => t.test_name, weight: 1.0 },
+      { field: (t: Test) => t.test_code, weight: 0.9 },
+      { field: (t: Test) => t.category, weight: 0.6 },
+    ]).slice(0, 15);
   }, [tests, parsedTestData, testSearch]);
 
   const handleAddTest = async (test: Test) => {
@@ -1243,7 +1315,6 @@ export function ReportEntry() {
     setTestSearch("");
     setShowTestDropdown(false);
     setActiveTestIndex(0);
-    setReportStatus("draft");
 
     if (reportId) {
       try {
@@ -1271,14 +1342,16 @@ export function ReportEntry() {
   const handleRemoveTest = async (testId: string) => {
     if (!selectedReport) return;
 
-    const currentTestIds = parsedTestData?.testIds || [];
-    const newTestIds = currentTestIds.filter(id => id !== testId);
+    const currentTestIds: string[] = Array.isArray(parsedTestData?.testIds)
+      ? (parsedTestData.testIds as string[])
+      : [];
+    const newTestIds: string[] = currentTestIds.filter((id) => id !== testId);
     if (newTestIds.length === 0) {
       toast.error("A report must have at least one test.");
       return;
     }
 
-    const matchedTests = newTestIds.map(id => {
+    const matchedTests: Test[] = newTestIds.map((id) => {
       const found = tests.find(t => t.id === id);
       if (found) return found;
       // Fallback: try to find in existing parsedTestData.tests
@@ -1296,7 +1369,7 @@ export function ReportEntry() {
         category: 'General',
       } as unknown as Test;
     });
-    const newReportType = matchedTests.map(t => t.test_name).join(', ');
+    const newReportType = matchedTests.map((t) => t.test_name).join(', ');
 
     const { amount: newAmount, snapshot: resolvedSnapshot } = await resolvePricingForTestIds(newTestIds);
 
@@ -1304,7 +1377,7 @@ export function ReportEntry() {
       ...parsedTestData,
       testIds: newTestIds,
       testName: newReportType,
-      testType: matchedTests.map(t => t.category || 'General').join(', '),
+      testType: matchedTests.map((t) => t.category || 'General').join(', '),
       tests: (parsedTestData?.tests || []).filter((t: any) => newTestIds.includes(t.testId || t.id)),
       parameters: (parsedTestData?.parameters || []).filter((p: any) => {
         const paramTestId = dynamicParams.find(dp => dp.name === p.name)?.test_id;
@@ -1332,7 +1405,6 @@ export function ReportEntry() {
     setTestName(newReportType);
     setReportAmount(newAmount);
     setBaseAmount(newAmount);
-    setReportStatus("draft");
 
     if (reportId) {
       try {
@@ -1431,7 +1503,6 @@ export function ReportEntry() {
 
       return next;
     });
-    setReportStatus("draft");
   };
 
   useEffect(() => {
@@ -1842,10 +1913,69 @@ export function ReportEntry() {
     };
   };
 
+  const approvedHasChanges = useMemo(() => {
+    if (reportStatus !== 'approved' || !selectedReport) {
+      return false;
+    }
+
+    const currentDoctorId = selectedDoctor?.id || null;
+    const currentRefDoctor = !selectedDoctor && referringDoctorName ? referringDoctorName : null;
+    const currentIsSelfReport = !selectedDoctor && !referringDoctorName;
+    const currentTestData = buildTestData();
+
+    const patientChanged = !!patient && (
+      patient.name !== (selectedReport.patient_name || '') ||
+      (patient.phone || '') !== (selectedReport.patient_phone || '') ||
+      (patient.gender || '') !== (selectedReport.patient_gender || '') ||
+      !sameNumberish(patient.age, selectedReport.patient_age) ||
+      normalizeAgeUnit(patient.age_unit) !== normalizeAgeUnit(selectedReport.patient_age_unit)
+    );
+
+    const reportChanged =
+      technicianNotes !== (selectedReport.clinical_notes || '') ||
+      currentDoctorId !== (selectedReport.doctor_id || null) ||
+      currentRefDoctor !== (selectedReport.referring_doctor_name || null) ||
+      currentIsSelfReport !== !!selectedReport.is_self_report ||
+      testName !== (selectedReport.report_type || '') ||
+      !sameNumberish(reportAmount, selectedReport.report_amount) ||
+      !sameNumberish(baseAmount, selectedReport.base_amount) ||
+      (labDiscountType || 'percent') !== (selectedReport.lab_discount_type || 'percent') ||
+      !sameNumberish(labDiscountValue, selectedReport.lab_discount_value) ||
+      !sameNumberish(doctorDiscount, selectedReport.doctor_discount) ||
+      !sameNumberish(finalAmount, selectedReport.final_amount) ||
+      stableSerialize(currentTestData) !== stableSerialize(selectedReport.test_data || {}) ||
+      stableSerialize(pricingSnapshot || []) !== stableSerialize(selectedReport.pricing_snapshot || []);
+
+    return patientChanged || reportChanged;
+  }, [
+    reportStatus,
+    selectedReport,
+    selectedDoctor,
+    referringDoctorName,
+    technicianNotes,
+    testName,
+    reportAmount,
+    baseAmount,
+    labDiscountType,
+    labDiscountValue,
+    doctorDiscount,
+    finalAmount,
+    pricingSnapshot,
+    patient,
+    values,
+    statuses,
+    dynamicParams,
+    testSections,
+  ]);
+
   const saveCurrentReportData = async () => {
     if (!reportId) {
       toast.error("No report ID available. Please create a report first.");
       return false;
+    }
+
+    if (reportStatus === 'approved' && !approvedHasChanges) {
+      return true;
     }
 
     const testData = buildTestData();
@@ -1961,9 +2091,13 @@ export function ReportEntry() {
 
     setIsSaving(true);
     try {
+      if (reportStatus === 'approved' && !approvedHasChanges) {
+        toast.info("No changes to update.");
+        return;
+      }
       const saved = await saveCurrentReportData();
       if (saved) {
-        navigate('/reports');
+        toast.success(reportStatus === 'approved' ? "Report updated successfully" : "Draft saved successfully");
       }
     } catch (error) {
       console.error("Failed to save draft:", error);
@@ -2285,7 +2419,6 @@ export function ReportEntry() {
           <span className="text-sm text-warning">
             This report is in <strong>{reportStatus}</strong> status and cannot be edited.
             {reportStatus === 'under_review' && ' It is awaiting approval from a doctor.'}
-            {reportStatus === 'approved' && ' The report has been approved and finalized.'}
           </span>
         </div>
       )}
@@ -2700,7 +2833,9 @@ export function ReportEntry() {
                 className="w-full h-9 flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-900/50 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-xs font-bold text-blue-600 dark:text-blue-400 rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
               >
                 <FileText className="w-4 h-4" />
-                Save as Draft
+                {reportStatus === 'approved'
+                  ? 'Update Report'
+                  : 'Save as Draft'}
               </button>
 
               <button
@@ -2712,7 +2847,7 @@ export function ReportEntry() {
                 Preview Report
               </button>
 
-              {reportStatus === 'draft' && (
+              {(reportStatus === 'draft' || reportStatus === 'rejected') && (
                 <button
                   onClick={handleSubmitForReview}
                   disabled={isSubmitting || !reportId || Object.keys(values).length === 0 || hasAnyInvalidSumGroup}
@@ -2720,7 +2855,9 @@ export function ReportEntry() {
                   title={hasAnyInvalidSumGroup ? "Resolve sum to 100% validation errors first" : undefined}
                 >
                   <CheckCircle className="w-4 h-4" />
-                  {canAutoApprove ? 'Approve Report' : 'Submit for Review'}
+                  {reportStatus === 'rejected'
+                    ? (canAutoApprove ? 'Re-Approve Report' : 'Resubmit for Review')
+                    : (canAutoApprove ? 'Approve Report' : 'Submit for Review')}
                 </button>
               )}
             </div>
@@ -2850,9 +2987,13 @@ export function ReportEntry() {
             onClick={handleSaveDraft}
             disabled={isSaving || !isEditable}
             className="h-8 px-4 bg-primary text-white rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity shadow-sm"
-            title="Save Draft (F10)"
+            title={reportStatus === 'approved' ? "Update Report (F10)" : "Save Draft (F10)"}
           >
-            {isSaving ? "Saving..." : "Save Draft (F10)"}
+            {isSaving
+              ? "Saving..."
+              : reportStatus === 'approved'
+                ? "Update Report (F10)"
+                : "Save Draft (F10)"}
           </button>
 
           <button
@@ -3103,7 +3244,7 @@ export function ReportEntry() {
                     onFocus={() => setShowTestDropdown(true)}
                     onKeyDown={handleTestSearchKeyDown}
                     className="w-full h-9 pl-9 pr-3 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-                    placeholder="Search by test name or category..."
+                    placeholder="Search by test name, code or category..."
                   />
                   {showTestDropdown && filteredTests.length > 0 && (
                     <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
@@ -3116,7 +3257,10 @@ export function ReportEntry() {
                         >
                           <div>
                             <div className="font-semibold text-foreground">{test.test_name}</div>
-                            <div className="text-[10px] text-muted-foreground mt-0.5">{test.category || 'General'}</div>
+                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                              {test.test_code && <span className="uppercase font-semibold mr-1.5">{test.test_code}</span>}
+                              {test.category || 'General'}
+                            </div>
                           </div>
                           <div className="font-semibold text-primary">
                             ₹{test.price}

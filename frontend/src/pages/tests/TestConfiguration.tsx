@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment, useMemo } from 'react';
+import { toast } from 'sonner';
 import { useParams, useNavigate } from 'react-router';
 import {
   ArrowLeft,
@@ -469,9 +470,11 @@ export function TestConfiguration() {
 
       // Sync the test store list
       await fetchTests(currentBranchId || undefined);
+      toast.success("Test configuration saved successfully");
       navigate('/tests');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Save test configuration failed:', err);
+      toast.error(err.message || "Failed to save test configuration");
     } finally {
       setSaving(false);
     }
@@ -484,9 +487,11 @@ export function TestConfiguration() {
       try {
         await resetTestToDefault(testId);
         await fetchTests(currentBranchId || undefined);
+        toast.success("Test override reset to default");
         navigate('/tests');
-      } catch (err) {
+      } catch (err: any) {
         console.error('Reset failed:', err);
+        toast.error(err.message || "Failed to reset test to default");
       } finally {
         setSaving(false);
       }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { CustomConfirmModal } from '../../app/components/ui/CustomConfirmModal';
 import {
   Upload,
@@ -37,7 +38,11 @@ export function Settings() {
   const [letterheadPreview, setLetterheadPreview] = useState<string | null>(null);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
-  const [letterheadError, setLetterheadError] = useState<string | null>(null);
+  const [letterheadError, _setLetterheadError] = useState<string | null>(null);
+  const setLetterheadError = (msg: string | null) => {
+    _setLetterheadError(msg);
+    if (msg) toast.error(msg);
+  };
 
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -105,7 +110,11 @@ export function Settings() {
   const [formLastname, setFormLastname] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileError, _setProfileError] = useState<string | null>(null);
+  const setProfileError = (msg: string | null) => {
+    _setProfileError(msg);
+    if (msg) toast.error(msg);
+  };
 
   // Fetch settings on mount
   const normalizePx = (value: unknown, fallback: number) => {
@@ -570,8 +579,11 @@ export function Settings() {
   };
 
   const showSuccess = (message: string) => {
-    setUploadSuccess(message);
-    setTimeout(() => setUploadSuccess(null), 3000);
+    toast.success(message);
+  };
+
+  const showError = (message: string) => {
+    toast.error(message);
   };
 
   const handleSaveBranding = async () => {

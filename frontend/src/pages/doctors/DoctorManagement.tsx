@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
 import { 
   Plus, 
@@ -40,6 +41,12 @@ export function DoctorManagement() {
     fetchDoctors(currentBranchId ? { branch_id: currentBranchId } : undefined);
   }, [fetchDoctors, currentBranchId]);
 
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error]);
+
   const filteredDoctors = doctors.filter(doctor => {
     const fullName = `${doctor.title || 'Dr'} ${doctor.name}`.toLowerCase();
     return fullName.includes(searchTerm.toLowerCase()) ||
@@ -68,6 +75,9 @@ export function DoctorManagement() {
     setIsDeleting(doctorId);
     try {
       await deleteDoctor(doctorId);
+      toast.success("Doctor deleted successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete doctor");
     } finally {
       setIsDeleting(null);
     }
@@ -81,53 +91,69 @@ export function DoctorManagement() {
   return (
     <div className="space-y-4">
       {/* Page Header */}
-      <div className="sticky top-12 z-20 bg-background/95 backdrop-blur py-2 flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-foreground text-lg mb-0.5">Doctor Management</h1>
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground mb-0.5">Doctor Management</h1>
           <p className="text-muted-foreground text-xs">
             Manage referring doctors and their information
           </p>
         </div>
-        <button 
-          onClick={handleAdd}
-          className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Doctor
-        </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
+          <button 
+            onClick={handleAdd}
+            className="h-8 px-2.5 flex items-center justify-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs w-full sm:w-auto flex-shrink-0 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Doctor
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-card border border-border rounded p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Total Doctors</span>
-            <Stethoscope className="w-3.5 h-3.5 text-muted-foreground" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Total Doctors</span>
+            <Stethoscope className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">{doctors.length}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Registered</div>
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {doctors.length}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">Registered</span>
+          </div>
         </div>
 
-        <div className="bg-card border border-border rounded p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Specializations</span>
-            <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Specializations</span>
+            <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">
-            {new Set(doctors.map(d => d.specialization).filter(Boolean)).size}
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {new Set(doctors.map(d => d.specialization).filter(Boolean)).size}
+            </span>
           </div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Unique</div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">Unique spec.</span>
+          </div>
         </div>
 
-        <div className="bg-card border border-border rounded p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Branches</span>
-            <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+        <div className="bg-card border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Branches</span>
+            <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </div>
-          <div className="text-foreground text-xl tabular-nums">
-            {new Set(doctors.map(d => d.branch_id)).size}
+          <div className="mb-2">
+            <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
+              {new Set(doctors.map(d => d.branch_id)).size}
+            </span>
           </div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Locations</div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">Locations</span>
+          </div>
         </div>
       </div>
 
@@ -295,13 +321,19 @@ export function DoctorManagement() {
             setSelectedDoctor(null);
           }}
           onSave={async (data) => {
-            if (selectedDoctor) {
-              await updateDoctor(selectedDoctor.id, data);
-            } else {
-              await createDoctor(data);
+            try {
+              if (selectedDoctor) {
+                await updateDoctor(selectedDoctor.id, data);
+                toast.success("Doctor updated successfully");
+              } else {
+                await createDoctor(data);
+                toast.success("Doctor created successfully");
+              }
+              setShowModal(false);
+              setSelectedDoctor(null);
+            } catch (err: any) {
+              toast.error(err.message || "Failed to save doctor");
             }
-            setShowModal(false);
-            setSelectedDoctor(null);
           }}
         />
       )}

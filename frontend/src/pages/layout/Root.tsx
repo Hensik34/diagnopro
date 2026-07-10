@@ -167,7 +167,7 @@ export function Root() {
             isReportEntry ? 'ml-0' : (sidebarCollapsed ? 'ml-0 md:ml-14' : 'ml-0 md:ml-56')
           } ${isDoctor ? 'pb-16 md:pb-0' : ''}`}
         >
-          <div className={`${isReportEntry ? 'px-3 py-2 w-full max-w-full mx-auto print:p-0' : 'px-4 py-4 md:px-6 md:py-6 lg:px-8 max-w-full lg:max-w-7xl xl:max-w-[1920px] mx-auto print:p-0 print:max-w-none'}`}>
+          <div className={`${isReportEntry ? 'px-3 py-2 w-full max-w-full mx-auto print:p-0' : 'px-4 py-4 md:px-6 md:py-6 lg:px-8 w-full max-w-full print:p-0'}`}>
             <Outlet />
           </div>
         </main>

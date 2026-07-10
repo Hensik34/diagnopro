@@ -1,6 +1,46 @@
 const { Op, fn, col } = require("sequelize");
 const { Report, Patient, Doctor, User, Sample, Settings, B2BLab } = require("./index");
 
+function stableStringify(value) {
+  if (value === null || value === undefined) return "null";
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+  if (typeof value === "object") {
+    const keys = Object.keys(value).sort();
+    return `{${keys
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function areValuesEquivalent(currentVal, newVal) {
+  if (currentVal == null && newVal == null) return true;
+
+  if (
+    currentVal !== null &&
+    currentVal !== undefined &&
+    newVal !== null &&
+    newVal !== undefined &&
+    !Number.isNaN(Number(currentVal)) &&
+    !Number.isNaN(Number(newVal)) &&
+    `${currentVal}`.trim() !== "" &&
+    `${newVal}`.trim() !== ""
+  ) {
+    return Number(currentVal) === Number(newVal);
+  }
+
+  if (
+    (typeof currentVal === "object" && currentVal !== null) ||
+    (typeof newVal === "object" && newVal !== null)
+  ) {
+    return stableStringify(currentVal) === stableStringify(newVal);
+  }
+
+  return currentVal === newVal;
+}
+
 // ==========================================
 // REPORT STATUS CONSTANTS
 // ==========================================
@@ -68,7 +108,7 @@ exports.getAllReports = async (filters = {}) => {
 exports.getReportById = async (id) => {
   const row = await Report.findByPk(id, {
     include: [
-      { model: Patient, as: "patient", attributes: ["name", "phone", "gender", "age", "age_unit", "branch_id"] },
+      { model: Patient, as: "patient", attributes: ["name", "phone", "email", "gender", "age", "age_unit", "branch_id"] },
       { model: Doctor, as: "doctor", attributes: ["title", "name", "firstname", "lastname", "phone", "email", "signature_url"] },
       { model: User, as: "technician", attributes: ["firstname", "lastname"] },
       { model: Sample, as: "sample", attributes: ["sample_id_code", "sample_type"] },
@@ -96,6 +136,7 @@ exports.getReportById = async (id) => {
     ...row,
     patient_name: row.patient?.name,
     patient_phone: row.patient?.phone,
+    patient_email: row.patient?.email,
     patient_gender: row.patient?.gender,
     patient_age: row.patient?.age,
     patient_age_unit: row.patient?.age_unit,
@@ -241,31 +282,45 @@ exports.updateReport = async (id, reportData) => {
   }
 
   // Get current report to perform lock check & commission calculations
-  const current = await Report.findByPk(id, {
-    attributes: ["price_locked", "status", "doctor_id", "is_self_report", "report_amount", "b2b_charge", "doctor_discount", "base_amount", "lab_discount_type", "lab_discount_value", "final_amount", "price_list_id"],
-    raw: true,
-  });
+  const current = await Report.findByPk(id, { raw: true });
 
   if (current) {
+    for (const key of Object.keys(updateObj)) {
+      if (areValuesEquivalent(current[key], updateObj[key])) {
+        delete updateObj[key];
+      }
+    }
+
+    if (Object.keys(updateObj).length === 0) {
+      return exports.getReportById(id);
+    }
+
     // If report is locked, prevent modifying any pricing-related fields
     if (current.price_locked) {
-      const pricingFields = ["report_amount", "base_amount", "lab_discount_type", "lab_discount_value", "doctor_discount", "final_amount", "price_list_id"];
-      const changingPricingFields = Object.keys(updateObj).filter(key => {
-        if (!pricingFields.includes(key)) return false;
-        const currentVal = current[key];
-        const newVal = updateObj[key];
-        if (currentVal === newVal) return false;
-        
-        // Handle numeric comparisons (strings vs numbers from database decimal/float types)
-        if (currentVal !== null && currentVal !== undefined && newVal !== null && newVal !== undefined) {
-          if (!isNaN(Number(currentVal)) && !isNaN(Number(newVal))) {
-            return Number(currentVal) !== Number(newVal);
+      // Allow pricing changes when tests are being added/removed (test_data is changing)
+      const isTestListChange = updateObj.test_data !== undefined;
+      if (isTestListChange) {
+        // Keep price locked after this update completes
+        updateObj.price_locked = true;
+      } else {
+        const pricingFields = ["report_amount", "base_amount", "lab_discount_type", "lab_discount_value", "doctor_discount", "final_amount", "price_list_id"];
+        const changingPricingFields = Object.keys(updateObj).filter(key => {
+          if (!pricingFields.includes(key)) return false;
+          const currentVal = current[key];
+          const newVal = updateObj[key];
+          if (currentVal === newVal) return false;
+          
+          // Handle numeric comparisons (strings vs numbers from database decimal/float types)
+          if (currentVal !== null && currentVal !== undefined && newVal !== null && newVal !== undefined) {
+            if (!isNaN(Number(currentVal)) && !isNaN(Number(newVal))) {
+              return Number(currentVal) !== Number(newVal);
+            }
           }
+          return currentVal !== newVal;
+        });
+        if (changingPricingFields.length > 0) {
+          throw new Error(`Cannot modify prices — report is locked (status: ${current.status})`);
         }
-        return currentVal !== newVal;
-      });
-      if (changingPricingFields.length > 0) {
-        throw new Error(`Cannot modify prices — report is locked (status: ${current.status})`);
       }
     }
 
@@ -277,6 +332,9 @@ exports.updateReport = async (id, reportData) => {
         updateObj.price_locked = false;
       }
     }
+
+    // Keep approved reports approved during edits.
+    // Status only changes when an explicit status update is requested.
 
     // Keep doctor commission consistent when billing/B2B/doctor fields change.
     const affectsCommission = ["doctor_id", "is_self_report", "report_amount", "b2b_charge", "doctor_discount"]

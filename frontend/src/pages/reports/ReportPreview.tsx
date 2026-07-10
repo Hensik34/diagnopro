@@ -21,12 +21,11 @@ import {
 import { Link, useParams, useSearchParams, useNavigate } from 'react-router';
 import { PatientInfoHeader } from '../../app/components/reports/PatientInfoHeader';
 import { format } from 'date-fns';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
 import { QRCodeSVG } from 'qrcode.react';
 import JsBarcode from 'jsbarcode';
 import * as pdfjsLib from 'pdfjs-dist';
 import { ShareReportModal } from '../../app/components/WhatsAppModal';
+import { reportApi } from '../../api/reports';
 import {
   ImprovedPatientBox,
   InvestigationTableHeader,
@@ -372,6 +371,7 @@ export function ReportPreview() {
   const [safeZones, setSafeZones] = useState<SafeZones>({ top: 52, bottom: 56, left: 24, right: 24 });
   const [zoom, setZoom] = useState(1);
   const [baseScale, setBaseScale] = useState(1);
+  const effectiveScale = clamp(baseScale * zoom, 0.3, 2);
   const [sectionOrder, setSectionOrder] = useState<string[]>([]);
   const [originalSectionOrder, setOriginalSectionOrder] = useState<string[]>([]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -967,22 +967,38 @@ export function ReportPreview() {
   useEffect(() => {
     if (!viewerRef.current) return;
 
-    const observerOptions = {
-      root: viewerRef.current,
-      threshold: 0.25,
-    };
+    const visiblePageRatios = new Map<Element, number>();
 
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting && viewerRef.current) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          visiblePageRatios.set(entry.target, entry.intersectionRatio);
+        });
+
+        // Find the page with the highest visibility ratio
+        let maxRatio = -1;
+        let mostVisiblePage: Element | null = null;
+        visiblePageRatios.forEach((ratio, target) => {
+          if (ratio > maxRatio) {
+            maxRatio = ratio;
+            mostVisiblePage = target;
+          }
+        });
+
+        if (mostVisiblePage && maxRatio > 0) {
+          if (!viewerRef.current) return;
           const pagesList = Array.from(viewerRef.current.querySelectorAll('.report-page'));
-          const index = pagesList.indexOf(entry.target);
+          const index = pagesList.indexOf(mostVisiblePage);
           if (index !== -1) {
             setActivePageIndex(index);
           }
         }
-      });
-    }, observerOptions);
+      },
+      {
+        root: viewerRef.current,
+        threshold: [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0],
+      }
+    );
 
     const pagesList = viewerRef.current.querySelectorAll('.report-page');
     pagesList.forEach((el) => observer.observe(el));
@@ -990,127 +1006,34 @@ export function ReportPreview() {
     return () => {
       observer.disconnect();
     };
-  }, [pages, reportData]);
+  }, [pages, reportData, effectiveScale]);
 
   const handleSelectPage = (index: number) => {
     setActivePageIndex(index);
     if (!viewerRef.current) return;
-    const pagesList = viewerRef.current.querySelectorAll('.report-page');
-    if (pagesList && pagesList[index]) {
-      pagesList[index].scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    const targetScrollTop = index * (A4_HEIGHT_PX + PAGE_GAP_PX) * effectiveScale;
+    viewerRef.current.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
   };
 
   const isSelfReport = reportData?.patient.referringDoctor === 'Self' || rawReport?.is_self_report;
   const refDoctor = doctors.find(d => d.id === rawReport?.doctor_id);
-
-  const generatePDF = useCallback(async (): Promise<File | null> => {
-    if (!reportData || pages.length === 0) return null;
+  const handleDownloadPdf = useCallback(async () => {
+    if (!id) return;
     setIsGeneratingPdf(true);
-
-    // Render clones in the MAIN document (not an iframe) so they get the
-    // exact same fonts, styles, and layout engine as the preview.
-    // This is the root fix for bottom-cropping: the iframe had different
-    // font metrics / rendering context which made content taller than expected.
-    const offscreenRoot = document.createElement('div');
-    offscreenRoot.style.position = 'fixed';
-    offscreenRoot.style.top = '0';
-    offscreenRoot.style.left = '0';
-    offscreenRoot.style.width = `${A4_WIDTH_PX}px`;
-    offscreenRoot.style.height = `${A4_HEIGHT_PX}px`;
-    offscreenRoot.style.zIndex = '-9999';
-    offscreenRoot.style.opacity = '0';
-    offscreenRoot.style.pointerEvents = 'none';
-    offscreenRoot.style.overflow = 'hidden';
-    document.body.appendChild(offscreenRoot);
-
     try {
-      const pdf = new jsPDF('p', 'mm', 'a4', true);
-
-      for (let i = 0; i < pages.length; i++) {
-        const node = pageRefs.current[i];
-        if (!node) continue;
-        if (i > 0) pdf.addPage();
-
-        const cloned = node.cloneNode(true) as HTMLElement;
-
-        // Reset visual styles that are only for the preview
-        cloned.style.transform = 'none';
-        cloned.style.position = 'relative';
-        cloned.style.margin = '0';
-        cloned.style.boxShadow = 'none';
-        cloned.style.border = 'none';
-        cloned.style.width = `${A4_WIDTH_PX}px`;
-        cloned.style.height = `${A4_HEIGHT_PX}px`;
-        cloned.style.overflow = 'hidden';
-        offscreenRoot.appendChild(cloned);
-
-        // Wait for all images to load
-        const imgs = cloned.querySelectorAll('img');
-        await Promise.all(
-          Array.from(imgs).map(
-            img => new Promise(resolve => {
-              const imgEl = img as HTMLImageElement;
-              if (imgEl.complete && imgEl.naturalHeight > 0) {
-                resolve(true);
-              } else {
-                imgEl.onload = () => resolve(true);
-                imgEl.onerror = () => resolve(true);
-              }
-            })
-          )
-        );
-
-        // Wait for layout to settle
-        await new Promise(r => setTimeout(r, 150));
-
-        const canvas = await html2canvas(cloned, {
-          scale: 3,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          width: A4_WIDTH_PX,
-          height: A4_HEIGHT_PX,
-          windowWidth: A4_WIDTH_PX,
-          windowHeight: A4_HEIGHT_PX,
-          scrollX: 0,
-          scrollY: 0,
-          onclone: (doc) => {
-            doc.body.style.setProperty('-webkit-font-smoothing', 'antialiased');
-          },
-        });
-
-
-        offscreenRoot.removeChild(cloned);
-
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-      }
-
-      const fileName = `Report-${reportData.patient.name.replace(/\s+/g, '_')}-${reportData.report.id}.pdf`;
-      const blob = pdf.output('blob');
-      return new File([blob], fileName, { type: 'application/pdf' });
+      const { blob, filename } = await reportApi.downloadPdf(id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('PDF generation failed:', err);
-      return null;
+      console.error('Server PDF download failed:', err);
     } finally {
-      document.body.removeChild(offscreenRoot);
       setIsGeneratingPdf(false);
     }
-  }, [reportData, pages, safeZones]);
-
-
-
-
-  const handleDownloadPdf = useCallback(async () => {
-    const file = await generatePDF();
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = file.name;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [generatePDF]);
+  }, [id]);
 
   const moveUp = useCallback((id: string) => {
     setSectionOrder(prev => {
@@ -1632,7 +1555,6 @@ export function ReportPreview() {
     );
   };
 
-  const effectiveScale = clamp(baseScale * zoom, 0.3, 2);
   const stackHeight = pages.length * A4_HEIGHT_PX + Math.max(0, pages.length - 1) * PAGE_GAP_PX;
   return (
     <div className="report-viewer-shell flex flex-col h-[calc(100vh-76px)] overflow-hidden space-y-2.5 w-full px-1.5 sm:px-2 pb-1.5 bg-slate-50/50 dark:bg-slate-950/20">
@@ -1787,10 +1709,10 @@ export function ReportPreview() {
           isOpen={showShareModal}
           onClose={() => setShowShareModal(false)}
           reportId={id}
-          generatePDF={generatePDF}
           sampleIdCode={rawReport?.sample_id_code}
           patientName={rawReport?.patient_name}
           patientPhone={rawReport?.patient_phone}
+          patientEmail={rawReport?.patient_email}
           doctorName={rawReport?.doctor_name ? (/^dr\.?/i.test(rawReport.doctor_name) ? rawReport.doctor_name : `${rawReport.doctor_title || 'Dr'}. ${rawReport.doctor_name}`) : undefined}
           doctorPhone={rawReport?.doctor_phone}
           doctorEmail={rawReport?.doctor_email}
@@ -2017,6 +1939,15 @@ function PageThumbnailPanel({
   onSelectPage: (idx: number) => void;
   renderPage?: (idx: number) => React.ReactNode;
 }) {
+  const thumbnailRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    const activeEl = thumbnailRefs.current[activePageIndex];
+    if (activeEl) {
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [activePageIndex]);
+
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm select-none h-full flex flex-col overflow-hidden">
       <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3 flex items-center justify-between flex-shrink-0">
@@ -2029,6 +1960,7 @@ function PageThumbnailPanel({
         {pages.map((page, idx) => (
           <div
             key={idx}
+            ref={(el) => { thumbnailRefs.current[idx] = el; }}
             onClick={() => onSelectPage(idx)}
             className="flex flex-col items-center gap-1.5 cursor-pointer group"
           >

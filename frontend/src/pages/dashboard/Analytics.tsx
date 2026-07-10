@@ -188,25 +188,31 @@ export function Analytics() {
     }
   };
 
-  const StatCard = ({ label, value, subtext, icon: Icon, trend, color }: any) => (
-    <div className="bg-card border border-border rounded-lg p-4">
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1">
-          <p className="text-muted-foreground text-xs uppercase tracking-wide mb-1">{label}</p>
-          <div className="flex items-baseline gap-2">
-            <span className="text-foreground text-2xl font-bold tabular-nums">{value}</span>
-            {trend && (
-              <span className={`text-xs font-medium ${trend > 0 ? 'text-success' : 'text-destructive'}`}>
-                {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}%
-              </span>
-            )}
-          </div>
-        </div>
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
-          <Icon className="w-5 h-5" />
-        </div>
+  const StatCard = ({ label, value, subtext, icon: Icon, trend }: any) => (
+    <div className="bg-card border border-border rounded p-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-muted-foreground text-[11px] uppercase tracking-wide">
+          {label}
+        </span>
+        {Icon && (
+          <Icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+        )}
       </div>
-      {subtext && <p className="text-muted-foreground text-xs">{subtext}</p>}
+      <div className="mb-2">
+        <span className="text-foreground text-3xl tracking-tight tabular-nums font-semibold">
+          {value}
+        </span>
+        {trend && (
+          <span className={`text-xs font-medium ml-1.5 ${trend > 0 ? 'text-success' : 'text-destructive'}`}>
+            {trend > 0 ? '↑' : '↓'}{Math.abs(trend)}%
+          </span>
+        )}
+      </div>
+      {subtext && (
+        <div className="flex items-center gap-1 text-xs">
+          <span className="text-muted-foreground">{subtext}</span>
+        </div>
+      )}
     </div>
   );
 
@@ -281,41 +287,36 @@ export function Analytics() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
         <StatCard
           label="Total Reports"
           value={data.stats.totalReports}
           subtext="All report submissions"
           icon={FileText}
-          color="bg-blue-500/10 text-blue-600"
         />
         <StatCard
           label="Approved"
           value={data.stats.approvedReports}
           subtext={`${data.stats.totalReports > 0 ? Math.round((data.stats.approvedReports / data.stats.totalReports) * 100) : 0}% of total`}
           icon={Activity}
-          color="bg-success/10 text-success"
         />
         <StatCard
           label="Draft"
           value={data.stats.draftReports}
-          subtext="Pending submission"
-          icon={FileText}
-          color="bg-warning/10 text-warning"
+          subtext={`${data.stats.totalReports > 0 ? Math.round((data.stats.draftReports / data.stats.totalReports) * 100) : 0}% of total`}
+          icon={TrendingUp}
         />
         <StatCard
           label="Doctor Referrals"
           value={data.stats.doctorReferrals}
-          subtext={`${data.stats.totalReports > 0 ? Math.round((data.stats.doctorReferrals / data.stats.totalReports) * 100) : 0}% of patients`}
+          subtext={`${data.stats.totalReports > 0 ? Math.round((data.stats.doctorReferrals / data.stats.totalReports) * 100) : 0}% of total`}
           icon={Users}
-          color="bg-primary/10 text-primary"
         />
         <StatCard
           label="Self-Referred"
           value={data.stats.selfReferrals}
-          subtext={`${data.stats.totalReports > 0 ? Math.round((data.stats.selfReferrals / data.stats.totalReports) * 100) : 0}% of patients`}
-          icon={TrendingUp}
-          color="bg-purple-500/10 text-purple-600"
+          subtext={`${data.stats.totalReports > 0 ? Math.round((data.stats.selfReferrals / data.stats.totalReports) * 100) : 0}% of total`}
+          icon={Users}
         />
       </div>
 

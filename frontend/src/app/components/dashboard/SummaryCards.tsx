@@ -1,13 +1,7 @@
 import { useMemo } from 'react';
-import { format, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { FileText, IndianRupee } from 'lucide-react';
 import type { Report } from '../../../types';
-
-interface SummaryCard {
-  title: string;
-  value: string | number;
-  subtitle: string;
-  type: 'default' | 'success' | 'warning' | 'danger';
-}
 
 interface SummaryCardsProps {
   selectedMonth: Date;
@@ -33,43 +27,47 @@ export function SummaryCards({ selectedMonth, reports }: SummaryCardsProps) {
     return { totalReports, totalRevenue };
   }, [selectedMonth, reports]);
 
-  const cards: SummaryCard[] = [
+  const cards = [
     {
       title: 'Total Reports',
       value: monthStats.totalReports,
       subtitle: `in ${format(selectedMonth, 'MMMM yyyy')}`,
-      type: 'default',
+      icon: FileText,
     },
     {
       title: 'Total Revenue',
       value: `₹${monthStats.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
       subtitle: `in ${format(selectedMonth, 'MMMM yyyy')}`,
-      type: 'success',
+      icon: IndianRupee,
     },
   ];
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-      {cards.map((card) => (
-        <div
-          key={card.title}
-          className="bg-card border border-border rounded p-4"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">
-              {card.title}
-            </span>
+      {cards.map((card) => {
+        const Icon = card.icon;
+        return (
+          <div
+            key={card.title}
+            className="bg-card border border-border rounded p-4"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-muted-foreground text-[11px] uppercase tracking-wide">
+                {card.title}
+              </span>
+              <Icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            </div>
+            <div className="mb-2">
+              <span className="text-foreground text-3xl tracking-tight tabular-nums font-semibold">
+                {card.value}
+              </span>
+            </div>
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-muted-foreground">{card.subtitle}</span>
+            </div>
           </div>
-          <div className="mb-2">
-            <span className="text-foreground text-3xl tracking-tight tabular-nums font-semibold">
-              {card.value}
-            </span>
-          </div>
-          <div className="flex items-center gap-1 text-xs">
-            <span className="text-muted-foreground">{card.subtitle}</span>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -275,6 +275,7 @@ CREATE TABLE IF NOT EXISTS reports (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id UUID NOT NULL REFERENCES patients(id),
     doctor_id UUID REFERENCES doctors(id),
+    referring_doctor_name VARCHAR(255),
     technician_id UUID REFERENCES users(id),
     report_type TEXT,
     sample_id UUID REFERENCES samples(id),
@@ -304,6 +305,9 @@ CREATE TABLE IF NOT EXISTS reports (
     payment_status VARCHAR(30) DEFAULT 'pending',
     b2b_lab_id UUID REFERENCES b2b_labs(id),
     b2b_charge DECIMAL(10, 2) DEFAULT 0,
+    price_list_id UUID,
+    price_locked BOOLEAN DEFAULT FALSE,
+    attach_marketing_pages BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -408,6 +412,8 @@ CREATE TABLE IF NOT EXISTS settings (
     branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE UNIQUE,
     letterhead_url TEXT,
     owner_signature_url TEXT,
+    owner_signature_label VARCHAR(255),
+    owner_signature_description VARCHAR(255),
     header_url TEXT,
     footer_url TEXT,
     report_margin_top VARCHAR(20) DEFAULT '10mm',
@@ -423,17 +429,22 @@ CREATE TABLE IF NOT EXISTS settings (
     letterhead_margins_auto BOOLEAN DEFAULT TRUE,
     signature_1_url TEXT,
     signature_1_label VARCHAR(255),
+    signature_1_description VARCHAR(255),
     signature_2_url TEXT,
     signature_2_label VARCHAR(255),
+    signature_2_description VARCHAR(255),
     signature_3_url TEXT,
     signature_3_label VARCHAR(255),
+    signature_3_description VARCHAR(255),
     signature_4_url TEXT,
     signature_4_label VARCHAR(255),
+    signature_4_description VARCHAR(255),
     default_signature_index INTEGER DEFAULT 0,
     sample_id_format VARCHAR(30) DEFAULT 'numeric',
     sample_id_reset_policy VARCHAR(30) DEFAULT 'yearly',
     sample_id_fy_start_month INTEGER DEFAULT 3,
     sample_id_start_number INTEGER DEFAULT 1001,
+    marketing_pages TEXT DEFAULT '[]',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -599,7 +610,164 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_test_packages_code_branch ON test_packages
 CREATE INDEX IF NOT EXISTS idx_test_packages_category ON test_packages(category);
 
 -- ============================================
--- 25. SAMPLE_ID_COUNTER + GENERATOR FUNCTION
+-- 25. PRICE_LISTS
+-- Model: models/definitions/PriceList.js → tableName: "price_lists"
+-- ============================================
+CREATE TABLE IF NOT EXISTS price_lists (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT TRUE,
+    version INTEGER DEFAULT 1,
+    effective_from DATE,
+    effective_to DATE,
+    created_by UUID REFERENCES users(id),
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(name, branch_id, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_price_lists_branch ON price_lists(branch_id);
+CREATE INDEX IF NOT EXISTS idx_price_lists_active ON price_lists(is_active, branch_id);
+CREATE INDEX IF NOT EXISTS idx_price_lists_effective ON price_lists(effective_from, effective_to);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_price_lists_default_branch ON price_lists (branch_id) WHERE (is_default = TRUE);
+
+-- ============================================
+-- 26. PRICE_LIST_ITEMS
+-- Model: models/definitions/PriceListItem.js → tableName: "price_list_items"
+-- ============================================
+CREATE TABLE IF NOT EXISTS price_list_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    price_list_id UUID NOT NULL REFERENCES price_lists(id) ON DELETE CASCADE,
+    test_id UUID NOT NULL REFERENCES tests(id) ON DELETE CASCADE,
+    price DECIMAL(10, 2),
+    discount_type VARCHAR(20) DEFAULT 'none',
+    discount_value DECIMAL(10, 2) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(price_list_id, test_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_price_list_items_list ON price_list_items(price_list_id);
+CREATE INDEX IF NOT EXISTS idx_price_list_items_test ON price_list_items(test_id);
+
+-- ============================================
+-- 27. DOCTOR_PRICE_LIST_ASSIGNMENTS
+-- Model: models/definitions/DoctorPriceListAssignment.js → tableName: "doctor_price_list_assignments"
+-- ============================================
+CREATE TABLE IF NOT EXISTS doctor_price_list_assignments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    doctor_id UUID NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
+    branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+    price_list_id UUID NOT NULL REFERENCES price_lists(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(doctor_id, branch_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_doc_pl_assign_doctor ON doctor_price_list_assignments(doctor_id);
+CREATE INDEX IF NOT EXISTS idx_doc_pl_assign_branch ON doctor_price_list_assignments(branch_id);
+
+-- ============================================
+-- 28. DOCTOR_TEST_PRICES
+-- Model: models/definitions/DoctorTestPrice.js → tableName: "doctor_test_prices"
+-- ============================================
+CREATE TABLE IF NOT EXISTS doctor_test_prices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    doctor_id UUID NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
+    test_id UUID NOT NULL REFERENCES tests(id) ON DELETE CASCADE,
+    price DECIMAL(10, 2) NOT NULL,
+    branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(doctor_id, test_id, branch_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_doctor_test_prices_doctor ON doctor_test_prices(doctor_id);
+CREATE INDEX IF NOT EXISTS idx_doctor_test_prices_branch ON doctor_test_prices(branch_id);
+
+-- ============================================
+-- 29. REPORT_TEST_PRICES
+-- Model: models/definitions/ReportTestPrice.js → tableName: "report_test_prices"
+-- ============================================
+CREATE TABLE IF NOT EXISTS report_test_prices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    report_id UUID NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+    test_id UUID REFERENCES tests(id) ON DELETE SET NULL,
+    package_id UUID REFERENCES test_packages(id) ON DELETE SET NULL,
+    default_price DECIMAL(10, 2) NOT NULL,
+    applied_price DECIMAL(10, 2) NOT NULL,
+    source VARCHAR(30) NOT NULL,
+    source_id UUID,
+    price_list_version INTEGER,
+    is_manual_override BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(report_id, test_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rtp_report ON report_test_prices(report_id);
+CREATE INDEX IF NOT EXISTS idx_rtp_test ON report_test_prices(test_id);
+CREATE INDEX IF NOT EXISTS idx_rtp_source ON report_test_prices(source);
+
+-- ============================================
+-- 30. PRICE_AUDIT_LOG
+-- Model: models/definitions/PriceAuditLog.js → tableName: "price_audit_log"
+-- ============================================
+CREATE TABLE IF NOT EXISTS price_audit_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    report_id UUID REFERENCES reports(id) ON DELETE SET NULL,
+    test_id UUID REFERENCES tests(id) ON DELETE SET NULL,
+    old_price DECIMAL(10, 2),
+    new_price DECIMAL(10, 2),
+    source VARCHAR(30),
+    changed_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_price_audit_report ON price_audit_log(report_id);
+CREATE INDEX IF NOT EXISTS idx_price_audit_user ON price_audit_log(changed_by);
+CREATE INDEX IF NOT EXISTS idx_price_audit_date ON price_audit_log(created_at);
+
+-- Backfill FK for reports.price_list_id after price_lists exists
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_reports_price_list_id'
+    ) THEN
+        ALTER TABLE reports
+        ADD CONSTRAINT fk_reports_price_list_id
+        FOREIGN KEY (price_list_id) REFERENCES price_lists(id) ON DELETE SET NULL;
+    END IF;
+END $$;
+
+-- ============================================
+-- 31. REPORT_DELIVERIES
+-- Model: models/definitions/ReportDelivery.js → tableName: "report_deliveries"
+-- ============================================
+CREATE TABLE IF NOT EXISTS report_deliveries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    report_id UUID NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+    branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
+    channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp',
+    recipient_type VARCHAR(50) NOT NULL,
+    recipient_phone VARCHAR(30),
+    status VARCHAR(30) NOT NULL DEFAULT 'pending',
+    reason TEXT,
+    wa_message_id VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_deliveries_report_id ON report_deliveries(report_id);
+CREATE INDEX IF NOT EXISTS idx_report_deliveries_branch_id ON report_deliveries(branch_id);
+CREATE INDEX IF NOT EXISTS idx_report_deliveries_status ON report_deliveries(status);
+CREATE INDEX IF NOT EXISTS idx_report_deliveries_created_at ON report_deliveries(created_at DESC);
+
+-- ============================================
+-- 32. SAMPLE_ID_COUNTER + GENERATOR FUNCTION
 -- ============================================
 CREATE TABLE IF NOT EXISTS sample_id_counter (
     id SERIAL PRIMARY KEY,
@@ -628,7 +796,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================
--- 26. SCHEMA_MIGRATIONS (tracking table for init.js)
+-- 33. SCHEMA_MIGRATIONS (tracking table for init.js)
 -- ============================================
 CREATE TABLE IF NOT EXISTS schema_migrations (
     id SERIAL PRIMARY KEY,
@@ -638,6 +806,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 -- ============================================
 -- MIGRATION 001: TABLE CREATION COMPLETE
--- All 25 tables created with ALL columns matching model definitions.
+-- Consolidated schema with pricing, signatures, marketing pages,
+-- referring doctor, report deliveries, and all current model tables.
 -- Data seeding handled by: 002_seed_test_data.sql
 -- ============================================
