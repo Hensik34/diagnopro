@@ -1,14 +1,25 @@
 import { useState, useEffect } from 'react';
 import { 
-  User, Loader2, AlertCircle, Check, Mail, Phone, Calendar, Percent
+  User, Loader2, AlertCircle, Check, Mail, Phone, Calendar, Percent, Lock
 } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { useAuthStore } from '../../stores';
 import { authApi } from '../../api/auth';
 import { doctorPortalApi } from '../../api/doctorPortal';
 import { getRoleLabel } from '../../utils/permissions';
 
 export function DoctorProfile() {
-  const { user, fetchProfile } = useAuthStore();
+  const navigate = useNavigate();
+  const { user, getBranchRole, fetchProfile } = useAuthStore();
+  const userRole = getBranchRole();
+  
+  // Safety check — redirect if not doctor
+  useEffect(() => {
+    if (userRole && userRole !== 'doctor') {
+      navigate('/unauthorized', { replace: true });
+    }
+  }, [userRole, navigate]);
+
   const [formFirstname, setFormFirstname] = useState('');
   const [formLastname, setFormLastname] = useState('');
   const [formPhone, setFormPhone] = useState('');
@@ -86,6 +97,11 @@ export function DoctorProfile() {
     formFirstname !== user?.firstname ||
     formLastname !== user?.lastname ||
     formPhone !== user?.phone;
+
+  // Render nothing while checking role (redirect happens in effect)
+  if (!userRole || userRole !== 'doctor') {
+    return null;
+  }
 
   return (
     <div className="space-y-6 max-w-2xl pb-10">

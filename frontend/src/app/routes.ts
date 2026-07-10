@@ -70,6 +70,30 @@ function withPermission(Component: any, requiredPermission: string) {
 }
 
 /**
+ * Guard for doctor-only pages.
+ * Redirects non-doctor users to unauthorized page.
+ */
+function doctorOnly(Component: any) {
+  const DoctorComponent = (props: any): React.ReactElement | null => {
+    const { user, getBranchRole } = useAuthStore();
+
+    // Safety net — Root.tsx should prevent this, but just in case
+    if (!user) return null;
+
+    // Check if user role is doctor
+    const role = getBranchRole();
+    if (role !== 'doctor') {
+      return React.createElement(Navigate, { to: '/unauthorized', replace: true });
+    }
+
+    return React.createElement(Component, props);
+  };
+  
+  DoctorComponent.displayName = `DoctorOnly(${Component.displayName || Component.name || 'Component'})`;
+  return DoctorComponent;
+}
+
+/**
  * Guard for guest-only pages (Login, Register, ForgotPassword).
  * Redirects logged-in users to the dashboard.
  */
@@ -146,7 +170,7 @@ export const router = createBrowserRouter([
       { path: 'tests/configure/:testId', Component: withPermission(TestConfiguration, PERMISSIONS.TEST_UPDATE) },
       { path: 'doctor-dashboard', Component: DoctorDashboard },
       { path: 'doctor-reports', Component: DoctorReports },
-      { path: 'profile', Component: DoctorProfile },
+      { path: 'profile', Component: doctorOnly(DoctorProfile) },
       // B2B Partner Labs
       { path: 'b2b', Component: withPermission(B2BLabManagement, PERMISSIONS.B2B_LAB_READ) },
       { path: 'b2b/:id', Component: withPermission(B2BLabDetail, PERMISSIONS.B2B_LAB_READ) },
