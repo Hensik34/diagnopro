@@ -13,6 +13,13 @@ export function VerifyPasscode() {
   const [cooldown, setCooldown] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Start with a 30-second cooldown after redirecting from login/google-login OTP response.
+  useEffect(() => {
+    if (pendingEmail) {
+      setCooldown((current) => (current > 0 ? current : 30));
+    }
+  }, [pendingEmail]);
+
   // Direct access protection
   useEffect(() => {
     if (isAuthenticated) {

@@ -400,6 +400,7 @@ export interface Report {
   patient_id: string;
   branch_id: string;
   doctor_id?: string | null;
+  staff_id?: string | null;
   referring_doctor_name?: string | null;
   technician_id?: string;
   report_type?: string;
@@ -453,6 +454,8 @@ export interface Report {
   doctor_lastname?: string;
   doctor_phone?: string;
   doctor_email?: string;
+  staff_firstname?: string;
+  staff_lastname?: string;
   technician_firstname?: string;
   technician_lastname?: string;
   sample_id_code?: string;
@@ -492,6 +495,7 @@ export interface Report {
 export interface CreateReportData {
   patient_id: string;
   doctor_id?: string | null;
+  staff_id?: string | null;
   referring_doctor_name?: string | null;
   report_type?: string;
   sample_id?: string;
@@ -520,6 +524,7 @@ export interface UpdateReportData {
   recommendations?: string;
   clinical_notes?: string;
   technician_id?: string;
+  staff_id?: string | null;
   test_data?: TestData;
   doctor_id?: string | null;
   referring_doctor_name?: string | null;

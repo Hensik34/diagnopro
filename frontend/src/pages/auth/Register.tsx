@@ -16,9 +16,14 @@ export function Register() {
   useEffect(() => {
     const handleGoogleCredentialResponse = async (response: any) => {
       clearError();
-      const success = await googleLogin(response.credential);
-      
-      if (success) {
+      const result = await googleLogin(response.credential);
+
+      if (result.success) {
+        if (result.requiresOtp) {
+          navigate('/verify-passcode');
+          return;
+        }
+
         const user = useAuthStore.getState().user;
 
         // Doctor login: skip onboarding check, go straight to dashboard

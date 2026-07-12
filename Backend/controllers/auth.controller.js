@@ -3,9 +3,151 @@ const bcrypt = require("bcrypt");
 const User = require("../models/User");
 const Branch = require("../models/Branch");
 const Doctor = require("../models/Doctor");
-const { PasswordResetOtp, LoginOtp } = require("../models");
+const { PasswordResetOtp, LoginOtp, User: UserModel } = require("../models");
 const { sendWelcomeEmail, sendOtpEmail, sendLoginOtpEmail } = require("../services/mail.service");
 const { Op } = require("sequelize");
+
+const OTP_LOCKOUT_WINDOW_MS = 5 * 60 * 1000;
+const OTP_MAX_REQUESTS_IN_WINDOW = 4;
+const OTP_RESEND_COOLDOWN_SECONDS = 30;
+const GOOGLE_TOKEN_VERIFY_TIMEOUT_MS = 8000;
+
+async function dispatchLoginOtpEmail(email, otp, expiryMinutes) {
+  // Non-blocking by design: API response should not wait on SMTP latency.
+  sendLoginOtpEmail(email, otp, expiryMinutes).catch((err) => {
+    console.error("Failed to send login OTP email:", err.message);
+  });
+}
+
+async function getRecentOtpStats(email) {
+  const lockWindowStart = new Date(Date.now() - OTP_LOCKOUT_WINDOW_MS);
+  const recentOtps = await LoginOtp.findAll({
+    where: {
+      email,
+      created_at: {
+        [Op.gte]: lockWindowStart,
+      },
+    },
+    attributes: ["created_at"],
+    order: [["created_at", "DESC"]],
+    raw: true,
+  });
+
+  return {
+    count: recentOtps.length,
+    latest: recentOtps[0] || null,
+    oldestInWindow: recentOtps[recentOtps.length - 1] || null,
+  };
+}
+
+function buildLockoutPayload(oldestInWindow) {
+  const oldestTs = oldestInWindow ? new Date(oldestInWindow.created_at).getTime() : Date.now();
+  const retryAfterSeconds = Math.max(
+    1,
+    Math.ceil((oldestTs + OTP_LOCKOUT_WINDOW_MS - Date.now()) / 1000),
+  );
+
+  return {
+    error: "Too many OTP requests. Login is locked for 5 minutes.",
+    retry_after_seconds: retryAfterSeconds,
+  };
+}
+
+function buildCooldownPayload(latestOtp) {
+  const latestTs = latestOtp ? new Date(latestOtp.created_at).getTime() : Date.now();
+  const retryAfterSeconds = Math.max(
+    1,
+    Math.ceil((latestTs + OTP_RESEND_COOLDOWN_SECONDS * 1000 - Date.now()) / 1000),
+  );
+
+  return {
+    error: `Please wait ${OTP_RESEND_COOLDOWN_SECONDS} seconds before requesting another passcode.`,
+    retry_after_seconds: retryAfterSeconds,
+  };
+}
+
+async function assertOtpRequestAllowed(email, { enforceCooldown = false } = {}) {
+  const stats = await getRecentOtpStats(email);
+
+  if (stats.count >= OTP_MAX_REQUESTS_IN_WINDOW) {
+    return {
+      allowed: false,
+      status: 429,
+      payload: buildLockoutPayload(stats.oldestInWindow),
+    };
+  }
+
+  if (enforceCooldown && stats.latest) {
+    const latestTs = new Date(stats.latest.created_at).getTime();
+    const elapsedMs = Date.now() - latestTs;
+    if (elapsedMs < OTP_RESEND_COOLDOWN_SECONDS * 1000) {
+      return {
+        allowed: false,
+        status: 429,
+        payload: buildCooldownPayload(stats.latest),
+      };
+    }
+  }
+
+  return { allowed: true };
+}
+
+async function verifyGoogleIdToken(idToken) {
+  // Node 18+ has global fetch. We guard with AbortController timeout to avoid hanging requests.
+  if (typeof fetch !== "undefined") {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), GOOGLE_TOKEN_VERIFY_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`,
+        { signal: controller.signal },
+      );
+
+      if (!response.ok) {
+        throw new Error("Invalid or expired Google token");
+      }
+
+      return await response.json();
+    } catch (err) {
+      if (err.name === "AbortError") {
+        throw new Error("Google verification timed out. Please try again.");
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  return await new Promise((resolve, reject) => {
+    const https = require("https");
+    const req = https.get(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`,
+      (response) => {
+        let data = "";
+        response.on("data", (chunk) => {
+          data += chunk;
+        });
+        response.on("end", () => {
+          if (response.statusCode !== 200) {
+            reject(new Error("Invalid or expired Google token"));
+            return;
+          }
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      },
+    );
+
+    req.setTimeout(GOOGLE_TOKEN_VERIFY_TIMEOUT_MS, () => {
+      req.destroy(new Error("Google verification timed out. Please try again."));
+    });
+    req.on("error", (err) => reject(err));
+  });
+}
 
 // REGISTER - Self-registration (always creates admin/branch owner)
 exports.register = async (req, res) => {
@@ -171,19 +313,10 @@ exports.login = async (req, res) => {
 
       // Check if user is admin - requires 2FA passcode via email
       if (user.role === "admin") {
-        // Enforce 5-minute lockout policy (max 4 OTP requests in 5 minutes)
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-        const recentOtpCount = await LoginOtp.count({
-          where: {
-            email: user.email,
-            created_at: {
-              [Op.gte]: fiveMinutesAgo
-            }
-          }
-        });
-
-        if (recentOtpCount >= 4) {
-          return res.status(429).json({ error: "Too many verification attempts. Your login is locked for 5 minutes." });
+        // Enforce lockout window for OTP request flooding.
+        const otpGate = await assertOtpRequestAllowed(user.email, { enforceCooldown: false });
+        if (!otpGate.allowed) {
+          return res.status(otpGate.status).json(otpGate.payload);
         }
 
         // Invalidate any existing unused OTPs for this email
@@ -204,13 +337,14 @@ exports.login = async (req, res) => {
           expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
         });
 
-        // Send OTP email
-        await sendLoginOtpEmail(user.email, otp, OTP_EXPIRY_MINUTES);
+        // Dispatch OTP email asynchronously to avoid SMTP latency blocking login response.
+        dispatchLoginOtpEmail(user.email, otp, OTP_EXPIRY_MINUTES);
 
         return res.json({
           requiresOtp: true,
           email: user.email,
-          message: "Verification passcode sent to your email."
+          message: "Verification passcode sent to your email.",
+          resend_after_seconds: OTP_RESEND_COOLDOWN_SECONDS,
         });
       }
 
@@ -420,32 +554,10 @@ exports.resendLoginOtp = async (req, res) => {
       return res.status(400).json({ error: "Invalid request. Admin user not found or inactive." });
     }
 
-    // 1. Lockout check (max 4 OTPs in 5 minutes)
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    const recentOtpCount = await LoginOtp.count({
-      where: {
-        email,
-        created_at: {
-          [Op.gte]: fiveMinutesAgo
-        }
-      }
-    });
-
-    if (recentOtpCount >= 4) {
-      return res.status(429).json({ error: "Too many verification attempts. Your login is locked for 5 minutes." });
-    }
-
-    // 2. Cooldown check (min 30 seconds between requests)
-    const latestOtp = await LoginOtp.findOne({
-      where: { email },
-      order: [["created_at", "DESC"]]
-    });
-
-    if (latestOtp) {
-      const thirtySecondsAgo = new Date(Date.now() - 30 * 1000);
-      if (new Date(latestOtp.created_at) > thirtySecondsAgo) {
-        return res.status(429).json({ error: "Please wait 30 seconds before requesting another passcode." });
-      }
+    // Enforce lockout + 30-second resend cooldown.
+    const otpGate = await assertOtpRequestAllowed(email, { enforceCooldown: true });
+    if (!otpGate.allowed) {
+      return res.status(otpGate.status).json(otpGate.payload);
     }
 
     // Invalidate existing unused OTPs
@@ -466,10 +578,13 @@ exports.resendLoginOtp = async (req, res) => {
       expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
     });
 
-    // Send email
-    await sendLoginOtpEmail(email, otp, OTP_EXPIRY_MINUTES);
+    // Send asynchronously to keep API responsive under slow SMTP.
+    dispatchLoginOtpEmail(email, otp, OTP_EXPIRY_MINUTES);
 
-    return res.json({ message: "Verification passcode resent successfully." });
+    return res.json({
+      message: "Verification passcode resent successfully.",
+      resend_after_seconds: OTP_RESEND_COOLDOWN_SECONDS,
+    });
   } catch (err) {
     console.error("Resend login OTP error:", err);
     res.status(500).json({ error: err.message });
@@ -565,6 +680,51 @@ exports.updateUserProfile = async (req, res) => {
     });
   } catch (err) {
     console.error("Update profile error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// GET USERS FOR SELECTION - Active users from same organization (for report staff assignment)
+exports.getUsersForSelection = async (req, res) => {
+  try {
+    const { id, source } = req.user;
+
+    // Doctors authenticated from doctors table are not part of user org hierarchy.
+    if (source === "doctor") {
+      return res.json({
+        message: "Users retrieved successfully",
+        count: 0,
+        data: [],
+      });
+    }
+
+    const requester = await User.findUserById(id);
+    if (!requester || requester.is_active === false) {
+      return res.status(404).json({ error: "User not found or inactive" });
+    }
+
+    const orgAdminId = requester.role === "admin" ? requester.id : (requester.created_by || requester.id);
+
+    const users = await UserModel.findAll({
+      where: {
+        is_active: true,
+        role: { [Op.in]: ["admin", "staff", "lab_technician"] },
+        [Op.or]: [
+          { id: orgAdminId },
+          { created_by: orgAdminId },
+        ],
+      },
+      attributes: ["id", "firstname", "lastname", "role", "is_active"],
+      order: [["firstname", "ASC"], ["lastname", "ASC"]],
+    });
+
+    res.json({
+      message: "Users retrieved successfully",
+      count: users.length,
+      data: users,
+    });
+  } catch (err) {
+    console.error("Get users for selection error:", err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -822,36 +982,8 @@ exports.googleLogin = async (req, res) => {
   }
 
   try {
-    // 1. Verify Google token via Google API tokeninfo endpoint
-    let tokenInfo;
-    
-    // Node 18+ has global fetch, we'll try that first, with a fallback to native https
-    if (typeof fetch !== 'undefined') {
-      const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
-      if (!response.ok) {
-        return res.status(400).json({ error: "Invalid or expired Google token" });
-      }
-      tokenInfo = await response.json();
-    } else {
-      tokenInfo = await new Promise((resolve, reject) => {
-        const https = require("https");
-        https.get(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`, (response) => {
-          let data = "";
-          response.on("data", (chunk) => { data += chunk; });
-          response.on("end", () => {
-            if (response.statusCode !== 200) {
-              reject(new Error("Invalid or expired Google token"));
-            } else {
-              try {
-                resolve(JSON.parse(data));
-              } catch (e) {
-                reject(e);
-              }
-            }
-          });
-        }).on("error", (err) => reject(err));
-      });
-    }
+    // 1. Verify Google token with timeout guards to avoid hanging production requests.
+    const tokenInfo = await verifyGoogleIdToken(idToken);
 
     const { email, given_name, family_name } = tokenInfo;
     if (!email) {
@@ -868,19 +1000,10 @@ exports.googleLogin = async (req, res) => {
 
       // Check if user is admin - requires 2FA passcode via email
       if (user.role === "admin") {
-        // Enforce 5-minute lockout policy (max 4 OTP requests in 5 minutes)
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-        const recentOtpCount = await LoginOtp.count({
-          where: {
-            email: user.email,
-            created_at: {
-              [Op.gte]: fiveMinutesAgo
-            }
-          }
-        });
-
-        if (recentOtpCount >= 4) {
-          return res.status(429).json({ error: "Too many verification attempts. Your login is locked for 5 minutes." });
+        // Enforce lockout window for OTP request flooding.
+        const otpGate = await assertOtpRequestAllowed(user.email, { enforceCooldown: false });
+        if (!otpGate.allowed) {
+          return res.status(otpGate.status).json(otpGate.payload);
         }
 
         // Invalidate any existing unused OTPs for this email
@@ -901,13 +1024,14 @@ exports.googleLogin = async (req, res) => {
           expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
         });
 
-        // Send OTP email
-        await sendLoginOtpEmail(user.email, otp, OTP_EXPIRY_MINUTES);
+        // Dispatch OTP email asynchronously to avoid SMTP latency blocking login response.
+        dispatchLoginOtpEmail(user.email, otp, OTP_EXPIRY_MINUTES);
 
         return res.json({
           requiresOtp: true,
           email: user.email,
-          message: "Verification passcode sent to your email."
+          message: "Verification passcode sent to your email.",
+          resend_after_seconds: OTP_RESEND_COOLDOWN_SECONDS,
         });
       }
 
@@ -1022,6 +1146,11 @@ exports.googleLogin = async (req, res) => {
 
     // Check if new user is admin - requires 2FA passcode via email
     if (newUser.role === "admin") {
+      const otpGate = await assertOtpRequestAllowed(newUser.email, { enforceCooldown: false });
+      if (!otpGate.allowed) {
+        return res.status(otpGate.status).json(otpGate.payload);
+      }
+
       // Generate 6-digit OTP passcode
       const otp = String(Math.floor(100000 + Math.random() * 900000));
       const OTP_EXPIRY_MINUTES = 10;
@@ -1034,13 +1163,14 @@ exports.googleLogin = async (req, res) => {
         expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
       });
 
-      // Send OTP email
-      await sendLoginOtpEmail(newUser.email, otp, OTP_EXPIRY_MINUTES);
+      // Send asynchronously to avoid request timeouts in production SMTP/network conditions.
+      dispatchLoginOtpEmail(newUser.email, otp, OTP_EXPIRY_MINUTES);
 
       return res.status(201).json({
         requiresOtp: true,
         email: newUser.email,
-        message: "Verification passcode sent to your email."
+        message: "Verification passcode sent to your email.",
+        resend_after_seconds: OTP_RESEND_COOLDOWN_SECONDS,
       });
     }
 
