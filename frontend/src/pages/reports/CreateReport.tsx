@@ -49,7 +49,7 @@ export function CreateReport() {
   const { doctors, fetchDoctors } = useDoctorStore();
   const { currentBranchId } = useBranchStore();
   const { createReport, isLoading: reportLoading, error: reportError } = useReportStore();
-  const { user } = useAuthStore();
+  const { user, staffList, fetchStaffList } = useAuthStore();
   const { labs: b2bLabs, fetchLabs: fetchB2BLabs } = useB2BStore();
 
   // Patient search and selection
@@ -115,6 +115,7 @@ export function CreateReport() {
 
   // Patient email (saved to patient record)
   const [patientEmail, setPatientEmail] = useState("");
+  const [selectedStaffId, setSelectedStaffId] = useState("");
 
   // WhatsApp Delivery Preferences
   const [sendWhatsAppPatient, setSendWhatsAppPatient] = useState(true);
@@ -135,6 +136,15 @@ export function CreateReport() {
       setSendWhatsAppDoctor(false);
     }
   }, [selectedDoctor]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (selectedStaffId) return;
+
+    if (user.role === "staff" || user.role === "lab_technician") {
+      setSelectedStaffId(user.id);
+    }
+  }, [user, selectedStaffId]);
 
   const patientSearchRef = useRef<HTMLDivElement>(null);
   const patientSearchInputRef = useRef<HTMLInputElement>(null);
@@ -176,6 +186,7 @@ export function CreateReport() {
         });
     }
     fetchDoctors();
+    fetchStaffList();
     fetchB2BLabs();
     // Peek at next sample ID (does NOT increment counter)
     sampleApi.getNextId(currentBranchId || undefined).then((res) => {
@@ -184,7 +195,7 @@ export function CreateReport() {
       // Show format preview if peek fails
       setSampleIdCode('1001');
     });
-  }, [fetchPatients, fetchTests, fetchDoctors, fetchB2BLabs, currentBranchId]);
+  }, [fetchPatients, fetchTests, fetchDoctors, fetchStaffList, fetchB2BLabs, currentBranchId]);
 
   useEffect(() => {
     if (!selectedPatient || isNewPatient) {
@@ -991,6 +1002,7 @@ export function CreateReport() {
       const report = await createReport({
         patient_id: patientId,
         doctor_id: selectedDoctor?.id || undefined,
+        staff_id: selectedStaffId || undefined,
         referring_doctor_name: !selectedDoctor && referringDoctorName ? referringDoctorName : undefined,
         report_type: reportTypeString || selectedTests.map(t => t.test_name).join(', '),
         report_amount: totalPrice,
@@ -1512,6 +1524,23 @@ export function CreateReport() {
                       onChange={(e) => setPatientEmail(e.target.value)}
                       placeholder="patient@email.com"
                     />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-0.5">
+                      Sample Collected By (Staff)
+                    </label>
+                    <select
+                      className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      value={selectedStaffId}
+                      onChange={(e) => setSelectedStaffId(e.target.value)}
+                    >
+                      <option value="">Select staff (optional)</option>
+                      {staffList.map((staff) => (
+                        <option key={staff.id} value={staff.id}>
+                          {staff.firstname} {staff.lastname} ({staff.role})
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground block mb-0.5">

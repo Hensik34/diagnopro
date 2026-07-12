@@ -25,6 +25,7 @@ interface RegisterData {
 interface AuthState {
   // State
   user: User | null;
+  staffList: User[];
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -40,6 +41,7 @@ interface AuthState {
   resendLoginOtp: () => Promise<boolean>;
   logout: () => void;
   fetchProfile: () => Promise<void>;
+  fetchStaffList: () => Promise<void>;
   clearError: () => void;
   initialize: () => Promise<void>;
 
@@ -59,6 +61,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set, get) => ({
   // Initial State
   user: null,
+  staffList: [],
   isAuthenticated: !!getAuthToken(),
   isLoading: false,
   error: null,
@@ -100,6 +103,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Store user in Zustand state (not localStorage)
       set({
         user: response.user || null,
+        staffList: [],
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -115,6 +119,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         error: errorMessage,
         isAuthenticated: false,
         user: null,
+        staffList: [],
         doctorProfile: null,
         loginBranches: [],
         pendingEmail: null,
@@ -151,6 +156,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Store user in Zustand state
       set({
         user: response.user || null,
+        staffList: [],
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -166,6 +172,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         error: errorMessage,
         isAuthenticated: false,
         user: null,
+        staffList: [],
         doctorProfile: null,
         loginBranches: [],
         pendingEmail: null,
@@ -192,6 +199,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Store user in Zustand state
       set({
         user: response.user,
+        staffList: [],
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -207,6 +215,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         error: errorMessage,
         isAuthenticated: false,
         user: null,
+        staffList: [],
       });
       return false;
     }
@@ -288,6 +297,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // 1. Clear auth state first (stops any in-flight API calls from re-populating)
     set({
       user: null,
+      staffList: [],
       isAuthenticated: false,
       error: null,
       doctorProfile: null,
@@ -325,6 +335,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Reset everything to prevent data leaks.
       set({
         user: null,
+        staffList: [],
         isAuthenticated: false,
         isLoading: false,
         error: null,
@@ -332,6 +343,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         loginBranches: [],
       });
       resetAllStores();
+    }
+  },
+
+  /**
+   * Fetch active users in current organization for selection dropdowns
+   */
+  fetchStaffList: async () => {
+    if (!getAuthToken()) {
+      set({ staffList: [] });
+      return;
+    }
+
+    try {
+      const response = await authApi.getUsersForSelection();
+      set({ staffList: response.data || [] });
+    } catch (error) {
+      console.error('Failed to fetch staff list:', error);
+      set({ staffList: [] });
     }
   },
 

@@ -23,6 +23,7 @@ router.post("/reset-password", authController.resetPassword);
 // Protected routes (authentication only, no specific permission needed)
 router.get("/profile", authenticate, authController.getUserProfile);
 router.put("/profile", authenticate, authController.updateUserProfile);
+router.get("/users/selection", authenticate, authController.getUsersForSelection);
 
 // ==========================================
 // ADMIN USER MANAGEMENT ROUTES

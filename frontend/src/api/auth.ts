@@ -121,6 +121,14 @@ export const authApi = {
     return response.data;
   },
 
+  /**
+   * Get active organization users for selection inputs
+   */
+  getUsersForSelection: async (): Promise<ApiResponse<User[]>> => {
+    const response = await api.get<ApiResponse<User[]>>('/auth/users/selection');
+    return response.data;
+  },
+
   // ==========================================
   // Forgot Password Flow
   // ==========================================

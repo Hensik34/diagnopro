@@ -354,7 +354,7 @@ export function ReportEntry() {
   } = useReportStore();
   const { fetchPatientById, updatePatient } = usePatientStore();
   const { currentBranchId, fetchBranches } = useBranchStore();
-  const { can } = useAuthStore();
+  const { can, user, staffList, fetchStaffList } = useAuthStore();
   const { tests, testFields, fetchTests, fetchTestFields, fetchTestFieldsMulti } = useTestStore();
   const canAutoApprove = can('report:approve');
   const {
@@ -376,6 +376,10 @@ export function ReportEntry() {
       fetchBranches();
     }
   }, [currentBranchId, fetchBranches]);
+
+  useEffect(() => {
+    fetchStaffList();
+  }, [fetchStaffList]);
 
   useEffect(() => {
     if (rawReportId === 'undefined' || rawReportId === 'null') {
@@ -547,6 +551,7 @@ export function ReportEntry() {
   // Patient & Doctor state
   const [patient, setPatient] = useState<Patient | null>(initialData?.patient || null);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
+  const [selectedStaffId, setSelectedStaffId] = useState<string>("");
 
   // Previous values state for inline comparison
   const [previousValues, setPreviousValues] = useState<Record<string, { value: number | string; date: string }>>({});
@@ -985,6 +990,10 @@ export function ReportEntry() {
       if (selectedReport.report_type) setTestName(selectedReport.report_type);
       if (selectedReport.report_amount) setReportAmount(selectedReport.report_amount);
       if (selectedReport.clinical_notes) setTechnicianNotes(selectedReport.clinical_notes);
+      setSelectedStaffId(
+        selectedReport.staff_id ||
+          ((user?.role === 'staff' || user?.role === 'lab_technician') ? user.id : '')
+      );
 
       // Set doctor selection (only if not loaded yet or if we have new async doctor details)
       const hasLoadedBefore = loadedDoctorReportIdRef.current === selectedReport.id;
@@ -1026,7 +1035,7 @@ export function ReportEntry() {
         originalSnapshotRef.current = selectedReport.pricing_snapshot || [];
       }
     }
-  }, [selectedReport, reportId, doctors, loadFromReport]);
+  }, [selectedReport, reportId, doctors, loadFromReport, user]);
 
   // Populate test values from report's test_data ONCE when dynamic params arrive
   useEffect(() => {
@@ -2123,6 +2132,7 @@ export function ReportEntry() {
     }
 
     const currentDoctorId = selectedDoctor?.id || null;
+    const currentStaffId = selectedStaffId || null;
     const currentRefDoctor = !selectedDoctor && referringDoctorName ? referringDoctorName : null;
     const currentIsSelfReport = !selectedDoctor && !referringDoctorName;
     const currentTestData = buildTestData();
@@ -2138,6 +2148,7 @@ export function ReportEntry() {
     const reportChanged =
       technicianNotes !== (selectedReport.clinical_notes || '') ||
       currentDoctorId !== (selectedReport.doctor_id || null) ||
+      currentStaffId !== (selectedReport.staff_id || null) ||
       currentRefDoctor !== (selectedReport.referring_doctor_name || null) ||
       currentIsSelfReport !== !!selectedReport.is_self_report ||
       testName !== (selectedReport.report_type || '') ||
@@ -2155,6 +2166,7 @@ export function ReportEntry() {
     reportStatus,
     selectedReport,
     selectedDoctor,
+    selectedStaffId,
     referringDoctorName,
     technicianNotes,
     testName,
@@ -2199,6 +2211,7 @@ export function ReportEntry() {
     const result = await updateReport(reportId, {
       clinical_notes: technicianNotes,
       doctor_id: selectedDoctor?.id || null,
+      staff_id: selectedStaffId || null,
       referring_doctor_name: !selectedDoctor && referringDoctorName ? referringDoctorName : null,
       is_self_report: !selectedDoctor && !referringDoctorName,
       test_data: testData,
@@ -2238,6 +2251,7 @@ export function ReportEntry() {
       if (reportId) {
         const result = await updateReport(reportId, {
           doctor_id: selectedDoctor?.id || null,
+          staff_id: selectedStaffId || null,
           referring_doctor_name: !selectedDoctor && referringDoctorName ? referringDoctorName : null,
           is_self_report: !selectedDoctor && !referringDoctorName,
         });
@@ -3554,6 +3568,22 @@ export function ReportEntry() {
                         className="w-full h-9 px-3 border border-border rounded-lg bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1">Sample Collected By (Staff)</label>
+                    <select
+                      value={selectedStaffId}
+                      onChange={(e) => setSelectedStaffId(e.target.value)}
+                      className="w-full h-9 px-3 border border-border rounded-lg bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                    >
+                      <option value="">Select staff (optional)</option>
+                      {staffList.map((staff) => (
+                        <option key={staff.id} value={staff.id}>
+                          {staff.firstname} {staff.lastname} ({staff.role})
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Doctor selection block */}
