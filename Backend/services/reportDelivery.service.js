@@ -3,13 +3,14 @@ const { Op } = require("sequelize");
 const { emitBranchWhatsAppEvent } = require("./realtime.service");
 
 // Create (or reset) a pending delivery row for a recipient
-async function markPending({ reportId, branchId, recipientType, recipientPhone }) {
+async function markPending({ reportId, branchId, recipientType, recipientPhone, recipientEmail = null, channel = "whatsapp" }) {
   const row = await ReportDelivery.create({
     report_id: reportId,
     branch_id: branchId,
-    channel: "whatsapp",
+    channel,
     recipient_type: recipientType,
-    recipient_phone: recipientPhone || null,
+    recipient_phone: channel === "whatsapp" ? (recipientPhone || null) : null,
+    recipient_email: channel === "email" ? (recipientEmail || null) : null,
     status: "pending",
   });
   emit(branchId, reportId, recipientType, "pending");

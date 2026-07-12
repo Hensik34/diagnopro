@@ -5,7 +5,7 @@ import { PERMISSIONS } from '../utils/permissions';
 // Layout
 import { Root } from '../pages/layout';
 // Auth
-import { Login, Register, ForgotPassword } from '../pages/auth';
+import { Login, Register, ForgotPassword, VerifyPasscode } from '../pages/auth';
 // Dashboard
 import { Dashboard, Analytics, DashboardDayDetail } from '../pages/dashboard';
 // Reports
@@ -118,6 +118,10 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     Component: guestOnly(Login),
+  },
+  {
+    path: '/verify-passcode',
+    Component: guestOnly(VerifyPasscode),
   },
   {
     path: '/register',

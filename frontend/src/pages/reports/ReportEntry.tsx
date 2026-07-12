@@ -21,6 +21,8 @@ import {
   BrainCircuit,
   ChevronDown as ChevronDownIcon,
   History,
+  Check,
+  Edit2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -552,6 +554,7 @@ export function ReportEntry() {
 
   // Active Test & Navigation
   const [activeTestId, setActiveTestId] = useState<string | null>(null);
+  const activeSection = testSections.find(s => s.testId === activeTestId) || testSections[0];
 
   // Modals state
   const [showEditPatientModal, setShowEditPatientModal] = useState(false);
@@ -693,6 +696,7 @@ export function ReportEntry() {
   const [reportStatus, setReportStatus] = useState<string>("draft");
   const [isEditable, setIsEditable] = useState(true);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [activeSubTab, setActiveSubTab] = useState<'results' | 'notes'>('results');
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [showNotesSection, setShowNotesSection] = useState(false);
   const [showAiSection, setShowAiSection] = useState(false);
@@ -703,6 +707,138 @@ export function ReportEntry() {
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const inputRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>>({});
   const isHoveringTextareaDropdown = useRef(false);
+
+  // Test-specific remarks/notes state & popover positioning
+  const [testRemarks, setTestRemarks] = useState<Record<string, string>>({});
+  const [activeRemarksFocus, setActiveRemarksFocus] = useState<boolean>(false);
+  const [remarksCoords, setRemarksCoords] = useState({ top: 0, left: 0 });
+  const [remarksAlignLeft, setRemarksAlignLeft] = useState(false);
+  const [remarksAlignBottom, setRemarksAlignBottom] = useState(false);
+  const [remarksMaxHeight, setRemarksMaxHeight] = useState(300);
+  const remarksTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const isHoveringRemarksDropdown = useRef(false);
+
+  const REMARK_OPTIONS = useMemo(() => [
+    "Blood sample was collected in a non-fasting state.",
+    "Patient had a heavy breakfast before sample collection.",
+    "Patient had a light breakfast before sample collection.",
+    "Patient consumed tea before sample collection.",
+    "Patient consumed coffee before sample collection.",
+    "Patient consumed milk before sample collection.",
+    "Patient consumed juice before sample collection.",
+    "Patient consumed food and tea before sample collection.",
+    "Patient had a meal before sample collection.",
+    "Fasting status not confirmed.",
+    "Patient consumed snacks before sample collection.",
+    "Patient consumed food within the last 2–4 hours before sample collection"
+  ], []);
+
+  const handleTestRemarksChange = (val: string) => {
+    if (activeSection?.testId) {
+      setTestRemarks(prev => ({ ...prev, [activeSection.testId]: val }));
+    }
+  };
+
+  // Custom reference ranges state & inline editing state
+  const [customReferenceRanges, setCustomReferenceRanges] = useState<Record<string, string>>({});
+  const [editingRangeId, setEditingRangeId] = useState<string | null>(null);
+  const [tempRangeValue, setTempRangeValue] = useState<string>('');
+
+  const handleSaveReferenceRange = (paramId: string) => {
+    setCustomReferenceRanges(prev => ({
+      ...prev,
+      [paramId]: tempRangeValue.trim()
+    }));
+    setEditingRangeId(null);
+  };
+
+  const parseCustomReferenceRange = (rangeStr: string): { low: number | null; high: number | null } => {
+    const result: { low: number | null; high: number | null } = { low: null, high: null };
+    if (!rangeStr) return result;
+
+    const cleaned = rangeStr.replace(/\s+/g, '').replace(/–/g, '-').replace(/—/g, '-');
+
+    if (cleaned.startsWith('<')) {
+      const val = parseFloat(cleaned.substring(1));
+      if (!isNaN(val)) result.high = val;
+      return result;
+    }
+
+    if (cleaned.startsWith('>')) {
+      const val = parseFloat(cleaned.substring(1));
+      if (!isNaN(val)) result.low = val;
+      return result;
+    }
+
+    const parts = cleaned.split('-');
+    if (parts.length === 2) {
+      const lowVal = parseFloat(parts[0]);
+      const highVal = parseFloat(parts[1]);
+      if (!isNaN(lowVal)) result.low = lowVal;
+      if (!isNaN(highVal)) result.high = highVal;
+    }
+
+    return result;
+  };
+
+  useEffect(() => {
+    const updatePosition = () => {
+      if (activeRemarksFocus && remarksTextareaRef.current) {
+        const rect = remarksTextareaRef.current.getBoundingClientRect();
+        const dropdownWidth = 240; // width of w-60 is 240px
+        
+        const currentVal = (activeSection?.testId ? testRemarks[activeSection.testId] : '') || '';
+        const lastPart = currentVal.split(/,\s*/).pop()?.trim() || '';
+        const filteredOpts = REMARK_OPTIONS.filter(opt =>
+          !lastPart || opt.toLowerCase().includes(lastPart.toLowerCase())
+        );
+        const expectedHeight = filteredOpts.length * 32 + 12;
+
+        let showLeft = false;
+        const spaceOnRight = window.innerWidth - rect.right;
+        if (spaceOnRight < dropdownWidth && rect.left > dropdownWidth) {
+          showLeft = true;
+        }
+        setRemarksAlignLeft(showLeft);
+
+        const spaceBelow = window.innerHeight - rect.top - 16;
+        const spaceAbove = rect.bottom - 16;
+
+        // Open upwards if space below is less than expected height and space above is larger
+        const showBottom = spaceBelow < expectedHeight && spaceAbove > spaceBelow;
+        setRemarksAlignBottom(showBottom);
+
+        const maxHt = Math.min(showBottom ? spaceAbove : spaceBelow, 300);
+        setRemarksMaxHeight(maxHt);
+
+        const dropdownHeight = Math.min(expectedHeight, maxHt);
+
+        const leftCoord = showLeft
+          ? rect.left - dropdownWidth - 14
+          : rect.right + 14;
+
+        const topCoord = showBottom
+          ? rect.bottom - dropdownHeight
+          : rect.top;
+
+        setRemarksCoords({ top: topCoord, left: leftCoord });
+      }
+    };
+
+    updatePosition();
+    if (activeRemarksFocus) {
+      window.addEventListener('resize', updatePosition);
+      window.addEventListener('scroll', updatePosition, true);
+    }
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [activeRemarksFocus, testRemarks, activeSection, REMARK_OPTIONS]);
+
+  useEffect(() => {
+    setActiveSubTab('results');
+  }, [activeTestId]);
 
   useEffect(() => {
     const updatePosition = () => {
@@ -800,6 +936,7 @@ export function ReportEntry() {
 
   // Track the report ID we've populated values for (to avoid overwriting user input)
   const populatedReportIdRef = useRef<string | null>(null);
+  const loadedDoctorReportIdRef = useRef<string | null>(null);
   // Track whether billing has been loaded from the report (to avoid overwriting user's discount changes)
   const hasBillingLoaded = useRef(false);
   const originalSnapshotRef = useRef<ReportTestPriceSnapshot[]>([]);
@@ -807,6 +944,7 @@ export function ReportEntry() {
   // Reset the populated flag and form state when reportId changes (navigating to a different report)
   useEffect(() => {
     populatedReportIdRef.current = null;
+    loadedDoctorReportIdRef.current = null;
     hasBillingLoaded.current = false;
     originalSnapshotRef.current = [];
     setSelectedReport(null); // Clear stale report data before fetching new one
@@ -848,30 +986,37 @@ export function ReportEntry() {
       if (selectedReport.report_amount) setReportAmount(selectedReport.report_amount);
       if (selectedReport.clinical_notes) setTechnicianNotes(selectedReport.clinical_notes);
 
-      // Set doctor selection
-      if (selectedReport.doctor_id) {
-        const doctor = doctors.find(d => d.id === selectedReport.doctor_id);
-        if (doctor) {
-          setSelectedDoctor(doctor);
-          setDoctorSearch(`${doctor.title || 'Dr'}. ${doctor.name}`);
+      // Set doctor selection (only if not loaded yet or if we have new async doctor details)
+      const hasLoadedBefore = loadedDoctorReportIdRef.current === selectedReport.id;
+      if (!hasLoadedBefore) {
+        if (selectedReport.doctor_id) {
+          const doctor = doctors.find(d => d.id === selectedReport.doctor_id);
+          if (doctor) {
+            setSelectedDoctor(doctor);
+            setDoctorSearch(`${doctor.title || 'Dr'}. ${doctor.name}`);
+            setReferringDoctorName("");
+            loadedDoctorReportIdRef.current = selectedReport.id;
+          } else if (selectedReport.doctor_name) {
+            // Fallback if doctors list is still loading (don't lock loadedDoctorReportIdRef yet, so we can retry when doctors load)
+            setDoctorSearch(`${selectedReport.doctor_title || 'Dr'}. ${selectedReport.doctor_name}`);
+            setReferringDoctorName("");
+          }
+        } else if (selectedReport.referring_doctor_name) {
+          setSelectedDoctor(null);
+          setReferringDoctorName(selectedReport.referring_doctor_name);
+          setDoctorSearch(selectedReport.referring_doctor_name);
+          loadedDoctorReportIdRef.current = selectedReport.id;
+        } else if (selectedReport.is_self_report) {
+          setSelectedDoctor(null);
           setReferringDoctorName("");
-        } else if (selectedReport.doctor_name) {
-          // Fallback if doctors list is still loading
-          setDoctorSearch(`${selectedReport.doctor_title || 'Dr'}. ${selectedReport.doctor_name}`);
+          setDoctorSearch("Self (No Doctor)");
+          loadedDoctorReportIdRef.current = selectedReport.id;
+        } else {
+          setSelectedDoctor(null);
           setReferringDoctorName("");
+          setDoctorSearch("");
+          loadedDoctorReportIdRef.current = selectedReport.id;
         }
-      } else if (selectedReport.referring_doctor_name) {
-        setSelectedDoctor(null);
-        setReferringDoctorName(selectedReport.referring_doctor_name);
-        setDoctorSearch(selectedReport.referring_doctor_name);
-      } else if (selectedReport.is_self_report) {
-        setSelectedDoctor(null);
-        setReferringDoctorName("");
-        setDoctorSearch("Self (No Doctor)");
-      } else {
-        setSelectedDoctor(null);
-        setReferringDoctorName("");
-        setDoctorSearch("");
       }
 
       // Load billing data from the report ONCE (avoid overwriting user's discount changes)
@@ -906,53 +1051,107 @@ export function ReportEntry() {
     // Initialize fields with default values first
     dynamicParams.forEach((param) => {
       if (param.options && param.options.trim() !== '') {
-        if (param.input_type === 'select') {
+        if (param.input_type === 'select' && param.is_mandatory !== false && param.name.toLowerCase() !== 'remark') {
           const defaultValue = param.options.split(',')[0].trim();
           existingValues[param.id] = defaultValue;
+        } else if (param.input_type === 'text' || param.input_type === 'number' || param.input_type === 'textarea') {
+          if (!param.options.includes(',')) {
+            existingValues[param.id] = param.options.trim();
+          }
         }
       }
     });
 
     // Populate saved values — prefer grouped (tests[]) with testId scoping to prevent cross-test value swaps
     const testData = parsedTestData;
+    const initialCustomRanges: Record<string, string> = {};
+
     if (testData?.tests?.length) {
       // Grouped format: match by BOTH testId AND parameter name to avoid cross-test collisions
+      const initialRemarks: Record<string, string> = {};
       for (const group of testData.tests) {
         const groupTestId = group.testId;
+        if (group.remarks) {
+          initialRemarks[groupTestId] = group.remarks;
+        } else if (group.notes) {
+          initialRemarks[groupTestId] = group.notes;
+        }
         for (const p of group.parameters) {
-          if (p.value == null || p.value === '') continue;
           // Find the dynamic param that belongs to this specific test AND has the matching name
           const matchedParam = groupTestId
             ? dynamicParams.find(dp => dp.test_id === groupTestId && dp.name === p.name)
             : dynamicParams.find(dp => dp.name === p.name);
           if (matchedParam) {
-            // Backward-compatibility: if the stored value is exactly the option lists string, treat it as empty
-            if (matchedParam.input_type === 'textarea' && p.value.toString().trim() === matchedParam.options?.trim()) {
-              continue;
+            if (p.value !== null && p.value !== undefined && p.value !== '') {
+              // Backward-compatibility: if the stored value is exactly the option lists string, treat it as empty
+              if (matchedParam.input_type === 'textarea' && p.value.toString().trim() === matchedParam.options?.trim()) {
+                // skip
+              } else {
+                existingValues[matchedParam.id] = p.value.toString();
+              }
             }
-            existingValues[matchedParam.id] = p.value.toString();
+            if (p.referenceRange !== undefined && p.referenceRange !== null && p.referenceRange !== '') {
+              initialCustomRanges[matchedParam.id] = p.referenceRange;
+            }
           }
         }
       }
+      setTestRemarks(initialRemarks);
+      setCustomReferenceRanges(initialCustomRanges);
     } else if (testData?.parameters?.length) {
       // Legacy flat format (no testId available): fall back to name-only matching
       for (const p of testData.parameters) {
-        if (p.value == null || p.value === '') continue;
         const matchedParam = dynamicParams.find(dp => dp.name === p.name);
         if (matchedParam) {
-          // Backward-compatibility: if the stored value is exactly the option lists string, treat it as empty
-          if (matchedParam.input_type === 'textarea' && p.value.toString().trim() === matchedParam.options?.trim()) {
-            continue;
+          if (p.value !== null && p.value !== undefined && p.value !== '') {
+            // Backward-compatibility: if the stored value is exactly the option lists string, treat it as empty
+            if (matchedParam.input_type === 'textarea' && p.value.toString().trim() === matchedParam.options?.trim()) {
+              // skip
+            } else {
+              existingValues[matchedParam.id] = p.value.toString();
+            }
           }
-          existingValues[matchedParam.id] = p.value.toString();
+          if (p.referenceRange !== undefined && p.referenceRange !== null && p.referenceRange !== '') {
+            initialCustomRanges[matchedParam.id] = p.referenceRange;
+          }
         }
       }
+      setCustomReferenceRanges(initialCustomRanges);
     }
 
     // Set values (this includes the initialized select fields, so status computation runs correctly)
     setValues(existingValues);
     populatedReportIdRef.current = reportId;
   }, [selectedReport, parsedTestData, dynamicParams, reportId]);
+
+  // Initialize default values for newly added test fields/parameters (on add test) without page refresh
+  useEffect(() => {
+    if (dynamicParams.length === 0) return;
+
+    setValues((prevValues) => {
+      let hasChanges = false;
+      const updatedValues = { ...prevValues };
+
+      dynamicParams.forEach((param) => {
+        if (updatedValues[param.id] === undefined) {
+          hasChanges = true;
+          let defaultValue = '';
+          if (param.options && param.options.trim() !== '') {
+            if (param.input_type === 'select' && param.is_mandatory !== false && param.name.toLowerCase() !== 'remark') {
+              defaultValue = param.options.split(',')[0].trim();
+            } else if (param.input_type === 'text' || param.input_type === 'number' || param.input_type === 'textarea') {
+              if (!param.options.includes(',')) {
+                defaultValue = param.options.trim();
+              }
+            }
+          }
+          updatedValues[param.id] = defaultValue;
+        }
+      });
+
+      return hasChanges ? updatedValues : prevValues;
+    });
+  }, [dynamicParams]);
 
   // Fetch doctors on mount
   useEffect(() => {
@@ -1115,7 +1314,7 @@ export function ReportEntry() {
     setSelectedDoctor(null);
     setReferringDoctorName("");
     setDoctorSearch("");
-    setShowDoctorDropdown(false);
+    setShowDoctorDropdown(true);
     setActiveDoctorIndex(0);
 
     // Re-resolve pricing with doctorId = null (default pricing)
@@ -1142,8 +1341,9 @@ export function ReportEntry() {
     setBaseAmount(newAmount);
 
     setTimeout(() => {
+      doctorSearchInputRef.current?.focus();
       isClearingDoctorRef.current = false;
-    }, 300);
+    }, 50);
   };
 
   // Handle selecting Self
@@ -1197,7 +1397,7 @@ export function ReportEntry() {
         setDoctorSearch(capitalizedName);
       } else if (!selectedDoctor && (isSelf || !trimmed)) {
         setReferringDoctorName("");
-        setDoctorSearch(trimmed ? "Self (No Doctor)" : "");
+        setDoctorSearch("Self (No Doctor)");
       }
       setShowDoctorDropdown(false);
     }, 200);
@@ -1545,8 +1745,10 @@ export function ReportEntry() {
         return;
       }
 
-      // Resolve reference range for the patient
-      const range = getPatientReferenceRange(param, patient);
+      // Resolve reference range for the patient (respecting custom overrides)
+      const range = customReferenceRanges[param.id] !== undefined
+        ? parseCustomReferenceRange(customReferenceRanges[param.id])
+        : getPatientReferenceRange(param, patient);
 
       // Check thresholds
       if (range.low != null && val < range.low) {
@@ -1559,7 +1761,7 @@ export function ReportEntry() {
     });
 
     setStatuses(newStatuses);
-  }, [values, dynamicParams, patient, tests, selectedReport]);
+  }, [values, dynamicParams, patient, tests, selectedReport, customReferenceRanges]);
 
   const getStatusBadge = (
     status: "low" | "high" | "normal" | "critical" | "empty" | undefined,
@@ -1871,14 +2073,14 @@ export function ReportEntry() {
     const groupedTests = testSections.map(section => ({
       testId: section.testId,
       testName: section.testName,
+      remarks: testRemarks[section.testId] || '',
       parameters: section.params.map(param => {
         const localStatus = statuses[param.id];
         const mappedStatus = localStatus === 'empty' ? undefined : localStatus as 'normal' | 'high' | 'low' | 'critical' | undefined;
         const rawValue = values[param.id];
 
-        // If select type, default to first option if not entered
-        // If select type, default to Negative if not entered
-        const finalRawValue = (rawValue === undefined || rawValue === '') && param.input_type === 'select'
+        // If select type and mandatory (and not a remark field), default to first option if not entered
+        const finalRawValue = (rawValue === undefined || rawValue === '') && param.input_type === 'select' && param.is_mandatory !== false && param.name.toLowerCase() !== 'remark'
           ? (param.options ? param.options.split(',')[0].trim() : 'Negative')
           : rawValue;
 
@@ -1892,7 +2094,9 @@ export function ReportEntry() {
           name: param.name,
           value,
           unit: param.unit,
-          referenceRange: formatReferenceRange(resolvedRange),
+          referenceRange: customReferenceRanges[param.id] !== undefined
+            ? customReferenceRanges[param.id]
+            : formatReferenceRange(resolvedRange),
           status: mappedStatus,
           fieldType: param.field_type,
           group: param.section_group || undefined,
@@ -1966,6 +2170,8 @@ export function ReportEntry() {
     statuses,
     dynamicParams,
     testSections,
+    testRemarks,
+    customReferenceRanges,
   ]);
 
   const saveCurrentReportData = async () => {
@@ -2274,7 +2480,9 @@ export function ReportEntry() {
         name: p.name,
         result: values[p.id] || '',
         unit: p.unit,
-        refRange: formatReferenceRange(resolvedRange),
+        refRange: customReferenceRanges[p.id] !== undefined
+          ? customReferenceRanges[p.id]
+          : formatReferenceRange(resolvedRange),
         isAbnormal,
         status: statuses[p.id] || 'empty'
       };
@@ -2399,8 +2607,7 @@ export function ReportEntry() {
     ? format(new Date(selectedReport.created_at), "dd MMM yyyy, hh:mm a")
     : format(new Date(), "dd MMM yyyy, hh:mm a");
 
-  // Get active test section
-  const activeSection = testSections.find(s => s.testId === activeTestId) || testSections[0];
+  // Get active test section (defined above)
 
   // Helper to compute summary counts
   const summaryCounts = {
@@ -2451,9 +2658,9 @@ export function ReportEntry() {
       />
 
       {/* Three Column Workbench Grid */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[16%_61%_21%] gap-3 items-stretch min-h-0 overflow-hidden mb-1">
+      <div className="flex-1 h-0 min-h-0 grid grid-cols-1 lg:grid-cols-[16%_61%_21%] gap-3 items-stretch overflow-hidden mb-1">
         {/* Left Column: Plain list of tests */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm h-full flex flex-col overflow-hidden">
+        <div className="hidden lg:flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm h-full flex-col overflow-hidden">
           <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 px-1 flex-shrink-0">Tests</h3>
           <div className="flex-1 overflow-y-auto scrollbar-hide space-y-1">
             {testSections.map((section) => {
@@ -2494,22 +2701,82 @@ export function ReportEntry() {
         </div>
 
         {/* Center Column: Parameter entry table */}
-        <div className="h-full flex flex-col overflow-hidden">
+        <div className="h-full flex flex-col overflow-hidden gap-2">
+          {/* Mobile/Tablet Test Selector */}
+          {testSections.length > 0 && (
+            <div className="lg:hidden flex items-center gap-2 overflow-x-auto pb-1.5 px-1 flex-shrink-0 scrollbar-none">
+              {testSections.map((section) => {
+                const isActive = section.testId === activeTestId;
+                return (
+                  <div
+                    key={section.testId}
+                    onClick={() => setActiveTestId(section.testId)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border cursor-pointer transition-all ${isActive
+                        ? 'bg-primary border-primary text-white shadow-sm'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                      }`}
+                  >
+                    <span>{section.testName}</span>
+                    {isEditable && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleConfirmRemoveTest(section.testId, section.testName);
+                        }}
+                        className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-colors ${isActive
+                            ? 'hover:bg-white/20 text-white/80 hover:text-white'
+                            : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600'
+                          }`}
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {activeSection ? (
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm h-full flex flex-col min-h-0">
-              <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <Microscope className="w-4 h-4 text-primary" />
-                  <h2 className="text-xs font-bold text-slate-800 dark:text-slate-100">{activeSection.testName}</h2>
+              <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Microscope className="w-4 h-4 text-primary flex-shrink-0" />
+                  <h2 className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{activeSection.testName}</h2>
                   {activeSection.testCode && (
-                    <span className="text-[10px] font-bold text-muted-foreground bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded uppercase">
+                    <span className="text-[10px] font-bold text-muted-foreground bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded uppercase flex-shrink-0">
                       {activeSection.testCode}
                     </span>
                   )}
                 </div>
 
+                {/* Mobile/Tablet Sub-Tab Switcher */}
+                <div className="lg:hidden flex items-center border border-slate-200 dark:border-slate-800 rounded-lg p-0.5 bg-white dark:bg-slate-950 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveSubTab('results')}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${activeSubTab === 'results'
+                        ? 'bg-primary text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                      }`}
+                  >
+                    Results
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSubTab('notes')}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${activeSubTab === 'notes'
+                        ? 'bg-primary text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                      }`}
+                  >
+                    Notes & AI
+                  </button>
+                </div>
+
                 {/* Status legend */}
-                <div className="flex items-center gap-4 text-[10px] text-slate-600 dark:text-slate-500 justify-end px-1 flex-shrink-0 mt-1">
+                <div className="hidden sm:flex items-center gap-4 text-[10px] text-slate-600 dark:text-slate-500 justify-end px-1 flex-shrink-0">
                   <div className="flex items-center gap-1">
                     <span className="text-info font-bold">↓</span> Low
                   </div>
@@ -2523,272 +2790,465 @@ export function ReportEntry() {
               </div>
 
               <div className="flex-1 overflow-y-auto min-h-0 overflow-x-auto">
-                <table className="w-full table-fixed text-[11px] md:text-[12px] border-collapse">
-                  {hasPreviousData ? (
-                    <colgroup>
-                      <col className="w-[25%]" />
-                      <col className="w-[8%]" />
-                      <col className="w-[25%]" />
-                      <col className="w-[12%]" />
-                      <col className="w-[20%]" />
-                      <col className="w-[10%]" />
-                    </colgroup>
-                  ) : (
-                    <colgroup>
-                      <col className="w-[28%]" />
-                      <col className="w-[30%]" />
-                      <col className="w-[12%]" />
-                      <col className="w-[20%]" />
-                      <col className="w-[10%]" />
-                    </colgroup>
-                  )}
-                  <thead className="bg-slate-50/70 dark:bg-slate-900/30 border-b border-slate-200 dark:border-slate-800">
-                    <tr>
-                      <th className="px-3 py-2.5 text-left text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]">Parameter</th>
-                      {hasPreviousData && (
-                        <th className="px-3 py-2.5 text-center text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]" title="Previous History">
-                          <History className="w-4 h-4 mx-auto text-slate-500" />
-                        </th>
-                      )}
-                      <th className="px-3 py-2.5 text-left text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]">Result</th>
-                      <th className="px-3 py-2.5 text-left text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]">Unit</th>
-                      <th className="px-3 py-2.5 text-left text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]">Reference Range</th>
-                      <th className="px-3 py-2.5 text-center text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]">Flag</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700 bg-background">
-                    {(() => {
-                      const renderedSumAlerts = new Set<string>();
-                      return activeSection.params.map((param, paramIndex) => {
-                        const groupLabel = sumValidation.paramToGroup[param.id];
-                        const groupInfo = groupLabel ? sumValidation.groupSums[groupLabel] : null;
-                        const isInInvalidGroup = isParamInInvalidSumGroup(param.id);
+                {activeSubTab === 'results' ? (
+                  <table className={`w-full table-fixed text-[11px] md:text-[12px] border-collapse ${hasPreviousData ? 'min-w-[680px]' : 'min-w-[500px]'} lg:min-w-0`}>
+                    {hasPreviousData ? (
+                      <colgroup>
+                        <col style={{ width: "25%" }} />
+                        <col style={{ width: "8%" }} />
+                        <col style={{ width: "25%" }} />
+                        <col style={{ width: "10%" }} />
+                        <col style={{ width: "22%" }} />
+                        <col style={{ width: "10%" }} />
+                      </colgroup>
+                    ) : (
+                      <colgroup>
+                        <col style={{ width: "28%" }} />
+                        <col style={{ width: "28%" }} />
+                        <col style={{ width: "10%" }} />
+                        <col style={{ width: "24%" }} />
+                        <col style={{ width: "10%" }} />
+                      </colgroup>
+                    )}
+                    <thead className="bg-slate-50/70 dark:bg-slate-900/30 border-b border-slate-200 dark:border-slate-800">
+                      <tr>
+                        <th className="px-3 py-2.5 text-left text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]">Parameter</th>
+                        {hasPreviousData && (
+                          <th className="px-3 py-2.5 text-center text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]" title="Previous History">
+                            <History className="w-4 h-4 mx-auto text-slate-500" />
+                          </th>
+                        )}
+                        <th className="px-3 py-2.5 text-left text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]">Result</th>
+                        <th className="px-3 py-2.5 text-left text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]">Unit</th>
+                        <th className="px-3 py-2.5 text-left text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]">Reference Range</th>
+                        <th className="px-3 py-2.5 text-center text-slate-800 dark:text-slate-100 font-bold uppercase tracking-wider text-[15px]">Flag</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-700 bg-background">
+                      {(() => {
+                        const renderedSumAlerts = new Set<string>();
+                        return activeSection.params.map((param, paramIndex) => {
+                          const groupLabel = sumValidation.paramToGroup[param.id];
+                          const groupInfo = groupLabel ? sumValidation.groupSums[groupLabel] : null;
+                          const isInInvalidGroup = isParamInInvalidSumGroup(param.id);
 
-                        let showSumAlert = false;
-                        if (groupLabel && groupInfo && !renderedSumAlerts.has(groupLabel)) {
-                          const remainingGroupParams = activeSection.params.slice(paramIndex + 1).filter(
-                            p => sumValidation.paramToGroup[p.id] === groupLabel
-                          );
-                          if (remainingGroupParams.length === 0) {
-                            showSumAlert = true;
-                            renderedSumAlerts.add(groupLabel);
+                          let showSumAlert = false;
+                          if (groupLabel && groupInfo && !renderedSumAlerts.has(groupLabel)) {
+                            const remainingGroupParams = activeSection.params.slice(paramIndex + 1).filter(
+                              p => sumValidation.paramToGroup[p.id] === groupLabel
+                            );
+                            if (remainingGroupParams.length === 0) {
+                              showSumAlert = true;
+                              renderedSumAlerts.add(groupLabel);
+                            }
                           }
-                        }
 
-                        return (
-                          <Fragment key={param.id}>
-                            <tr className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${isInInvalidGroup ? 'bg-amber-500/5' : ''}`}>
-                              <td className="px-3 py-1 align-middle text-slate-800 dark:text-slate-200">
-                                <div className="font-bold text-sm leading-tight break-words flex flex-wrap items-center gap-1.5">
-                                  <span>{param.name}</span>
-                                  {param.field_type === 'calculated' && (
-                                    <span className="inline-flex items-center rounded bg-primary/10 px-1 py-0.5 text-[8px] font-bold text-primary uppercase tracking-wide">calc</span>
-                                  )}
-                                  {isInInvalidGroup && (
-                                    <span className="inline-flex items-center rounded bg-amber-500/15 px-1 py-0.5 text-[8px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide">Σ≠100</span>
-                                  )}
-                                </div>
-                              </td>
-                              {hasPreviousData && (
-                                <td className="px-3 py-1 align-middle text-center text-slate-600 dark:text-slate-400 text-xs">
-                                  {(() => {
-                                    const key = `${activeSection.testId}::${param.name}`;
-                                    const prev = previousValues[key];
-                                    if (!prev) return <span className="text-slate-300">—</span>;
+                          return (
+                            <Fragment key={param.id}>
+                              <tr className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${isInInvalidGroup ? 'bg-amber-500/5' : ''}`}>
+                                <td className="px-3 py-1 align-middle text-slate-800 dark:text-slate-200">
+                                  <div className="font-bold text-sm leading-tight break-words flex flex-wrap items-center gap-1.5">
+                                    <span>{param.name}</span>
+                                    {param.field_type === 'calculated' && (
+                                      <span className="inline-flex items-center rounded bg-primary/10 px-1 py-0.5 text-[8px] font-bold text-primary uppercase tracking-wide">calc</span>
+                                    )}
+                                    {isInInvalidGroup && (
+                                      <span className="inline-flex items-center rounded bg-amber-500/15 px-1 py-0.5 text-[8px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide">Σ≠100</span>
+                                    )}
+                                  </div>
+                                </td>
+                                {hasPreviousData && (
+                                  <td className="px-3 py-1 align-middle text-center text-slate-600 dark:text-slate-400 text-xs">
+                                    {(() => {
+                                      const key = `${activeSection.testId}::${param.name}`;
+                                      const prev = previousValues[key];
+                                      if (!prev) return <span className="text-slate-300">—</span>;
 
-                                    const currentVal = parseFloat(values[param.id]);
-                                    const prevVal = parseFloat(String(prev.value));
+                                      const currentVal = parseFloat(values[param.id]);
+                                      const prevVal = parseFloat(String(prev.value));
 
-                                    if (isNaN(prevVal)) {
-                                      // Non-numeric previous value
+                                      if (isNaN(prevVal)) {
+                                        // Non-numeric previous value
+                                        return (
+                                          <span
+                                            className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-500 font-bold cursor-default"
+                                            title={`Previous: ${prev.value} (${format(new Date(prev.date), 'dd MMM yyyy')})`}
+                                          >
+                                            {prev.value}
+                                          </span>
+                                        );
+                                      }
+
+                                      const diff = isNaN(currentVal) ? null : currentVal - prevVal;
+                                      const arrow = diff === null ? '' : diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
+                                      const arrowColor = diff === null ? '' : diff > 0 ? 'text-emerald-500 font-bold' : diff < 0 ? 'text-rose-500 font-bold' : 'text-slate-400';
+
                                       return (
-                                        <span 
-                                          className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-500 font-bold cursor-default"
-                                          title={`Previous: ${prev.value} (${format(new Date(prev.date), 'dd MMM yyyy')})`}
+                                        <span
+                                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-500 font-bold cursor-default"
+                                          title={`Previous: ${prev.value} on ${format(new Date(prev.date), 'dd MMM yyyy')}${diff !== null ? `\nChange: ${diff > 0 ? '+' : ''}${Math.round(diff * 100) / 100}` : ''}`}
                                         >
-                                          {prev.value}
+                                          <span>{prev.value}</span>
+                                          {arrow && <span className={`${arrowColor} font-bold text-xs`}>{arrow}</span>}
                                         </span>
                                       );
-                                    }
-
-                                    const diff = isNaN(currentVal) ? null : currentVal - prevVal;
-                                    const arrow = diff === null ? '' : diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
-                                    const arrowColor = diff === null ? '' : diff > 0 ? 'text-emerald-500 font-bold' : diff < 0 ? 'text-rose-500 font-bold' : 'text-slate-400';
-
-                                    return (
-                                      <span 
-                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-500 font-bold cursor-default"
-                                        title={`Previous: ${prev.value} on ${format(new Date(prev.date), 'dd MMM yyyy')}${diff !== null ? `\nChange: ${diff > 0 ? '+' : ''}${Math.round(diff * 100) / 100}` : ''}`}
-                                      >
-                                        <span>{prev.value}</span>
-                                        {arrow && <span className={`${arrowColor} font-bold text-xs`}>{arrow}</span>}
-                                      </span>
-                                    );
-                                  })()}
-                                </td>
-                              )}
-                              <td className="px-3 py-1 align-middle">
-                                {param.input_type === 'select' ? (
-                                  <SmartSelectInput
-                                    ref={(node) => {
-                                      inputRefs.current[param.id] = node;
-                                    }}
-                                    className={`${getInputClass(statuses[param.id])} h-8 text-xs${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}${isInInvalidGroup ? ' !ring-1 !ring-amber-500 !border-amber-500' : ''}${isFieldBlockedBySum100(param.id) ? ' opacity-40 bg-neutral-100 dark:bg-neutral-800 cursor-not-allowed' : ''} !text-left bg-background !py-0`}
-                                    value={values[param.id] !== undefined && values[param.id] !== null ? values[param.id] : (param.options ? param.options.split(',')[0].trim() : "Negative")}
-                                    onChange={(val) => handleValueChange(param.id, val)}
-                                    onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
-                                    tabIndex={param.field_type === 'calculated' || isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
-                                    disabled={!isEditable || isFieldBlockedBySum100(param.id)}
-                                    options={param.options ? param.options.split(',').map((opt: string) => opt.trim()) : ["Negative", "Positive"]}
-                                  />
-                                ) : param.input_type === 'textarea' ? (
-                                  <div className="relative py-1">
-                                    <textarea
+                                    })()}
+                                  </td>
+                                )}
+                                <td className="px-3 py-1 align-middle">
+                                  {param.input_type === 'select' ? (
+                                    <SmartSelectInput
                                       ref={(node) => {
                                         inputRefs.current[param.id] = node;
                                       }}
-                                      className={`${getInputClass(statuses[param.id])} min-h-[4rem] py-1 px-2 text-xs w-full resize-y font-normal bg-background${isFieldBlockedBySum100(param.id) ? ' opacity-40 bg-neutral-100 dark:bg-neutral-800 cursor-not-allowed' : ''}`}
-                                      placeholder="Enter description..."
-                                      value={values[param.id] || ""}
-                                      onChange={(e) => handleValueChange(param.id, e.target.value)}
-                                      onFocus={() => setActiveTextareaId(param.id)}
-                                      onBlur={() => {
-                                        setTimeout(() => {
-                                          if (!isHoveringTextareaDropdown.current) {
-                                            setActiveTextareaId(prev => prev === param.id ? null : prev);
-                                          }
-                                        }, 150);
-                                      }}
+                                      className={`${getInputClass(statuses[param.id])} h-8 text-xs${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}${isInInvalidGroup ? ' !ring-1 !ring-amber-500 !border-amber-500' : ''}${isFieldBlockedBySum100(param.id) ? ' opacity-40 bg-neutral-100 dark:bg-neutral-800 cursor-not-allowed' : ''} !text-left bg-background !py-0`}
+                                      value={values[param.id] !== undefined && values[param.id] !== null ? values[param.id] : (param.is_mandatory !== false && param.name.toLowerCase() !== 'remark' ? (param.options ? param.options.split(',')[0].trim() : "Negative") : "")}
+                                      onChange={(val) => handleValueChange(param.id, val)}
                                       onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
-                                      tabIndex={isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
+                                      tabIndex={param.field_type === 'calculated' || isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
                                       disabled={!isEditable || isFieldBlockedBySum100(param.id)}
+                                      options={param.options ? param.options.split(',').map((opt: string) => opt.trim()) : ["Negative", "Positive"]}
                                     />
-                                    {param.options && activeTextareaId === param.id && (
-                                      (() => {
-                                        const currentVal = values[param.id] || '';
-                                        const lastPart = currentVal.split(/,\s*/).pop()?.trim() || '';
-                                        const filteredOpts = param.options.split(',').filter(opt =>
-                                          !lastPart || opt.toLowerCase().includes(lastPart.toLowerCase())
-                                        );
+                                  ) : param.input_type === 'textarea' ? (
+                                    <div className="relative py-1">
+                                      <textarea
+                                        ref={(node) => {
+                                          inputRefs.current[param.id] = node;
+                                        }}
+                                        className={`${getInputClass(statuses[param.id])} min-h-[4rem] py-1 px-2 text-xs w-full resize-y font-normal bg-background${isFieldBlockedBySum100(param.id) ? ' opacity-40 bg-neutral-100 dark:bg-neutral-800 cursor-not-allowed' : ''}`}
+                                        placeholder="Enter description..."
+                                        value={values[param.id] || ""}
+                                        onChange={(e) => handleValueChange(param.id, e.target.value)}
+                                        onFocus={() => setActiveTextareaId(param.id)}
+                                        onBlur={() => {
+                                          setTimeout(() => {
+                                            if (!isHoveringTextareaDropdown.current) {
+                                              setActiveTextareaId(prev => prev === param.id ? null : prev);
+                                            }
+                                          }, 150);
+                                        }}
+                                        onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
+                                        tabIndex={isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
+                                        disabled={!isEditable || isFieldBlockedBySum100(param.id)}
+                                      />
+                                      {param.options && activeTextareaId === param.id && (
+                                        (() => {
+                                          const currentVal = values[param.id] || '';
+                                          const lastPart = currentVal.split(/,\s*/).pop()?.trim() || '';
+                                          const filteredOpts = param.options.split(',').filter(opt =>
+                                            !lastPart || opt.toLowerCase().includes(lastPart.toLowerCase())
+                                          );
 
-                                        if (filteredOpts.length === 0) return null;
+                                          if (filteredOpts.length === 0) return null;
 
-                                        return createPortal(
-                                          <div
-                                            onMouseEnter={() => { isHoveringTextareaDropdown.current = true; }}
-                                            onMouseLeave={() => {
-                                              isHoveringTextareaDropdown.current = false;
-                                              if (document.activeElement !== inputRefs.current[param.id]) {
-                                                setActiveTextareaId(null);
-                                              }
-                                            }}
-                                            className="fixed z-[9999] w-52 max-h-[80vh] overflow-y-auto rounded-lg border border-neutral-800 bg-[#1E1B18] text-white shadow-xl pointer-events-auto"
-                                            style={{
-                                              top: textareaCoords.top,
-                                              left: textareaCoords.left,
-                                            }}
-                                          >
-                                            {/* Popover Arrow */}
-                                            {textareaAlignLeft ? (
-                                              <div className={`absolute left-full w-0 h-0 border-y-[6px] border-y-transparent border-l-[6px] border-l-[#1E1B18] ${textareaAlignBottom ? 'bottom-2.5' : 'top-2.5'}`} />
-                                            ) : (
-                                              <div className={`absolute right-full w-0 h-0 border-y-[6px] border-y-transparent border-r-[6px] border-r-[#1E1B18] ${textareaAlignBottom ? 'bottom-2.5' : 'top-2.5'}`} />
-                                            )}
+                                          return createPortal(
+                                            <div
+                                              onMouseEnter={() => { isHoveringTextareaDropdown.current = true; }}
+                                              onMouseLeave={() => {
+                                                isHoveringTextareaDropdown.current = false;
+                                                if (document.activeElement !== inputRefs.current[param.id]) {
+                                                  setActiveTextareaId(null);
+                                                }
+                                              }}
+                                              className="fixed z-[9999] w-52 max-h-[80vh] overflow-y-auto rounded-lg border border-neutral-800 bg-[#1E1B18] text-white shadow-xl pointer-events-auto"
+                                              style={{
+                                                top: textareaCoords.top,
+                                                left: textareaCoords.left,
+                                              }}
+                                            >
+                                              {/* Popover Arrow */}
+                                              {textareaAlignLeft ? (
+                                                <div className={`absolute left-full w-0 h-0 border-y-[6px] border-y-transparent border-l-[6px] border-l-[#1E1B18] ${textareaAlignBottom ? 'bottom-2.5' : 'top-2.5'}`} />
+                                              ) : (
+                                                <div className={`absolute right-full w-0 h-0 border-y-[6px] border-y-transparent border-r-[6px] border-r-[#1E1B18] ${textareaAlignBottom ? 'bottom-2.5' : 'top-2.5'}`} />
+                                              )}
 
-                                            <ul className="py-1.5 px-1.5 space-y-0.5">
-                                              {filteredOpts.map((opt: string) => (
-                                                <li
-                                                  key={opt}
-                                                  onMouseDown={(e) => {
-                                                    e.preventDefault();
-                                                    const trimmed = currentVal.trim();
-                                                    if (!trimmed) {
-                                                      handleValueChange(param.id, opt + ', ');
-                                                    } else {
-                                                      const parts = currentVal.split(/,\s*/);
-                                                      const last = parts[parts.length - 1] || '';
-                                                      if (last && opt.toLowerCase().includes(last.toLowerCase())) {
-                                                        parts.pop();
-                                                        parts.push(opt);
-                                                        handleValueChange(param.id, parts.join(', ') + ', ');
+                                              <ul className="py-1.5 px-1.5 space-y-0.5">
+                                                {filteredOpts.map((opt: string) => (
+                                                  <li
+                                                    key={opt}
+                                                    onMouseDown={(e) => {
+                                                      e.preventDefault();
+                                                      const trimmed = currentVal.trim();
+                                                      if (!trimmed) {
+                                                        handleValueChange(param.id, opt + ', ');
                                                       } else {
-                                                        if (currentVal.endsWith(', ')) {
-                                                          handleValueChange(param.id, currentVal + opt + ', ');
-                                                        } else if (currentVal.endsWith(',')) {
-                                                          handleValueChange(param.id, currentVal + ' ' + opt + ', ');
+                                                        const parts = currentVal.split(/,\s*/);
+                                                        const last = parts[parts.length - 1] || '';
+                                                        if (last && opt.toLowerCase().includes(last.toLowerCase())) {
+                                                          parts.pop();
+                                                          parts.push(opt);
+                                                          handleValueChange(param.id, parts.join(', ') + ', ');
                                                         } else {
-                                                          handleValueChange(param.id, currentVal + ', ' + opt + ', ');
+                                                          if (currentVal.endsWith(', ')) {
+                                                            handleValueChange(param.id, currentVal + opt + ', ');
+                                                          } else if (currentVal.endsWith(',')) {
+                                                            handleValueChange(param.id, currentVal + ' ' + opt + ', ');
+                                                          } else {
+                                                            handleValueChange(param.id, currentVal + ', ' + opt + ', ');
+                                                          }
                                                         }
                                                       }
-                                                    }
-                                                    setTimeout(() => {
-                                                      const textareaEl = inputRefs.current[param.id];
-                                                      if (textareaEl) {
-                                                        textareaEl.focus();
-                                                      }
-                                                    }, 0);
-                                                  }}
-                                                  className="px-3 py-2 cursor-pointer text-left text-xs leading-tight select-none transition-colors rounded-md text-neutral-300 hover:bg-neutral-800 hover:text-white hover:font-semibold"
-                                                >
-                                                  {opt}
-                                                </li>
-                                              ))}
-                                            </ul>
-                                          </div>,
-                                          document.body
-                                        ) as any;
-                                      })()
-                                    )}
-                                  </div>
-                                ) : (
-                                  <input
-                                    ref={(node) => {
-                                      inputRefs.current[param.id] = node;
-                                    }}
-                                    type={param.input_type === 'text' ? 'text' : 'number'}
-                                    step={param.step}
-                                    className={`${getInputClass(statuses[param.id])} h-8 text-xs${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}${isInInvalidGroup ? ' !ring-1 !ring-amber-500 !border-amber-500' : ''}${isFieldBlockedBySum100(param.id) ? ' opacity-40 bg-neutral-100 dark:bg-neutral-800 cursor-not-allowed' : ''}`}
-                                    placeholder={param.field_type === 'calculated' ? 'Auto' : ''}
-                                    value={values[param.id] || ""}
-                                    onChange={(e) => handleValueChange(param.id, e.target.value)}
-                                    onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
-                                    onFocus={(event) => event.currentTarget.select()}
-                                    tabIndex={param.field_type === 'calculated' || isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
-                                    disabled={!isEditable || isFieldBlockedBySum100(param.id)}
-                                    readOnly={param.field_type === 'calculated'}
-                                  />
-                                )}
-                              </td>
-                              <td className="px-3 py-1 align-middle text-left text-slate-600 dark:text-slate-400 font-bold text-xs">
-                                {param.unit || '-'}
-                              </td>
-                              <td className="px-3 py-1 align-middle text-left text-slate-600 dark:text-slate-400 font-bold text-xs break-words">
-                                {formatReferenceRange(getPatientReferenceRange(param, patient))}
-                              </td>
-                              <td className="px-3 py-1 align-middle text-center">{getStatusBadge(statuses[param.id])}</td>
-                            </tr>
-
-                            {showSumAlert && groupInfo && groupInfo.hasAnyValue && groupInfo.sum !== 100 && (
-                              <tr>
-                                <td colSpan={hasPreviousData ? 6 : 5} className="px-0 py-0">
-                                  <div className="mx-3 my-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300">
-                                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                                    <span className="text-xs font-medium">
-                                      {groupLabel} total is <strong className="font-bold">{groupInfo.sum}%</strong> — must equal <strong className="font-bold">100%</strong>.
-                                      {groupInfo.sum < 100
-                                        ? ` Add ${Math.round((100 - groupInfo.sum) * 100) / 100}% more.`
-                                        : ` Remove ${Math.round((groupInfo.sum - 100) * 100) / 100}%.`}
-                                    </span>
-                                  </div>
+                                                      setTimeout(() => {
+                                                        const textareaEl = inputRefs.current[param.id];
+                                                        if (textareaEl) {
+                                                          textareaEl.focus();
+                                                        }
+                                                      }, 0);
+                                                    }}
+                                                    className="px-3 py-2 cursor-pointer text-left text-xs leading-tight select-none transition-colors rounded-md text-neutral-300 hover:bg-neutral-800 hover:text-white hover:font-semibold"
+                                                  >
+                                                    {opt}
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            </div>,
+                                            document.body
+                                          ) as any;
+                                        })()
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <input
+                                      ref={(node) => {
+                                        inputRefs.current[param.id] = node;
+                                      }}
+                                      type={param.input_type === 'text' ? 'text' : 'number'}
+                                      step={param.step}
+                                      className={`${getInputClass(statuses[param.id])} h-8 text-xs${param.field_type === 'calculated' ? ' bg-primary/5 cursor-not-allowed' : ''}${isInInvalidGroup ? ' !ring-1 !ring-amber-500 !border-amber-500' : ''}${isFieldBlockedBySum100(param.id) ? ' opacity-40 bg-neutral-100 dark:bg-neutral-800 cursor-not-allowed' : ''}`}
+                                      placeholder={param.field_type === 'calculated' ? 'Auto' : ''}
+                                      value={values[param.id] || ""}
+                                      onChange={(e) => handleValueChange(param.id, e.target.value)}
+                                      onKeyDown={(event) => handleParameterKeyDown(event, param.id, param.input_type)}
+                                      onFocus={(event) => event.currentTarget.select()}
+                                      tabIndex={param.field_type === 'calculated' || isFieldBlockedBySum100(param.id) ? -1 : fieldTabOrder[param.id]}
+                                      disabled={!isEditable || isFieldBlockedBySum100(param.id)}
+                                      readOnly={param.field_type === 'calculated'}
+                                    />
+                                  )}
                                 </td>
+                                <td className="px-3 py-1 align-middle text-left text-slate-600 dark:text-slate-400 font-bold text-xs">
+                                  {param.unit || '-'}
+                                </td>
+                                {editingRangeId === param.id ? (
+                                  <td className="px-3 py-1 align-middle text-left text-slate-600 dark:text-slate-400 font-bold text-xs break-words min-w-[110px] md:min-w-[140px]">
+                                    <div className="flex items-center gap-0.5 md:gap-1 w-full">
+                                      <input
+                                        type="text"
+                                        className="flex-1 min-w-0 h-7 px-1.5 text-xs bg-background border border-primary rounded-md focus:outline-hidden focus:ring-1 focus:ring-primary focus:border-primary text-slate-800 dark:text-slate-200"
+                                        value={tempRangeValue}
+                                        onChange={(e) => setTempRangeValue(e.target.value)}
+                                        onBlur={() => setEditingRangeId(null)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            handleSaveReferenceRange(param.id);
+                                          } else if (e.key === 'Escape') {
+                                            setEditingRangeId(null);
+                                          }
+                                        }}
+                                        autoFocus
+                                      />
+                                      <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => handleSaveReferenceRange(param.id)}
+                                        className="p-0.5 md:p-1 rounded-md text-emerald-600 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer flex-shrink-0"
+                                        title="Save"
+                                      >
+                                        <Check className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => setEditingRangeId(null)}
+                                        className="p-0.5 md:p-1 rounded-md text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer flex-shrink-0"
+                                        title="Cancel"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                ) : (
+                                  <td className="px-3 py-1 align-middle text-left text-slate-600 dark:text-slate-400 font-bold text-xs break-words min-w-[140px]">
+                                    <div 
+                                      className={`group flex items-center justify-between w-full h-full min-h-[1.75rem] gap-1.5 ${isEditable ? 'cursor-pointer hover:text-primary dark:hover:text-primary' : ''}`}
+                                      onClick={() => {
+                                        if (isEditable) {
+                                          setEditingRangeId(param.id);
+                                          setTempRangeValue(customReferenceRanges[param.id] !== undefined ? customReferenceRanges[param.id] : formatReferenceRange(getPatientReferenceRange(param, patient)));
+                                        }
+                                      }}
+                                    >
+                                      <span className="truncate pr-1 text-left flex-grow min-w-0 select-none">
+                                        {(customReferenceRanges[param.id] !== undefined ? customReferenceRanges[param.id] : formatReferenceRange(getPatientReferenceRange(param, patient))) || '\u00A0'}
+                                      </span>
+                                      {isEditable && (
+                                        <Edit2 className="w-3.5 h-3.5 opacity-35 group-hover:opacity-100 transition-all text-slate-400 dark:text-slate-500 hover:text-primary dark:hover:text-primary flex-shrink-0 ml-1.5" />
+                                      )}
+                                    </div>
+                                  </td>
+                                )}
+                                <td className="px-3 py-1 align-middle text-center">{getStatusBadge(statuses[param.id])}</td>
                               </tr>
+
+                              {showSumAlert && groupInfo && groupInfo.hasAnyValue && groupInfo.sum !== 100 && (
+                                <tr>
+                                  <td colSpan={hasPreviousData ? 6 : 5} className="px-0 py-0">
+                                    <div className="mx-3 my-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300">
+                                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                      <span className="text-xs font-medium">
+                                        {groupLabel} total is <strong className="font-bold">{groupInfo.sum}%</strong> — must equal <strong className="font-bold">100%</strong>.
+                                        {groupInfo.sum < 100
+                                          ? ` Add ${Math.round((100 - groupInfo.sum) * 100) / 100}% more.`
+                                          : ` Remove ${Math.round((groupInfo.sum - 100) * 100) / 100}%.`}
+                                      </span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="p-4 space-y-4 h-full flex flex-col">
+                    {/* Primary Actions for Mobile/Tablet */}
+                    <div className="grid grid-cols-2 gap-3 flex-shrink-0">
+                      <button
+                        onClick={handlePreview}
+                        disabled={!patient || Object.keys(values).length === 0}
+                        className="w-full h-9 flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-900/50 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-xs font-bold text-blue-600 dark:text-blue-400 rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Preview Report
+                      </button>
+
+                      {(reportStatus === 'draft' || reportStatus === 'rejected') && (
+                        <button
+                          onClick={handleSubmitForReview}
+                          disabled={isSubmitting || !reportId || Object.keys(values).length === 0 || hasAnyInvalidSumGroup}
+                          className="w-full h-9 flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100/70 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          {reportStatus === 'rejected'
+                            ? (canAutoApprove ? 'Re-Approve Report' : 'Resubmit for Review')
+                            : (canAutoApprove ? 'Approve Report' : 'Submit for Review')}
+                        </button>
+                      )}
+                    </div>
+
+                                {/* Report Notes Card */}
+                                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm space-y-1.5 flex flex-col flex-1 min-h-[160px]">
+                                  <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex-shrink-0">
+                                    Notes: {activeSection?.testName || 'Test'}
+                                  </h3>
+                                  <textarea
+                                    ref={remarksTextareaRef}
+                                    className="w-full flex-1 min-h-[100px] border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary bg-background dark:bg-slate-950 resize-none"
+                                    placeholder="Add test remarks (e.g., non-fasting status)..."
+                                    value={activeSection?.testId ? (testRemarks[activeSection.testId] || '') : ''}
+                                    onChange={(e) => handleTestRemarksChange(e.target.value)}
+                                    onFocus={() => setActiveRemarksFocus(true)}
+                                    onBlur={() => {
+                                      setTimeout(() => {
+                                        if (!isHoveringRemarksDropdown.current) {
+                                          setActiveRemarksFocus(false);
+                                        }
+                                      }, 150);
+                                    }}
+                                    disabled={!isEditable}
+                                  />
+                                </div>
+
+                    {/* AI Clinical Significance Card */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setShowAiSection((prev) => !prev)}
+                        className="w-full px-4 py-2.5 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50 text-left border-b border-slate-100 dark:border-slate-800"
+                        aria-expanded={showAiSection}
+                      >
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                          <BrainCircuit className="w-3.5 h-3.5 text-primary" />
+                          AI Interpretation
+                        </span>
+                        <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showAiSection ? 'rotate-90' : ''}`} />
+                      </button>
+
+                      {showAiSection && (
+                        <div className="p-3 space-y-3">
+                          <button
+                            onClick={handleGenerateInterpretation}
+                            disabled={isGeneratingAI || !reportId || Object.values(values).filter(v => v).length === 0}
+                            className="w-full h-8 flex items-center justify-center gap-1.5 bg-primary hover:bg-primary/95 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
+                          >
+                            {isGeneratingAI ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3.5 h-3.5" />
+                                Generate Interpretation
+                              </>
                             )}
-                          </Fragment>
-                        );
-                      });
-                    })()}
-                  </tbody>
-                </table>
+                          </button>
+
+                          {aiInterpretation ? (
+                            <div className="space-y-2.5 max-h-[200px] overflow-y-auto pr-1">
+                              {aiInterpretation.summary && (
+                                <div className="p-2 bg-primary/5 border border-primary/10 rounded-lg">
+                                  <p className="text-[9px] text-primary font-bold uppercase tracking-wider mb-0.5">Summary</p>
+                                  <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.summary}</p>
+                                </div>
+                              )}
+                              {aiInterpretation.keyFindings && (
+                                <div className="p-2 bg-warning/5 border border-warning/10 rounded-lg">
+                                  <p className="text-[9px] text-warning font-bold uppercase tracking-wider mb-0.5">Key Findings</p>
+                                  <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.keyFindings}</p>
+                                </div>
+                              )}
+                              {aiInterpretation.clinicalIndications && (
+                                <div className="p-2 bg-info/5 border border-info/10 rounded-lg">
+                                  <p className="text-[9px] text-info font-bold uppercase tracking-wider mb-0.5">Clinical Indications</p>
+                                  <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.clinicalIndications}</p>
+                                </div>
+                              )}
+                              {aiInterpretation.recommendation && (
+                                <div className="p-2 bg-success/5 border border-success/10 rounded-lg">
+                                  <p className="text-[9px] text-success font-bold uppercase tracking-wider mb-0.5">Recommendation</p>
+                                  <p className="text-[11px] text-foreground leading-relaxed">{aiInterpretation.recommendation}</p>
+                                </div>
+                              )}
+                              <button
+                                onClick={() => {
+                                  const text = [
+                                    aiInterpretation.summary && `Summary: ${aiInterpretation.summary}`,
+                                    aiInterpretation.keyFindings && `Key Findings: ${aiInterpretation.keyFindings}`,
+                                    aiInterpretation.clinicalIndications && `Clinical Indications: ${aiInterpretation.clinicalIndications}`,
+                                    aiInterpretation.recommendation && `Recommendation: ${aiInterpretation.recommendation}`,
+                                  ].filter(Boolean).join('\n');
+                                  setTechnicianNotes(prev => prev ? `${prev}\n\n--- AI Interpretation ---\n${text}` : text);
+                                }}
+                                className="w-full h-7 flex items-center justify-center gap-1.5 bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 rounded-lg hover:bg-slate-100 transition-colors text-[10px] font-bold text-slate-600 dark:text-slate-300 cursor-pointer"
+                              >
+                                <FileText className="w-3 h-3" />
+                                Copy to Notes
+                              </button>
+                            </div>
+                          ) : !isGeneratingAI ? (
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center py-2">
+                              Enter values and click "Generate" to receive AI Clinical insights.
+                            </p>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -2799,7 +3259,7 @@ export function ReportEntry() {
         </div>
 
         {/* Right Column: Summary, Quick Actions, Notes, AIInterpretation */}
-        <div className="h-full flex flex-col gap-3 overflow-hidden flex-shrink-0">
+        <div className="hidden lg:flex h-full flex-col gap-3 overflow-hidden flex-shrink-0">
           {/* Report Summary Card */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm space-y-2 flex-shrink-0">
             <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 px-0.5">Report Summary</h3>
@@ -2865,12 +3325,23 @@ export function ReportEntry() {
 
           {/* Report Notes Card */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm space-y-1.5 flex flex-col flex-1 min-h-0 overflow-hidden">
-            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex-shrink-0">Report Notes</h3>
+            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex-shrink-0">
+              Notes: {activeSection?.testName || 'Test'}
+            </h3>
             <textarea
+              ref={remarksTextareaRef}
               className="w-full flex-1 min-h-[50px] border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary bg-background dark:bg-slate-950 resize-none"
-              placeholder="Add any note for this report..."
-              value={technicianNotes}
-              onChange={(e) => setTechnicianNotes(e.target.value)}
+              placeholder="Add test remarks (e.g., non-fasting status)..."
+              value={activeSection?.testId ? (testRemarks[activeSection.testId] || '') : ''}
+              onChange={(e) => handleTestRemarksChange(e.target.value)}
+              onFocus={() => setActiveRemarksFocus(true)}
+              onBlur={() => {
+                setTimeout(() => {
+                  if (!isHoveringRemarksDropdown.current) {
+                    setActiveRemarksFocus(false);
+                  }
+                }, 150);
+              }}
               disabled={!isEditable}
             />
           </div>
@@ -3113,6 +3584,7 @@ export function ReportEntry() {
                       {doctorSearch && isEditable && (
                         <button
                           type="button"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={handleClearDoctor}
                           className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors focus:outline-none"
                         >
@@ -3378,6 +3850,84 @@ export function ReportEntry() {
           setTestIdToRemove(null);
         }}
       />
+
+      {/* Test specific remarks/notes suggestions portal */}
+      {activeRemarksFocus && activeSection?.testId && (
+        (() => {
+          const currentVal = testRemarks[activeSection.testId] || '';
+          const lastPart = currentVal.split(/,\s*/).pop()?.trim() || '';
+          const filteredOpts = REMARK_OPTIONS.filter(opt =>
+            !lastPart || opt.toLowerCase().includes(lastPart.toLowerCase())
+          );
+
+          if (filteredOpts.length === 0) return null;
+
+          return createPortal(
+            <div
+              onMouseEnter={() => { isHoveringRemarksDropdown.current = true; }}
+              onMouseLeave={() => {
+                isHoveringRemarksDropdown.current = false;
+                if (document.activeElement !== remarksTextareaRef.current) {
+                  setActiveRemarksFocus(false);
+                }
+              }}
+              className="fixed z-[9999] w-60 overflow-y-auto rounded-lg border border-neutral-800 bg-[#1E1B18] text-white shadow-xl pointer-events-auto"
+              style={{
+                top: remarksCoords.top,
+                left: remarksCoords.left,
+                maxHeight: `${remarksMaxHeight}px`
+              }}
+            >
+              {/* Popover Arrow */}
+              {remarksAlignLeft ? (
+                <div className={`absolute left-full w-0 h-0 border-y-[6px] border-y-transparent border-l-[6px] border-l-[#1E1B18] ${remarksAlignBottom ? 'bottom-2.5' : 'top-2.5'}`} />
+              ) : (
+                <div className={`absolute right-full w-0 h-0 border-y-[6px] border-y-transparent border-r-[6px] border-r-[#1E1B18] ${remarksAlignBottom ? 'bottom-2.5' : 'top-2.5'}`} />
+              )}
+
+              <ul className="py-1.5 px-1.5 space-y-0.5">
+                {filteredOpts.map((opt: string) => (
+                  <li
+                    key={opt}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      const trimmed = currentVal.trim();
+                      let newVal = '';
+                      if (!trimmed) {
+                        newVal = opt + ', ';
+                      } else {
+                        const parts = currentVal.split(/,\s*/);
+                        const last = parts[parts.length - 1] || '';
+                        if (last && opt.toLowerCase().includes(last.toLowerCase())) {
+                          parts.pop();
+                          parts.push(opt);
+                          newVal = parts.join(', ') + ', ';
+                        } else {
+                          if (currentVal.endsWith(', ')) {
+                            newVal = currentVal + opt + ', ';
+                          } else if (currentVal.endsWith(',')) {
+                            newVal = currentVal + ' ' + opt + ', ';
+                          } else {
+                            newVal = currentVal + ', ' + opt + ', ';
+                          }
+                        }
+                      }
+                      handleTestRemarksChange(newVal);
+                      setTimeout(() => {
+                        remarksTextareaRef.current?.focus();
+                      }, 0);
+                    }}
+                    className="px-3 py-2 cursor-pointer text-left text-xs leading-tight select-none transition-colors rounded-md text-neutral-300 hover:bg-neutral-800 hover:text-white hover:font-semibold"
+                  >
+                    {opt}
+                  </li>
+                ))}
+              </ul>
+            </div>,
+            document.body
+          ) as any;
+        })()
+      )}
     </div>
   );
 }

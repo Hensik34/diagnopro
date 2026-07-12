@@ -39,10 +39,16 @@ import { useBranchStore } from '../../stores/branchStore';
 import { useReportStore } from '../../stores/reportStore';
 import { useTestStore } from '../../stores/testStore';
 import { formatAge } from '../../utils/age';
-
-const A4_WIDTH_PX = 794;
-const A4_HEIGHT_PX = 1123;
-const PAGE_GAP_PX = 24;
+import {
+  computeReportPages,
+  A4_WIDTH_PX,
+  A4_HEIGHT_PX,
+  PAGE_GAP_PX,
+  type Parameter,
+  type TestSection,
+  type TestChunk,
+  type PageItem,
+} from '../../utils/reportPagination';
 
 const C = {
   brand: '#0D47A1',
@@ -115,26 +121,7 @@ const printStyles = `
 }
 `;
 
-type Parameter = {
-  name: string;
-  result: string;
-  unit: string;
-  refRange: string;
-  isAbnormal: boolean;
-  status?: string;
-  fieldType?: string;
-  group?: string;
-  isMandatory?: boolean;
-};
 
-type TestSection = {
-  id: string;
-  testId?: string;
-  testName: string;
-  parameters: Parameter[];
-  isCbc?: boolean;
-  peripheralSmearText?: string | null;
-};
 
 type ReportData = {
   lab: {
@@ -171,22 +158,7 @@ type SafeZones = {
   right: number;
 };
 
-type TestChunk = {
-  sectionId: string;
-  title: string;
-  continuation: boolean;
-  parameters: Parameter[];
-};
 
-type PageItem =
-  | { type: 'patient' }
-  | { type: 'test'; chunk: TestChunk }
-  | { type: 'interpretation'; testId: string; text: string }
-  | { type: 'peripheralSmear'; testName: string; text: string }
-  | { type: 'generalNotes'; text: string }
-  | { type: 'endMarker' }
-  | { type: 'signature' }
-  | { type: 'marketing'; pageConfig: any };
 
 function isCbcTest(testName?: string): boolean {
   const name = (testName || '').toLowerCase();
@@ -257,91 +229,7 @@ function parsePx(value: unknown, fallback: number) {
   }
   return fallback;
 }
-function estimateInterpretationHeight(text: string, dense: boolean) {
-  const charsPerLine = dense ? 100 : 90;
-  const lineHeight = dense ? 14 : 16;
-  const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
-  return 24 + 16 + 14 + lines * lineHeight; // margin-top (24) + padding (16) + title (14) + lines
-}
 
-function estimatePeripheralSmearHeight(text: string, dense: boolean) {
-  const charsPerLine = dense ? 95 : 85;
-  const lineHeight = dense ? 14 : 16;
-  const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
-  return 36 + lines * lineHeight;
-}
-
-function estimateSectionHeight(section: TestSection, params: Parameter[], dense: boolean) {
-  // Row height must match actual rendered: 3px top pad + ~15px text + 3px bottom pad = ~21px
-  const rowHeight = dense ? 21 : 23;
-  const groupHeaderHeight = dense ? 23 : 25;
-  const uniqueGroupRows = params.reduce((count, p, idx) => {
-    if (!p.group) return count;
-    const prev = idx > 0 ? params[idx - 1].group : undefined;
-    return prev !== p.group ? count + 1 : count;
-  }, 0);
-
-  const heading = 26;       // section title with lines + margin
-  const tableHeader = 24;   // header row with border
-  const rows = params.length * rowHeight;
-  const groups = uniqueGroupRows * groupHeaderHeight;
-  const spacing = 10;       // bottom margin
-  return heading + tableHeader + rows + groups + spacing;
-}
-
-function splitSection(section: TestSection, maxChunkHeight: number, dense: boolean): TestChunk[] {
-  const fullHeight = estimateSectionHeight(section, section.parameters, dense);
-  if (fullHeight <= maxChunkHeight) {
-    return [
-      {
-        sectionId: section.id,
-        title: section.testName,
-        continuation: false,
-        parameters: section.parameters,
-      },
-    ];
-  }
-
-  const chunks: TestChunk[] = [];
-  let current: Parameter[] = [];
-
-  for (let i = 0; i < section.parameters.length; i++) {
-    const candidate = [...current, section.parameters[i]];
-    const candidateHeight = estimateSectionHeight(section, candidate, dense);
-    const nextParam = i + 1 < section.parameters.length ? section.parameters[i + 1] : null;
-    const isGroupChanging = nextParam && candidate[candidate.length - 1].group !== nextParam.group;
-
-    if (candidateHeight > maxChunkHeight && current.length > 0) {
-      // If we're about to change groups and only have 1 item in current group, keep at least one from next group
-      const currentGroupItems = current.filter(p => p.group === current[current.length - 1]?.group).length;
-      if (isGroupChanging && currentGroupItems <= 1 && current.length < 3) {
-        current = candidate;
-        continue;
-      }
-      chunks.push({
-        sectionId: section.id,
-        title: section.testName,
-        continuation: chunks.length > 0,
-        parameters: current,
-      });
-      current = [section.parameters[i]];
-      continue;
-    }
-
-    current = candidate;
-  }
-
-  if (current.length > 0) {
-    chunks.push({
-      sectionId: section.id,
-      title: section.testName,
-      continuation: chunks.length > 0,
-      parameters: current,
-    });
-  }
-
-  return chunks;
-}
 
 function moveItem<T>(arr: T[], from: number, to: number) {
   const clone = [...arr];
@@ -788,180 +676,28 @@ export function ReportPreview() {
 
 
 
-  const pages = useMemo(() => {
-    if (!reportData) return [] as PageItem[][];
-
-    const signatureStripHeight = hasDoctorSignature ? 84 : 76;
-    const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom - signatureStripHeight;
-    const isDense = density !== 'comfortable';
-
-    const patientHeight = 100;
-
+  const paginationResult = useMemo(() => {
+    if (!reportData) return { pages: [] as PageItem[][], compactAdjustment: 0 };
     const testData =
       typeof rawReport?.test_data === 'string' ? JSON.parse(rawReport.test_data) : rawReport?.test_data;
     const layoutSnapshots = testData?.layout_snapshots || {};
 
-    const maxChunkHeight = Math.max(160, contentHeight - 50);
-    const chunks = orderedSections.flatMap(section => splitSection(section, maxChunkHeight, isDense));
-
-    // First pass: calculate total height to detect overflow
-    let totalNeeded = patientHeight;
-    for (const chunk of chunks) {
-      const section = orderedSections.find(s => s.id === chunk.sectionId);
-      if (section) {
-        totalNeeded += estimateSectionHeight(section, chunk.parameters, isDense);
-        // Add interpretation height if final chunk of section has significance
-        const isLastChunk = chunks.filter(c => c.sectionId === chunk.sectionId).pop() === chunk;
-        if (isLastChunk && section.testId) {
-          const sig = layoutSnapshots[section.testId]?.clinical_significance;
-          if (sig?.trim()) {
-            totalNeeded += estimateInterpretationHeight(sig.trim(), isDense);
-          }
-        }
-        if (isLastChunk && section.isCbc && section.peripheralSmearText?.trim()) {
-          totalNeeded += estimatePeripheralSmearHeight(section.peripheralSmearText.trim(), isDense);
-        }
-      }
-    }
-
-    // Add general clinical notes if present
-    if (rawReport?.clinical_notes?.trim()) {
-      totalNeeded += estimateInterpretationHeight(rawReport.clinical_notes.trim(), isDense);
-    }
-    const overflow = totalNeeded - contentHeight;
-
-    // If overflow is small (< 120px), apply micro-compaction to row heights
-    const needsCompact = overflow > 0 && overflow <= 120;
-    const compactScale = needsCompact ? Math.max(0.82, 1 - (overflow + 20) / totalNeeded) : 1;
-
-    const estimateHeight = (section: TestSection, params: Parameter[]) => {
-      const base = estimateSectionHeight(section, params, isDense);
-      return needsCompact ? Math.floor(base * compactScale) : base;
-    };
-
-    const out: PageItem[][] = [[]];
-    let currentHeight = 0;
-
-    const place = (item: PageItem, itemHeight: number) => {
-      if (currentHeight + itemHeight > contentHeight && out[out.length - 1].length > 0) {
-        out.push([]);
-        currentHeight = 0;
-      }
-      out[out.length - 1].push(item);
-      currentHeight += itemHeight;
-    };
-
-    place({ type: 'patient' }, patientHeight);
-
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      const section = orderedSections.find(s => s.id === chunk.sectionId);
-      if (!section) continue;
-
-      const chunkH = estimateHeight(section, chunk.parameters);
-
-      let sigH = 0;
-      const isLastChunk = chunks.filter(c => c.sectionId === chunk.sectionId).pop() === chunk;
-      if (isLastChunk && section.testId) {
-        const sig = layoutSnapshots[section.testId]?.clinical_significance;
-        if (sig?.trim()) {
-          sigH = needsCompact
-            ? Math.floor(estimateInterpretationHeight(sig.trim(), isDense) * compactScale)
-            : estimateInterpretationHeight(sig.trim(), isDense);
-        }
-      }
-
-      let trailingH = 0;
-      const isLastChunkOverall = i === chunks.length - 1;
-      if (isLastChunkOverall) {
-        if (rawReport?.clinical_notes?.trim()) {
-          const notes = rawReport.clinical_notes.trim();
-          trailingH += needsCompact
-            ? Math.floor(estimateInterpretationHeight(notes, isDense) * compactScale)
-            : estimateInterpretationHeight(notes, isDense);
-        }
-      }
-
-      const totalSectionHeight = chunkH + sigH + trailingH;
-
-      const currentHasContent = out[out.length - 1].some(item => item.type === 'test' || item.type === 'interpretation');
-      if (currentHasContent && currentHeight + totalSectionHeight > contentHeight && totalSectionHeight <= contentHeight) {
-        out.push([]);
-        currentHeight = 0;
-      }
-
-      place({ type: 'test', chunk }, chunkH);
-
-      if (sigH > 0) {
-        const sectionTestId = section.testId;
-        if (sectionTestId) {
-          const sig = layoutSnapshots[sectionTestId]?.clinical_significance;
-          if (sig?.trim()) {
-            place({ type: 'interpretation', testId: sectionTestId, text: sig.trim() }, sigH);
-          }
-        }
-      }
-
-      if (isLastChunk && section.isCbc && section.peripheralSmearText?.trim()) {
-        const smearText = section.peripheralSmearText.trim();
-        const smearH = needsCompact
-          ? Math.floor(estimatePeripheralSmearHeight(smearText, isDense) * compactScale)
-          : estimatePeripheralSmearHeight(smearText, isDense);
-        place({ type: 'peripheralSmear', testName: section.testName || 'CBC', text: smearText }, smearH);
-      }
-    }
-
-    if (rawReport?.clinical_notes?.trim()) {
-      const notes = rawReport.clinical_notes.trim();
-      const notesH = needsCompact
-        ? Math.floor(estimateInterpretationHeight(notes, isDense) * compactScale)
-        : estimateInterpretationHeight(notes, isDense);
-      place({ type: 'generalNotes', text: notes }, notesH);
-    }
-
-    const shouldAttachMarketing = rawReport?.is_self_report || rawReport?.attach_marketing_pages;
-    if (shouldAttachMarketing && rawReport?.marketing_pages && Array.isArray(rawReport.marketing_pages)) {
-      const activeMarketingPages = rawReport.marketing_pages.filter((p: any) => p.active && (p.url || p.previewUrl));
-      for (const mPage of activeMarketingPages) {
-        out.push([{ type: 'marketing', pageConfig: mPage }]);
-      }
-    }
-
-    return out;
+    return computeReportPages({
+      orderedSections,
+      safeZones,
+      hasDoctorSignature,
+      density,
+      layoutSnapshots,
+      testData,
+      clinicalNotes: rawReport?.clinical_notes,
+      isSelfReport: rawReport?.is_self_report,
+      attachMarketingPages: rawReport?.attach_marketing_pages,
+      marketingPages: rawReport?.marketing_pages,
+    });
   }, [reportData, orderedSections, safeZones, rawReport, density, hasDoctorSignature]);
 
-  // Derive compactAdjustment from pages for rendering
-  const compactAdjustment = useMemo(() => {
-    if (!reportData) return 0;
-    const signatureStripHeight = hasDoctorSignature ? 84 : 76;
-    const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom - signatureStripHeight;
-    const isDense = density !== 'comfortable';
-
-    const testData =
-      typeof rawReport?.test_data === 'string' ? JSON.parse(rawReport.test_data) : rawReport?.test_data;
-    const layoutSnapshots = testData?.layout_snapshots || {};
-
-    let totalNeeded = 100; // patient
-    for (const section of orderedSections) {
-      totalNeeded += estimateSectionHeight(section, section.parameters, isDense);
-      if (section.testId) {
-        const sig = layoutSnapshots[section.testId]?.clinical_significance;
-        if (sig?.trim()) {
-          totalNeeded += estimateInterpretationHeight(sig.trim(), isDense);
-        }
-      }
-    }
-    if (rawReport?.clinical_notes?.trim()) {
-      totalNeeded += estimateInterpretationHeight(rawReport.clinical_notes.trim(), isDense);
-    }
-    for (const section of orderedSections) {
-      if (section.isCbc && section.peripheralSmearText?.trim()) {
-        totalNeeded += estimatePeripheralSmearHeight(section.peripheralSmearText.trim(), isDense);
-      }
-    }
-    const overflow = totalNeeded - contentHeight;
-    return (overflow > 0 && overflow <= 120) ? overflow : 0;
-  }, [reportData, orderedSections, safeZones, rawReport, density, hasDoctorSignature]);
+  const pages = paginationResult.pages;
+  const compactAdjustment = paginationResult.compactAdjustment;
 
   // Scroll-spying to update active page index
   useEffect(() => {
@@ -1277,7 +1013,7 @@ export function ReportPreview() {
                       qrCode={
                         <QRCodeSVG
                           value={rawReport?.download_token ? `${window.location.origin}/public/report/${id}/download?token=${rawReport.download_token}` : `${window.location.origin}/public/report/${id}/download`}
-                          size={68}
+                          size={56}
                           level="Q"
                           bgColor="#ffffff"
                           fgColor="#000000"
@@ -1373,6 +1109,29 @@ export function ReportPreview() {
                 );
               }
 
+              // Render inline test-specific remark box
+              if (item.type === 'testRemark') {
+                return (
+                  <div
+                    key={`testremark-${idx}`}
+                    style={{
+                      marginTop: '8px',
+                      fontSize: '9.5px',
+                      color: '#222',
+                      lineHeight: 1.45,
+                      textAlign: 'left'
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                      Notes / Remarks
+                    </div>
+                    <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                      {item.text}
+                    </p>
+                  </div>
+                );
+              }
+
               // Render inline general/technician notes box
               if (item.type === 'generalNotes') {
                 return (
@@ -1406,9 +1165,12 @@ export function ReportPreview() {
                     if (sepIdx === -1) {
                       return { label: '', value: line };
                     }
+                    const label = line.slice(0, sepIdx).trim();
+                    const value = line.slice(sepIdx + 1).trim();
+
                     return {
-                      label: line.slice(0, sepIdx).trim(),
-                      value: line.slice(sepIdx + 1).trim(),
+                      label,
+                      value,
                     };
                   });
 
@@ -1417,13 +1179,13 @@ export function ReportPreview() {
                     key={`smear-${idx}`}
                     style={{
                       marginTop: '8px',
-                      fontSize: '11px',
+                      fontSize: '11.5px',
                       color: '#222',
                       lineHeight: 1.55,
                       textAlign: 'left',
                     }}
                   >
-                    <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '6px', fontSize: '12px' }}>
+                    <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '6px', fontSize: '14px' }}>
                       {item.testName}: Peripheral Smear Examination
                     </div>
 
@@ -1433,7 +1195,7 @@ export function ReportPreview() {
                           if (!row.label) {
                             return (
                               <tr key={`smear-row-${rowIdx}`}>
-                                <td colSpan={2} style={{ padding: '2px 0', fontSize: '11.5px', color: '#212121', fontWeight: 500 }}>
+                                <td colSpan={2} style={{ padding: '2px 0', fontSize: '13.5px', color: '#212121', fontWeight: 500 }}>
                                   {row.value}
                                 </td>
                               </tr>
@@ -1449,7 +1211,7 @@ export function ReportPreview() {
                                   maxWidth: '220px',
                                   verticalAlign: 'top',
                                   padding: '2px 8px 2px 0',
-                                  fontSize: '11.8px',
+                                  fontSize: '13.5px',
                                   fontWeight: 700,
                                   color: '#1A1A1A',
                                   whiteSpace: 'nowrap',
@@ -1461,14 +1223,18 @@ export function ReportPreview() {
                                 style={{
                                   verticalAlign: 'top',
                                   padding: '2px 0',
-                                  fontSize: '11.8px',
+                                  fontSize: '13.5px',
                                   fontWeight: 500,
                                   color: '#212121',
                                   whiteSpace: 'normal',
                                   wordBreak: 'break-word',
                                 }}
                               >
-                                {row.value}
+                                {row.value.split(',').map((val) => val.trim()).filter(Boolean).map((subVal, subIdx) => (
+                                  <div key={subIdx} style={{ lineHeight: 1.35 }}>
+                                    {subVal}
+                                  </div>
+                                ))}
                               </td>
                             </tr>
                           );
@@ -1584,6 +1350,7 @@ export function ReportPreview() {
           hasBranding={hasBranding}
           isGeneratingPdf={isGeneratingPdf}
           hasVisibleTests={hasVisibleTests}
+          onToggleOrderDrawer={() => setIsOrderDrawerOpen(true)}
         />
       </div>
 
@@ -1798,21 +1565,23 @@ function OrderManagementPanel({
             />
             <GripVertical className="w-4 h-4 text-slate-400 shrink-0 cursor-grab active:cursor-grabbing" />
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-400 min-w-6 shrink-0">{idx + 1}.</span>
-            <span className="text-xs sm:text-sm text-slate-800 dark:text-slate-300 min-w-0 truncate" title={section.testName}>{section.testName}</span>
-            <button
-              onClick={() => moveUp(section.id)}
-              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shrink-0"
-              title="Move up"
-            >
-              <ArrowUp className="w-3.5 h-3.5 text-slate-500" />
-            </button>
-            <button
-              onClick={() => moveDown(section.id)}
-              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shrink-0"
-              title="Move down"
-            >
-              <ArrowDown className="w-3.5 h-3.5 text-slate-500" />
-            </button>
+            <span className="text-xs sm:text-sm text-slate-800 dark:text-slate-300 min-w-0 truncate flex-1" title={section.testName}>{section.testName}</span>
+            <div className="flex items-center gap-1 shrink-0 ml-auto">
+              <button
+                onClick={() => moveUp(section.id)}
+                className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shrink-0"
+                title="Move up"
+              >
+                <ArrowUp className="w-3.5 h-3.5 text-slate-500" />
+              </button>
+              <button
+                onClick={() => moveDown(section.id)}
+                className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shrink-0"
+                title="Move down"
+              >
+                <ArrowDown className="w-3.5 h-3.5 text-slate-500" />
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -2020,7 +1789,7 @@ function Barcode({ value }: { value: string }) {
         JsBarcode(svgRef.current, value, {
           format: 'CODE128',
           width: 1.2,
-          height: 20,
+          height: 16,
           displayValue: false,
           margin: 0,
         });
@@ -2036,7 +1805,7 @@ function Barcode({ value }: { value: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-      <svg ref={svgRef} style={{ maxHeight: '20px' }} />
+      <svg ref={svgRef} style={{ maxHeight: '16px' }} />
       <p style={{ margin: '2px 0 0', fontSize: '8px', color: C.text, letterSpacing: '0.8px', fontFamily: 'monospace', lineHeight: 1, fontWeight: 600 }}>{value}</p>
     </div>
   );

@@ -592,7 +592,7 @@ export function Reports() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      {/* <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <div className="bg-card border border-border rounded p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Total Reports</span>
@@ -652,7 +652,7 @@ export function Reports() {
             <span className="text-muted-foreground">Ready & finalized</span>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Filters and Search */}
       <div className="bg-card border border-border rounded p-2 md:p-3">

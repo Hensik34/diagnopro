@@ -16,9 +16,14 @@ export function Login() {
   useEffect(() => {
     const handleGoogleCredentialResponse = async (response: any) => {
       clearError();
-      const success = await googleLogin(response.credential);
+      const result = await googleLogin(response.credential);
       
-      if (success) {
+      if (result.success) {
+        if (result.requiresOtp) {
+          navigate('/verify-passcode');
+          return;
+        }
+
         const user = useAuthStore.getState().user;
 
         // Doctor login: skip onboarding check, go straight to dashboard
@@ -86,9 +91,14 @@ export function Login() {
     e.preventDefault();
     clearError();
     
-    const success = await login({ email, password });
+    const result = await login({ email, password });
     
-    if (success) {
+    if (result.success) {
+      if (result.requiresOtp) {
+        navigate('/verify-passcode');
+        return;
+      }
+
       const user = useAuthStore.getState().user;
 
       // Doctor login: skip onboarding check, go straight to dashboard

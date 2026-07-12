@@ -23,9 +23,15 @@ import {
   TestSectionBlock,
 } from '../../app/components/ImprovedReportLayout';
 import { formatAge } from '../../utils/age';
-
-const A4_WIDTH_PX = 794;
-const A4_HEIGHT_PX = 1123;
+import {
+  computeReportPages,
+  A4_WIDTH_PX,
+  A4_HEIGHT_PX,
+  PAGE_GAP_PX,
+  type Parameter,
+  type TestSection,
+  type PageItem,
+} from '../../utils/reportPagination';
 
 const C = {
   brand: '#0D47A1',
@@ -42,23 +48,7 @@ const C = {
   sectionTitle: '#37474F',
 } as const;
 
-type Parameter = {
-  name: string;
-  result: string;
-  unit: string;
-  refRange: string;
-  isAbnormal: boolean;
-  status?: string;
-  fieldType?: string;
-  group?: string;
-};
 
-type TestSection = {
-  id: string;
-  testId?: string;
-  testName: string;
-  parameters: Parameter[];
-};
 
 type ReportData = {
   id: string;
@@ -134,82 +124,56 @@ function parsePx(value: unknown, fallback: number) {
   return fallback;
 }
 
-function estimateInterpretationHeight(text: string, dense: boolean) {
-  const charsPerLine = dense ? 90 : 80;
-  const lineHeight = dense ? 16 : 18;
-  const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
-  return 22 + lines * lineHeight + 10;
+
+
+function isCbcTest(testName?: string): boolean {
+  const name = (testName || '').toLowerCase();
+  return name.includes('complete blood count') || name.includes('cbc');
 }
 
-function estimateSectionHeight(section: TestSection, params: Parameter[], dense: boolean) {
-  const rowHeight = dense ? 21 : 23;
-  const groupHeaderHeight = dense ? 23 : 25;
-  const uniqueGroupRows = params.reduce((count, p, idx) => {
-    if (!p.group) return count;
-    const prev = idx > 0 ? params[idx - 1].group : undefined;
-    return prev !== p.group ? count + 1 : count;
-  }, 0);
-
-  const heading = 26;
-  const tableHeader = 24;
-  const rows = params.length * rowHeight;
-  const groups = uniqueGroupRows * groupHeaderHeight;
-  const spacing = 10;
-  return heading + tableHeader + rows + groups + spacing;
+function isPeripheralSmearParam(paramName?: string): boolean {
+  const name = (paramName || '').toLowerCase().trim();
+  return name === 'peripheral smear examination' || name.includes('peripheral smear');
 }
 
-function splitSection(section: TestSection, maxChunkHeight: number, dense: boolean): { sectionId: string; title: string; continuation: boolean; parameters: Parameter[] }[] {
-  const fullHeight = estimateSectionHeight(section, section.parameters, dense);
-  if (fullHeight <= maxChunkHeight) {
-    return [
-      {
-        sectionId: section.id,
-        title: section.testName,
-        continuation: false,
-        parameters: section.parameters,
-      },
-    ];
-  }
+function isPeripheralSmearGroup(groupName?: string): boolean {
+  const group = (groupName || '').toLowerCase().trim();
+  return group === 'peripheral smear examination' || group.includes('peripheral smear');
+}
 
-  const chunks: any[] = [];
-  let current: Parameter[] = [];
+function extractPeripheralSmear(params: Parameter[]): { cleaned: Parameter[]; text: string | null } {
+  const cleaned: Parameter[] = [];
+  const smearLines: string[] = [];
 
-  for (let i = 0; i < section.parameters.length; i++) {
-    const candidate = [...current, section.parameters[i]];
-    const candidateHeight = estimateSectionHeight(section, candidate, dense);
-    const nextParam = i + 1 < section.parameters.length ? section.parameters[i + 1] : null;
-    const isGroupChanging = nextParam && candidate[candidate.length - 1].group !== nextParam.group;
+  for (const p of params) {
+    const inSmearGroup = isPeripheralSmearGroup(p.group);
+    const isSmearParam = isPeripheralSmearParam(p.name);
+    const belongsToSmear = inSmearGroup || isSmearParam;
 
-    if (candidateHeight > maxChunkHeight && current.length > 0) {
-      const currentGroupItems = current.filter(p => p.group === current[current.length - 1]?.group).length;
-      if (isGroupChanging && currentGroupItems <= 1 && current.length < 3) {
-        current = candidate;
-        continue;
-      }
-      chunks.push({
-        sectionId: section.id,
-        title: section.testName,
-        continuation: chunks.length > 0,
-        parameters: current,
-      });
-      current = [section.parameters[i]];
+    if (!belongsToSmear) {
+      cleaned.push(p);
       continue;
     }
 
-    current = candidate;
+    if (inSmearGroup) {
+      const value = (p.result || '').trim();
+      if (value) smearLines.push(`${p.name}: ${value}`);
+      continue;
+    }
+
+    if (isSmearParam) {
+      const value = (p.result || '').trim();
+      if (value) smearLines.push(value);
+    }
   }
 
-  if (current.length > 0) {
-    chunks.push({
-      sectionId: section.id,
-      title: section.testName,
-      continuation: chunks.length > 0,
-      parameters: current,
-    });
-  }
-
-  return chunks;
+  return {
+    cleaned,
+    text: smearLines.length > 0 ? smearLines.join('\n') : null,
+  };
 }
+
+
 
 function Barcode({ value }: { value: string }) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -220,7 +184,7 @@ function Barcode({ value }: { value: string }) {
         JsBarcode(svgRef.current, value, {
           format: 'CODE128',
           width: 1.2,
-          height: 20,
+          height: 16,
           displayValue: false,
           margin: 0,
         });
@@ -236,7 +200,7 @@ function Barcode({ value }: { value: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-      <svg ref={svgRef} style={{ maxHeight: '20px' }} />
+      <svg ref={svgRef} style={{ maxHeight: '16px' }} />
       <p style={{ margin: '2px 0 0', fontSize: '8px', color: '#212121', letterSpacing: '0.8px', fontFamily: 'monospace', lineHeight: 1, fontWeight: 600 }}>{value}</p>
     </div>
   );
@@ -374,33 +338,51 @@ export function PublicReportDownload() {
 
           filteredParams = filterBlankParams(filteredParams);
 
+          const extracted = extractPeripheralSmear(filteredParams);
+          const cleanedParams = extracted.cleaned;
+          const peripheralSmearText = extracted.text;
+
           testSections.push({
             id: `${group.testId || group.testName || 'test'}-${i}`,
             testId: group.testId,
             testName: group.testName,
-            parameters: filteredParams,
+            parameters: cleanedParams,
+            isCbc: isCbcTest(group.testName),
+            peripheralSmearText,
           });
-          allParams.push(...filteredParams);
+          allParams.push(...cleanedParams);
         } else {
           const filteredParams = filterBlankParams(sectionParams);
+          const extracted = extractPeripheralSmear(filteredParams);
+          const cleanedParams = extracted.cleaned;
+          const peripheralSmearText = extracted.text;
+
           testSections.push({
             id: `${group.testId || group.testName || 'test'}-${i}`,
             testId: group.testId,
             testName: group.testName,
-            parameters: filteredParams,
+            parameters: cleanedParams,
+            isCbc: isCbcTest(group.testName),
+            peripheralSmearText,
           });
-          allParams.push(...filteredParams);
+          allParams.push(...cleanedParams);
         }
       }
     } else if (testData?.parameters?.length) {
       const sectionParams = testData.parameters.map((p: any) => mapParam(p));
       const filteredParams = filterBlankParams(sectionParams);
+      const extracted = extractPeripheralSmear(filteredParams);
+      const cleanedParams = extracted.cleaned;
+      const peripheralSmearText = extracted.text;
+
       testSections.push({
         id: 'legacy-0',
         testName: testData.testName || report.report_type || 'General Test',
-        parameters: filteredParams,
+        parameters: cleanedParams,
+        isCbc: isCbcTest(testData.testName || report.report_type || 'General Test'),
+        peripheralSmearText,
       });
-      allParams.push(...filteredParams);
+      allParams.push(...cleanedParams);
     }
 
     return { testSections, allParams };
@@ -428,166 +410,32 @@ export function PublicReportDownload() {
   }, [mappedSectionsAndParams]);
 
   // Compute pages (compact chunking algorithm)
-  const reportPages = useMemo(() => {
-    if (!report) return [] as PageItem[][];
-
+  const paginationResult = useMemo(() => {
+    if (!report) return { pages: [] as PageItem[][], compactAdjustment: 0 };
     const { testSections } = mappedSectionsAndParams;
-    const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom;
-    const isDense = density !== 'comfortable';
-
-    const patientHeight = 100;
-    const signatureHeight = 72;
-    const endMarkerHeight = 20;
-
-    const maxChunkHeight = Math.max(160, contentHeight - 50);
-    const chunks = testSections.flatMap(section => splitSection(section, maxChunkHeight, isDense));
-
+    const pathologySigUrl = (report as any).pathology_signature_url;
+    const pathologySigLabel = (report as any).pathology_signature_label;
+    const hasDoctorSignature = !!(pathologySigUrl || pathologySigLabel);
+    
     const testData = typeof report.test_data === 'string' ? JSON.parse(report.test_data) : report.test_data;
     const layoutSnapshots = testData?.layout_snapshots || {};
 
-    // First pass: calculate total height to detect overflow
-    let totalNeeded = patientHeight;
-    for (const chunk of chunks) {
-      const section = testSections.find(s => s.id === chunk.sectionId);
-      if (section) {
-        totalNeeded += estimateSectionHeight(section, chunk.parameters, isDense);
-        // Include interpretation if it is the last chunk of the section and has significance
-        const isLastChunk = chunks.filter(c => c.sectionId === chunk.sectionId).pop() === chunk;
-        if (isLastChunk && section.testId) {
-          const sig = layoutSnapshots[section.testId]?.clinical_significance;
-          if (sig?.trim()) {
-            totalNeeded += estimateInterpretationHeight(sig.trim(), isDense);
-          }
-        }
-      }
-    }
-    const notes = report.clinical_notes?.trim();
-    if (notes) totalNeeded += estimateInterpretationHeight(notes, isDense);
-    totalNeeded += signatureHeight + endMarkerHeight;
-
-    const overflow = totalNeeded - contentHeight;
-
-    // Apply micro-compaction scaling to row heights if overflow is minor
-    const needsCompact = overflow > 0 && overflow <= 120;
-    const compactScale = needsCompact ? Math.max(0.82, 1 - (overflow + 20) / totalNeeded) : 1;
-
-    const estimateHeight = (section: TestSection, params: Parameter[]) => {
-      const base = estimateSectionHeight(section, params, isDense);
-      return needsCompact ? Math.floor(base * compactScale) : base;
-    };
-
-    const out: PageItem[][] = [[]];
-    let currentHeight = 0;
-
-    const place = (item: PageItem, itemHeight: number) => {
-      if (currentHeight + itemHeight > contentHeight && out[out.length - 1].length > 0) {
-        out.push([]);
-        currentHeight = 0;
-      }
-      out[out.length - 1].push(item);
-      currentHeight += itemHeight;
-    };
-
-    place({ type: 'patient' }, patientHeight);
-
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      const section = testSections.find(s => s.id === chunk.sectionId);
-      if (!section) continue;
-
-      const chunkH = estimateHeight(section, chunk.parameters);
-
-      let sigH = 0;
-      const isLastChunk = chunks.filter(c => c.sectionId === chunk.sectionId).pop() === chunk;
-      if (isLastChunk && section.testId) {
-        const sig = layoutSnapshots[section.testId]?.clinical_significance;
-        if (sig?.trim()) {
-          sigH = needsCompact
-            ? Math.floor(estimateInterpretationHeight(sig.trim(), isDense) * compactScale)
-            : estimateInterpretationHeight(sig.trim(), isDense);
-        }
-      }
-
-      let trailingH = 0;
-      const isLastChunkOverall = i === chunks.length - 1;
-      if (isLastChunkOverall) {
-        if (notes) {
-          trailingH += needsCompact
-            ? Math.floor(estimateInterpretationHeight(notes, isDense) * compactScale)
-            : estimateInterpretationHeight(notes, isDense);
-        }
-        trailingH += signatureHeight + endMarkerHeight;
-      }
-
-      const totalSectionHeight = chunkH + sigH + trailingH;
-
-      const currentHasContent = out[out.length - 1].some(item => item.type === 'test' || item.type === 'interpretation');
-      if (currentHasContent && currentHeight + totalSectionHeight > contentHeight && totalSectionHeight <= contentHeight) {
-        out.push([]);
-        currentHeight = 0;
-      }
-
-      place({ type: 'test', chunk }, chunkH);
-
-      if (sigH > 0) {
-        const sig = layoutSnapshots[section.testId]?.clinical_significance;
-        place({ type: 'interpretation', testId: section.testId, text: sig!.trim() }, sigH);
-      }
-    }
-
-    if (notes) {
-      const notesH = needsCompact
-        ? Math.floor(estimateInterpretationHeight(notes, isDense) * compactScale)
-        : estimateInterpretationHeight(notes, isDense);
-      place({ type: 'generalNotes', text: notes }, notesH);
-    }
-
-    const tailHeight = signatureHeight + endMarkerHeight;
-    if (currentHeight + tailHeight > contentHeight && out[out.length - 1].length > 0) {
-      out.push([]);
-      currentHeight = 0;
-    }
-    out[out.length - 1].push({ type: 'endMarker' });
-    out[out.length - 1].push({ type: 'signature' });
-
-    const shouldAttachMarketing = report?.is_self_report || report?.attach_marketing_pages;
-    if (shouldAttachMarketing && report?.marketing_pages && Array.isArray(report.marketing_pages)) {
-      const activeMarketingPages = report.marketing_pages.filter((p: any) => p.active && p.url);
-      for (const mPage of activeMarketingPages) {
-        out.push([{ type: 'marketing', pageConfig: mPage }]);
-      }
-    }
-
-    return out;
+    return computeReportPages({
+      orderedSections: testSections,
+      safeZones,
+      hasDoctorSignature,
+      density,
+      layoutSnapshots,
+      testData,
+      clinicalNotes: report.clinical_notes,
+      isSelfReport: report.is_self_report,
+      attachMarketingPages: report.attach_marketing_pages,
+      marketingPages: report.marketing_pages,
+    });
   }, [report, mappedSectionsAndParams, safeZones, density]);
 
-  // Derive compactAdjustment value
-  const compactAdjustment = useMemo(() => {
-    if (!report) return 0;
-    const { testSections } = mappedSectionsAndParams;
-    const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom;
-    const isDense = density !== 'comfortable';
-
-    const testData = typeof report.test_data === 'string' ? JSON.parse(report.test_data) : report.test_data;
-    const layoutSnapshots = testData?.layout_snapshots || {};
-
-    let totalNeeded = 100; // patient info
-    for (const section of testSections) {
-      totalNeeded += estimateSectionHeight(section, section.parameters, isDense);
-      if (section.testId) {
-        const sig = layoutSnapshots[section.testId]?.clinical_significance;
-        if (sig?.trim()) {
-          totalNeeded += estimateInterpretationHeight(sig.trim(), isDense);
-        }
-      }
-    }
-    const notes = report.clinical_notes?.trim();
-    if (notes) totalNeeded += estimateInterpretationHeight(notes, isDense);
-    totalNeeded += 92; // signature + end marker
-
-    const overflow = totalNeeded - contentHeight;
-    return (overflow > 0 && overflow <= 120) ? overflow : 0;
-  }, [report, mappedSectionsAndParams, safeZones, density]);
+  const reportPages = paginationResult.pages;
+  const compactAdjustment = paginationResult.compactAdjustment;
 
   // Download PDF Action
   const handleDownload = useCallback(async () => {
@@ -813,13 +661,30 @@ export function PublicReportDownload() {
   const headerActive = !!report.header_url && !report.letterhead_url;
   const footerActive = !!report.footer_url && !report.letterhead_url;
 
+  const pathologySigUrl = (report as any).pathology_signature_url;
+  const pathologySigLabel = (report as any).pathology_signature_label;
+  const pathologySigDesc = (report as any).pathology_signature_description;
+  const hasDoctorSignature = !!(pathologySigUrl || pathologySigLabel);
+  const signatureStripHeight = hasDoctorSignature ? 84 : 76;
+
+  let lastReportPageIndex = -1;
+  for (let i = reportPages.length - 1; i >= 0; i -= 1) {
+    if (reportPages[i]?.[0]?.type !== 'marketing') {
+      lastReportPageIndex = i;
+      break;
+    }
+  }
+
   if (printMode) {
     return (
       <div className="bg-white flex flex-col items-center" style={{ width: '100%' }}>
         <style>{`
           @media print {
-            body { background: white; margin: 0; padding: 0; }
+            @page { size: A4; margin: 0; }
+            html, body { margin: 0; padding: 0; }
+            body { background: white; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .report-page { page-break-after: always; break-after: page; margin: 0 !important; box-shadow: none !important; border: none !important; }
+            .report-page:last-child { page-break-after: avoid; break-after: avoid; }
           }
           body { background: #f0f2f5; margin: 0; padding: 0; }
           .report-page { margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
@@ -916,216 +781,318 @@ export function PublicReportDownload() {
               ) : (
                 <div
                   data-content-area="true"
-                style={{
-                  position: 'absolute',
-                  top: safeZones.top,
-                  bottom: safeZones.bottom,
-                  left: safeZones.left,
-                  right: safeZones.right,
-                  zIndex: 1,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: compactAdjustment > 0 ? 1 : 3,
-                  fontSize: compactAdjustment > 60 ? 10.5 : 11,
-                  lineHeight: compactAdjustment > 60 ? 1.35 : 1.45,
-                }}
-              >
-                {page.map((item: any, idx: number) => {
-                  if (item.type === 'patient') {
-                    return (
-                      <div key={`p-${idx}`} className="patient-info-box">
-                        <ImprovedPatientBox
-                          patientName={report.patient_name}
-                          age={report.patient_age as any}
-                          gender={report.patient_gender}
-                          patientId={`PT-${report.patient_id.slice(0, 8)}`}
-                          sampleId={report.sample_id_code}
-                          referringDoctor={referringDoctorName}
-                          reportDate={format(new Date(report.created_at), 'dd MMM yyyy')}
-                          reportTime={format(new Date(report.created_at), 'hh:mm aa')}
-                          collectionDate={format(new Date(report.created_at), 'dd MMM yyyy, hh:mm aa')}
-                          reportedDate={report.approved_at ? format(new Date(report.approved_at), 'dd MMM yyyy, hh:mm aa') : 'N/A'}
-                          collectionAddress={`${report.branch?.location || ''}${report.branch?.city ? `, ${report.branch.city}` : ''}`}
-                          qrCode={
-                            <QRCodeSVG
-                              value={token ? `${window.location.origin}/public/report/${id}/download?token=${token}` : ''}
-                              size={68}
-                              level="Q"
-                              bgColor="#ffffff"
-                              fgColor="#000000"
-                            />
-                          }
-                          barcode={<Barcode value={report.sample_id_code} />}
+                  style={{
+                    position: 'absolute',
+                    top: safeZones.top,
+                    bottom: safeZones.bottom,
+                    left: safeZones.left,
+                    right: safeZones.right,
+                    zIndex: 1,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    paddingBottom: signatureStripHeight,
+                    gap: compactAdjustment > 0 ? 1 : 3,
+                    fontSize: compactAdjustment > 60 ? 10.5 : 11,
+                    lineHeight: compactAdjustment > 60 ? 1.35 : 1.45,
+                  }}
+                >
+                  {page.map((item: any, idx: number) => {
+                    if (item.type === 'patient') {
+                      return (
+                        <div key={`p-${idx}`} className="patient-info-box">
+                          <ImprovedPatientBox
+                            patientName={report.patient_name}
+                            age={report.patient_age as any}
+                            gender={report.patient_gender}
+                            patientId={`PT-${report.patient_id.slice(0, 8)}`}
+                            sampleId={report.sample_id_code}
+                            referringDoctor={referringDoctorName}
+                            reportDate={format(new Date(report.created_at), 'dd MMM yyyy')}
+                            reportTime={format(new Date(report.created_at), 'hh:mm aa')}
+                            collectionDate={format(new Date(report.created_at), 'dd MMM yyyy, hh:mm aa')}
+                            reportedDate={report.approved_at ? format(new Date(report.approved_at), 'dd MMM yyyy, hh:mm aa') : 'N/A'}
+                            collectionAddress={`${report.branch?.location || ''}${report.branch?.city ? `, ${report.branch.city}` : ''}`}
+                            qrCode={
+                              <QRCodeSVG
+                                value={token ? `${window.location.origin}/public/report/${id}/download?token=${token}` : ''}
+                                size={56}
+                                level="Q"
+                                bgColor="#ffffff"
+                                fgColor="#000000"
+                              />
+                            }
+                            barcode={<Barcode value={report.sample_id_code} />}
+                            colorTokens={C}
+                          />
+                        </div>
+                      );
+                    }
+
+                    if (item.type === 'test') {
+                      let lastGroup: string | undefined;
+                      return (
+                        <TestSectionBlock
+                          key={`t-${idx}`}
+                          testName={item.chunk.continuation ? `${item.chunk.title} (cont.)` : item.chunk.title}
+                          isFirstSection={false}
                           colorTokens={C}
-                        />
-                      </div>
-                    );
-                  }
+                        >
+                          <table style={{
+                            width: '100%',
+                            borderCollapse: 'collapse',
+                            tableLayout: 'fixed',
+                            marginTop: compactAdjustment > 0 ? '1px' : '2px'
+                          }}>
+                            <InvestigationTableHeader colorTokens={C} />
+                            <tbody>
+                              {item.chunk.parameters.map((param: any, rowIdx: number) => {
+                                const status = (param.status || '').toLowerCase();
+                                const isHigh = status === 'high' || status === 'critical';
+                                const isLow = status === 'low';
+                                const isAbnormal = isHigh || isLow;
+                                const statusColor = isHigh ? C.high : isLow ? C.low : C.text;
+                                const showGroupHeader = !!param.group && param.group !== lastGroup;
+                                if (param.group) lastGroup = param.group;
 
-                  if (item.type === 'test') {
-                    let lastGroup: string | undefined;
-                    return (
-                      <TestSectionBlock
-                        key={`t-${idx}`}
-                        testName={item.chunk.continuation ? `${item.chunk.title} (cont.)` : item.chunk.title}
-                        isFirstSection={false}
-                        colorTokens={C}
-                      >
-                        <table style={{
-                          width: '100%',
-                          borderCollapse: 'collapse',
-                          tableLayout: 'fixed',
-                          marginTop: compactAdjustment > 0 ? '1px' : '2px'
-                        }}>
-                          <InvestigationTableHeader colorTokens={C} />
-                          <tbody>
-                            {item.chunk.parameters.map((param: any, rowIdx: number) => {
-                              const status = (param.status || '').toLowerCase();
-                              const isHigh = status === 'high' || status === 'critical';
-                              const isLow = status === 'low';
-                              const isAbnormal = isHigh || isLow;
-                              const statusColor = isHigh ? C.high : isLow ? C.low : C.text;
-                              const showGroupHeader = !!param.group && param.group !== lastGroup;
-                              if (param.group) lastGroup = param.group;
-
-                              return (
-                                <React.Fragment key={`${param.name}-${rowIdx}`}>
-                                  {showGroupHeader && (
-                                    <SectionGroupHeader
-                                      title={param.group || ''}
+                                return (
+                                  <React.Fragment key={`${param.name}-${rowIdx}`}>
+                                    {showGroupHeader && (
+                                      <SectionGroupHeader
+                                        title={param.group || ''}
+                                        colorTokens={C}
+                                        compact={compactAdjustment > 0}
+                                      />
+                                    )}
+                                    <InvestigationTableRow
+                                      investigation={param.name}
+                                      result={param.result}
+                                      status={isHigh ? 'High' : isLow ? 'Low' : ''}
+                                      refRange={param.refRange}
+                                      unit={param.unit}
+                                      isAbnormal={isAbnormal}
+                                      statusColor={statusColor}
+                                      rowIndex={rowIdx}
+                                      indented={!!param.group}
                                       colorTokens={C}
                                       compact={compactAdjustment > 0}
                                     />
-                                  )}
-                                  <InvestigationTableRow
-                                    investigation={param.name}
-                                    result={param.result}
-                                    status={isHigh ? 'High' : isLow ? 'Low' : ''}
-                                    refRange={param.refRange}
-                                    unit={param.unit}
-                                    isAbnormal={isAbnormal}
-                                    statusColor={statusColor}
-                                    rowIndex={rowIdx}
-                                    indented={!!param.group}
-                                    colorTokens={C}
-                                    compact={compactAdjustment > 0}
-                                  />
-                                </React.Fragment>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </TestSectionBlock>
-                    );
-                  }
+                                  </React.Fragment>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </TestSectionBlock>
+                      );
+                    }
 
-                  // Render inline clinical significance box
-                  if (item.type === 'interpretation') {
-                    return (
+                    // Render inline clinical significance box
+                    if (item.type === 'interpretation') {
+                      return (
+                        <div
+                          key={`i-${idx}`}
+                          style={{
+                            marginTop: '8px',
+                            fontSize: '9.5px',
+                            color: '#222',
+                            lineHeight: 1.45,
+                            textAlign: 'left'
+                          }}
+                        >
+                          <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                            Clinical Significance
+                          </div>
+                          <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                            {item.text}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    // Render inline general/technician notes box
+                    if (item.type === 'generalNotes') {
+                      return (
+                        <div
+                          key={`gnotes-${idx}`}
+                          style={{
+                            marginTop: '8px',
+                            fontSize: '9.5px',
+                            color: '#222',
+                            lineHeight: 1.45,
+                            textAlign: 'left'
+                          }}
+                        >
+                          <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                            Technician Notes / Interpretation
+                          </div>
+                          <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                            {item.text}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    if (item.type === 'peripheralSmear') {
+                      const smearRows = item.text
+                        .split('\n')
+                        .map((line) => line.trim())
+                        .filter(Boolean)
+                        .map((line) => {
+                          const sepIdx = line.indexOf(':');
+                          if (sepIdx === -1) {
+                            return { label: '', value: line };
+                          }
+                          const label = line.slice(0, sepIdx).trim();
+                          const value = line.slice(sepIdx + 1).trim();
+
+                          return {
+                            label,
+                            value,
+                          };
+                        });
+
+                      return (
+                        <div
+                          key={`smear-${idx}`}
+                          style={{
+                            marginTop: '8px',
+                            fontSize: '11.5px',
+                            color: '#222',
+                            lineHeight: 1.55,
+                            textAlign: 'left',
+                          }}
+                        >
+                          <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '6px', fontSize: '14px' }}>
+                            {item.testName}: Peripheral Smear Examination
+                          </div>
+
+                          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
+                            <tbody>
+                              {smearRows.map((row, rowIdx) => {
+                                if (!row.label) {
+                                  return (
+                                    <tr key={`smear-row-${rowIdx}`}>
+                                      <td colSpan={2} style={{ padding: '2px 0', fontSize: '13.5px', color: '#212121', fontWeight: 500 }}>
+                                        {row.value}
+                                      </td>
+                                    </tr>
+                                  );
+                                }
+
+                                return (
+                                  <tr key={`smear-row-${rowIdx}`}>
+                                    <td
+                                      style={{
+                                        width: '220px',
+                                        minWidth: '220px',
+                                        maxWidth: '220px',
+                                        verticalAlign: 'top',
+                                        padding: '2px 8px 2px 0',
+                                        fontSize: '13.5px',
+                                        fontWeight: 700,
+                                        color: '#1A1A1A',
+                                        whiteSpace: 'nowrap',
+                                      }}
+                                    >
+                                      {row.label}:
+                                    </td>
+                                    <td
+                                      style={{
+                                        verticalAlign: 'top',
+                                        padding: '2px 0',
+                                        fontSize: '13.5px',
+                                        fontWeight: 500,
+                                        color: '#212121',
+                                        whiteSpace: 'normal',
+                                        wordBreak: 'break-word',
+                                      }}
+                                    >
+                                      {row.value.split(',').map((val) => val.trim()).filter(Boolean).map((subVal, subIdx) => (
+                                        <div key={subIdx} style={{ lineHeight: 1.35 }}>
+                                          {subVal}
+                                        </div>
+                                      ))}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    }
+
+                    return null;
+                  })}
+
+                  <section
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      paddingTop: 4,
+                      borderTop: '1px solid #D7DEE7',
+                      background: (letterheadActive || headerActive || footerActive) ? 'rgba(255,255,255,0.84)' : '#FFFFFF',
+                    }}
+                  >
+                    {pageIndex === lastReportPageIndex && (
                       <div
-                        key={`i-${idx}`}
                         style={{
-                          marginTop: '8px',
-                          fontSize: '9.5px',
-                          color: '#222',
-                          lineHeight: 1.45,
-                          textAlign: 'left'
+                          textAlign: 'center',
+                          fontSize: '8.5px',
+                          color: '#8A99A8',
+                          letterSpacing: '1.5px',
+                          marginBottom: 3,
                         }}
                       >
-                        <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
-                          Clinical Significance
-                        </div>
-                        <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
-                          {item.text}
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  // Render inline general/technician notes box
-                  if (item.type === 'generalNotes') {
-                    return (
-                      <div
-                        key={`gnotes-${idx}`}
-                        style={{
-                          marginTop: '8px',
-                          fontSize: '9.5px',
-                          color: '#222',
-                          lineHeight: 1.45,
-                          textAlign: 'left'
-                        }}
-                      >
-                        <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
-                          Technician Notes / Interpretation
-                        </div>
-                        <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
-                          {item.text}
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  if (item.type === 'endMarker') {
-                    return (
-                      <div key={`e-${idx}`} style={{ textAlign: 'center', fontSize: '9px', color: '#999', letterSpacing: '2px', margin: '6px 0' }}>
                         *** End of Report ***
                       </div>
-                    );
-                  }
+                    )}
 
-                  const pathologySigUrl = (report as any).pathology_signature_url;
-                  const pathologySigLabel = (report as any).pathology_signature_label;
-                  const pathologySigDesc = (report as any).pathology_signature_description;
-                  const hasDoctorSignature = !!(pathologySigUrl || pathologySigLabel);
+                    <div style={{ display: 'flex', justifyContent: hasDoctorSignature ? 'space-between' : 'flex-start' }}>
+                      <div>
+                        <div style={{ height: 36, display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
+                          {report.owner_signature_url && (
+                            <img
+                              src={getImageUrl(report.owner_signature_url) || ''}
+                              alt="Owner Signature"
+                              style={{ maxHeight: 36, objectFit: 'contain' }}
+                            />
+                          )}
+                        </div>
+                        <div style={{ borderTop: '1px solid #333', paddingTop: 3, minWidth: '140px' }}>
+                          <p style={{ margin: 0, fontSize: '10.5px', fontWeight: 700, color: '#111' }}>
+                            {report.owner_signature_label || (report.technician_firstname ? `${report.technician_firstname} ${report.technician_lastname || ''}` : 'Lab Technician')}
+                          </p>
+                          <p style={{ margin: '1px 0 0', fontSize: '8.5px', color: '#666' }}>{(report as any).owner_signature_description || 'Lab Owner / Incharge'}</p>
+                        </div>
+                      </div>
 
-                  return (
-                    <section key={`s-${idx}`} style={{ marginTop: '8px' }}>
-                      <div style={{ display: 'flex', justifyContent: hasDoctorSignature ? 'space-between' : 'flex-start' }}>
-                        <div>
-                          <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
-                            {report.owner_signature_url && (
+                      {hasDoctorSignature && (
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ height: 36, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
+                            {pathologySigUrl && (
                               <img
-                                src={getImageUrl(report.owner_signature_url) || ''}
-                                alt="Owner Signature"
-                                style={{ maxHeight: 40, objectFit: 'contain' }}
+                                src={getImageUrl(pathologySigUrl) || ''}
+                                alt="Doctor Signature"
+                                style={{ maxHeight: 36, objectFit: 'contain' }}
                               />
                             )}
                           </div>
-                          <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
-                            <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
-                              {report.owner_signature_label || (report.technician_firstname ? `${report.technician_firstname} ${report.technician_lastname || ''}` : 'Lab Technician')}
+                          <div style={{ borderTop: '1px solid #333', paddingTop: 3, minWidth: '140px' }}>
+                            <p style={{ margin: 0, fontSize: '10.5px', fontWeight: 700, color: '#111' }}>
+                              {pathologySigLabel || 'Authorized Signatory'}
                             </p>
-                            <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>{(report as any).owner_signature_description || 'Lab Owner / Incharge'}</p>
+                            <p style={{ margin: '1px 0 0', fontSize: '8.5px', color: '#666' }}>
+                              {pathologySigDesc || 'Pathologist'}
+                            </p>
                           </div>
                         </div>
-
-                        {hasDoctorSignature && (
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
-                              {pathologySigUrl && (
-                                <img
-                                  src={getImageUrl(pathologySigUrl) || ''}
-                                  alt="Doctor Signature"
-                                  style={{ maxHeight: 40, objectFit: 'contain' }}
-                                />
-                              )}
-                            </div>
-                            <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
-                              <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
-                                {pathologySigLabel || 'Authorized Signatory'}
-                              </p>
-                              <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>
-                                {pathologySigDesc || 'Pathologist'}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </section>
-                  );
-                })}
-              </div>
+                      )}
+                    </div>
+                  </section>
+                </div>
             )}
             </div>
           );
@@ -1317,216 +1284,228 @@ export function PublicReportDownload() {
               ) : (
                 <div
                   data-content-area="true"
-                style={{
-                  position: 'absolute',
-                  top: safeZones.top,
-                  bottom: safeZones.bottom,
-                  left: safeZones.left,
-                  right: safeZones.right,
-                  zIndex: 1,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: compactAdjustment > 0 ? 1 : 3,
-                  fontSize: compactAdjustment > 60 ? 10.5 : 11,
-                  lineHeight: compactAdjustment > 60 ? 1.35 : 1.45,
-                }}
-              >
-                {page.map((item: any, idx: number) => {
-                  if (item.type === 'patient') {
-                    return (
-                      <div key={`p-${idx}`} className="patient-info-box">
-                        <ImprovedPatientBox
-                          patientName={report.patient_name}
-                          age={report.patient_age as any}
-                          gender={report.patient_gender}
-                          patientId={`PT-${report.patient_id.slice(0, 8)}`}
-                          sampleId={report.sample_id_code}
-                          referringDoctor={referringDoctorName}
-                          reportDate={format(new Date(report.created_at), 'dd MMM yyyy')}
-                          reportTime={format(new Date(report.created_at), 'hh:mm aa')}
-                          collectionDate={format(new Date(report.created_at), 'dd MMM yyyy, hh:mm aa')}
-                          reportedDate={report.approved_at ? format(new Date(report.approved_at), 'dd MMM yyyy, hh:mm aa') : 'N/A'}
-                          collectionAddress={`${report.branch?.location || ''}${report.branch?.city ? `, ${report.branch.city}` : ''}`}
-                          qrCode={
-                            <QRCodeSVG
-                              value={token ? `${window.location.origin}/public/report/${id}/download?token=${token}` : ''}
-                              size={68}
-                              level="Q"
-                              bgColor="#ffffff"
-                              fgColor="#000000"
-                            />
-                          }
-                          barcode={<Barcode value={report.sample_id_code} />}
+                  style={{
+                    position: 'absolute',
+                    top: safeZones.top,
+                    bottom: safeZones.bottom,
+                    left: safeZones.left,
+                    right: safeZones.right,
+                    zIndex: 1,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    paddingBottom: signatureStripHeight,
+                    gap: compactAdjustment > 0 ? 1 : 3,
+                    fontSize: compactAdjustment > 60 ? 10.5 : 11,
+                    lineHeight: compactAdjustment > 60 ? 1.35 : 1.45,
+                  }}
+                >
+                  {page.map((item: any, idx: number) => {
+                    if (item.type === 'patient') {
+                      return (
+                        <div key={`p-${idx}`} className="patient-info-box">
+                          <ImprovedPatientBox
+                            patientName={report.patient_name}
+                            age={report.patient_age as any}
+                            gender={report.patient_gender}
+                            patientId={`PT-${report.patient_id.slice(0, 8)}`}
+                            sampleId={report.sample_id_code}
+                            referringDoctor={referringDoctorName}
+                            reportDate={format(new Date(report.created_at), 'dd MMM yyyy')}
+                            reportTime={format(new Date(report.created_at), 'hh:mm aa')}
+                            collectionDate={format(new Date(report.created_at), 'dd MMM yyyy, hh:mm aa')}
+                            reportedDate={report.approved_at ? format(new Date(report.approved_at), 'dd MMM yyyy, hh:mm aa') : 'N/A'}
+                            collectionAddress={`${report.branch?.location || ''}${report.branch?.city ? `, ${report.branch.city}` : ''}`}
+                            qrCode={
+                              <QRCodeSVG
+                                value={token ? `${window.location.origin}/public/report/${id}/download?token=${token}` : ''}
+                                size={56}
+                                level="Q"
+                                bgColor="#ffffff"
+                                fgColor="#000000"
+                              />
+                            }
+                            barcode={<Barcode value={report.sample_id_code} />}
+                            colorTokens={C}
+                          />
+                        </div>
+                      );
+                    }
+
+                    if (item.type === 'test') {
+                      let lastGroup: string | undefined;
+                      return (
+                        <TestSectionBlock
+                          key={`t-${idx}`}
+                          testName={item.chunk.continuation ? `${item.chunk.title} (cont.)` : item.chunk.title}
+                          isFirstSection={false}
                           colorTokens={C}
-                        />
-                      </div>
-                    );
-                  }
+                        >
+                          <table style={{
+                            width: '100%',
+                            borderCollapse: 'collapse',
+                            tableLayout: 'fixed',
+                            marginTop: compactAdjustment > 0 ? '1px' : '2px'
+                          }}>
+                            <InvestigationTableHeader colorTokens={C} />
+                            <tbody>
+                              {item.chunk.parameters.map((param: any, rowIdx: number) => {
+                                const status = (param.status || '').toLowerCase();
+                                const isHigh = status === 'high' || status === 'critical';
+                                const isLow = status === 'low';
+                                const isAbnormal = isHigh || isLow;
+                                const statusColor = isHigh ? C.high : isLow ? C.low : C.text;
+                                const showGroupHeader = !!param.group && param.group !== lastGroup;
+                                if (param.group) lastGroup = param.group;
 
-                  if (item.type === 'test') {
-                    let lastGroup: string | undefined;
-                    return (
-                      <TestSectionBlock
-                        key={`t-${idx}`}
-                        testName={item.chunk.continuation ? `${item.chunk.title} (cont.)` : item.chunk.title}
-                        isFirstSection={false}
-                        colorTokens={C}
-                      >
-                        <table style={{
-                          width: '100%',
-                          borderCollapse: 'collapse',
-                          tableLayout: 'fixed',
-                          marginTop: compactAdjustment > 0 ? '1px' : '2px'
-                        }}>
-                          <InvestigationTableHeader colorTokens={C} />
-                          <tbody>
-                            {item.chunk.parameters.map((param: any, rowIdx: number) => {
-                              const status = (param.status || '').toLowerCase();
-                              const isHigh = status === 'high' || status === 'critical';
-                              const isLow = status === 'low';
-                              const isAbnormal = isHigh || isLow;
-                              const statusColor = isHigh ? C.high : isLow ? C.low : C.text;
-                              const showGroupHeader = !!param.group && param.group !== lastGroup;
-                              if (param.group) lastGroup = param.group;
-
-                              return (
-                                <React.Fragment key={`${param.name}-${rowIdx}`}>
-                                  {showGroupHeader && (
-                                    <SectionGroupHeader
-                                      title={param.group || ''}
+                                return (
+                                  <React.Fragment key={`${param.name}-${rowIdx}`}>
+                                    {showGroupHeader && (
+                                      <SectionGroupHeader
+                                        title={param.group || ''}
+                                        colorTokens={C}
+                                        compact={compactAdjustment > 0}
+                                      />
+                                    )}
+                                    <InvestigationTableRow
+                                      investigation={param.name}
+                                      result={param.result}
+                                      status={isHigh ? 'High' : isLow ? 'Low' : ''}
+                                      refRange={param.refRange}
+                                      unit={param.unit}
+                                      isAbnormal={isAbnormal}
+                                      statusColor={statusColor}
+                                      rowIndex={rowIdx}
+                                      indented={!!param.group}
                                       colorTokens={C}
                                       compact={compactAdjustment > 0}
                                     />
-                                  )}
-                                  <InvestigationTableRow
-                                    investigation={param.name}
-                                    result={param.result}
-                                    status={isHigh ? 'High' : isLow ? 'Low' : ''}
-                                    refRange={param.refRange}
-                                    unit={param.unit}
-                                    isAbnormal={isAbnormal}
-                                    statusColor={statusColor}
-                                    rowIndex={rowIdx}
-                                    indented={!!param.group}
-                                    colorTokens={C}
-                                    compact={compactAdjustment > 0}
-                                  />
-                                </React.Fragment>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </TestSectionBlock>
-                    );
-                  }
+                                  </React.Fragment>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </TestSectionBlock>
+                      );
+                    }
 
-                  // Render inline clinical significance box
-                  if (item.type === 'interpretation') {
-                    return (
+                    // Render inline clinical significance box
+                    if (item.type === 'interpretation') {
+                      return (
+                        <div
+                          key={`i-${idx}`}
+                          style={{
+                            marginTop: '8px',
+                            fontSize: '9.5px',
+                            color: '#222',
+                            lineHeight: 1.45,
+                            textAlign: 'left'
+                          }}
+                        >
+                          <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                            Clinical Significance
+                          </div>
+                          <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                            {item.text}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    // Render inline general/technician notes box
+                    if (item.type === 'generalNotes') {
+                      return (
+                        <div
+                          key={`gnotes-${idx}`}
+                          style={{
+                            marginTop: '8px',
+                            fontSize: '9.5px',
+                            color: '#222',
+                            lineHeight: 1.45,
+                            textAlign: 'left'
+                          }}
+                        >
+                          <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                            Technician Notes / Interpretation
+                          </div>
+                          <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                            {item.text}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return null;
+                  })}
+
+                  <section
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      paddingTop: 4,
+                      borderTop: '1px solid #D7DEE7',
+                      background: (letterheadActive || headerActive || footerActive) ? 'rgba(255,255,255,0.84)' : '#FFFFFF',
+                    }}
+                  >
+                    {pageIndex === lastReportPageIndex && (
                       <div
-                        key={`i-${idx}`}
                         style={{
-                          marginTop: '8px',
-                          fontSize: '9.5px',
-                          color: '#222',
-                          lineHeight: 1.45,
-                          textAlign: 'left'
+                          textAlign: 'center',
+                          fontSize: '8.5px',
+                          color: '#8A99A8',
+                          letterSpacing: '1.5px',
+                          marginBottom: 3,
                         }}
                       >
-                        <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
-                          Clinical Significance
-                        </div>
-                        <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
-                          {item.text}
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  // Render inline general/technician notes box
-                  if (item.type === 'generalNotes') {
-                    return (
-                      <div
-                        key={`gnotes-${idx}`}
-                        style={{
-                          marginTop: '8px',
-                          fontSize: '9.5px',
-                          color: '#222',
-                          lineHeight: 1.45,
-                          textAlign: 'left'
-                        }}
-                      >
-                        <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
-                          Technician Notes / Interpretation
-                        </div>
-                        <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
-                          {item.text}
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  if (item.type === 'endMarker') {
-                    return (
-                      <div key={`e-${idx}`} style={{ textAlign: 'center', fontSize: '9px', color: '#999', letterSpacing: '2px', margin: '6px 0' }}>
                         *** End of Report ***
                       </div>
-                    );
-                  }
+                    )}
 
-                  const pathologySigUrl = (report as any).pathology_signature_url;
-                  const pathologySigLabel = (report as any).pathology_signature_label;
-                  const pathologySigDesc = (report as any).pathology_signature_description;
-                  const hasDoctorSignature = !!(pathologySigUrl || pathologySigLabel);
+                    <div style={{ display: 'flex', justifyContent: hasDoctorSignature ? 'space-between' : 'flex-start' }}>
+                      <div>
+                        <div style={{ height: 36, display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
+                          {report.owner_signature_url && (
+                            <img
+                              src={getImageUrl(report.owner_signature_url) || ''}
+                              alt="Owner Signature"
+                              style={{ maxHeight: 36, objectFit: 'contain' }}
+                            />
+                          )}
+                        </div>
+                        <div style={{ borderTop: '1px solid #333', paddingTop: 3, minWidth: '140px' }}>
+                          <p style={{ margin: 0, fontSize: '10.5px', fontWeight: 700, color: '#111' }}>
+                            {report.owner_signature_label || (report.technician_firstname ? `${report.technician_firstname} ${report.technician_lastname || ''}` : 'Lab Technician')}
+                          </p>
+                          <p style={{ margin: '1px 0 0', fontSize: '8.5px', color: '#666' }}>{(report as any).owner_signature_description || 'Lab Owner / Incharge'}</p>
+                        </div>
+                      </div>
 
-                  return (
-                    <section key={`s-${idx}`} style={{ marginTop: '8px' }}>
-                      <div style={{ display: 'flex', justifyContent: hasDoctorSignature ? 'space-between' : 'flex-start' }}>
-                        <div>
-                          <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
-                            {report.owner_signature_url && (
+                      {hasDoctorSignature && (
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ height: 36, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
+                            {pathologySigUrl && (
                               <img
-                                src={getImageUrl(report.owner_signature_url) || ''}
-                                alt="Owner Signature"
-                                style={{ maxHeight: 40, objectFit: 'contain' }}
+                                src={getImageUrl(pathologySigUrl) || ''}
+                                alt="Doctor Signature"
+                                style={{ maxHeight: 36, objectFit: 'contain' }}
                               />
                             )}
                           </div>
-                          <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
-                            <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
-                              {report.owner_signature_label || (report.technician_firstname ? `${report.technician_firstname} ${report.technician_lastname || ''}` : 'Lab Technician')}
+                          <div style={{ borderTop: '1px solid #333', paddingTop: 3, minWidth: '140px' }}>
+                            <p style={{ margin: 0, fontSize: '10.5px', fontWeight: 700, color: '#111' }}>
+                              {pathologySigLabel || 'Authorized Signatory'}
                             </p>
-                            <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>{(report as any).owner_signature_description || 'Lab Owner / Incharge'}</p>
+                            <p style={{ margin: '1px 0 0', fontSize: '8.5px', color: '#666' }}>
+                              {pathologySigDesc || 'Pathologist'}
+                            </p>
                           </div>
                         </div>
-
-                        {hasDoctorSignature && (
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 4 }}>
-                              {pathologySigUrl && (
-                                <img
-                                  src={getImageUrl(pathologySigUrl) || ''}
-                                  alt="Doctor Signature"
-                                  style={{ maxHeight: 40, objectFit: 'contain' }}
-                                />
-                              )}
-                            </div>
-                            <div style={{ borderTop: '1px solid #333', paddingTop: 4, minWidth: '140px' }}>
-                              <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#111' }}>
-                                {pathologySigLabel || 'Authorized Signatory'}
-                              </p>
-                              <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#666' }}>
-                                {pathologySigDesc || 'Pathologist'}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </section>
-                  );
-                })}
-              </div>
+                      )}
+                    </div>
+                  </section>
+                </div>
             )}
             </div>
           );

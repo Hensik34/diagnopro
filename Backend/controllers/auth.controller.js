@@ -3,8 +3,9 @@ const bcrypt = require("bcrypt");
 const User = require("../models/User");
 const Branch = require("../models/Branch");
 const Doctor = require("../models/Doctor");
-const { PasswordResetOtp } = require("../models");
-const { sendWelcomeEmail, sendOtpEmail } = require("../services/mail.service");
+const { PasswordResetOtp, LoginOtp } = require("../models");
+const { sendWelcomeEmail, sendOtpEmail, sendLoginOtpEmail } = require("../services/mail.service");
+const { Op } = require("sequelize");
 
 // REGISTER - Self-registration (always creates admin/branch owner)
 exports.register = async (req, res) => {
@@ -168,6 +169,51 @@ exports.login = async (req, res) => {
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
+      // Check if user is admin - requires 2FA passcode via email
+      if (user.role === "admin") {
+        // Enforce 5-minute lockout policy (max 4 OTP requests in 5 minutes)
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const recentOtpCount = await LoginOtp.count({
+          where: {
+            email: user.email,
+            created_at: {
+              [Op.gte]: fiveMinutesAgo
+            }
+          }
+        });
+
+        if (recentOtpCount >= 4) {
+          return res.status(429).json({ error: "Too many verification attempts. Your login is locked for 5 minutes." });
+        }
+
+        // Invalidate any existing unused OTPs for this email
+        await LoginOtp.update(
+          { is_used: true },
+          { where: { email: user.email, is_used: false } }
+        );
+
+        // Generate 6-digit OTP passcode
+        const otp = String(Math.floor(100000 + Math.random() * 900000));
+        const OTP_EXPIRY_MINUTES = 10;
+        const otpHash = await bcrypt.hash(otp, 10);
+
+        // Save OTP
+        await LoginOtp.create({
+          email: user.email,
+          otp_hash: otpHash,
+          expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
+        });
+
+        // Send OTP email
+        await sendLoginOtpEmail(user.email, otp, OTP_EXPIRY_MINUTES);
+
+        return res.json({
+          requiresOtp: true,
+          email: user.email,
+          message: "Verification passcode sent to your email."
+        });
+      }
+
       // Get user's branches with their branch-specific roles
       const branches = await Branch.getUserBranches(user.id);
 
@@ -273,6 +319,159 @@ exports.login = async (req, res) => {
     });
   } catch (err) {
     console.error("Login error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// VERIFY LOGIN OTP (2FA Passcode)
+exports.verifyLoginOtp = async (req, res) => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    return res.status(400).json({ error: "Email and passcode are required" });
+  }
+
+  try {
+    // Find latest unused OTP for this email
+    const otpRecord = await LoginOtp.findOne({
+      where: {
+        email,
+        is_used: false,
+      },
+      order: [["created_at", "DESC"]],
+    });
+
+    if (!otpRecord) {
+      return res.status(400).json({ error: "Invalid or expired passcode. Please request a new one." });
+    }
+
+    // Check if expired
+    if (new Date() > new Date(otpRecord.expires_at)) {
+      await otpRecord.update({ is_used: true });
+      return res.status(400).json({ error: "Passcode has expired. Please request a new one." });
+    }
+
+    // Verify passcode hash
+    const isOtpValid = await bcrypt.compare(otp, otpRecord.otp_hash);
+    if (!isOtpValid) {
+      return res.status(400).json({ error: "Invalid verification passcode." });
+    }
+
+    // Mark as used
+    await otpRecord.update({ is_used: true });
+
+    // Login successful — get user details
+    const user = await User.findUserByEmail(email);
+    if (!user || user.is_active === false) {
+      return res.status(401).json({ error: "User account deactivated or not found." });
+    }
+
+    const branches = await Branch.getUserBranches(user.id);
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role, source: "user" },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    let doctorProfile = null;
+    if (user.role === "doctor" || branches.some(b => b.user_role === "doctor")) {
+      doctorProfile = await Doctor.getDoctorByUserId(user.id);
+    }
+
+    return res.json({
+      message: "Login successful",
+      user: {
+        id: user.id,
+        firstname: user.firstname,
+        lastname: user.lastname,
+        email: user.email,
+        role: user.role,
+        petrol_price_per_km: user.petrol_price_per_km,
+        created_at: user.created_at
+      },
+      branches: branches.map(b => ({
+        id: b.id,
+        name: b.name,
+        location: b.location,
+        city: b.city,
+        role: b.user_role
+      })),
+      doctorProfile,
+      token
+    });
+  } catch (err) {
+    console.error("Verify login OTP error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// RESEND LOGIN OTP
+exports.resendLoginOtp = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: "Email is required" });
+  }
+
+  try {
+    const user = await User.findUserByEmail(email);
+    if (!user || user.role !== "admin" || user.is_active === false) {
+      return res.status(400).json({ error: "Invalid request. Admin user not found or inactive." });
+    }
+
+    // 1. Lockout check (max 4 OTPs in 5 minutes)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const recentOtpCount = await LoginOtp.count({
+      where: {
+        email,
+        created_at: {
+          [Op.gte]: fiveMinutesAgo
+        }
+      }
+    });
+
+    if (recentOtpCount >= 4) {
+      return res.status(429).json({ error: "Too many verification attempts. Your login is locked for 5 minutes." });
+    }
+
+    // 2. Cooldown check (min 30 seconds between requests)
+    const latestOtp = await LoginOtp.findOne({
+      where: { email },
+      order: [["created_at", "DESC"]]
+    });
+
+    if (latestOtp) {
+      const thirtySecondsAgo = new Date(Date.now() - 30 * 1000);
+      if (new Date(latestOtp.created_at) > thirtySecondsAgo) {
+        return res.status(429).json({ error: "Please wait 30 seconds before requesting another passcode." });
+      }
+    }
+
+    // Invalidate existing unused OTPs
+    await LoginOtp.update(
+      { is_used: true },
+      { where: { email, is_used: false } }
+    );
+
+    // Generate new OTP
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const OTP_EXPIRY_MINUTES = 10;
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    // Save OTP
+    await LoginOtp.create({
+      email,
+      otp_hash: otpHash,
+      expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
+    });
+
+    // Send email
+    await sendLoginOtpEmail(email, otp, OTP_EXPIRY_MINUTES);
+
+    return res.json({ message: "Verification passcode resent successfully." });
+  } catch (err) {
+    console.error("Resend login OTP error:", err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -667,6 +866,51 @@ exports.googleLogin = async (req, res) => {
         return res.status(403).json({ error: "Your account has been deactivated. Please contact your administrator." });
       }
 
+      // Check if user is admin - requires 2FA passcode via email
+      if (user.role === "admin") {
+        // Enforce 5-minute lockout policy (max 4 OTP requests in 5 minutes)
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const recentOtpCount = await LoginOtp.count({
+          where: {
+            email: user.email,
+            created_at: {
+              [Op.gte]: fiveMinutesAgo
+            }
+          }
+        });
+
+        if (recentOtpCount >= 4) {
+          return res.status(429).json({ error: "Too many verification attempts. Your login is locked for 5 minutes." });
+        }
+
+        // Invalidate any existing unused OTPs for this email
+        await LoginOtp.update(
+          { is_used: true },
+          { where: { email: user.email, is_used: false } }
+        );
+
+        // Generate 6-digit OTP passcode
+        const otp = String(Math.floor(100000 + Math.random() * 900000));
+        const OTP_EXPIRY_MINUTES = 10;
+        const otpHash = await bcrypt.hash(otp, 10);
+
+        // Save OTP
+        await LoginOtp.create({
+          email: user.email,
+          otp_hash: otpHash,
+          expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
+        });
+
+        // Send OTP email
+        await sendLoginOtpEmail(user.email, otp, OTP_EXPIRY_MINUTES);
+
+        return res.json({
+          requiresOtp: true,
+          email: user.email,
+          message: "Verification passcode sent to your email."
+        });
+      }
+
       // Get user's branches with their branch-specific roles
       const branches = await Branch.getUserBranches(user.id);
 
@@ -771,17 +1015,41 @@ exports.googleLogin = async (req, res) => {
       null // created by
     );
 
+    // Send welcome email (fire-and-forget)
+    sendWelcomeEmail({ firstname: newUser.firstname, email: newUser.email }).catch((err) => {
+      console.error("Failed to send welcome email:", err.message);
+    });
+
+    // Check if new user is admin - requires 2FA passcode via email
+    if (newUser.role === "admin") {
+      // Generate 6-digit OTP passcode
+      const otp = String(Math.floor(100000 + Math.random() * 900000));
+      const OTP_EXPIRY_MINUTES = 10;
+      const otpHash = await bcrypt.hash(otp, 10);
+
+      // Save OTP
+      await LoginOtp.create({
+        email: newUser.email,
+        otp_hash: otpHash,
+        expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
+      });
+
+      // Send OTP email
+      await sendLoginOtpEmail(newUser.email, otp, OTP_EXPIRY_MINUTES);
+
+      return res.status(201).json({
+        requiresOtp: true,
+        email: newUser.email,
+        message: "Verification passcode sent to your email."
+      });
+    }
+
     // Create JWT token
     const token = jwt.sign(
       { id: newUser.id, email: newUser.email, role: newUser.role, source: "user" },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
-
-    // Send welcome email (fire-and-forget)
-    sendWelcomeEmail({ firstname: newUser.firstname, email: newUser.email }).catch((err) => {
-      console.error("Failed to send welcome email:", err.message);
-    });
 
     return res.status(201).json({
       message: "User registered successfully",

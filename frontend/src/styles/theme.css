@@ -267,6 +267,27 @@
 .bg-destructive\/5 {
   background-color: #fde8e8 !important;
 }
+.bg-success\/5 {
+  background-color: #def7ec !important;
+}
+.bg-info\/5 {
+  background-color: #e7f3ff !important;
+}
+.bg-warning\/5 {
+  background-color: #fefcf0 !important;
+}
+.border-primary\/10 {
+  border-color: #ddebff !important;
+}
+.border-warning\/10 {
+  border-color: #fff3cd !important;
+}
+.border-info\/10 {
+  border-color: #e2f6f8 !important;
+}
+.border-success\/10 {
+  border-color: #d1f5e5 !important;
+}
 .hover\:bg-accent\/30:hover {
   background-color: #e7f3ff !important;
 }
@@ -338,6 +359,27 @@
 }
 .dark .bg-destructive\/5 {
   background-color: #4c1d1d !important;
+}
+.dark .bg-success\/5 {
+  background-color: #03543f !important;
+}
+.dark .bg-info\/5 {
+  background-color: #162c46 !important;
+}
+.dark .bg-warning\/5 {
+  background-color: #2b2311 !important;
+}
+.dark .border-primary\/10 {
+  border-color: #1d2732 !important;
+}
+.dark .border-warning\/10 {
+  border-color: #30281b !important;
+}
+.dark .border-info\/10 {
+  border-color: #1b2d38 !important;
+}
+.dark .border-success\/10 {
+  border-color: #1b2f27 !important;
 }
 .dark .hover\:bg-accent\/30:hover {
   background-color: #1a3a52 !important;
@@ -411,6 +453,27 @@
   }
   .bg-destructive\/5 {
     background-color: color-mix(in srgb, var(--destructive) 5%, transparent) !important;
+  }
+  .bg-success\/5 {
+    background-color: color-mix(in srgb, var(--success) 5%, transparent) !important;
+  }
+  .bg-info\/5 {
+    background-color: color-mix(in srgb, var(--info) 5%, transparent) !important;
+  }
+  .bg-warning\/5 {
+    background-color: color-mix(in srgb, var(--warning) 5%, transparent) !important;
+  }
+  .border-primary\/10 {
+    border-color: color-mix(in srgb, var(--primary) 10%, transparent) !important;
+  }
+  .border-warning\/10 {
+    border-color: color-mix(in srgb, var(--warning) 10%, transparent) !important;
+  }
+  .border-info\/10 {
+    border-color: color-mix(in srgb, var(--info) 10%, transparent) !important;
+  }
+  .border-success\/10 {
+    border-color: color-mix(in srgb, var(--success) 10%, transparent) !important;
   }
   .hover\:bg-accent\/30:hover {
     background-color: color-mix(in srgb, var(--accent) 30%, transparent) !important;

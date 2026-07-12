@@ -30,11 +30,14 @@ interface AuthState {
   error: string | null;
   doctorProfile: DoctorProfile | null;
   loginBranches: LoginBranch[];
+  pendingEmail: string | null;
+  pendingOtpVerification: boolean;
 
-  // Actions
-  login: (credentials: LoginCredentials) => Promise<boolean>;
-  googleLogin: (idToken: string) => Promise<boolean>;
+  login: (credentials: LoginCredentials) => Promise<{ success: boolean; requiresOtp?: boolean; email?: string }>;
+  googleLogin: (idToken: string) => Promise<{ success: boolean; requiresOtp?: boolean; email?: string }>;
   register: (data: RegisterData) => Promise<boolean>;
+  verifyLoginOtp: (otp: string) => Promise<boolean>;
+  resendLoginOtp: () => Promise<boolean>;
   logout: () => void;
   fetchProfile: () => Promise<void>;
   clearError: () => void;
@@ -61,6 +64,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   error: null,
   doctorProfile: null,
   loginBranches: [],
+  pendingEmail: null,
+  pendingOtpVerification: false,
 
   // ==========================================
   // Actions
@@ -71,18 +76,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    * Stores token in localStorage, user data in Zustand
    * Handles both user and doctor login responses
    */
-  login: async (credentials: LoginCredentials): Promise<boolean> => {
-    set({ isLoading: true, error: null });
+  login: async (credentials: LoginCredentials): Promise<{ success: boolean; requiresOtp?: boolean; email?: string }> => {
+    set({ isLoading: true, error: null, pendingEmail: null, pendingOtpVerification: false });
 
     try {
       const response = await authApi.login(credentials);
 
+      if (response.requiresOtp) {
+        set({
+          pendingEmail: response.email || null,
+          pendingOtpVerification: true,
+          isLoading: false,
+          error: null,
+        });
+        return { success: true, requiresOtp: true, email: response.email };
+      }
+
       // Store token in localStorage (only token allowed)
-      setAuthToken(response.token);
+      if (response.token) {
+        setAuthToken(response.token);
+      }
 
       // Store user in Zustand state (not localStorage)
       set({
-        user: response.user,
+        user: response.user || null,
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -90,7 +107,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         loginBranches: response.branches || [],
       });
 
-      return true;
+      return { success: true, requiresOtp: false };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
       set({
@@ -100,26 +117,40 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         user: null,
         doctorProfile: null,
         loginBranches: [],
+        pendingEmail: null,
+        pendingOtpVerification: false,
       });
-      return false;
+      return { success: false };
     }
   },
 
   /**
    * Login or Register with Google ID Token
    */
-  googleLogin: async (idToken: string): Promise<boolean> => {
-    set({ isLoading: true, error: null });
+  googleLogin: async (idToken: string): Promise<{ success: boolean; requiresOtp?: boolean; email?: string }> => {
+    set({ isLoading: true, error: null, pendingEmail: null, pendingOtpVerification: false });
 
     try {
       const response = await authApi.googleLogin(idToken);
 
+      if (response.requiresOtp) {
+        set({
+          pendingEmail: response.email || null,
+          pendingOtpVerification: true,
+          isLoading: false,
+          error: null,
+        });
+        return { success: true, requiresOtp: true, email: response.email };
+      }
+
       // Store token in localStorage
-      setAuthToken(response.token);
+      if (response.token) {
+        setAuthToken(response.token);
+      }
 
       // Store user in Zustand state
       set({
-        user: response.user,
+        user: response.user || null,
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -127,7 +158,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         loginBranches: response.branches || [],
       });
 
-      return true;
+      return { success: true, requiresOtp: false };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Google login failed';
       set({
@@ -137,8 +168,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         user: null,
         doctorProfile: null,
         loginBranches: [],
+        pendingEmail: null,
+        pendingOtpVerification: false,
       });
-      return false;
+      return { success: false };
     }
   },
 
@@ -152,7 +185,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const response = await authApi.register(data);
 
       // Store token in localStorage
-      setAuthToken(response.token);
+      if (response.token) {
+        setAuthToken(response.token);
+      }
 
       // Store user in Zustand state
       set({
@@ -178,6 +213,75 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   /**
+   * Verify login 2FA OTP passcode
+   */
+  verifyLoginOtp: async (otp: string): Promise<boolean> => {
+    const email = get().pendingEmail;
+    if (!email) {
+      set({ error: 'No pending login email found.' });
+      return false;
+    }
+
+    set({ isLoading: true, error: null });
+
+    try {
+      const response = await authApi.verifyLoginOtp(email, otp);
+
+      // Store token in localStorage
+      if (response.token) {
+        setAuthToken(response.token);
+      }
+
+      // Store user in Zustand state
+      set({
+        user: response.user || null,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+        doctorProfile: response.doctorProfile || null,
+        loginBranches: response.branches || [],
+        pendingEmail: null,
+        pendingOtpVerification: false,
+      });
+
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Verification failed';
+      set({
+        isLoading: false,
+        error: errorMessage,
+      });
+      return false;
+    }
+  },
+
+  /**
+   * Resend login 2FA OTP passcode
+   */
+  resendLoginOtp: async (): Promise<boolean> => {
+    const email = get().pendingEmail;
+    if (!email) {
+      set({ error: 'No pending login email found.' });
+      return false;
+    }
+
+    set({ isLoading: true, error: null });
+
+    try {
+      await authApi.resendLoginOtp(email);
+      set({ isLoading: false });
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Resending passcode failed';
+      set({
+        isLoading: false,
+        error: errorMessage,
+      });
+      return false;
+    }
+  },
+
+  /**
    * Logout - Clear token and user data
    */
   logout: () => {
@@ -188,6 +292,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       error: null,
       doctorProfile: null,
       loginBranches: [],
+      pendingEmail: null,
+      pendingOtpVerification: false,
     });
 
     // 2. Reset ALL stores + clear user-scoped localStorage SYNCHRONOUSLY
@@ -305,6 +411,8 @@ export const useAuthLoading = () => useAuthStore((state) => state.isLoading);
 export const useAuthError = () => useAuthStore((state) => state.error);
 export const useDoctorProfile = () => useAuthStore((state) => state.doctorProfile);
 export const useLoginBranches = () => useAuthStore((state) => state.loginBranches);
+export const usePendingEmail = () => useAuthStore((state) => state.pendingEmail);
+export const usePendingOtpVerification = () => useAuthStore((state) => state.pendingOtpVerification);
 
 // ==========================================
 // RBAC Permission Hooks

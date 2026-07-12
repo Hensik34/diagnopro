@@ -613,7 +613,6 @@ function PatientDetailsModal({ patient, onClose, onEdit }: PatientDetailsModalPr
             <DetailCard label="Age / Gender" value={`${formatAge(patient.age, patient.age_unit) || '-'} / ${patient.gender || '-'}`} />
             <DetailCard label="Phone" value={patient.phone || '-'} />
             <DetailCard label="Email" value={patient.email || '-'} />
-            <DetailCard label="Branch" value={patient.branch_name || patient.branch_id || '-'} />
             <DetailCard label="Blood Type" value={patient.blood_type || '-'} />
             <DetailCard label="Registered" value={patient.created_at ? new Date(patient.created_at).toLocaleString('en-US') : '-'} />
           </div>

@@ -42,10 +42,12 @@ export interface DoctorProfile {
 
 export interface AuthResponse {
   message: string;
-  token: string;
-  user: User;
+  token?: string;
+  user?: User;
   branches?: LoginBranch[];
   doctorProfile?: DoctorProfile | null;
+  requiresOtp?: boolean;
+  email?: string;
 }
 
 // ==========================================
@@ -483,6 +485,8 @@ export interface Report {
   pathology_signature_url?: string | null;
   pathology_signature_label?: string | null;
   pathology_signature_description?: string | null;
+  attach_marketing_pages?: boolean;
+  marketing_pages?: any[];
 }
 
 export interface CreateReportData {

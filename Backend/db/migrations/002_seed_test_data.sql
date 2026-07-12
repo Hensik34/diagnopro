@@ -67,6 +67,7 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'KFT (Kidney Function Test)', 'KFT-01', 'Biochemistry', 'Blood', 500, 6, 'Urea, Creatinine, Electrolytes, eGFR', NOW(), NOW()),
   (gen_random_uuid(), 'Na/K/Cl (Serum Electrolytes)', 'ELEC-01', 'Biochemistry', 'Blood', 400, 4, 'Sodium, Potassium, Chloride, CO2', NOW(), NOW()),
   (gen_random_uuid(), 'Serum Calcium', 'CALC-01', 'Biochemistry', 'Blood', 150, 4, 'Total and ionized calcium measurement', NOW(), NOW()),
+  (gen_random_uuid(), 'Ionised Calcium', 'ICA-01', 'Biochemistry', 'Blood', 150, 4, 'Physiologically active free calcium measurement', NOW(), NOW()),
   (gen_random_uuid(), 'Serum Phosphorus', 'PHOS-01', 'Biochemistry', 'Blood', 150, 4, 'Inorganic phosphorus level', NOW(), NOW()),
   (gen_random_uuid(), 'Serum Magnesium', 'MAG-01', 'Biochemistry', 'Blood', 150, 4, 'Magnesium level measurement', NOW(), NOW()),
   (gen_random_uuid(), 'CRP (C-Reactive Protein)', 'CRP-01', 'Biochemistry', 'Blood', 270, 4, 'Inflammation marker', NOW(), NOW()),
@@ -101,6 +102,7 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'Beta-HCG (Qualitative)', 'BHCG-QL-01', 'Hormone', 'Blood', 100, 1, 'Pregnancy hormone (yes/no)', NOW(), NOW()),
   (gen_random_uuid(), 'Cortisol (8 AM)', 'CORT-AM-01', 'Hormone', 'Blood', 400, 4, 'Morning cortisol level', NOW(), NOW()),
   (gen_random_uuid(), 'Cortisol (4 PM)', 'CORT-PM-01', 'Hormone', 'Blood', 400, 4, 'Afternoon cortisol level', NOW(), NOW()),
+  (gen_random_uuid(), 'Cortisol (Random)', 'CORT-RAND-01', 'Hormone', 'Blood', 400, 4, 'Random cortisol level', NOW(), NOW()),
   (gen_random_uuid(), 'ACTH (Adrenocorticotropic Hormone)', 'ACTH-01', 'Hormone', 'Blood', 450, 4, 'Pituitary hormone', NOW(), NOW()),
   (gen_random_uuid(), 'PTH (Parathyroid Hormone)', 'PTH-01', 'Hormone', 'Blood', 400, 4, 'Calcium-regulating hormone', NOW(), NOW()),
   (gen_random_uuid(), 'Growth Hormone', 'GH-01', 'Hormone', 'Blood', 450, 4, 'Somatotropin hormone', NOW(), NOW()),
@@ -231,7 +233,8 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'Double Marker', 'DBLM-01', 'Hormone', 'Serum', 1500, 24, 'First trimester maternal screening for chromosomal abnormalities (Free Beta-hCG and PAPP-A)', NOW(), NOW()),
   (gen_random_uuid(), 'Triple Marker', 'TRPM-01', 'Hormone', 'Serum', 2000, 24, 'Second trimester maternal screening for chromosomal abnormalities and neural tube defects (AFP, HCG, and uE3)', NOW(), NOW()),
   (gen_random_uuid(), 'Rubella IgG', 'RUB-IGG', 'Serology', 'Serum', 400, 4, 'Quantitative determination of IgG antibodies against Rubella virus to evaluate immune status', NOW(), NOW()),
-  (gen_random_uuid(), 'Rubella IgM', 'RUB-IGM', 'Serology', 'Serum', 400, 4, 'Qualitative determination of IgM antibodies against Rubella virus to diagnose acute or recent infection', NOW(), NOW())
+  (gen_random_uuid(), 'Rubella IgM', 'RUB-IGM', 'Serology', 'Serum', 400, 4, 'Qualitative determination of IgM antibodies against Rubella virus to diagnose acute or recent infection', NOW(), NOW()),
+  (gen_random_uuid(), 'G6PD (Glucose-6-Phosphate Dehydrogenase)', 'G6PD-01', 'Biochemistry', 'Whole Blood (EDTA)', 450, 6, 'Measures Glucose-6-Phosphate Dehydrogenase activity in red blood cells to detect G6PD deficiency', NOW(), NOW())
 ON CONFLICT (test_code) DO UPDATE SET price = EXCLUDED.price, updated_at = NOW();
 
 -- ==========================================
@@ -476,9 +479,17 @@ NULL,
 false,NOW(),NOW()),
 
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
-'Impression',NULL,'textarea','Peripheral smear findings correlate with CBC parameters.,Peripheral smear shows normocytic normochromic red cells with normal leukocyte morphology and adequate platelets.,Peripheral smear shows microcytic hypochromic red cells suggestive of iron deficiency anemia. Correlate clinically.,Peripheral smear shows macrocytic red cells suggestive of megaloblastic anemia. Correlate clinically.,Peripheral smear shows anisopoikilocytosis. Clinical correlation advised.,No abnormal hemoparasites seen.,No abnormal cells seen on peripheral smear.','input',
+'MP',NULL,'textarea','Negative,Positive,Plasmodium vivax (PV),Plasmodium falciparum (PF),Mixed Infection (PV + PF),Rare Parasites Seen,Scanty Parasites Seen,Moderate Parasites Seen,Heavy Parasitemia','input',
 NULL,NULL,
 'Peripheral Smear Examination',25,
+NULL,
+NULL,
+false,NOW(),NOW()),
+
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CBC-01'),
+'Impression',NULL,'textarea','Peripheral smear findings correlate with CBC parameters.,Peripheral smear shows normocytic normochromic red cells with normal leukocyte morphology and adequate platelets.,Peripheral smear shows microcytic hypochromic red cells suggestive of iron deficiency anemia. Correlate clinically.,Peripheral smear shows macrocytic red cells suggestive of megaloblastic anemia. Correlate clinically.,Peripheral smear shows anisopoikilocytosis. Clinical correlation advised.,No abnormal hemoparasites seen.,No abnormal cells seen on peripheral smear.','input',
+NULL,NULL,
+'Peripheral Smear Examination',26,
 NULL,
 NULL,
 false,NOW(),NOW()),
@@ -623,14 +634,14 @@ true,NOW(),NOW()),
 'Serum Cholesterol','mg/dL','number',NULL,'input',
 NULL,NULL,
 'Lipid Values',1,
-'{"max":200.0}'::jsonb,NULL,
+'{"min":0.0,"max":200.0}'::jsonb,NULL,
 true,NOW(),NOW()),
 
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LIPID-01'),
 'Serum Triglyceride','mg/dL','number',NULL,'input',
 NULL,NULL,
 'Lipid Values',2,
-'{"max":150.0}'::jsonb,NULL,
+'{"min":0.0,"max":150.0}'::jsonb,NULL,
 true,NOW(),NOW()),
 
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LIPID-01'),
@@ -645,7 +656,7 @@ true,NOW(),NOW()),
 'Serum Cholesterol - S. HDL Cholesterol - (Serum Triglyceride / 5)',
 'Serum Cholesterol,S. HDL Cholesterol,Serum Triglyceride',
 'Lipid Values',4,
-'{"max":130.0}'::jsonb,NULL,
+'{"min":0.0,"max":130.0}'::jsonb,NULL,
 true,NOW(),NOW()),
 
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LIPID-01'),
@@ -653,7 +664,7 @@ true,NOW(),NOW()),
 'Serum Triglyceride / 5',
 'Serum Triglyceride',
 'Lipid Values',5,
-'{"max":34.0}'::jsonb,NULL,
+'{"min":0.0,"max":34.0}'::jsonb,NULL,
 true,NOW(),NOW()),
 
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LIPID-01'),
@@ -673,8 +684,9 @@ true,NOW(),NOW()),
 true,NOW(),NOW()),
 
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='LIPID-01'),
-'Total Lipids','mg/dL','number',NULL,'input',
-NULL,NULL,
+'Total Lipids','mg/dL','number',NULL,'calculated',
+'2.27 * Serum Cholesterol + Serum Triglyceride + 62.3',
+'Serum Cholesterol,Serum Triglyceride',
 'Lipid Values',8,
 '{"min":400.0,"max":700.0}'::jsonb,NULL,
 true,NOW(),NOW()),
@@ -1043,7 +1055,8 @@ false,NOW(),NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PBS-01'), 'WBC Morphology', NULL, 'text', NULL, 'input', NULL, NULL, 'Microscopic Findings', 2, NULL, NULL, true, NOW(), NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PBS-01'), 'Platelets', NULL, 'text', NULL, 'input', NULL, NULL, 'Microscopic Findings', 3, NULL, NULL, true, NOW(), NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PBS-01'), 'Hemoparasites', NULL, 'text', NULL, 'input', NULL, NULL, 'Microscopic Findings', 4, NULL, NULL, false, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PBS-01'), 'Impression', NULL, 'textarea', NULL, 'input', NULL, NULL, 'Impression', 5, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PBS-01'), 'MP', NULL, 'textarea', 'Negative,Positive,Plasmodium vivax (PV),Plasmodium falciparum (PF),Mixed Infection (PV + PF),Rare Parasites Seen,Scanty Parasites Seen,Moderate Parasites Seen,Heavy Parasitemia', 'input', NULL, NULL, 'Microscopic Findings', 5, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PBS-01'), 'Impression', NULL, 'textarea', NULL, 'input', NULL, NULL, 'Impression', 6, NULL, NULL, true, NOW(), NOW()),
 
 -- SERUM ELECTROLYTES (ELEC-01)
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ELEC-01'), 'Serum Sodium (Na+)', 'mmol/L', 'number', NULL, 'input', NULL, NULL, 'Electrolytes', 1, '{"min":135,"max":145}'::jsonb, '{"low":120,"high":160}'::jsonb, true, NOW(), NOW()),
@@ -1063,7 +1076,7 @@ false,NOW(),NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Reducing Sub.', NULL, 'select', 'Present,Absent', 'input', NULL, NULL, 'Chemical Examination', 10, NULL, NULL, true, NOW(), NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Reaction', NULL, 'select', 'Acidic,Alkaline,Neutral', 'input', NULL, NULL, 'Chemical Examination', 11, NULL, NULL, true, NOW(), NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Pus Cells', '/HPF', 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 'input', NULL, NULL, 'Microscopic Examination', 12, NULL, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'R.B. Cs', '/HPF', 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 'input', NULL, NULL, 'Microscopic Examination', 13, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'RBCs', '/HPF', 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 'input', NULL, NULL, 'Microscopic Examination', 13, NULL, NULL, true, NOW(), NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Macrophages', '/HPF', 'select', 'Absent,Present', 'input', NULL, NULL, 'Microscopic Examination', 14, NULL, NULL, true, NOW(), NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Epithelial Cells', '/HPF', 'select', '1 - 2,2 - 4,3 - 5,6 - 8,8 - 10,15 - 20,20 - 40,30 - 50,40 - 60,60 - 80,80 - 100,OCCASIONAL,PLENTY', 'input', NULL, NULL, 'Microscopic Examination', 15, NULL, NULL, true, NOW(), NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='STOOL-01'), 'Trophozoite', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'Microscopic Examination', 16, NULL, NULL, true, NOW(), NOW()),
@@ -1322,7 +1335,7 @@ WITH template_fields (
   ('SEMEN_WHO_COMPLETE', 'Time of Collection', NULL, NULL, NULL, 'text', NULL, 3, 'input', NULL, NULL, 'SEMEN EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
   ('SEMEN_WHO_COMPLETE', 'Time of Examination', NULL, NULL, NULL, 'text', NULL, 4, 'input', NULL, NULL, 'SEMEN EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
   ('SEMEN_WHO_COMPLETE', 'Volume', 'ml', 5.00, 7.00, 'number', '5.5', 5, 'input', NULL, NULL, 'PHYSICAL EXAMINATION', NULL, NULL, NULL, true),
-  ('SEMEN_WHO_COMPLETE', 'Color', NULL, NULL, NULL, 'select', 'Opalescent Grayish Whitish,Yellowish', 6, 'input', NULL, NULL, 'PHYSICAL EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
+  ('SEMEN_WHO_COMPLETE', 'Color', NULL, NULL, NULL, 'select', 'Opalescent Grayish White,Yellowish', 6, 'input', NULL, NULL, 'PHYSICAL EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
   ('SEMEN_WHO_COMPLETE', 'Reaction', NULL, NULL, NULL, 'select', 'Alkaline,Acidic,Neutral', 7, 'input', NULL, NULL, 'PHYSICAL EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
   ('SEMEN_WHO_COMPLETE', 'Viscocity', NULL, NULL, NULL, 'select', 'Viscous,Low,Moderate,High,Liquified', 8, 'input', NULL, NULL, 'PHYSICAL EXAMINATION', '[{"age_group":"all","sex":"any","note":"-"}]'::jsonb, NULL, NULL, true),
   ('SEMEN_WHO_COMPLETE', 'Liquification Time', 'Minutes', NULL, 30.00, 'number', '15', 9, 'input', NULL, NULL, 'PHYSICAL EXAMINATION', NULL, NULL, NULL, true),
@@ -1490,6 +1503,7 @@ test_panel_map AS (
   SELECT
     t.id AS test_id,
     t.test_code,
+    t.test_name,
     CASE
       WHEN t.test_code = 'THYPRO-01' THEN 'THYROID_COMPREHENSIVE'
       WHEN t.test_code = 'URINE-01' THEN 'URINE_ROUTINE_COMPLETE'
@@ -1506,14 +1520,105 @@ test_panel_map AS (
   FROM tests t
   WHERE t.test_code NOT IN ('CBC-01', 'LFT-01', 'KFT-01', 'LIPID-01', 'PT', 'APTT', 'HBA1C-01', 'MAL-AG-01', 'TP-01', 'HIV-01', 'HBSAG-01', 'HCV-01', 'CHIK-IGM-01', 'UACR-01', 'TORCH-01', 'HIV-RAPID-01', 'RPR-01', 'TB-XPERT-01', 'DENGUE-01', 'DENGUE-RAPID', 'DENGNS1-RAPID', 'DENGNS1-01', 'DENGIGG-01', 'HBSAG-RAPID-01', 'HCV-RAPID-01', 'HB-01', 'AEC-01', 'RETIC-01', 'MP-01', 'PLT-01', 'PGBS-01', 'UREA-01', 'CREAT-01', 'BIL-01', 'SGPT-01', 'SGOT-01', 'ALP-01', 'CHOL-01', 'TRIG-01', 'HDL-01', 'SPUTUM-RM', 'MANTOUX-01', 'TYPHIDOT-01', 'WIDAL-01', 'PBS-01', 'ELEC-01', 'STOOL-01', 'BRUC-IGM', 'BRUC-IGG', 'APLA-PRO', 'DBLM-01', 'TRPM-01', 'RUB-IGG', 'RUB-IGM', 'GTT-01', 'CRP-01', 'FBS-01', 'PPBS-01', 'RBS-01', 'URINE-01')
 ),
+test_parameters_override(test_code, field_name_override, unit_override, min_val, max_val) AS (
+  VALUES
+    ('TSH-01', 'TSH', 'uIU/mL', 0.40, 4.50),
+    ('FT3-01', 'Free T3', 'pg/mL', 2.00, 4.40),
+    ('FT4-01', 'Free T4', 'ng/dL', 0.80, 1.80),
+    ('T3-01', 'Total T3', 'ng/dL', 80.00, 200.00),
+    ('T4-01', 'Total T4', 'ug/dL', 4.60, 12.00),
+    ('PSA-01', 'PSA', 'ng/mL', 0.00, 4.00),
+    ('FREE-PSA-01', 'Free PSA', 'ng/mL', 0.00, 0.50),
+    ('PTH-01', 'PTH', 'pg/mL', 15.00, 65.00),
+    ('CORT-AM-01', 'Cortisol', 'ug/dL', 6.00, 23.00),
+    ('CORT-PM-01', 'Cortisol', 'ug/dL', 3.00, 12.00),
+    ('CORT-RAND-01', 'Cortisol', 'ug/dL', 3.00, 16.00),
+    ('ESR-01', 'ESR', 'mm/hr', 0.00, 15.00),
+    ('BT-01', 'Bleeding Time', 'minutes', 2.00, 7.00),
+    ('CT-01', 'Clotting Time', 'minutes', 5.00, 11.00),
+    ('FIBR-01', 'Fibrinogen', 'mg/dL', 200.00, 400.00),
+    ('DD-01', 'D-Dimer', 'ng/mL', 0.00, 500.00),
+    ('CALC-01', 'Serum Calcium', 'mg/dL', 8.80, 10.20),
+    ('PHOS-01', 'Serum Phosphorus', 'mg/dL', 2.50, 4.50),
+    ('MAG-01', 'Serum Magnesium', 'mg/dL', 1.70, 2.20),
+    ('AMYL-01', 'Serum Amylase', 'U/L', 28.00, 100.00),
+    ('LIPAS-01', 'Serum Lipase', 'U/L', 0.00, 160.00),
+    ('INS-F-01', 'Fasting Insulin', 'uIU/mL', 2.60, 24.90),
+    ('CPEP-01', 'C-Peptide', 'ng/mL', 1.10, 4.40),
+    ('MALB-01', 'Urine Microalbumin', 'mg/L', 0.00, 20.00),
+    ('ATPO-01', 'Anti-TPO', 'IU/mL', 0.00, 34.00),
+    ('ATG-01', 'Anti-Thyroglobulin', 'IU/mL', 0.00, 115.00),
+    ('TG-01', 'Thyroglobulin', 'ng/mL', 1.40, 78.00),
+    ('FSH-01', 'FSH', 'mIU/mL', 1.50, 12.40),
+    ('LH-01', 'LH', 'mIU/mL', 1.70, 8.60),
+    ('PROL-01', 'Prolactin', 'ng/mL', 4.00, 23.00),
+    ('TEST-01', 'Testosterone', 'ng/dL', 240.00, 870.00),
+    ('FTEST-01', 'Free Testosterone', 'pg/mL', 4.50, 25.00),
+    ('ESTR-01', 'Estradiol', 'pg/mL', 7.60, 43.00),
+    ('PROG-01', 'Progesterone', 'ng/mL', 0.10, 20.00),
+    ('AMH-01', 'AMH', 'ng/mL', 0.70, 19.00),
+    ('BHCG-Q-01', 'Beta-HCG (Quantitative)', 'mIU/mL', 0.00, 5.00),
+    ('ACTH-01', 'ACTH', 'pg/mL', 7.20, 63.30),
+    ('GH-01', 'Growth Hormone', 'ng/mL', 0.00, 3.00),
+    ('IRON-01', 'Serum Iron', 'ug/dL', 59.00, 158.00),
+    ('TIBC-01', 'TIBC', 'ug/dL', 250.00, 450.00),
+    ('FERR-01', 'Ferritin', 'ng/mL', 30.00, 400.00),
+    ('IROS-01', 'Iron Saturation', '%', 20.00, 50.00),
+    ('VITD-01', 'Vitamin D', 'ng/mL', 30.00, 100.00),
+    ('VITB12-01', 'Vitamin B12', 'pg/mL', 197.00, 938.00),
+    ('FOLIC-01', 'Folic Acid', 'ng/mL', 4.60, 18.70),
+    ('VITB1-01', 'Vitamin B1', 'nmol/L', 70.00, 180.00),
+    ('VITB6-01', 'Vitamin B6', 'nmol/L', 30.00, 110.00),
+    ('VITC-01', 'Vitamin C', 'mg/dL', 0.40, 1.50),
+    ('TROP-01', 'Troponin I', 'ng/mL', 0.00, 0.04),
+    ('CKMB-01', 'CK-MB', 'ng/mL', 0.00, 5.00),
+    ('MYO-01', 'Myoglobin', 'ng/mL', 25.00, 72.00),
+    ('NTPNB-01', 'NT-ProBNP', 'pg/mL', 0.00, 125.00),
+    ('BNP-01', 'BNP', 'pg/mL', 0.00, 100.00),
+    ('HCYS-01', 'Homocysteine', 'umol/L', 0.00, 15.00),
+    ('APOA1-01', 'Apo A1', 'mg/dL', 110.00, 205.00),
+    ('APOB-01', 'Apo B', 'mg/dL', 55.00, 140.00),
+    ('CA125-01', 'CA-125', 'U/mL', 0.00, 35.00),
+    ('CA199-01', 'CA 19-9', 'U/mL', 0.00, 37.00),
+    ('CEA-01', 'CEA', 'ng/mL', 0.00, 5.00),
+    ('AFP-01', 'AFP', 'ng/mL', 0.00, 8.00),
+    ('HER2-01', 'HER2/neu', 'ng/mL', 0.00, 15.00),
+    ('S100-01', 'S100 Protein', 'ug/L', 0.00, 0.10),
+    ('CALC-TM-01', 'Calcitonin', 'pg/mL', 0.00, 10.00),
+    ('BHCG-TM-01', 'Beta-HCG (Tumor Marker)', 'mIU/mL', 0.00, 2.00),
+    ('AHBC-01', 'Anti-HBc', 'Index', 0.00, 1.00),
+    ('AHBS-01', 'Anti-HBs', 'mIU/mL', 10.00, 1000.00),
+    ('HBEAG-01', 'HBeAg', 'Index', 0.00, 1.00),
+    ('HCV-RNA-01', 'HCV RNA', 'IU/mL', 0.00, 15.00),
+    ('ASO-01', 'ASO', 'IU/mL', 0.00, 200.00),
+    ('C3-01', 'Complement C3', 'mg/dL', 90.00, 180.00),
+    ('C4-01', 'Complement C4', 'mg/dL', 10.00, 40.00),
+    ('IGA-01', 'IgA', 'mg/dL', 70.00, 400.00),
+    ('ACE-01', 'ACE', 'U/L', 8.00, 52.00),
+    ('LDH-01', 'LDH', 'U/L', 140.00, 280.00),
+    ('BAL-01', 'Blood Alcohol', 'mg/dL', 0.00, 10.00),
+    ('AMMON-01', 'Ammonia', 'umol/L', 15.00, 45.00),
+    ('PAPPA-01', 'PAPP-A', 'mIU/mL', 1.00, 10.00),
+    ('AFP-MAT-01', 'AFP (Maternal)', 'ng/mL', 10.00, 100.00),
+    ('UE3-01', 'uE3', 'ng/mL', 0.50, 10.00),
+    ('URIC-01', 'Serum Uric Acid', 'mg/dL', 3.50, 7.20),
+    ('IGG-01', 'IgG', 'mg/dL', 700.00, 1600.00),
+    ('IGM-01', 'IgM', 'mg/dL', 40.00, 230.00),
+    ('G6PD-01', 'G6PD', 'U/g Hb', 4.60, 13.50)
+),
 seed_rows AS (
   SELECT
     gen_random_uuid() AS id,
     tpm.test_id,
-    tf.field_name,
-    tf.unit,
-    tf.min_value,
-    tf.max_value,
+    COALESCE(o.field_name_override, 
+      CASE 
+        WHEN tf.field_name = 'Result' THEN REGEXP_REPLACE(SPLIT_PART(tpm.test_name, ' (', 1), '\s*\(.*\)\s*$', '')
+        ELSE tf.field_name 
+      END
+    ) AS field_name,
+    COALESCE(o.unit_override, tf.unit) AS unit,
+    COALESCE(o.min_val, tf.min_value) AS min_value,
+    COALESCE(o.max_val, tf.max_value) AS max_value,
     tf.input_type,
     tf.options,
     tf.order_index,
@@ -1524,10 +1629,10 @@ seed_rows AS (
     COALESCE(
       tf.reference_rules::jsonb,
       CASE
-        WHEN tf.min_value IS NOT NULL OR tf.max_value IS NOT NULL THEN jsonb_build_array(
-          jsonb_build_object('age_group', 'adult', 'sex', 'male', 'low', tf.min_value, 'high', tf.max_value),
-          jsonb_build_object('age_group', 'adult', 'sex', 'female', 'low', tf.min_value, 'high', tf.max_value),
-          jsonb_build_object('age_group', 'pediatric', 'sex', 'any', 'low', tf.min_value, 'high', tf.max_value)
+        WHEN COALESCE(o.min_val, tf.min_value) IS NOT NULL OR COALESCE(o.max_val, tf.max_value) IS NOT NULL THEN jsonb_build_array(
+          jsonb_build_object('age_group', 'adult', 'sex', 'male', 'low', COALESCE(o.min_val, tf.min_value), 'high', COALESCE(o.max_val, tf.max_value)),
+          jsonb_build_object('age_group', 'adult', 'sex', 'female', 'low', COALESCE(o.min_val, tf.min_value), 'high', COALESCE(o.max_val, tf.max_value)),
+          jsonb_build_object('age_group', 'pediatric', 'sex', 'any', 'low', COALESCE(o.min_val, tf.min_value), 'high', COALESCE(o.max_val, tf.max_value))
         )
         ELSE jsonb_build_array(
           jsonb_build_object('age_group', 'all', 'sex', 'any', 'note', 'Qualitative cutoff based interpretation')
@@ -1537,9 +1642,9 @@ seed_rows AS (
     COALESCE(
       tf.critical_rules::jsonb,
       CASE
-        WHEN tf.min_value IS NOT NULL OR tf.max_value IS NOT NULL THEN jsonb_build_object(
-          'low', CASE WHEN tf.min_value IS NOT NULL THEN round((tf.min_value * 0.60)::numeric, 2) ELSE NULL END,
-          'high', CASE WHEN tf.max_value IS NOT NULL THEN round((tf.max_value * 1.80)::numeric, 2) ELSE NULL END,
+        WHEN COALESCE(o.min_val, tf.min_value) IS NOT NULL OR COALESCE(o.max_val, tf.max_value) IS NOT NULL THEN jsonb_build_object(
+          'low', CASE WHEN COALESCE(o.min_val, tf.min_value) IS NOT NULL THEN round((COALESCE(o.min_val, tf.min_value) * 0.60)::numeric, 2) ELSE NULL END,
+          'high', CASE WHEN COALESCE(o.max_val, tf.max_value) IS NOT NULL THEN round((COALESCE(o.max_val, tf.max_value) * 1.80)::numeric, 2) ELSE NULL END,
           'policy', 'Immediate critical alert and documented clinician communication'
         )
         ELSE jsonb_build_object(
@@ -1560,6 +1665,7 @@ seed_rows AS (
     tf.is_mandatory
   FROM test_panel_map tpm
   JOIN template_fields tf ON tf.template_code = tpm.template_code
+  LEFT JOIN test_parameters_override o ON o.test_code = tpm.test_code
   WHERE tf.field_type <> 'calculated'
     AND tf.field_name NOT IN (
       'Clinical Interpretation',
@@ -1794,7 +1900,7 @@ Causes of prolonged PTT / APTT:
 ·Oral Anticoagulant therapy.
 ·Factor deficiencies' WHERE test_code = 'APTT';
 
-UPDATE tests SET clinical_significance = 'Clinical Significance
+UPDATE tests SET clinical_significance = '
 This is a screening test. Positive or negative result of the screen test is considered "preliminary" and requires confirmation by definitive, specific testing, like HIV-RNA PCR assay.
 
 Limitation
@@ -1802,13 +1908,13 @@ Limitation
 • Indeterminate results may occur due to partial seroconversion during acute HIV infection, advanced HIV infection with decreased titers of p24 antibodies, or infection with HIV-2.
 • Other causes for an indeterminate test result in persons who are not infected with HIV include Cross-reacting alloantibodies from' WHERE test_code = 'HIV-01';
 
-UPDATE tests SET clinical_significance = 'Clinical Significance
+UPDATE tests SET clinical_significance = '
 This is a screening test. Positive or negative result of the screen test is considered "preliminary" and requires confirmation by definitive, specific testing, like HIV-RNA PCR assay.
 Limitation
 • False-negative results can occur due to acute infection and failure to detect certain HIV subtypes.
 • Indeterminate results may occur due to partial seroconversion during acute HIV infection, advanced HIV infection with decreased titers of p24 antibodies, or infection with HIV-2.' WHERE test_code = 'HIV-RAPID-01';
 
-UPDATE tests SET clinical_significance = 'Clinical Significance
+UPDATE tests SET clinical_significance = '
 • Hepatitis B surface antigen (HBsAg) appears several days to several weeks after contact with the virus and can persist for several months.
 • Acute hepatitis- Diagnosis relies on the presence of HBsAg and Anti-HBc IgM with absence of anti-HBs total Ab.
 • Chronic Hepatitis- HbsAg test remain positive over 6 month & absence of anti-HBc IgM. Disappearance of the HBeAg is normally followed by the appearance of anti-HBs antibodies, which is a sign of recovery.' WHERE test_code = 'HBSAG-RAPID-01';
@@ -1825,29 +1931,30 @@ UPDATE tests SET clinical_significance = '
 • Healthy individuals can give positive reaction in RF tests and the incidence is between 3 - 5 % of the population.
 • Positive reactions do occur in condition such as infectious mononucleosis, syphilis,' WHERE test_code = 'RAF-01';
 
-UPDATE tests SET clinical_significance = 'Comments:
+UPDATE tests SET clinical_significance = '
 While sample should be collected as soon as possible after onset of illness, it is recommended that follow up of testing should be done on day 10 after the first sample to allow seroconversion, especially when the test is negative and Dengue virus infection is clinically suspected.
 
 80% of the patients may have detectable levels of IgM antibody by day 5 of illness and 99% by day 10.
 
 IgM levels rise quickly and peak by two weeks after onset of symptoms and then' WHERE test_code = 'DENGUE-RAPID';
 
-UPDATE tests SET clinical_significance = 'Note :
+UPDATE tests SET clinical_significance = '
 1.Positive results in serum indicates ongoing or recent infection by Chikungunya virus causing rash, fever and severe joint pain (arthralgia). The test cannot be used to differentiate between primary and secondary infection.
 2.Negative results are seen in absence of Chikungunya virus infection. However, it does not rule out the disease.
 3.False positive results may be seen due to cross reactivity with other mosquito borne diseases like Dengue and Zika Virus infections, in patients with high levels of heterophile antibodies and Rheumatoid factor.' WHERE test_code = 'CHIK-IGM-01';
 
-UPDATE tests SET clinical_significance = 'Clinical Significance:
+UPDATE tests SET clinical_significance = '
 • The lipid profile is used to evaluate risk of coronary arterial occlusion, atherosclerosis and myocardial infarction.
 • Total cholesterol & LDL-Chol. levels are increased in familial dyslipoproteinemias [type II & III], secondary to obstructive liver disease, hypothyroidism, nephrotic syndrome, primary billary cirrhosis & type 2 diabetes mellitus. They are decreased in abetalipoproteinemia, severe nutritional anemia, malnutrition, hyperthyroidism & malabsorption.
 • There is a direct relationship between LDL-C & the incidence of CAD. Intervention to decrease the LDL-C will decrease the CAD risk. Treatment decisions and therapeutic goals are also largely based on LDL-C levels.
 • It is necessary to ensure that the patient is fasting for 10 hrs for this test' WHERE test_code = 'LIPID-01';
 
-UPDATE tests SET clinical_significance = 'Clinical Significance - TSH levels are subject to circadian variation, reaching peak levels between 2-4 am and at a minimum between 6-10 pm. The variation is of the order of 50%, hence time of the day has influence on the measured serum TSH concentrations.
+UPDATE tests SET clinical_significance = '
+TSH levels are subject to circadian variation, reaching peak levels between 2-4 am and at a minimum between 6-10 pm. The variation is of the order of 50%, hence time of the day has influence on the measured serum TSH concentrations.
 • Rheumatoid factor, human antimouse antibodies, heterophile antibodies may produce spurious results, especially in patients with autoimmune disorders (=10%). - Amiodarone may interfere with TSH.
 • Non thyroidal illness like severe infections, liver disease, renal and hear failure, severe burns, trauma and surgery, pregnancy, Acute psychiatric illness, Severe dehydration may show transient variation in TSH value.' WHERE test_code = 'THYPRO-01';
 
-UPDATE tests SET clinical_significance = 'Clinical Use
+UPDATE tests SET clinical_significance = '
 • Diagnose Hypothyroidism and Hyperthyroidism
 • Monitor T4 replacement or T4 suppressive therapy
 • Quantify TSH levels in the subnormal range
@@ -1858,8 +1965,7 @@ Decreased Levels:
 • Non-thyroidal illnesses like severe infections, liver disease, renal and heart failure, severe burns, trauma and surgery, Acute psychiatric illness, Severe dehydration may show transient variation in TSH value.
 • TSH levels are subject to circadian variation, reaching peak levels...' WHERE test_code = 'TSH-01';
 
-UPDATE tests SET clinical_significance = 'Comments :
-Note
+UPDATE tests SET clinical_significance = '
 1. Free PSA values regardless of levels should not be interpreted as absolute evidence for the presence or absence of disease. All values should be correlated with clinical findings and results of other investigations
 2. False negative / positive results are observed in patients receiving mouse monoclonal antibodies for diagnosis or therapy
 3. Free PSA levels may appear consistently elevated / depressed due to the interference by heterophilic antibodies & nonspecific protein binding
@@ -1867,7 +1973,8 @@ Note
 5. Hormone therapy affects Free PSA expression
 6. The concentration of PSA,Free in a given specimen, determined with...' WHERE test_code = 'FREE-PSA-01';
 
-UPDATE tests SET clinical_significance = 'Free T3 is the active form that enters your tissues where it''s needed.
+UPDATE tests SET clinical_significance = '
+Free T3 is the active form that enters your tissues where it''s needed.
 Bound T3 is attached to certain proteins which prevent it from entering your tissues. Most of your T3 is bound.
 
 A total T3 test measures both bound and free T3 together. Medical experts think that this test is the more accurate way to measure T3.
@@ -1881,7 +1988,7 @@ A free T4 test measures the amount of free T4 in your blood. Medical experts bel
 
 A total T4 test measures free and bound T4 together.' WHERE test_code = 'FT4-01';
 
-UPDATE tests SET clinical_significance = 'Clinical Significance
+UPDATE tests SET clinical_significance = '
 Increase
 • Myeloproliferative diseases (Leukemia, Polycythemia vera)
 • Vitamin B12 Therapy
@@ -1895,19 +2002,19 @@ Decrease
 • Deficiency of IF: Total or partial gastrectomy, Atrophic gastritis, Intrinsic factor antibodies
 • Malabsorption: Regional ileitis, resected bowel, Tropical Sprue, Celiac disease, pancreatic insufficiency, bacterial overgrowth & achlorhydria' WHERE test_code = 'VITB12-01';
 
-UPDATE tests SET clinical_significance = 'Clinical Significance :
+UPDATE tests SET clinical_significance = '
 • The assay measures both D2 (Ergocalciferol) and D3 (Cholecalciferol) metabolites of vitamin D.
 • Vitamin D3 (cholecalciferol) and Vitamin D2 (ergocalciferol) are the most abundant Vitamin D in nature. Vitamin D3 is synthesized in the skin from 7-dehydrocholesterol in response to UV-B rays in sunlight. The best nutrition sources of D3 are oily fish primary salmon and mackerel. Vitamin D2''s nutrition sources are from some vegetables, yeast and fungi.
 • Vitamin D (D3 and D2) is hydroxylated to 25-hydroxyvitamin D by an enzyme in the liver. The measurement of total 25-OH vitamin D concentration in the serum or plasma is the best indicator of vitamin D nutritional status.
 • Vitamin D promotes absorption of calcium and phosphorus and' WHERE test_code = 'VITD-01';
 
-UPDATE tests SET clinical_significance = 'Note :
+UPDATE tests SET clinical_significance = '
 Increase in serum ferritin due to inflammatory conditions (Acute phase response) can mask a diagnostically low result
 
 Comments :
 Serum ferritin appears to be in equilibrium with tissue ferritin and is a good indicator of storage iron in normal subjects and in most disorders. In patients with some hepatocellular diseases, malignancies and inflammatory diseases, serum ferritin is a disproportionately high estimate of storage iron because serum ferritin is an acute phase reactant. In such disorders iron deficiency anemia may exist with a normal serum ferritin concentration. In the presence of inflammation, persons with low serum ferritin are likely to' WHERE test_code = 'FERR-01';
 
-UPDATE tests SET clinical_significance = 'Clinical Use
+UPDATE tests SET clinical_significance = '
 - Diagnosis of gonadal, pituitary, hypothalamic disorders
 - Management and treatment of infertility in both genders
 Increased Levels
@@ -1920,7 +2027,7 @@ Decreased Levels
 - Pituitary FSH deficiency
 - Ectopic steroid hormone production' WHERE test_code = 'FSH-01';
 
-UPDATE tests SET clinical_significance = 'Clinical Use
+UPDATE tests SET clinical_significance = '
 • Diagnosis of gonadal function disorders
 • Diagnosis of pituitary disorders
 
@@ -1934,12 +2041,12 @@ Decreased levels
 • Ectopic steroid hormone production
 • GnRH analog treatment' WHERE test_code = 'LH-01';
 
-UPDATE tests SET clinical_significance = 'Note
+UPDATE tests SET clinical_significance = '
 • Since prolactin is secreted in a pulsatile manner and is also influenced by a variety of Physiologic stimuli, it is recommended to test 3 specimens at 20-30 minute intervals after pooling.
 • The primary circulating form of Prolactin is a nonglycosylated monomer, but several forms of prolactin linked with immunoglobulin can give falsely high Prolactin results.
 • Prolactin levels in normal individuals tend to rise in response to physiologic stimuli including sleep, exercise, nipple stimulation, sexual intercourse, hypoglycemia, pregnancy, and surgical stress.' WHERE test_code = 'PROL-01';
 
-UPDATE tests SET clinical_significance = 'Increased:
+UPDATE tests SET clinical_significance = '
 • Congential adrenal hyperplasia
 • Lipoid ovarian tumor
 • Molar preganancy
@@ -1958,7 +2065,7 @@ UPDATE tests SET clinical_significance = 'Method : Electrochemiluminescence lmmu
 • AMH can be used for:
 • Evaluating Fertility Potential and ovarian response in IVF - Serum AMH levels correlate with the number of early antral follicles. This makes is useful for prediciting your ovarian response in an IVF cycle. Women with low AMH levels are more likely to be poor ovarian responders.' WHERE test_code = 'AMH-01';
 
-UPDATE tests SET clinical_significance = 'Comment :
+UPDATE tests SET clinical_significance = '
 • HCG is staloglycoprotein secreted by trophoblastic cells of Placenta. Rapid rise of HCG serum level after conception makes it an excellent marker for early confirmation & monitoring of pregnancy.
 • B-HCG is useful in predicting spontaneous abortion, aiding in detection of ectopic pregnancy and multiple gestation.
 • B-HCG aid in monitoring & diagnosis of trophoblastic tumor.' WHERE test_code IN ('BHCG-Q-01', 'BHCG-QL-01', 'BHCG-TM-01');
@@ -1972,7 +2079,7 @@ Potential clinical applications of tumour markers are :
 Prognosis - The level of tumour marker corresponds to the mass of tumour. Moderate elevations are suggestive of better prognosis than persistent high levels.
 Monitoring - The profile of tumour marker concentration against time can mirror the condition of patients diagnosed to have cancer.' WHERE test_code = 'CA125-01';
 
-UPDATE tests SET clinical_significance = 'Note :
+UPDATE tests SET clinical_significance = '
 • Homocysteine is an amino acid resulting from the synthesis of cysteine from methionine with enzyme reaction of cobalamin and folate.
 • Certain drugs, such as anticonvulsants, methotrexate, or nitrous oxide, may interfere with the assay.
 • Cigarette smoking and coffee consumption increase Homocysteine levels.
@@ -1981,7 +2088,7 @@ Use :
 • Elevated levels of Hcy may be used to exclude or confirm deficiencies of vitamin B12 or folate.
 • Elevation in Hcy levels have also been used as an independent risk factor of coronary or cerebral vascular disease.' WHERE test_code = 'HCYS-01';
 
-UPDATE tests SET clinical_significance = 'Clinical Significance
+UPDATE tests SET clinical_significance = '
 D-Dimer is one of the measurable byproducts of activation of the fibrinolytic system. It assesses fibrinolytic activation and intravascular thrombosis. D-dimer assays are characteristic for Disseminated Intravascular Coagulation (DIC) as this test demonstrates simultaneous presence of thrombin and plasmin formation.
 
 Increased
@@ -1993,7 +2100,7 @@ UPDATE tests SET clinical_significance = '
 • the high tissue specificity of cTnI measurements is beneficial for identifying cardiac injury in clinical conditions involving skeletal muscle injury resulting from surgery, trauma, extensive exercise, or muscular disease.
 • Highly sensitive troponin (cTn) assay allows earlier detection of acute Myocardial Infarction (MI), with shortening of time' WHERE test_code = 'TROP-01';
 
-UPDATE tests SET clinical_significance = 'Clinical Significance :
+UPDATE tests SET clinical_significance = '
 
 CK-MB (Creatine Kinase-Myocardial Band) is a heart enzyme indicating heart muscle damage, historically crucial for diagnosing heart attacks (myocardial infarction) by showing elevated levels after injury, though now often supplemented or replaced by more specific troponin tests, but still useful for monitoring reinfarction or when troponins aren''t available, helping differentiate heart from skeletal muscle issues. 
 Heart Attack Diagnosis: CK-MB rises 4-6 hours post-heart attack, peaks around 10-24 hours, and returns to normal in 48-72 hours, helping confirm myocardial damage, especially in early stages.
@@ -2010,7 +2117,7 @@ Post operatively - At regular intervas until the values have shown a marked decr
 Prognosis - The level of tumour marker corresponds to the mass of tumour. Moderate elevations are suggestive of better prognosis than persistent high levels.
 Monitoring - The profile of tumour marker concentration against time can mirror the condition of patients diagnosed to have cancer.' WHERE test_code = 'PSA-01';
 
-UPDATE tests SET clinical_significance = 'Comments :
+UPDATE tests SET clinical_significance = '
 • Pancreas is the major and primary source of serum lipase though lipases are also present in liver, stomach, intestine, WBC, fat cells and milk.
 • In acute pancreatitis, serum lipase becomes elevated at the same time as amylase and remains high for 7-10 days.
 • Increased lipase activity rarely lasts longer than 14 days.
@@ -2033,7 +2140,7 @@ Prognosis - The level of tumour marker corresponds to the mass of tumour. Modera
 Monitoring - The profile of tumour marker concentration against time can mirror the condition of patients diagnosed to have cancer.
 • Tumour marker profile usually reflects one of the following classica…' WHERE test_code = 'CEA-01';
 
-UPDATE tests SET clinical_significance = 'Note
+UPDATE tests SET clinical_significance = '
 1. Test results should be interpreted in conjunction with serum calcium and phosphorus levels, and clinical findings.
 2. Elevated PTH with normal serum calcium levels may be indicative of Secondary causes of hyperparathyroidism like vitamin D deficiency. It may not always be indicative of Primary hyperparathyroidism.
 3. PTH is secreted in a pulsatile manner with an overall circadian rhythm characterized by a nocturnal rise.
@@ -2043,17 +2150,18 @@ Use
 • Monitor severity of secondary hyperparathyroidism in chronic renal failure
 • Discriminate primary hyperparathyroidism from tumor hypercalcemia' WHERE test_code = 'PTH-01';
 
-UPDATE tests SET clinical_significance = 'Comment : Interpretation guide:
+UPDATE tests SET clinical_significance = '
+Interpretation guide:
 Anti-CCP is an autoantibodies against the citruline, highly specific markers for rheumatoid arthritis with specificity of 92% and sensitivity of 68% in a control group of overlapping rheumatic disease.' WHERE test_code = 'ANTICCP-01';
 
-UPDATE tests SET clinical_significance = 'Comment : 
+UPDATE tests SET clinical_significance = '
 
 The CA 19.9 assay is frequently elevated in the serum subjects with various gastrointestinal malignancies, such as pancreatic, colorectal, gastric and hepatic carcinomas.
 Increased serum CA - 19.9 values have also been observed in patients with metastasis and in nonmalignant conditions such as hepatitis, cirrhosis, pancreatitis and in cystic fibrosis.
 
 To determine preoperative resectability of pancreatic cancer very high concentrations predict unresectable cancer-only 5% of patients with concentration >1000 U/ml have surgically resectable disease; 50% of patients with concentration <1000 U/ml have surgically resectable cancers. Postsurgical recurrence correlates with increased concentrations in 1-7 months. May be a useful adjunct of CEA for diagnosis and detection of early…' WHERE test_code = 'CA199-01';
 
-UPDATE tests SET clinical_significance = 'Clinical Significance :
+UPDATE tests SET clinical_significance = '
 
 Serum Calcium Decreases in Hypoparathyrodism, Surgical/Idiopathic/Herediatary/ Infiltration, Insufficient Intake (Starvation/ Rickets/Osteomalacia), Chronic Renal Disease with Uremia and Phosphate retention ,Renal tubular acidosis, Malabsorption of Vitamin D & Calcium, Psedohypoparathyrodism, Dialysis with citrate anticoagulation, Hyperphosphatemia, Chemotherapeutic Drugs, Toxic shock syndrome and Maternal Hypoparathyrodism
 

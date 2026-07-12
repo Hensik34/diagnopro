@@ -8,6 +8,7 @@ const ReportDelivery = sequelize.define("ReportDelivery", {
   channel: { type: DataTypes.STRING, allowNull: false, defaultValue: "whatsapp" },
   recipient_type: { type: DataTypes.STRING, allowNull: false },
   recipient_phone: { type: DataTypes.STRING, allowNull: true },
+  recipient_email: { type: DataTypes.STRING, allowNull: true },
   status: { type: DataTypes.STRING, allowNull: false, defaultValue: "pending" },
   reason: { type: DataTypes.TEXT, allowNull: true },
   wa_message_id: { type: DataTypes.STRING, allowNull: true },

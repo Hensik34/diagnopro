@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronLeft, User, Plus, Clock, ZoomIn, ZoomOut, Download, Printer, Send, FileImage, Loader2 } from 'lucide-react';
+import { ChevronLeft, User, Plus, Clock, ZoomIn, ZoomOut, Download, Printer, Send, FileImage, Loader2, Sliders } from 'lucide-react';
 import type { Patient, Doctor, Report } from '../../../types';
 
 interface PatientInfoHeaderProps {
@@ -30,6 +30,7 @@ interface PatientInfoHeaderProps {
   hasBranding?: boolean;
   isGeneratingPdf?: boolean;
   hasVisibleTests?: boolean;
+  onToggleOrderDrawer?: () => void;
 }
 
 export function PatientInfoHeader({
@@ -59,17 +60,18 @@ export function PatientInfoHeader({
   hasBranding = false,
   isGeneratingPdf = false,
   hasVisibleTests = true,
+  onToggleOrderDrawer,
 }: PatientInfoHeaderProps) {
   return (
-    <div className="flex-shrink-0 bg-white dark:bg-slate-900 rounded-xl px-4 h-[60px] min-h-[60px] py-0 shadow-sm flex items-center justify-between gap-4">
-      <div className="flex items-center gap-3 min-w-0 flex-1">
+    <div className="flex-shrink-0 bg-white dark:bg-slate-900 rounded-xl px-2 sm:px-4 h-[60px] min-h-[60px] py-0 shadow-sm flex items-center justify-between gap-2 sm:gap-4">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
         {/* Back Button */}
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 text-xs font-bold text-slate-800 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors flex-shrink-0 cursor-pointer"
+          className="flex items-center gap-1 text-xs font-bold text-slate-800 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors flex-shrink-0 cursor-pointer"
         >
           <ChevronLeft className="w-4 h-4" />
-          <span>Back to Reports</span>
+          <span>Back<span className="hidden sm:inline"> to Reports</span></span>
         </button>
 
         <div className="h-5 w-px bg-slate-200 dark:bg-slate-800 hidden md:block flex-shrink-0" />
@@ -179,7 +181,7 @@ export function PatientInfoHeader({
       {mode === 'preview' ? (
         <div className="flex items-center gap-2 flex-shrink-0">
           {/* Zoom controls */}
-          <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-lg h-8 px-1 bg-white dark:bg-slate-900">
+          <div className="hidden sm:flex items-center border border-slate-200 dark:border-slate-800 rounded-lg h-8 px-1 bg-white dark:bg-slate-900">
             <button
               onClick={onZoomOut}
               className="inline-flex items-center justify-center w-6 h-6 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer"
@@ -199,15 +201,27 @@ export function PatientInfoHeader({
             </button>
           </div>
 
+          {/* Arrange button for mobile preview */}
+          {mode === 'preview' && onToggleOrderDrawer && (
+            <button
+              onClick={onToggleOrderDrawer}
+              className="lg:hidden h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+              title="Arrange Tests"
+            >
+              <Sliders className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span className="hidden md:inline">Arrange</span>
+            </button>
+          )}
+
           {/* Download PDF */}
           <button
             onClick={onDownloadPdf}
             disabled={isGeneratingPdf || !hasVisibleTests}
             title={!hasVisibleTests ? 'Select at least one test to download' : 'Download as PDF'}
-            className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+            className="h-8 px-2.5 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
           >
             {isGeneratingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />}
-            Download PDF
+            <span className="hidden md:inline">Download PDF</span>
           </button>
 
           {/* Print */}
@@ -215,10 +229,10 @@ export function PatientInfoHeader({
             onClick={onPrint}
             disabled={!hasVisibleTests}
             title={!hasVisibleTests ? 'Select at least one test to print' : 'Print report'}
-            className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+            className="h-8 px-2.5 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
           >
             <Printer className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            Print
+            <span className="hidden md:inline">Print</span>
           </button>
 
           {/* Share */}
@@ -226,52 +240,52 @@ export function PatientInfoHeader({
             onClick={onShare}
             disabled={!hasVisibleTests}
             title={!hasVisibleTests ? 'Select at least one test to share' : 'Share report'}
-            className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+            className="h-8 px-2.5 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
           >
             <Send className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            Share
+            <span className="hidden md:inline">Share</span>
           </button>
 
           {/* Branding Toggle */}
           {hasBranding && (
             <button
               onClick={onToggleBranding}
-              className={`h-8 px-3 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm ${
+              className={`h-8 px-2.5 sm:px-3 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm ${
                 showLetterhead
                   ? 'border-blue-200 bg-blue-50/50 text-blue-600 hover:bg-blue-100/50 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-400 dark:hover:bg-blue-950/30'
                   : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
               }`}
             >
               <FileImage className="w-3.5 h-3.5" />
-              {showLetterhead ? 'Branding On' : 'Branding Off'}
+              <span className="hidden md:inline">{showLetterhead ? 'Branding On' : 'Branding Off'}</span>
             </button>
           )}
         </div>
       ) : (
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           <button
             onClick={onEditPatient}
             disabled={!isEditable}
-            className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="h-8 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             <User className="w-3.5 h-3.5" />
-            Edit Patient
+            <span className="hidden sm:inline">Edit Patient</span>
           </button>
           <button
             onClick={onAddTest}
             disabled={!isEditable}
-            className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="h-8 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
-            Add Test
+            <span className="hidden sm:inline">Add Test</span>
           </button>
           <button
             onClick={onOpenHistory}
             disabled={!patient}
-            className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+            className="h-8 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
           >
             <Clock className="w-3.5 h-3.5" />
-            History
+            <span className="hidden sm:inline">History</span>
           </button>
         </div>
       )}

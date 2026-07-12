@@ -677,11 +677,12 @@ export function CreateReport() {
     setSelectedDoctor(null);
     setReferringDoctorName("");
     setDoctorSearch("");
-    setShowDoctorDropdown(false);
+    setShowDoctorDropdown(true);
     setActiveDoctorIndex(0);
     setTimeout(() => {
+      doctorSearchInputRef.current?.focus();
       isClearingDoctorRef.current = false;
-    }, 300);
+    }, 50);
   };
 
   const handleSelectSelf = () => {
@@ -707,7 +708,7 @@ export function CreateReport() {
         setDoctorSearch(capitalizedName);
       } else if (!selectedDoctor && (isSelf || !trimmed)) {
         setReferringDoctorName("");
-        setDoctorSearch(trimmed ? "Self (No Doctor)" : "");
+        setDoctorSearch("Self (No Doctor)");
       }
       setShowDoctorDropdown(false);
     }, 200);
@@ -1417,6 +1418,7 @@ export function CreateReport() {
                       {doctorSearch && (
                         <button
                           type="button"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={handleClearDoctor}
                           className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors focus:outline-none"
                           title="Clear doctor"

@@ -11,6 +11,7 @@ const { Patient, UserTest, Test } = require("../models");
 const pdfGenerator = require("../services/pdfGenerator.service");
 const whatsappService = require("../services/whatsapp.service");
 const reportDeliveryService = require("../services/reportDelivery.service");
+const mailService = require("../services/mail.service");
 const fs = require("fs");
 const path = require("path");
 
@@ -191,6 +192,7 @@ exports.createReport = async (req, res) => {
       sample_id,
       clinical_notes,
       technician_id,
+      staff_id,
       report_amount,
       is_self_report,
       test_data,
@@ -218,42 +220,41 @@ exports.createReport = async (req, res) => {
     const selfReport =
       is_self_report === true || (!doctor_id && !referring_doctor_name);
 
-    // Auto-create sample with auto-generated ID if no sample_id provided
-    let linkedSampleId = sample_id || null;
-    let sampleIdCode = null;
-    let resolvedBranchId = branch_id || req.user.branch_id;
-
-    if (!resolvedBranchId && patient_id) {
+    // Get branch_id from patient if not provided
+    let resolvedBranchId = branch_id;
+    if (!resolvedBranchId) {
       try {
         const patientObj = await Patient.findByPk(patient_id, { raw: true });
         if (patientObj) {
           resolvedBranchId = patientObj.branch_id;
         }
       } catch (e) {
-        console.error("Error fetching patient branch:", e);
+        console.error("Error fetching patient branch during creation:", e);
       }
     }
-
     if (!resolvedBranchId) {
-      return res
-        .status(400)
-        .json({ error: "branch_id is required to create a report" });
+      resolvedBranchId = req.user.branch_id;
     }
 
+    // If still no branch_id (should not happen), fallback to first branch
+    if (!resolvedBranchId) {
+      const { Branch } = require("../models");
+      const firstBranch = await Branch.findOne({ raw: true });
+      resolvedBranchId = firstBranch?.id;
+    }
+
+    // Attempt to link a sample if sample_id is provided
+    let linkedSampleId = sample_id || null;
     if (!linkedSampleId) {
-      const generatedSampleIdCode =
-        await sampleService.generateSampleId(resolvedBranchId);
-      const sample = await Sample.createSample({
-        patient_id,
-        sample_type: "blood",
-        sample_id_code: generatedSampleIdCode,
-        collection_date: new Date(),
-        collected_by: req.user.id,
-        branch_id: resolvedBranchId,
-        notes: "",
+      // Find a pending/collected sample for this patient
+      const latestSample = await Sample.findOne({
+        where: { patient_id },
+        order: [["created_at", "DESC"]],
+        raw: true,
       });
-      linkedSampleId = sample.id;
-      sampleIdCode = generatedSampleIdCode;
+      if (latestSample) {
+        linkedSampleId = latestSample.id;
+      }
     }
 
     // Inject layout snapshots
@@ -273,6 +274,7 @@ exports.createReport = async (req, res) => {
       sample_id: linkedSampleId,
       clinical_notes,
       technician_id: technician_id || req.user.id,
+      staff_id,
       status: REPORT_STATUSES.DRAFT,
       report_amount: report_amount || 0,
       is_self_report: selfReport,
@@ -1180,25 +1182,69 @@ exports.sendReport = async (req, res) => {
     }
 
     if (channel === "email") {
-      // For now, return email data for frontend to handle via mailto
-      const sampleId = report.sample_id_code || "N/A";
-      const subject = `Lab Report ${sampleId} - DiagnoPro`;
-      const body =
-        recipient_type === "patient"
-          ? `Dear ${recipientName},\n\nYour laboratory test report (${sampleId}) is ready.\n\nPlease find the report attached.\n\nFor any questions, please contact us.\n\nBest regards,\nDiagnoPro`
-          : `Dear ${recipientName},\n\nLaboratory test report (${sampleId}) for patient ${report.patient_name} is ready.\n\nPlease find the report attached.\n\nBest regards,\nDiagnoPro`;
+      if (!recipientEmail) {
+        return res.status(400).json({ error: "Recipient email is required for email delivery" });
+      }
 
-      return res.json({
-        message: "Email data generated",
-        data: {
-          channel: "email",
-          recipient_type,
-          recipient_name: recipientName,
-          recipient_email: recipientEmail,
-          subject,
-          body,
-        },
+      // Create a pending delivery record
+      const delivery = await reportDeliveryService.markPending({
+        reportId: report.id,
+        branchId,
+        recipientType: recipient_type,
+        recipientEmail,
+        channel: "email",
       });
+
+      try {
+        await reportDeliveryService.updateStatus(delivery, "sending");
+
+        // Generate download token
+        const downloadToken = jwt.sign(
+          { reportId: report.id },
+          process.env.JWT_SECRET
+        );
+
+        // Generate PDF
+        const pdfBuffer = await pdfGenerator.generateReportPdf(
+          report.id,
+          downloadToken
+        );
+
+        const safePatient = (report.patient_name || "Patient").replace(/\s+/g, "_");
+        const fileName = `Report-${safePatient}-${report.id}.pdf`;
+
+        // Fetch branch name
+        let branchName = "DiagnoPro Lab";
+        if (branchId) {
+          const branchRecord = await Branch.getBranchById(branchId);
+          if (branchRecord) {
+            branchName = branchRecord.name;
+          }
+        }
+
+        // Send Email
+        await mailService.sendReportEmail({
+          email: recipientEmail,
+          pdfBuffer,
+          fileName,
+          recipientName,
+          patientName: report.patient_name || "Patient",
+          sampleId: report.sample_id_code || "N/A",
+          branchName,
+        });
+
+        await reportDeliveryService.updateStatus(delivery, "sent");
+
+        return res.json({
+          message: "Report email sent successfully",
+          delivery_status: "sent",
+        });
+      } catch (sendErr) {
+        await reportDeliveryService.updateStatus(delivery, "failed", {
+          reason: sendErr.message,
+        });
+        throw sendErr;
+      }
     }
   } catch (err) {
     console.error("Send report error:", err);

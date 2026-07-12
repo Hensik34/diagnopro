@@ -28,6 +28,7 @@ const WhatsappSession = require("./definitions/WhatsappSession");
 const WhatsappTemplate = require("./definitions/WhatsappTemplate");
 const WhatsappNotificationSetting = require("./definitions/WhatsappNotificationSetting");
 const PasswordResetOtp = require("./definitions/PasswordResetOtp");
+const LoginOtp = require("./definitions/LoginOtp");
 const PriceList = require("./definitions/PriceList");
 const PriceListItem = require("./definitions/PriceListItem");
 const DoctorPriceListAssignment = require("./definitions/DoctorPriceListAssignment");
@@ -72,6 +73,7 @@ Sample.hasMany(SampleTest, { foreignKey: "sample_id", as: "tests" });
 Report.belongsTo(Patient, { foreignKey: "patient_id", as: "patient" });
 Report.belongsTo(Doctor, { foreignKey: "doctor_id", as: "doctor" });
 Report.belongsTo(User, { foreignKey: "technician_id", as: "technician" });
+Report.belongsTo(User, { foreignKey: "staff_id", as: "staff" });
 Report.belongsTo(User, { foreignKey: "approved_by", as: "approvedByUser" });
 Report.belongsTo(User, { foreignKey: "submitted_by", as: "submittedByUser" });
 Report.belongsTo(User, { foreignKey: "rejected_by", as: "rejectedByUser" });
@@ -215,6 +217,7 @@ module.exports = {
   WhatsappTemplate,
   WhatsappNotificationSetting,
   PasswordResetOtp,
+  LoginOtp,
   PriceList,
   PriceListItem,
   DoctorPriceListAssignment,
