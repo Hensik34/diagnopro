@@ -148,4 +148,20 @@ export const authApi = {
     const response = await api.post<{ message: string }>('/auth/reset-password', { token, newPassword });
     return response.data;
   },
+
+  /**
+   * Verify login 2FA OTP passcode
+   */
+  verifyLoginOtp: async (email: string, otp: string): Promise<AuthResponse> => {
+    const response = await api.post<AuthResponse>('/auth/verify-login-otp', { email, otp });
+    return response.data;
+  },
+
+  /**
+   * Resend login 2FA OTP passcode
+   */
+  resendLoginOtp: async (email: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('/auth/resend-login-otp', { email });
+    return response.data;
+  },
 };

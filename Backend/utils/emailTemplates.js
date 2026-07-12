@@ -129,7 +129,89 @@ function otpEmailTemplate(otp, expiryMinutes = 10) {
   return baseTemplate(content);
 }
 
+/**
+ * Login OTP email template — sent for admin login 2FA verification
+ * @param {string} otp - 6-digit OTP code
+ * @param {number} expiryMinutes - Minutes until OTP expires
+ * @returns {string} Full HTML email
+ */
+function loginOtpEmailTemplate(otp, expiryMinutes = 10) {
+  const content = `
+    <h2 style="color: #1e293b; margin: 0 0 16px; font-size: 22px; font-weight: 600;">
+      Secure Login Verification Code
+    </h2>
+    <p style="color: #475569; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">
+      We detected a login attempt for your admin account. Use the verification passcode below to complete your login:
+    </p>
+    <div style="background-color: #f1f5f9; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 28px; text-align: center; margin: 0 0 24px;">
+      <p style="color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 10px; font-weight: 600;">
+        Verification Passcode
+      </p>
+      <p style="color: #1e293b; font-size: 36px; font-weight: 700; letter-spacing: 8px; margin: 0; font-family: 'Courier New', monospace;">
+        ${otp}
+      </p>
+    </div>
+    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 0 0 24px;">
+      <p style="color: #92400e; font-size: 13px; margin: 0; font-weight: 500;">
+        ⏰ This passcode expires in <strong>${expiryMinutes} minutes</strong>. If you did not initiate this login, please change your password immediately.
+      </p>
+    </div>
+    <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 8px;">
+      If you did not request this code, you can safely ignore this email.
+    </p>`;
+
+  return baseTemplate(content);
+}
+
+/**
+ * Report email template — sent when a report is shared via email
+ * @param {string} recipientName - Name of the recipient (patient or doctor)
+ * @param {string} patientName - Name of the patient
+ * @param {string} sampleId - Sample ID / Code
+ * @param {string} branchName - Name of the branch
+ * @returns {string} Full HTML email
+ */
+function reportEmailTemplate(recipientName, patientName, sampleId, branchName) {
+  const content = `
+    <h2 style="color: #1e293b; margin: 0 0 16px; font-size: 22px; font-weight: 600;">
+      Laboratory Test Report Ready
+    </h2>
+    <p style="color: #475569; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">
+      Dear ${recipientName},
+    </p>
+    <p style="color: #475569; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">
+      The laboratory test report for patient <strong>${patientName}</strong> (Registration ID: <strong>${sampleId}</strong>) has been finalized and is attached to this email.
+    </p>
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 0 0 24px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size: 14px; color: #475569;">
+        <tr>
+          <td style="padding: 4px 0; font-weight: 600; color: #1e293b; width: 120px;">Patient Name:</td>
+          <td style="padding: 4px 0;">${patientName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 0; font-weight: 600; color: #1e293b;">Reg ID (Sample):</td>
+          <td style="padding: 4px 0;">${sampleId}</td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 0; font-weight: 600; color: #1e293b;">Branch:</td>
+          <td style="padding: 4px 0;">${branchName}</td>
+        </tr>
+      </table>
+    </div>
+    <p style="color: #475569; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">
+      Please find the PDF attachment. If you have any questions or require further assistance, feel free to contact us or visit our lab.
+    </p>
+    <p style="color: #475569; font-size: 15px; line-height: 1.7; margin: 0 0 8px;">
+      Best regards,<br>
+      <strong>${branchName} team</strong>
+    </p>`;
+
+  return baseTemplate(content);
+}
+
 module.exports = {
   welcomeEmailTemplate,
   otpEmailTemplate,
+  loginOtpEmailTemplate,
+  reportEmailTemplate,
 };

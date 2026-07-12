@@ -58,6 +58,7 @@ exports.getAllReports = async (filters = {}) => {
     { model: Patient, as: "patient", attributes: ["name", "phone", "gender", "age", "age_unit", "email", "branch_id"] },
     { model: Doctor, as: "doctor", attributes: ["title", "name", "firstname", "lastname"] },
     { model: User, as: "technician", attributes: ["firstname", "lastname"] },
+    { model: User, as: "staff", attributes: ["firstname", "lastname"] },
     { model: Sample, as: "sample", attributes: ["sample_id_code", "sample_type"] },
     { model: B2BLab, as: "b2bLab", attributes: ["lab_name"], required: false },
   ];
@@ -98,6 +99,8 @@ exports.getAllReports = async (filters = {}) => {
     doctor_lastname: r.doctor?.lastname,
     technician_firstname: r.technician?.firstname,
     technician_lastname: r.technician?.lastname,
+    staff_firstname: r.staff?.firstname,
+    staff_lastname: r.staff?.lastname,
     sample_id_code: r.sample?.sample_id_code,
     sample_type: r.sample?.sample_type,
     b2b_lab_name: r.b2bLab?.lab_name,
@@ -111,6 +114,7 @@ exports.getReportById = async (id) => {
       { model: Patient, as: "patient", attributes: ["name", "phone", "email", "gender", "age", "age_unit", "branch_id"] },
       { model: Doctor, as: "doctor", attributes: ["title", "name", "firstname", "lastname", "phone", "email", "signature_url"] },
       { model: User, as: "technician", attributes: ["firstname", "lastname"] },
+      { model: User, as: "staff", attributes: ["firstname", "lastname"] },
       { model: Sample, as: "sample", attributes: ["sample_id_code", "sample_type"] },
       { model: User, as: "approvedByUser", attributes: ["firstname", "lastname"] },
       { model: User, as: "submittedByUser", attributes: ["firstname", "lastname"] },
@@ -149,6 +153,8 @@ exports.getReportById = async (id) => {
     doctor_signature_url: row.doctor?.signature_url,
     technician_firstname: row.technician?.firstname,
     technician_lastname: row.technician?.lastname,
+    staff_firstname: row.staff?.firstname,
+    staff_lastname: row.staff?.lastname,
     sample_id_code: row.sample?.sample_id_code,
     sample_type: row.sample?.sample_type,
     letterhead_url: settings?.letterhead_url,
@@ -221,7 +227,7 @@ exports.getReportById = async (id) => {
 // Create new report
 exports.createReport = async (reportData) => {
   const {
-    patient_id, doctor_id, referring_doctor_name, report_type, sample_id, clinical_notes, technician_id,
+    patient_id, doctor_id, referring_doctor_name, report_type, sample_id, clinical_notes, technician_id, staff_id,
     status = "draft", report_amount = 0, is_self_report = false,
     test_data = {}, findings = "", recommendations = "", branch_id,
     delivery_preferences = {}, base_amount, lab_discount_type = "percent",
@@ -251,7 +257,7 @@ exports.createReport = async (reportData) => {
 
   return await Report.create({
     patient_id, doctor_id, referring_doctor_name, report_type, sample_id, clinical_notes,
-    technician_id, status, report_amount, doctor_commission, is_self_report,
+    technician_id, staff_id, status, report_amount, doctor_commission, is_self_report,
     test_data, findings, recommendations, delivery_preferences,
     base_amount: computedBase, lab_discount_type, lab_discount_value,
     doctor_discount, final_amount: computedFinal, payment_status: "pending",
@@ -265,7 +271,7 @@ exports.createReport = async (reportData) => {
 // Update report
 exports.updateReport = async (id, reportData) => {
   const allowedFields = [
-    "findings", "recommendations", "clinical_notes", "technician_id",
+    "findings", "recommendations", "clinical_notes", "technician_id", "staff_id",
     "test_data", "status", "reviewed_by", "approved_by",
     "approved_at", "submitted_by", "submitted_at", "rejected_by", "rejected_at",
     "rejection_reason", "doctor_id", "referring_doctor_name", "report_type", "report_amount", "is_self_report",

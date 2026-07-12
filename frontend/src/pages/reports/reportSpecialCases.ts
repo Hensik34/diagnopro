@@ -39,6 +39,9 @@ export const MICROSCOPIC_CONFIG: MicroscopicConfig = {
     'pus cell',
     'red cell',
     'r.b. c',
+    'r.b. cs',
+    'rbc',
+    'rbcs',
     'epithelial',
     'epithcell',
     'puscells',
@@ -48,6 +51,9 @@ export const MICROSCOPIC_CONFIG: MicroscopicConfig = {
   redCellKeywords: [
     'red cell',
     'r.b. c',
+    'r.b. cs',
+    'rbc',
+    'rbcs',
     'redcells'
   ],
   redCellThreshold: 2,  // triggers when > 2
@@ -106,11 +112,22 @@ export const PARAMETER_SPECIFIC_RULES: ParameterRule[] = [
       const v = val.trim().toLowerCase();
       const code = (testCode || '').toLowerCase();
       const type = (reportType || '').toLowerCase();
-      if (code.includes('semen') || type.includes('semen')) {
-        // Semen reaction: acidic is high, alkaline is normal
+      
+      const isSemen = code.includes('semen') || type.includes('semen');
+      const isUrine = code.includes('urine') || type.includes('urine');
+      const isStool = code.includes('stool') || type.includes('stool');
+
+      if (isSemen) {
+        // Semen: acidic highlights, alkaline/neutral normal
         return v === 'acidic';
       }
-      // Other reactions (stool/urine): alkaline or alkine is high
+
+      if (isUrine || isStool) {
+        // Urine & Stool: acidic/neutral normal, alkaline highlights
+        return v === 'alkaline' || v === 'alkine';
+      }
+
+      // Default fallback (e.g. if test context is loading): assume alkaline highlights
       return v === 'alkaline' || v === 'alkine';
     }
   },
@@ -144,6 +161,14 @@ export const PARAMETER_SPECIFIC_RULES: ParameterRule[] = [
       const v = val.trim().toLowerCase();
       // for Fat Globules, present and other all options except absent mark high
       return v !== 'absent';
+    }
+  },
+  {
+    nameKey: 'mp', // covers 'MP' and 'Malarial Parasite'
+    isHigh: (val: string) => {
+      const v = val.trim().toLowerCase();
+      // 'negative' is normal, everything else is abnormal/highlighted
+      return v !== 'negative';
     }
   }
 ];

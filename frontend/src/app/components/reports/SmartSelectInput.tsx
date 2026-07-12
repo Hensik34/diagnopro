@@ -54,14 +54,14 @@ export const SmartSelectInput = forwardRef<HTMLInputElement, SmartSelectInputPro
     const isHoveringDropdown = useRef(false);
     const [alignLeft, setAlignLeft] = useState(false);
     const [alignBottom, setAlignBottom] = useState(false);
-    const [coords, setCoords] = useState({ top: 0, left: 0 });
+    const [coords, setCoords] = useState<{ top: number; left: number; bottom: number }>({ top: 0, left: 0, bottom: 0 });
+    const [maxHeight, setMaxHeight] = useState<number>(400);
 
     useEffect(() => {
       const updatePosition = () => {
         if (isOpen && containerRef.current) {
           const rect = containerRef.current.getBoundingClientRect();
-          const dropdownWidth = 208; // width of w-52 is 13rem = 208px
-          const dropdownHeight = Math.min(filteredOptions.length * 32 + 12, window.innerHeight * 0.8);
+          const dropdownWidth = 240; // width of w-60 is 15rem = 240px
           
           let showLeft = false;
           const spaceOnRight = window.innerWidth - rect.right;
@@ -70,11 +70,11 @@ export const SmartSelectInput = forwardRef<HTMLInputElement, SmartSelectInputPro
           }
           setAlignLeft(showLeft);
 
-          let showBottom = false;
-          const spaceBelow = window.innerHeight - rect.bottom;
-          if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
-            showBottom = true;
-          }
+          const spaceBelow = window.innerHeight - rect.top - 16;
+          const spaceAbove = rect.bottom - 16;
+
+          // Open upwards if space below is less than 220px and there is more space above
+          const showBottom = spaceBelow < 220 && spaceAbove > spaceBelow;
           setAlignBottom(showBottom);
 
           // Calculate viewport absolute placement coords for fixed position rendering
@@ -82,11 +82,12 @@ export const SmartSelectInput = forwardRef<HTMLInputElement, SmartSelectInputPro
             ? rect.left - dropdownWidth - 14
             : rect.right + 14;
 
-          const topCoord = showBottom
-            ? rect.bottom - dropdownHeight
-            : rect.top;
+          const topCoord = showBottom ? 0 : rect.top;
+          const bottomCoord = showBottom ? window.innerHeight - rect.bottom : 0;
+          const maxHt = showBottom ? spaceAbove : spaceBelow;
 
-          setCoords({ top: topCoord, left: leftCoord });
+          setCoords({ top: topCoord, left: leftCoord, bottom: bottomCoord });
+          setMaxHeight(maxHt);
         }
       };
 
@@ -191,10 +192,12 @@ export const SmartSelectInput = forwardRef<HTMLInputElement, SmartSelectInputPro
                 setIsOpen(false);
               }
             }}
-            className="fixed z-[9999] w-52 max-h-[80vh] overflow-y-auto rounded-lg border border-neutral-800 bg-[#1E1B18] text-white shadow-xl pointer-events-auto"
+            className="fixed z-[9999] w-60 overflow-y-auto rounded-lg border border-neutral-800 bg-[#1E1B18] text-white shadow-xl pointer-events-auto"
             style={{
-              top: coords.top,
-              left: coords.left,
+              top: alignBottom ? 'auto' : `${coords.top}px`,
+              bottom: alignBottom ? `${coords.bottom}px` : 'auto',
+              left: `${coords.left}px`,
+              maxHeight: `${maxHeight}px`,
             }}
           >
             {/* Popover Arrow */}
@@ -204,7 +207,7 @@ export const SmartSelectInput = forwardRef<HTMLInputElement, SmartSelectInputPro
               <div className={`absolute right-full w-0 h-0 border-y-[6px] border-y-transparent border-r-[6px] border-r-[#1E1B18] ${alignBottom ? 'bottom-2.5' : 'top-2.5'}`} />
             )}
             
-            <ul className="py-1.5 px-1.5 space-y-0.5">
+            <ul className="py-1 px-1 space-y-0.5">
               {filteredOptions.map((opt, index) => {
                 const isHighlighted = index === highlightedIndex;
                 const isSelected = opt.toLowerCase() === value.trim().toLowerCase();
@@ -217,7 +220,7 @@ export const SmartSelectInput = forwardRef<HTMLInputElement, SmartSelectInputPro
                       handleSelectOption(opt);
                     }}
                     onMouseEnter={() => setHighlightedIndex(index)}
-                    className={`px-3 py-2 cursor-pointer text-left text-[11px] md:text-[12px] leading-tight select-none transition-colors rounded-md
+                    className={`px-2 py-1 cursor-pointer text-left text-[11px] md:text-[13px] leading-tight select-none transition-colors rounded-md
                       ${isHighlighted ? 'bg-neutral-800 text-white font-semibold' : 'text-neutral-300'}
                       ${isSelected && !isHighlighted ? 'bg-neutral-800/60 text-white font-bold' : ''}
                     `}

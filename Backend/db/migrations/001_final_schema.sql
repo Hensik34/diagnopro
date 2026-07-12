@@ -589,6 +589,23 @@ CREATE INDEX IF NOT EXISTS idx_password_reset_otps_email ON password_reset_otps(
 CREATE INDEX IF NOT EXISTS idx_password_reset_otps_expires_at ON password_reset_otps(expires_at);
 
 -- ============================================
+-- 23b. LOGIN_OTPS
+-- Model: models/definitions/LoginOtp.js → tableName: "login_otps"
+-- ============================================
+CREATE TABLE IF NOT EXISTS login_otps (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) NOT NULL,
+    otp_hash VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    is_used BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_otps_email ON login_otps(email);
+CREATE INDEX IF NOT EXISTS idx_login_otps_expires_at ON login_otps(expires_at);
+
+-- ============================================
 -- 24. TEST_PACKAGES (used by seed data, no Sequelize model)
 -- ============================================
 CREATE TABLE IF NOT EXISTS test_packages (
@@ -754,6 +771,7 @@ CREATE TABLE IF NOT EXISTS report_deliveries (
     channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp',
     recipient_type VARCHAR(50) NOT NULL,
     recipient_phone VARCHAR(30),
+    recipient_email VARCHAR(255),
     status VARCHAR(30) NOT NULL DEFAULT 'pending',
     reason TEXT,
     wa_message_id VARCHAR(255),

@@ -11,6 +11,7 @@ const Report = sequelize.define("Report", {
   doctor_id: { type: DataTypes.UUID },
   referring_doctor_name: { type: DataTypes.STRING(255) },
   technician_id: { type: DataTypes.UUID },
+  staff_id: { type: DataTypes.UUID },
   report_type: { type: DataTypes.TEXT },
   sample_id: { type: DataTypes.UUID },
   branch_id: { type: DataTypes.UUID, allowNull: false },
