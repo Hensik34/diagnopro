@@ -56,20 +56,22 @@ async function issueLoginOtp(email, contextLabel) {
   const { otp, expiryMinutes, otpRecordId } = await createLoginOtp(email);
   console.log(`[AUTH][OTP_CREATE] context=${contextLabel} email=${safeEmail} otp_record_id=${otpRecordId} expiry_minutes=${expiryMinutes}`);
 
-  const sendResult = await sendLoginOtpEmail(email, otp, expiryMinutes);
-  if (!sendResult) {
-    console.error(`[AUTH][OTP_SEND_FAIL] context=${contextLabel} email=${safeEmail} otp_record_id=${otpRecordId}`);
-    return {
-      delivered: false,
-      expiryMinutes,
-    };
-  }
+  // Send the email in the background to avoid blocking the HTTP response (and preventing timeouts)
+  sendLoginOtpEmail(email, otp, expiryMinutes)
+    .then((sendResult) => {
+      if (!sendResult) {
+        console.error(`[AUTH][OTP_SEND_FAIL] context=${contextLabel} email=${safeEmail} otp_record_id=${otpRecordId}`);
+      } else {
+        console.log(`[AUTH][OTP_SEND_OK] context=${contextLabel} email=${safeEmail} message_id=${sendResult.messageId || "unknown"}`);
+      }
+    })
+    .catch((err) => {
+      console.error(`[AUTH][OTP_SEND_ERROR] context=${contextLabel} email=${safeEmail} otp_record_id=${otpRecordId} error=`, err);
+    });
 
-  console.log(`[AUTH][OTP_SEND_OK] context=${contextLabel} email=${safeEmail} message_id=${sendResult.messageId || "unknown"}`);
   return {
     delivered: true,
     expiryMinutes,
-    messageId: sendResult.messageId,
   };
 }
 
@@ -887,8 +889,18 @@ exports.forgotPassword = async (req, res) => {
       expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
     });
 
-    // Send OTP via email
-    await sendOtpEmail(email, otp, OTP_EXPIRY_MINUTES);
+    // Send OTP via email in the background to avoid blocking the HTTP response
+    sendOtpEmail(email, otp, OTP_EXPIRY_MINUTES)
+      .then((sendResult) => {
+        if (!sendResult) {
+          console.error(`[AUTH][FORGOT_PASSWORD_OTP_SEND_FAIL] email=${maskEmail(email)}`);
+        } else {
+          console.log(`[AUTH][FORGOT_PASSWORD_OTP_SEND_OK] email=${maskEmail(email)} message_id=${sendResult.messageId || "unknown"}`);
+        }
+      })
+      .catch((err) => {
+        console.error(`[AUTH][FORGOT_PASSWORD_OTP_SEND_ERROR] email=${maskEmail(email)} error=`, err);
+      });
 
     res.json({
       message: "If this email is registered, you will receive a verification code shortly."
