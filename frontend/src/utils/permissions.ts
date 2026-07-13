@@ -240,28 +240,16 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.TIMELOG_TRACK,
   ],
 
-  // Staff: Front desk operations - patient registration, report generation, basic reads, sample collection
+  // Staff: Limited front desk operations - own logs, settings reading, KM tracking
   [ROLES.STAFF]: [
-    PERMISSIONS.PATIENT_CREATE,
-    PERMISSIONS.PATIENT_READ,
-    PERMISSIONS.PATIENT_UPDATE,
-    PERMISSIONS.REPORT_CREATE,
-    PERMISSIONS.REPORT_READ,
-    PERMISSIONS.REPORT_UPDATE,
-    PERMISSIONS.REPORT_DOWNLOAD,
-    PERMISSIONS.SAMPLE_CREATE,
-    PERMISSIONS.SAMPLE_READ,
-    PERMISSIONS.SAMPLE_COLLECT,
-    PERMISSIONS.TEST_READ,
     PERMISSIONS.BRANCH_READ,
-    PERMISSIONS.INVENTORY_READ,
+    PERMISSIONS.SAMPLE_COLLECT,
     // Collection Tracking
     PERMISSIONS.COLLECTION_CREATE,
     PERMISSIONS.COLLECTION_READ,
     PERMISSIONS.COLLECTION_UPDATE,
-    // Settings - can manage WhatsApp and notifications
+    // Settings
     PERMISSIONS.SETTINGS_VIEW,
-    PERMISSIONS.SETTINGS_UPDATE,
     PERMISSIONS.TIMELOG_TRACK,
   ],
 

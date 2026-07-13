@@ -203,7 +203,7 @@ exports.register = async (req, res) => {
 // CREATE SUB-USER - Admin creates staff/technician and links to branch
 // NOTE: Doctors are created via the doctor routes, NOT here anymore
 exports.createUser = async (req, res) => {
-  const { firstname, lastname, email, password, phone, role, petrol_price_per_km, branch_id } = req.body;
+  const { firstname, lastname, email, password, phone, role, petrol_price_per_km, branch_id, can_approve_reports } = req.body;
   const adminId = req.user.id;
 
   // Validation
@@ -238,7 +238,8 @@ exports.createUser = async (req, res) => {
     // Create sub-user with created_by = admin's ID
     const user = await User.createUser(
       firstname, lastname, email, password, phone,
-      role || "staff", petrol_price_per_km || 0, adminId
+      role || "staff", petrol_price_per_km || 0, adminId,
+      can_approve_reports === true || can_approve_reports === "true"
     );
 
     // If branch_id provided, link user to that branch
@@ -502,6 +503,14 @@ exports.verifyLoginOtp = async (req, res) => {
 
     const branches = await Branch.getUserBranches(user.id);
 
+    // Send welcome email if this is a newly registered user who successfully verified their first login OTP
+    const isNewUser = (Date.now() - new Date(user.created_at).getTime()) < 15 * 60 * 1000;
+    if (isNewUser && branches.length === 0) {
+      sendWelcomeEmail({ firstname: user.firstname, email: user.email }).catch((err) => {
+        console.error("Failed to send welcome email in verifyLoginOtp:", err.message);
+      });
+    }
+
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, source: "user" },
       process.env.JWT_SECRET,
@@ -753,9 +762,16 @@ exports.getAllUsers = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { firstname, lastname, phone, role, petrol_price_per_km } = req.body;
+    const { firstname, lastname, phone, role, petrol_price_per_km, can_approve_reports } = req.body;
 
-    const user = await User.updateUser(id, { firstname, lastname, phone, role, petrol_price_per_km });
+    const user = await User.updateUser(id, {
+      firstname,
+      lastname,
+      phone,
+      role,
+      petrol_price_per_km,
+      can_approve_reports: can_approve_reports === true || can_approve_reports === "true"
+    });
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
@@ -1139,11 +1155,6 @@ exports.googleLogin = async (req, res) => {
       null // created by
     );
 
-    // Send welcome email (fire-and-forget)
-    sendWelcomeEmail({ firstname: newUser.firstname, email: newUser.email }).catch((err) => {
-      console.error("Failed to send welcome email:", err.message);
-    });
-
     // Check if new user is admin - requires 2FA passcode via email
     if (newUser.role === "admin") {
       const otpGate = await assertOtpRequestAllowed(newUser.email, { enforceCooldown: false });
@@ -1173,6 +1184,11 @@ exports.googleLogin = async (req, res) => {
         resend_after_seconds: OTP_RESEND_COOLDOWN_SECONDS,
       });
     }
+
+    // Send welcome email immediately if no OTP verification is required (direct registration)
+    sendWelcomeEmail({ firstname: newUser.firstname, email: newUser.email }).catch((err) => {
+      console.error("Failed to send welcome email:", err.message);
+    });
 
     // Create JWT token
     const token = jwt.sign(

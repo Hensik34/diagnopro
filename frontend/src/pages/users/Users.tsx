@@ -13,6 +13,7 @@ import {
   UserX,
   Loader2,
   AlertCircle,
+  Check,
 } from 'lucide-react';
 import { authApi } from '../../api/auth';
 import type { User } from '../../types';
@@ -44,6 +45,7 @@ export function Users() {
   const [formPassword, setFormPassword] = useState('');
   const [formConfirmPassword, setFormConfirmPassword] = useState('');
   const [formPetrolPrice, setFormPetrolPrice] = useState('');
+  const [formCanApproveReports, setFormCanApproveReports] = useState(false);
 
   // Fetch users on mount
   useEffect(() => {
@@ -132,6 +134,7 @@ export function Users() {
     setFormPhone(user.phone || '');
     setFormRole(user.role);
     setFormPetrolPrice(user.petrol_price_per_km?.toString() || '');
+    setFormCanApproveReports(user.can_approve_reports || false);
     setFormPassword('');
     setFormConfirmPassword('');
     setModalError(null);
@@ -146,6 +149,7 @@ export function Users() {
     setFormPhone('');
     setFormRole('staff');
     setFormPetrolPrice('');
+    setFormCanApproveReports(false);
     setFormPassword('');
     setFormConfirmPassword('');
     setModalError(null);
@@ -186,6 +190,7 @@ export function Users() {
           phone: formPhone || undefined,
           role: formRole,
           petrol_price_per_km: formRole !== 'lab_technician' && formPetrolPrice ? Number(formPetrolPrice) : undefined,
+          can_approve_reports: formRole === 'staff' ? false : formCanApproveReports,
         });
         setUsers(prev => prev.map(u =>
           u.id === selectedUser.id ? response.data : u
@@ -210,6 +215,7 @@ export function Users() {
           phone: formPhone || undefined,
           role: formRole,
           petrol_price_per_km: formRole !== 'lab_technician' && formPetrolPrice ? Number(formPetrolPrice) : undefined,
+          can_approve_reports: formRole === 'staff' ? false : formCanApproveReports,
         });
         // Refetch to get the new user
         await fetchUsers();
@@ -382,7 +388,14 @@ export function Users() {
                     </div>
                   </td>
                   <td className="px-3 py-2 text-center">
-                    {getRoleBadge(user.role)}
+                    <div className="flex flex-col items-center gap-1">
+                      {getRoleBadge(user.role)}
+                      {user.can_approve_reports && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                          Approver
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-center">
                     {getStatusBadge(user.is_active)}
@@ -509,34 +522,55 @@ export function Users() {
               </div>
 
               {/* Role & Access */}
-              <div>
+              <div className="border-t border-border pt-4">
                 <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Role & Access</h3>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-foreground block mb-1">Role *</label>
-                    <select 
-                      className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                    <select
                       value={formRole}
                       onChange={(e) => setFormRole(e.target.value)}
+                      className="w-full h-10 px-3 bg-background border border-border rounded text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     >
-                      <option value="staff">Staff — Front desk operations</option>
-                      <option value="lab_technician">Technician — Lab operations</option>
+                      <option value="staff">Staff</option>
+                      <option value="lab_technician">Lab Technician</option>
                     </select>
                   </div>
                   {formRole !== 'lab_technician' && (
-                  <div>
-                    <label className="text-xs text-foreground block mb-1">Petrol Price (₹/km)</label>
-                    <input 
-                      type="number"
-                      step="0.01"
-                      className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      value={formPetrolPrice}
-                      onChange={(e) => setFormPetrolPrice(e.target.value)}
-                      placeholder="e.g. 3.50"
-                    />
-                  </div>
+                    <div>
+                      <label className="text-xs text-foreground block mb-1">Petrol Price (₹/km)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formPetrolPrice}
+                        onChange={(e) => setFormPetrolPrice(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full h-10 px-3 bg-background border border-border rounded text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
                   )}
                 </div>
+
+                {formRole !== 'staff' && (
+                  <div className="mt-4 flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setFormCanApproveReports(!formCanApproveReports)}
+                      className="flex items-center gap-2 cursor-pointer focus:outline-none"
+                    >
+                      <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                        formCanApproveReports 
+                          ? 'border-green-500 bg-green-500 text-white' 
+                          : 'border-border bg-background text-transparent'
+                      }`}>
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                      <span className="text-xs font-medium text-foreground select-none">
+                        Enable Report Approval Rights
+                      </span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Login Credentials - only for new users */}

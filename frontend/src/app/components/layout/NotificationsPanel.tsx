@@ -79,7 +79,18 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
       try {
         const response = await reportApi.getDeliveryNotifications(currentBranchId ?? undefined, 30);
         if (!mounted) return;
-        setNotifications((response.data || []).map(mapNotification));
+        
+        const fetched = (response.data || []).map(mapNotification);
+        setNotifications((prev) => {
+          const liveOnly = prev.filter(n => n.id.startsWith('clock-') || n.id.includes('-live-'));
+          const combined = [...liveOnly, ...fetched];
+          const seen = new Set<string>();
+          return combined.filter(n => {
+            if (seen.has(n.id)) return false;
+            seen.add(n.id);
+            return true;
+          }).slice(0, 50);
+        });
       } catch (error) {
         console.error('Failed to load delivery notifications:', error);
       } finally {
@@ -115,7 +126,7 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
       const normalizedStatus: Notification['status'] =
         event.status === 'sent' ? 'success' : event.status === 'failed' ? 'failed' : 'pending';
 
-      const liveId = `${event.report_id}-${event.recipient_type}-${Date.now()}`;
+      const liveId = `${event.report_id}-${event.recipient_type}-live-${Date.now()}`;
       const liveNotification: Notification = {
         id: liveId,
         type: normalizedStatus === 'success' ? 'whatsapp_pdf_sent' : 'whatsapp_pdf_failed',
@@ -133,10 +144,34 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
       setNotifications((prev) => [liveNotification, ...prev].slice(0, 50));
     };
 
+    const onStaffClockEvent = (event: {
+      userId: string;
+      userName: string;
+      action: 'in' | 'out';
+      timestamp: string;
+      notes?: string;
+    }) => {
+      const liveId = `clock-${event.userId}-${Date.now()}`;
+      const liveNotification: Notification = {
+        id: liveId,
+        type: 'staff_clock' as any,
+        status: event.action === 'in' ? 'success' : 'failed',
+        recipient_type: 'staff',
+        recipient_name: event.userName,
+        document_name: event.action === 'in' ? 'Clock In Alert' : 'Clock Out Alert',
+        timestamp: event.timestamp,
+        message: `${event.userName} clocked ${event.action === 'in' ? 'IN 🟢' : 'OUT 🔴'}${event.notes ? ` (Notes: ${event.notes})` : ''}`,
+      };
+
+      setNotifications((prev) => [liveNotification, ...prev].slice(0, 50));
+    };
+
     socket.on('report:delivery', onDeliveryEvent);
+    socket.on('staff:clock', onStaffClockEvent);
 
     return () => {
       socket.off('report:delivery', onDeliveryEvent);
+      socket.off('staff:clock', onStaffClockEvent);
       socket.emit('whatsapp:unsubscribe', { branch_id: currentBranchId });
     };
   }, [currentBranchId, user]);
@@ -193,7 +228,7 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
 
       {/* Notifications List */}
       <div className="flex-1 overflow-y-auto space-y-2 p-3">
-        {isLoading ? (
+        {isLoading && visibleNotifications.length === 0 ? (
           <div className="py-12 text-center">
             <p className="text-sm text-muted-foreground">Loading notifications...</p>
           </div>
@@ -235,8 +270,8 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-0.5">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5 min-w-0">
                         <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                         <p className="text-xs font-medium text-foreground truncate">{notification.document_name}</p>
                       </div>
@@ -249,7 +284,7 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
                           </span>
                         </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">{notification.message}</p>
+                      <p className="text-xs text-muted-foreground break-words">{notification.message}</p>
                     </div>
                     <button
                       onClick={() => handleDismiss(notification.id)}

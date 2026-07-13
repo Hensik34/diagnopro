@@ -16,6 +16,7 @@ const User = sequelize.define("User", {
   is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
   petrol_price_per_km: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
   created_by: { type: DataTypes.UUID },
+  can_approve_reports: { type: DataTypes.BOOLEAN, defaultValue: false },
 }, {
   tableName: "users",
 });

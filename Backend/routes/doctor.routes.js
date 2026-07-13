@@ -9,7 +9,7 @@ const doctorPriceController = require("../controllers/doctorPrice.controller");
 // ==========================================
 
 // Get all doctors (requires branch_id query param)
-router.get("/", authorize(PERMISSIONS.DOCTOR_READ), doctorController.getDoctors);
+router.get("/", authorize([PERMISSIONS.DOCTOR_READ, PERMISSIONS.SETTINGS_READ]), doctorController.getDoctors);
 
 // Get pricing (assigned list + overrides) for a doctor
 router.get("/:id/pricing", authorize(PERMISSIONS.DOCTOR_READ), doctorPriceController.getDoctorPricing);

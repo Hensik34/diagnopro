@@ -33,9 +33,11 @@ export function StaffDashboard() {
 
   useEffect(() => {
     fetchActiveSession();
-    const filters = currentBranchId ? { branch_id: currentBranchId } : {};
-    fetchReports(filters);
-  }, [fetchActiveSession, fetchReports, currentBranchId]);
+    if (user?.role !== 'staff') {
+      const filters = currentBranchId ? { branch_id: currentBranchId } : {};
+      fetchReports(filters);
+    }
+  }, [fetchActiveSession, fetchReports, currentBranchId, user]);
 
   // Active timer logic removed as requested
 
@@ -135,112 +137,116 @@ export function StaffDashboard() {
         </div>
       </div>
 
-      {/* Work Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="bg-card border border-border rounded p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Pending Work</span>
-            <ClipboardList className="w-3.5 h-3.5 text-warning" />
-          </div>
-          <div className="text-foreground text-xl tabular-nums">{pendingReports.length}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Reports to process</div>
-        </div>
+      {user?.role !== 'staff' && (
+        <>
+          {/* Work Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="bg-card border border-border rounded p-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Pending Work</span>
+                <ClipboardList className="w-3.5 h-3.5 text-warning" />
+              </div>
+              <div className="text-foreground text-xl tabular-nums">{pendingReports.length}</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">Reports to process</div>
+            </div>
 
-        <div className="bg-card border border-border rounded p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">In Progress</span>
-            <Syringe className="w-3.5 h-3.5 text-primary" />
-          </div>
-          <div className="text-foreground text-xl tabular-nums">{processingReports.length}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Being processed</div>
-        </div>
+            <div className="bg-card border border-border rounded p-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-muted-foreground text-[10px] uppercase tracking-wider">In Progress</span>
+                <Syringe className="w-3.5 h-3.5 text-primary" />
+              </div>
+              <div className="text-foreground text-xl tabular-nums">{processingReports.length}</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">Being processed</div>
+            </div>
 
-        <div className="bg-card border border-border rounded p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Completed Today</span>
-            <FileText className="w-3.5 h-3.5 text-success" />
+            <div className="bg-card border border-border rounded p-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Completed Today</span>
+                <FileText className="w-3.5 h-3.5 text-success" />
+              </div>
+              <div className="text-foreground text-xl tabular-nums">{completedToday.length}</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">Done today</div>
+            </div>
           </div>
-          <div className="text-foreground text-xl tabular-nums">{completedToday.length}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Done today</div>
-        </div>
-      </div>
 
-      {/* Work List - Pending Reports */}
-      <div className="bg-card border border-border rounded overflow-hidden">
-        <div className="px-3 py-2.5 border-b border-border flex items-center justify-between">
-          <h2 className="text-foreground text-sm font-medium">Your Work Queue</h2>
-          <button
-            onClick={() => navigate('/reports')}
-            className="text-xs text-primary hover:underline inline-flex items-center gap-1"
-          >
-            View All <ArrowRight className="w-3 h-3" />
-          </button>
-        </div>
+          {/* Work List - Pending Reports */}
+          <div className="bg-card border border-border rounded overflow-hidden">
+            <div className="px-3 py-2.5 border-b border-border flex items-center justify-between">
+              <h2 className="text-foreground text-sm font-medium">Your Work Queue</h2>
+              <button
+                onClick={() => navigate('/reports')}
+                className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+              >
+                View All <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
 
-        {reportsLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            {reportsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : pendingReports.length === 0 && processingReports.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No pending work right now</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-secondary/30">
+                    <tr className="border-b border-border">
+                      <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Report</th>
+                      <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Patient</th>
+                      <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Type</th>
+                      <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Status</th>
+                      <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Created</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {[...pendingReports, ...processingReports].slice(0, 10).map((report) => (
+                      <tr 
+                        key={report.id} 
+                        className="hover:bg-accent/30 transition-colors cursor-pointer"
+                        onClick={() => navigate(`/reports/${report.id}/entry`)}
+                      >
+                        <td className="px-3 py-2">
+                          <span className="text-xs text-foreground font-medium">
+                            {report.id.slice(0, 8)}...
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className="text-xs text-foreground">
+                            {report.patient_name || 'Unknown'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <span className="text-xs text-muted-foreground">
+                            {report.report_type || '-'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${
+                            report.status === 'processing' 
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                          }`}>
+                            {report.status}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(report.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        ) : pendingReports.length === 0 && processingReports.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground text-sm">
-            <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>No pending work right now</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-secondary/30">
-                <tr className="border-b border-border">
-                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Report</th>
-                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Patient</th>
-                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Type</th>
-                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Status</th>
-                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Created</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {[...pendingReports, ...processingReports].slice(0, 10).map((report) => (
-                  <tr 
-                    key={report.id} 
-                    className="hover:bg-accent/30 transition-colors cursor-pointer"
-                    onClick={() => navigate(`/reports/${report.id}/entry`)}
-                  >
-                    <td className="px-3 py-2">
-                      <span className="text-xs text-foreground font-medium">
-                        {report.id.slice(0, 8)}...
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className="text-xs text-foreground">
-                        {report.patient_name || 'Unknown'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <span className="text-xs text-muted-foreground">
-                        {report.report_type || '-'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${
-                        report.status === 'processing' 
-                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                      }`}>
-                        {report.status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(report.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+        </>
+      )}
 
       {/* Clock Out Notes Modal */}
       {showNotesModal && (

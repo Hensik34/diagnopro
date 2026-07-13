@@ -100,10 +100,12 @@ const menuItems = [
       {
         path: '/tests',
         label: 'Tests',
+        permission: PERMISSIONS.TEST_READ,
       },
       {
         path: '/tests?tab=packages',
         label: 'Packages',
+        permission: PERMISSIONS.TEST_READ,
       },
       {
         path: '/tests/pricing',
@@ -190,16 +192,38 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Filter menu items based on user permissions and role
+  // Filter and transform menu items based on user permissions and role
   const visibleMenuItems = menuItems.filter((item: any) => {
     // Doctor-only items
     if (item.doctorOnly) return isDoctor;
     // Items hidden for doctor
     if (item.hideForDoctor && isDoctor) return false;
-    // No permission required - visible to all
-    if (!item.permission) return true;
-    // Check single permission
-    return can(item.permission);
+    
+    // Check permission logic for items with/without submenus
+    if (item.submenus && item.submenus.length > 0) {
+      const hasParentPermission = !item.permission || can(item.permission);
+      const hasSubmenuPermission = item.submenus.some((sub: any) => !sub.permission || can(sub.permission));
+      if (!hasParentPermission && !hasSubmenuPermission) return false;
+    } else {
+      if (item.permission && !can(item.permission)) return false;
+    }
+    return true;
+  }).map((item: any) => {
+    if (item.submenus && item.submenus.length > 0) {
+      const visibleSubmenus = item.submenus.filter((sub: any) => !sub.permission || can(sub.permission));
+      if (visibleSubmenus.length === 1) {
+        return {
+          path: visibleSubmenus[0].path,
+          label: visibleSubmenus[0].label,
+          icon: item.icon,
+        };
+      }
+      return {
+        ...item,
+        submenus: visibleSubmenus,
+      };
+    }
+    return item;
   });
 
   let longestMatch = '';

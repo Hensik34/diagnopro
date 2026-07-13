@@ -159,6 +159,10 @@ exports.create = async (req, res) => {
       date,
     } = req.body;
 
+    if (start_km && (!start_meter_image || !start_meter_image.startsWith("data:image/"))) {
+      return res.status(400).json({ error: "Start meter photo is required" });
+    }
+
     // Upload images to Cloudinary under the branch's collection-tracking folder
     const startImgPath = await saveBase64Image(start_meter_image, "start", branch_id);
     const endImgPath = await saveBase64Image(end_meter_image, "end", branch_id);
@@ -211,6 +215,10 @@ exports.update = async (req, res) => {
       visit_charge,
       per_km_rate,
     } = req.body;
+
+    if (end_km && (!end_meter_image || !end_meter_image.startsWith("data:image/"))) {
+      return res.status(400).json({ error: "End meter photo is required" });
+    }
 
     // Use existing record's branch_id for Cloudinary folder
     const branchId = existing.branch_id;

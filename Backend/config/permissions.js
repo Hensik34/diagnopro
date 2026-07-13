@@ -247,41 +247,19 @@ const ROLE_PERMISSIONS = {
     PERMISSIONS.TIMELOG_TRACK,
   ],
 
-  // Staff: Front desk operations - patient registration, report generation, basic reads, sample collection
+  // Staff: Limited front desk operations - own logs, settings reading, KM tracking
   [ROLES.STAFF]: [
-    // Patient - full CRUD
-    PERMISSIONS.PATIENT_CREATE,
-    PERMISSIONS.PATIENT_READ,
-    PERMISSIONS.PATIENT_UPDATE,
-    
-    // Reports - create, update, read, download (not approve)
-    PERMISSIONS.REPORT_CREATE,
-    PERMISSIONS.REPORT_READ,
-    PERMISSIONS.REPORT_UPDATE,
-    PERMISSIONS.REPORT_DOWNLOAD,
-    
-    // Samples - create, read, collect
-    PERMISSIONS.SAMPLE_CREATE,
-    PERMISSIONS.SAMPLE_READ,
-    PERMISSIONS.SAMPLE_COLLECT,
-    
-    // Tests - read only
-    PERMISSIONS.TEST_READ,
-
     // Branch - read only (for data fetching)
     PERMISSIONS.BRANCH_READ,
-
-    // Inventory - read only
-    PERMISSIONS.INVENTORY_READ,
+    PERMISSIONS.SAMPLE_COLLECT,
 
     // Collection Tracking - own records
     PERMISSIONS.COLLECTION_CREATE,
     PERMISSIONS.COLLECTION_READ,
     PERMISSIONS.COLLECTION_UPDATE,
 
-    // Settings - can manage WhatsApp and notifications
+    // Settings - can read settings for UI mapping
     PERMISSIONS.SETTINGS_READ,
-    PERMISSIONS.SETTINGS_UPDATE,
     PERMISSIONS.TIMELOG_TRACK,
   ],
 
