@@ -37,14 +37,21 @@ function maskIdentifier(value) {
 }
 
 function initTransporter() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, BREVO_API_KEY } = process.env;
 
   console.log("🔍 [SMTP_DIAG] Initiating mail service configuration check...");
+  console.log(`🔍 [SMTP_DIAG] Brevo API Key: ${BREVO_API_KEY ? "PRESENT (length: " + BREVO_API_KEY.length + ")" : "MISSING"}`);
   console.log(`🔍 [SMTP_DIAG] Host: ${SMTP_HOST || "MISSING"}`);
   console.log(`🔍 [SMTP_DIAG] Port: ${SMTP_PORT || "MISSING"} (parsed: ${parseInt(SMTP_PORT)})`);
   console.log(`🔍 [SMTP_DIAG] User: ${SMTP_USER || "MISSING"}`);
   console.log(`🔍 [SMTP_DIAG] Pass: ${SMTP_PASS ? "PRESENT (length: " + SMTP_PASS.length + ")" : "MISSING"}`);
   console.log(`🔍 [SMTP_DIAG] From: ${SMTP_FROM || "MISSING"}`);
+
+  if (BREVO_API_KEY) {
+    isConfigured = true;
+    console.log("📧 [SMTP_DIAG] Mail service configured to use Brevo HTTP API (Port 443 HTTPS).");
+    return;
+  }
 
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
     console.warn("⚠️  SMTP not configured — emails will be logged to console instead of sent.");
@@ -97,6 +104,85 @@ function initTransporter() {
 initTransporter();
 
 // ==========================================
+// Brevo HTTP API Method
+// ==========================================
+
+async function sendViaBrevoApi(to, subject, html, attachments = null) {
+  const fromAddress = process.env.SMTP_FROM || `DiagnoPro <${process.env.SMTP_USER || "noreply@diagnopro.com"}>`;
+  
+  let senderName = "DiagnoPro";
+  let senderEmail = process.env.SMTP_USER || "noreply@diagnopro.com";
+  
+  if (fromAddress.includes("<")) {
+    const match = fromAddress.match(/^(.*?)\s*<(.*?)>$/);
+    if (match) {
+      senderName = match[1].trim();
+      senderEmail = match[2].trim();
+    }
+  }
+
+  try {
+    console.log(`📧 [BREVO_API] Attempting email send to=${to} subject=${subject}`);
+    
+    let apiAttachments = undefined;
+    if (attachments && attachments.length > 0) {
+      apiAttachments = attachments.map(att => {
+        let contentBase64 = "";
+        if (Buffer.isBuffer(att.content)) {
+          contentBase64 = att.content.toString("base64");
+        } else if (typeof att.content === "string") {
+          contentBase64 = Buffer.from(att.content).toString("base64");
+        }
+        return {
+          content: contentBase64,
+          name: att.filename
+        };
+      });
+    }
+
+    const payload = {
+      sender: { name: senderName, email: senderEmail },
+      to: [{ email: to }],
+      subject: subject,
+      htmlContent: html
+    };
+
+    if (apiAttachments) {
+      payload.attachment = apiAttachments;
+    }
+
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "api-key": process.env.BREVO_API_KEY
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || `HTTP error! status: ${response.status}`);
+    }
+
+    console.log(`📧 [BREVO_API] Send success to ${to} — Message ID: ${data.messageId}`);
+    return {
+      messageId: data.messageId,
+      accepted: [to],
+      rejected: []
+    };
+  } catch (error) {
+    console.error(`❌ [BREVO_API] Failed to send email to ${to}:`, {
+      message: error.message,
+      stack: error.stack
+    });
+    return null;
+  }
+}
+
+// ==========================================
 // Core Send Method
 // ==========================================
 
@@ -109,6 +195,10 @@ initTransporter();
  * @returns {Promise<Object|null>} Nodemailer info object, or null if not configured
  */
 async function sendMail(to, subject, html, attachments = null) {
+  if (process.env.BREVO_API_KEY) {
+    return sendViaBrevoApi(to, subject, html, attachments);
+  }
+
   const fromAddress = process.env.SMTP_FROM || `DiagnoPro <${process.env.SMTP_USER || "noreply@diagnopro.com"}>`;
 
   if (!isConfigured) {
