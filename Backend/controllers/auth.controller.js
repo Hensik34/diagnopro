@@ -12,11 +12,65 @@ const OTP_MAX_REQUESTS_IN_WINDOW = 4;
 const OTP_RESEND_COOLDOWN_SECONDS = 30;
 const GOOGLE_TOKEN_VERIFY_TIMEOUT_MS = 8000;
 
-async function dispatchLoginOtpEmail(email, otp, expiryMinutes) {
-  // Non-blocking by design: API response should not wait on SMTP latency.
-  sendLoginOtpEmail(email, otp, expiryMinutes).catch((err) => {
-    console.error("Failed to send login OTP email:", err.message);
+function maskEmail(email) {
+  if (!email || typeof email !== "string" || !email.includes("@")) {
+    return "unknown";
+  }
+
+  const [localPart, domain] = email.split("@");
+  if (!localPart) {
+    return `***@${domain}`;
+  }
+
+  const visibleStart = localPart.slice(0, 2);
+  return `${visibleStart}${"*".repeat(Math.max(1, localPart.length - 2))}@${domain}`;
+}
+
+async function createLoginOtp(email) {
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  const OTP_EXPIRY_MINUTES = 10;
+  const otpHash = await bcrypt.hash(otp, 10);
+
+  const otpRecord = await LoginOtp.create({
+    email,
+    otp_hash: otpHash,
+    expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
   });
+
+  return {
+    otp,
+    expiryMinutes: OTP_EXPIRY_MINUTES,
+    otpRecordId: otpRecord.id,
+  };
+}
+
+async function issueLoginOtp(email, contextLabel) {
+  const safeEmail = maskEmail(email);
+
+  // Invalidate any existing unused OTPs first so only the latest remains valid.
+  await LoginOtp.update(
+    { is_used: true },
+    { where: { email, is_used: false } }
+  );
+
+  const { otp, expiryMinutes, otpRecordId } = await createLoginOtp(email);
+  console.log(`[AUTH][OTP_CREATE] context=${contextLabel} email=${safeEmail} otp_record_id=${otpRecordId} expiry_minutes=${expiryMinutes}`);
+
+  const sendResult = await sendLoginOtpEmail(email, otp, expiryMinutes);
+  if (!sendResult) {
+    console.error(`[AUTH][OTP_SEND_FAIL] context=${contextLabel} email=${safeEmail} otp_record_id=${otpRecordId}`);
+    return {
+      delivered: false,
+      expiryMinutes,
+    };
+  }
+
+  console.log(`[AUTH][OTP_SEND_OK] context=${contextLabel} email=${safeEmail} message_id=${sendResult.messageId || "unknown"}`);
+  return {
+    delivered: true,
+    expiryMinutes,
+    messageId: sendResult.messageId,
+  };
 }
 
 async function getRecentOtpStats(email) {
@@ -177,22 +231,27 @@ exports.register = async (req, res) => {
     // Self-registered users are always admin (branch owner), created_by = null
     const user = await User.createUser(firstname, lastname, email, password, phone, "admin", 0, null);
 
-    // Create JWT token
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, source: "user" },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    // New self-registered admin must verify OTP before dashboard access.
+    const otpGate = await assertOtpRequestAllowed(user.email, { enforceCooldown: false });
+    if (!otpGate.allowed) {
+      return res.status(otpGate.status).json(otpGate.payload);
+    }
 
-    // Send welcome email (fire-and-forget — don't block the response)
-    sendWelcomeEmail({ firstname, email: user.email }).catch((err) => {
-      console.error("Failed to send welcome email:", err.message);
-    });
+    const otpIssue = await issueLoginOtp(user.email, "register");
+    if (!otpIssue.delivered) {
+      return res.status(201).json({
+        requiresOtp: true,
+        email: user.email,
+        message: "Account created. We could not deliver the verification passcode yet. Please use Resend Code.",
+        resend_after_seconds: OTP_RESEND_COOLDOWN_SECONDS,
+      });
+    }
 
     res.status(201).json({
-      message: "User registered successfully",
-      user,
-      token
+      requiresOtp: true,
+      email: user.email,
+      message: "User registered successfully. Verification passcode sent to your email.",
+      resend_after_seconds: OTP_RESEND_COOLDOWN_SECONDS,
     });
   } catch (err) {
     console.error("Register error:", err);
@@ -320,31 +379,14 @@ exports.login = async (req, res) => {
           return res.status(otpGate.status).json(otpGate.payload);
         }
 
-        // Invalidate any existing unused OTPs for this email
-        await LoginOtp.update(
-          { is_used: true },
-          { where: { email: user.email, is_used: false } }
-        );
-
-        // Generate 6-digit OTP passcode
-        const otp = String(Math.floor(100000 + Math.random() * 900000));
-        const OTP_EXPIRY_MINUTES = 10;
-        const otpHash = await bcrypt.hash(otp, 10);
-
-        // Save OTP
-        await LoginOtp.create({
-          email: user.email,
-          otp_hash: otpHash,
-          expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
-        });
-
-        // Dispatch OTP email asynchronously to avoid SMTP latency blocking login response.
-        dispatchLoginOtpEmail(user.email, otp, OTP_EXPIRY_MINUTES);
+        const otpIssue = await issueLoginOtp(user.email, "login");
 
         return res.json({
           requiresOtp: true,
           email: user.email,
-          message: "Verification passcode sent to your email.",
+          message: otpIssue.delivered
+            ? "Verification passcode sent to your email."
+            : "We could not deliver the verification passcode yet. Please try Resend Code.",
           resend_after_seconds: OTP_RESEND_COOLDOWN_SECONDS,
         });
       }
@@ -569,26 +611,12 @@ exports.resendLoginOtp = async (req, res) => {
       return res.status(otpGate.status).json(otpGate.payload);
     }
 
-    // Invalidate existing unused OTPs
-    await LoginOtp.update(
-      { is_used: true },
-      { where: { email, is_used: false } }
-    );
-
-    // Generate new OTP
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
-    const OTP_EXPIRY_MINUTES = 10;
-    const otpHash = await bcrypt.hash(otp, 10);
-
-    // Save OTP
-    await LoginOtp.create({
-      email,
-      otp_hash: otpHash,
-      expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
-    });
-
-    // Send asynchronously to keep API responsive under slow SMTP.
-    dispatchLoginOtpEmail(email, otp, OTP_EXPIRY_MINUTES);
+    const otpIssue = await issueLoginOtp(email, "resend_login_otp");
+    if (!otpIssue.delivered) {
+      return res.status(502).json({
+        error: "Could not deliver verification passcode email. Please try again in a moment.",
+      });
+    }
 
     return res.json({
       message: "Verification passcode resent successfully.",
@@ -1022,31 +1050,14 @@ exports.googleLogin = async (req, res) => {
           return res.status(otpGate.status).json(otpGate.payload);
         }
 
-        // Invalidate any existing unused OTPs for this email
-        await LoginOtp.update(
-          { is_used: true },
-          { where: { email: user.email, is_used: false } }
-        );
-
-        // Generate 6-digit OTP passcode
-        const otp = String(Math.floor(100000 + Math.random() * 900000));
-        const OTP_EXPIRY_MINUTES = 10;
-        const otpHash = await bcrypt.hash(otp, 10);
-
-        // Save OTP
-        await LoginOtp.create({
-          email: user.email,
-          otp_hash: otpHash,
-          expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
-        });
-
-        // Dispatch OTP email asynchronously to avoid SMTP latency blocking login response.
-        dispatchLoginOtpEmail(user.email, otp, OTP_EXPIRY_MINUTES);
+        const otpIssue = await issueLoginOtp(user.email, "google_login_existing_admin");
 
         return res.json({
           requiresOtp: true,
           email: user.email,
-          message: "Verification passcode sent to your email.",
+          message: otpIssue.delivered
+            ? "Verification passcode sent to your email."
+            : "We could not deliver the verification passcode yet. Please try Resend Code.",
           resend_after_seconds: OTP_RESEND_COOLDOWN_SECONDS,
         });
       }
@@ -1162,25 +1173,14 @@ exports.googleLogin = async (req, res) => {
         return res.status(otpGate.status).json(otpGate.payload);
       }
 
-      // Generate 6-digit OTP passcode
-      const otp = String(Math.floor(100000 + Math.random() * 900000));
-      const OTP_EXPIRY_MINUTES = 10;
-      const otpHash = await bcrypt.hash(otp, 10);
-
-      // Save OTP
-      await LoginOtp.create({
-        email: newUser.email,
-        otp_hash: otpHash,
-        expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
-      });
-
-      // Send asynchronously to avoid request timeouts in production SMTP/network conditions.
-      dispatchLoginOtpEmail(newUser.email, otp, OTP_EXPIRY_MINUTES);
+      const otpIssue = await issueLoginOtp(newUser.email, "google_register_new_admin");
 
       return res.status(201).json({
         requiresOtp: true,
         email: newUser.email,
-        message: "Verification passcode sent to your email.",
+        message: otpIssue.delivered
+          ? "Verification passcode sent to your email."
+          : "Account created. We could not deliver the verification passcode yet. Please use Resend Code.",
         resend_after_seconds: OTP_RESEND_COOLDOWN_SECONDS,
       });
     }
