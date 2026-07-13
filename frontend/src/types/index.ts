@@ -12,6 +12,7 @@ export interface User {
   is_active: boolean;
   petrol_price_per_km?: number;
   created_by?: string | null;
+  can_approve_reports?: boolean;
   created_at: string;
   updated_at: string;
 }

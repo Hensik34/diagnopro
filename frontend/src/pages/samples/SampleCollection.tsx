@@ -115,6 +115,15 @@ function StaffView() {
   };
 
   const handleSave = async () => {
+    if (startKm && !startImageRef.current?.files?.[0]) {
+      alert("Start meter photo is required to submit entry!");
+      return;
+    }
+    if (endKm && !endImageRef.current?.files?.[0]) {
+      alert("End meter photo is required to submit entry!");
+      return;
+    }
+
     setSaving(true);
     clearError();
     try {
@@ -256,7 +265,7 @@ function StaffView() {
 
         <button
           onClick={handleSave}
-          disabled={saving || !startKm}
+          disabled={saving || !startKm || (!!startKm && !startImageName) || (!!endKm && !endImageName)}
           className="w-full h-8 flex items-center justify-center gap-2 bg-primary text-white rounded text-xs hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}

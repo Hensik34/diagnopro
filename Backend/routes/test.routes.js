@@ -8,7 +8,7 @@ const testController = require("../controllers/test.controller");
 // ==========================================
 
 // Get all tests (with optional filter: category)
-router.get("/", authorize(PERMISSIONS.TEST_READ), testController.getTests);
+router.get("/", authorize([PERMISSIONS.TEST_READ, PERMISSIONS.SETTINGS_READ]), testController.getTests);
 
 // Get tests for a sample (must be before /:id to avoid route conflict)
 router.get("/sample/:sampleId", authorize(PERMISSIONS.TEST_READ), testController.getTestsForSample);
@@ -26,7 +26,7 @@ router.delete("/packages/:id", authorize(PERMISSIONS.TEST_DELETE), testControlle
 router.put("/bulk/prices", authorize(PERMISSIONS.TEST_UPDATE), testController.bulkUpdateBranchPrices);
 
 // Get test by ID
-router.get("/:id", authorize(PERMISSIONS.TEST_READ), testController.getTestById);
+router.get("/:id", authorize([PERMISSIONS.TEST_READ, PERMISSIONS.SETTINGS_READ]), testController.getTestById);
 
 // Create new test (master list)
 router.post("/", authorize(PERMISSIONS.TEST_CREATE), testController.createTest);

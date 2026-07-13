@@ -114,18 +114,20 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle, sidebarHidden }: Top
           </button>
 
           {/* Notifications - Hidden on small screens */}
-          <div className="relative" ref={notificationsRef}>
-            <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="hidden sm:flex w-8 h-8 items-center justify-center rounded hover:bg-accent transition-colors relative group"
-              aria-label="Notifications"
-              title="Notifications"
-            >
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-destructive rounded-full group-hover:animate-pulse" />
-            </button>
-            <NotificationsPanel isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
-          </div>
+          {user?.role !== 'staff' && (
+            <div className="relative" ref={notificationsRef}>
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="hidden sm:flex w-8 h-8 items-center justify-center rounded hover:bg-accent transition-colors relative group"
+                aria-label="Notifications"
+                title="Notifications"
+              >
+                <Bell className="w-4 h-4" />
+                <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-destructive rounded-full group-hover:animate-pulse" />
+              </button>
+              <NotificationsPanel isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
+            </div>
+          )}
 
           {/* User profile - Compact with dropdown */}
           <div className="relative ml-0 md:ml-1 md:pl-2 md:border-l border-border" ref={userMenuRef}>

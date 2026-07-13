@@ -33,7 +33,15 @@ export function Settings() {
 
   const activeBranchId = currentBranchId || '';
 
-  const [activeTab, setActiveTab] = useState('letterhead-sign');
+  const [activeTab, setActiveTab] = useState(() => {
+    return user?.role === 'staff' ? 'profile' : 'letterhead-sign';
+  });
+
+  useEffect(() => {
+    if (user?.role === 'staff' && activeTab !== 'profile') {
+      setActiveTab('profile');
+    }
+  }, [user, activeTab]);
 
   const [letterheadPreview, setLetterheadPreview] = useState<string | null>(null);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
@@ -83,8 +91,8 @@ export function Settings() {
     report_margin_bottom: 80,
     report_margin_left: 28,
     report_margin_right: 28,
-    header_safe_area: 24,
-    footer_safe_area: 24,
+    header_safe_area: 0,
+    footer_safe_area: 0,
   });
   const [analysisConfidence, setAnalysisConfidence] = useState<{
     top: number;
@@ -195,8 +203,8 @@ export function Settings() {
         report_margin_bottom: normalizePx(settings.report_margin_bottom, 80),
         report_margin_left: normalizePx(settings.report_margin_left, 28),
         report_margin_right: normalizePx(settings.report_margin_right, 28),
-        header_safe_area: normalizePx(settings.header_safe_area, 24),
-        footer_safe_area: normalizePx(settings.footer_safe_area, 24),
+        header_safe_area: 0,
+        footer_safe_area: 0,
       });
       if (settings.letterhead_detected_top !== undefined && settings.letterhead_detected_top !== null) {
         setAnalysisConfidence({
@@ -298,8 +306,8 @@ export function Settings() {
         report_margin_bottom: normalizePx(settings.report_margin_bottom, 80),
         report_margin_left: normalizePx(settings.report_margin_left, 28),
         report_margin_right: normalizePx(settings.report_margin_right, 28),
-        header_safe_area: normalizePx(settings.header_safe_area, 24),
-        footer_safe_area: normalizePx(settings.footer_safe_area, 24),
+        header_safe_area: 0,
+        footer_safe_area: 0,
       });
       if (settings.letterhead_detected_top !== undefined && settings.letterhead_detected_top !== null) {
         setAnalysisConfidence({
@@ -824,30 +832,34 @@ export function Settings() {
           </div>
 
           <nav className="flex flex-row md:flex-col flex-1 overflow-x-auto md:overflow-y-auto p-2 md:p-3 space-x-1 md:space-x-0 md:space-y-1">
-            <button
-              onClick={() => setActiveTab('letterhead-sign')}
-              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'letterhead-sign'
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
-                }`}
-            >
-              <FileSignature className="w-4 h-4 flex-shrink-0" />
-              <span className="hidden md:inline">Letterhead & Sign</span>
-              <span className="md:hidden">Letterhead</span>
-              {activeTab === 'letterhead-sign' && <ChevronRight className="w-4 h-4 ml-auto opacity-50 hidden md:block" />}
-            </button>
+            {user?.role !== 'staff' && (
+              <>
+                <button
+                  onClick={() => setActiveTab('letterhead-sign')}
+                  className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'letterhead-sign'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                    }`}
+                >
+                  <FileSignature className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden md:inline">Letterhead & Sign</span>
+                  <span className="md:hidden">Letterhead</span>
+                  {activeTab === 'letterhead-sign' && <ChevronRight className="w-4 h-4 ml-auto opacity-50 hidden md:block" />}
+                </button>
 
-            <button
-              onClick={() => setActiveTab('marketing')}
-              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'marketing'
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
-                }`}
-            >
-              <ImageIcon className="w-4 h-4 flex-shrink-0" />
-              <span>Marketing Pages</span>
-              {activeTab === 'marketing' && <ChevronRight className="w-4 h-4 ml-auto opacity-50 hidden md:block" />}
-            </button>
+                <button
+                  onClick={() => setActiveTab('marketing')}
+                  className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'marketing'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                    }`}
+                >
+                  <ImageIcon className="w-4 h-4 flex-shrink-0" />
+                  <span>Marketing Pages</span>
+                  {activeTab === 'marketing' && <ChevronRight className="w-4 h-4 ml-auto opacity-50 hidden md:block" />}
+                </button>
+              </>
+            )}
 
             <button
               onClick={() => setActiveTab('profile')}
@@ -862,29 +874,33 @@ export function Settings() {
               {activeTab === 'profile' && <ChevronRight className="w-4 h-4 ml-auto opacity-50 hidden md:block" />}
             </button>
 
-            <button
-              onClick={() => setActiveTab('general')}
-              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'general'
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
-                }`}
-            >
-              <SettingsIcon className="w-4 h-4" />
-              <span>General Settings</span>
-              {activeTab === 'general' && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
-            </button>
+            {user?.role !== 'staff' && (
+              <>
+                <button
+                  onClick={() => setActiveTab('general')}
+                  className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'general'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                    }`}
+                >
+                  <SettingsIcon className="w-4 h-4" />
+                  <span>General Settings</span>
+                  {activeTab === 'general' && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
+                </button>
 
-            <button
-              onClick={() => setActiveTab('whatsapp')}
-              className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'whatsapp'
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
-                }`}
-            >
-              <MessageCircle className="w-4 h-4" />
-              <span>WhatsApp</span>
-              {activeTab === 'whatsapp' && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
-            </button>
+                <button
+                  onClick={() => setActiveTab('whatsapp')}
+                  className={`cursor-pointer flex-shrink-0 md:flex-shrink w-auto md:w-full flex items-center justify-center md:justify-start gap-2 md:gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'whatsapp'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                    }`}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>WhatsApp</span>
+                  {activeTab === 'whatsapp' && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
+                </button>
+              </>
+            )}
           </nav>
         </div>
 
@@ -897,7 +913,17 @@ export function Settings() {
             </div>
           )}
 
-          {activeTab === 'marketing' && (
+          {user?.role === 'staff' && activeTab !== 'profile' ? (
+            <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center">
+              <AlertCircle className="w-12 h-12 text-destructive mb-4" />
+              <h2 className="text-lg font-semibold text-foreground">Access Denied</h2>
+              <p className="text-sm text-muted-foreground mt-2 max-w-sm">
+                You do not have permission to access these settings. Only User Profile is available for staff.
+              </p>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'marketing' && (
             <div className="p-8 max-w-5xl">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div>
@@ -1312,9 +1338,7 @@ export function Settings() {
                             brandingDraft.report_margin_top === normalizePx(settings.report_margin_top, 80) &&
                             brandingDraft.report_margin_bottom === normalizePx(settings.report_margin_bottom, 80) &&
                             brandingDraft.report_margin_left === normalizePx(settings.report_margin_left, 28) &&
-                            brandingDraft.report_margin_right === normalizePx(settings.report_margin_right, 28) &&
-                            brandingDraft.header_safe_area === normalizePx(settings.header_safe_area, 24) &&
-                            brandingDraft.footer_safe_area === normalizePx(settings.footer_safe_area, 24)
+                            brandingDraft.report_margin_right === normalizePx(settings.report_margin_right, 28)
                           )}
                           className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -1403,28 +1427,6 @@ export function Settings() {
                               onChange={(e) => setBrandingDraft((prev) => ({ ...prev, report_margin_right: parseInt(e.target.value, 10) || 0 }))}
                             />
                           </label>
-
-                          <label className="space-y-2 text-sm">
-                            <span className="block font-medium text-foreground">Header Safe Area (px)</span>
-                            <input
-                              type="number"
-                              min={0}
-                              className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                              value={brandingDraft.header_safe_area}
-                              onChange={(e) => setBrandingDraft((prev) => ({ ...prev, header_safe_area: parseInt(e.target.value, 10) || 0 }))}
-                            />
-                          </label>
-
-                          <label className="space-y-2 text-sm">
-                            <span className="block font-medium text-foreground">Footer Safe Area (px)</span>
-                            <input
-                              type="number"
-                              min={0}
-                              className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                              value={brandingDraft.footer_safe_area}
-                              onChange={(e) => setBrandingDraft((prev) => ({ ...prev, footer_safe_area: parseInt(e.target.value, 10) || 0 }))}
-                            />
-                          </label>
                         </div>
 
                         {/* Low confidence warnings */}
@@ -1449,7 +1451,6 @@ export function Settings() {
                             <li>Margins are set automatically so report content never overlaps your letterhead design.</li>
                             <li>You can manually adjust any margin value if the auto-detection needs fine-tuning.</li>
                             <li>The visual preview shows exactly where report content will be placed on your letterhead.</li>
-                            <li>Header/Footer Safe Area fields are kept for backward compatibility. If your margins are already correct (auto-detected), leave safe areas at 0.</li>
                           </ul>
                         </div>
                       </div>
@@ -2106,7 +2107,9 @@ export function Settings() {
             </div>
           )}
 
-          {activeTab === 'whatsapp' && <WhatsAppIntegration />}
+              {activeTab === 'whatsapp' && <WhatsAppIntegration />}
+            </>
+          )}
         </div>
       </div>
 

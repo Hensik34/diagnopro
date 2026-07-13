@@ -53,6 +53,7 @@ export const authApi = {
     role?: string;
     petrol_price_per_km?: number;
     branch_id?: string;
+    can_approve_reports?: boolean;
   }): Promise<{ message: string; user: User }> => {
     const response = await api.post<{ message: string; user: User }>('/auth/users', userData);
     return response.data;
@@ -108,7 +109,7 @@ export const authApi = {
   /**
    * Update a user (admin only)
    */
-  updateUser: async (id: string, data: { firstname?: string; lastname?: string; phone?: string; role?: string; petrol_price_per_km?: number }): Promise<ApiResponse<User>> => {
+  updateUser: async (id: string, data: { firstname?: string; lastname?: string; phone?: string; role?: string; petrol_price_per_km?: number; can_approve_reports?: boolean }): Promise<ApiResponse<User>> => {
     const response = await api.put<ApiResponse<User>>(`/auth/users/${id}`, data);
     return response.data;
   },

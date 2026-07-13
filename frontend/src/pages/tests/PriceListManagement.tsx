@@ -23,7 +23,7 @@ import {
   ChevronsLeft,
   ChevronsRight
 } from 'lucide-react';
-import { useBranchStore, useDoctorStore, useCan, PERMISSIONS } from '../../stores';
+import { useBranchStore, useDoctorStore, useCan, useAuthStore, PERMISSIONS } from '../../stores';
 import { testApi } from '../../api/tests';
 import { priceListApi } from '../../api/priceLists';
 import type { PriceList, PriceListItem, Test, Doctor } from '../../types';
@@ -34,6 +34,7 @@ export function PriceListManagement() {
   const activeBranchId = currentBranchId || '';
   const { doctors, fetchDoctors } = useDoctorStore();
 
+  const { user } = useAuthStore();
   const canUpdate = useCan(PERMISSIONS.TEST_UPDATE);
 
   // Lists
@@ -654,12 +655,14 @@ export function PriceListManagement() {
               <div className="flex flex-wrap items-center justify-between border-b border-border pb-3 mb-4 gap-4">
                 <div>
                   <h2 className="font-semibold text-lg">
-                    Customize Prices: <span className="text-primary">{selectedList.name}</span>
+                    {user?.role === 'staff' ? 'Test Pricing:' : 'Customize Prices:'} <span className="text-primary">{selectedList.name}</span>
                   </h2>
                   <p className="text-xs text-muted-foreground">
-                    {canUpdate
-                      ? 'Customize branch test rates with flat custom prices or discount adjustments.'
-                      : 'View branch test rates and custom prices for the selected list.'}
+                    {user?.role === 'staff' 
+                      ? 'View branch test rates and custom prices for the selected list.'
+                      : (canUpdate
+                          ? 'Customize branch test rates with flat custom prices or discount adjustments.'
+                          : 'View branch test rates and custom prices for the selected list.')}
                   </p>
                 </div>
                 {canUpdate && (
@@ -749,17 +752,19 @@ export function PriceListManagement() {
                     </option>
                   ))}
                 </select>
-                <div
-                  onClick={() => setOnlyOverridden(!onlyOverridden)}
-                  className="flex items-center gap-2 border border-border rounded-lg px-3 py-1.5 text-sm cursor-pointer select-none bg-background hover:bg-muted/30"
-                >
-                  {onlyOverridden ? (
-                    <CheckSquare className="w-4 h-4 text-primary" />
-                  ) : (
-                    <Square className="w-4 h-4 text-muted-foreground" />
-                  )}
-                  <span className="text-xs">Show customized only</span>
-                </div>
+                {user?.role !== 'staff' && (
+                  <div
+                    onClick={() => setOnlyOverridden(!onlyOverridden)}
+                    className="flex items-center gap-2 border border-border rounded-lg px-3 py-1.5 text-sm cursor-pointer select-none bg-background hover:bg-muted/30"
+                  >
+                    {onlyOverridden ? (
+                      <CheckSquare className="w-4 h-4 text-primary" />
+                    ) : (
+                      <Square className="w-4 h-4 text-muted-foreground" />
+                    )}
+                    <span className="text-xs">Show customized only</span>
+                  </div>
+                )}
               </div>
 
               {/* Main Overrides Table */}
@@ -779,12 +784,16 @@ export function PriceListManagement() {
                   return (
                     <>
                       <table className="w-full text-left text-sm border-collapse">
-                        <thead>
+                         <thead>
                           <tr className="border-b border-border bg-muted/30 text-muted-foreground font-medium text-xs">
                             <th className="p-3">Test Details</th>
-                            <th className="p-3">Base Price</th>
-                            <th className="p-3">Custom Price</th>
-                            <th className="p-3">Final Price (₹)</th>
+                            {user?.role !== 'staff' && (
+                              <>
+                                <th className="p-3">Base Price</th>
+                                <th className="p-3">Custom Price</th>
+                              </>
+                            )}
+                            <th className="p-3">{user?.role === 'staff' ? 'Price (₹)' : 'Final Price (₹)'}</th>
                             {canUpdate && <th className="p-3 text-right">Action</th>}
                           </tr>
                         </thead>
@@ -827,27 +836,31 @@ export function PriceListManagement() {
                                     <span className="bg-muted px-1.5 py-0.2 border rounded">{test.category}</span>
                                   </div>
                                 </td>
-                                <td className="p-3 text-xs font-medium text-muted-foreground">
-                                  ₹{basePrice}
-                                </td>
-                                <td className="p-3">
-                                  <div className="relative flex items-center w-22">
-                                    <span className="absolute left-2 text-xs text-muted-foreground pointer-events-none select-none">
-                                      ₹
-                                    </span>
-                                    <input
-                                      type="number"
-                                      value={override?.price ?? ''}
-                                      disabled={!canUpdate}
-                                      onChange={(e) => {
-                                        const val = e.target.value === '' ? null : Number(e.target.value);
-                                        handleItemOverrideChange(test.id, 'price', val);
-                                      }}
-                                      placeholder="Auto"
-                                      className="pl-5 pr-1.5 py-1 text-xs w-full bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:bg-muted disabled:cursor-not-allowed"
-                                    />
-                                  </div>
-                                </td>
+                                {user?.role !== 'staff' && (
+                                  <>
+                                    <td className="p-3 text-xs font-medium text-muted-foreground">
+                                      ₹{basePrice}
+                                    </td>
+                                    <td className="p-3">
+                                      <div className="relative flex items-center w-22">
+                                        <span className="absolute left-2 text-xs text-muted-foreground pointer-events-none select-none">
+                                          ₹
+                                        </span>
+                                        <input
+                                          type="number"
+                                          value={override?.price ?? ''}
+                                          disabled={!canUpdate}
+                                          onChange={(e) => {
+                                            const val = e.target.value === '' ? null : Number(e.target.value);
+                                            handleItemOverrideChange(test.id, 'price', val);
+                                          }}
+                                          placeholder="Auto"
+                                          className="pl-5 pr-1.5 py-1 text-xs w-full bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:bg-muted disabled:cursor-not-allowed"
+                                        />
+                                      </div>
+                                    </td>
+                                  </>
+                                )}
                                 <td className="p-3 font-semibold text-xs">
                                   <span className={hasOverride ? 'text-primary' : 'text-foreground'}>
                                     ₹{calculatedPrice}

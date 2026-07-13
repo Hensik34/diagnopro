@@ -14,11 +14,11 @@ exports.findUserById = async (id) => {
 };
 
 // Create new user
-exports.createUser = async (firstname, lastname, email, password, phone = null, role = "admin", petrol_price_per_km = 0, created_by = null) => {
+exports.createUser = async (firstname, lastname, email, password, phone = null, role = "admin", petrol_price_per_km = 0, created_by = null, can_approve_reports = false) => {
   const password_hash = await bcrypt.hash(password, 10);
 
   const user = await User.create({
-    firstname, lastname, email, password_hash, phone, role, petrol_price_per_km, created_by,
+    firstname, lastname, email, password_hash, phone, role, petrol_price_per_km, created_by, can_approve_reports,
   });
 
   // Return without password_hash
@@ -77,9 +77,9 @@ exports.activateUser = async (id) => {
 
 // Update user by admin
 exports.updateUser = async (id, data) => {
-  const { firstname, lastname, phone, role, petrol_price_per_km } = data;
+  const { firstname, lastname, phone, role, petrol_price_per_km, can_approve_reports } = data;
   const [count, [updated]] = await User.update(
-    { firstname, lastname, phone, role, petrol_price_per_km },
+    { firstname, lastname, phone, role, petrol_price_per_km, can_approve_reports },
     { where: { id }, returning: true }
   );
   return updated ? updated.toJSON() : null;

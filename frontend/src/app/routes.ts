@@ -162,7 +162,7 @@ export const router = createBrowserRouter([
       { path: 'tests', Component: withPermission(TestManagement, PERMISSIONS.TEST_READ) },
       { path: 'doctors', Component: withPermission(DoctorManagement, PERMISSIONS.DOCTOR_READ) },
       { path: 'doctors/:id', Component: withPermission(DoctorDetail, PERMISSIONS.DOCTOR_READ) },
-      { path: 'branches', Component: withPermission(Branches, PERMISSIONS.BRANCH_READ) },
+      { path: 'branches', Component: withPermission(Branches, PERMISSIONS.BRANCH_UPDATE) },
       { path: 'users', Component: withPermission(Users, PERMISSIONS.USER_READ) },
       { path: 'inventory', Component: withPermission(Inventory, PERMISSIONS.INVENTORY_READ) },
       { path: 'time-tracking', Component: withPermission(TimeTracking, PERMISSIONS.TIMELOG_TRACK) },

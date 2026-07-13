@@ -242,6 +242,14 @@ async function approveReport(reportId, userId, userRole) {
     throw new Error(`Cannot approve report with status '${report.status}'. Only reports under review can be approved.`);
   }
 
+  const UserModel = require('../models/User');
+  const dbUser = await UserModel.findUserById(userId);
+  const isApprovedAllowed = (userRole === 'admin') || (dbUser && dbUser.can_approve_reports === true);
+
+  if (!isApprovedAllowed) {
+    throw new Error('You do not have permission to approve reports');
+  }
+
   if (!canPerformTransition(userRole, report.status, REPORT_STATUS.APPROVED)) {
     throw new Error('You do not have permission to approve reports');
   }
@@ -271,6 +279,14 @@ async function rejectReport(reportId, userId, userRole, reason) {
 
   if (report.status !== REPORT_STATUS.UNDER_REVIEW) {
     throw new Error(`Cannot reject report with status '${report.status}'. Only reports under review can be rejected.`);
+  }
+
+  const UserModel = require('../models/User');
+  const dbUser = await UserModel.findUserById(userId);
+  const isApprovedAllowed = (userRole === 'admin') || (dbUser && dbUser.can_approve_reports === true);
+
+  if (!isApprovedAllowed) {
+    throw new Error('You do not have permission to reject reports');
   }
 
   if (!canPerformTransition(userRole, report.status, REPORT_STATUS.REJECTED)) {

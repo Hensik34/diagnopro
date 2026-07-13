@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS users (
     is_active BOOLEAN DEFAULT TRUE,
     petrol_price_per_km DECIMAL(10, 2) DEFAULT 0,
     created_by UUID,
+    can_approve_reports BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -308,6 +309,7 @@ CREATE TABLE IF NOT EXISTS reports (
     price_list_id UUID,
     price_locked BOOLEAN DEFAULT FALSE,
     attach_marketing_pages BOOLEAN DEFAULT FALSE,
+    staff_id UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
