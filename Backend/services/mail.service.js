@@ -37,43 +37,59 @@ function maskIdentifier(value) {
 }
 
 function initTransporter() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
+
+  console.log("🔍 [SMTP_DIAG] Initiating mail service configuration check...");
+  console.log(`🔍 [SMTP_DIAG] Host: ${SMTP_HOST || "MISSING"}`);
+  console.log(`🔍 [SMTP_DIAG] Port: ${SMTP_PORT || "MISSING"} (parsed: ${parseInt(SMTP_PORT)})`);
+  console.log(`🔍 [SMTP_DIAG] User: ${SMTP_USER || "MISSING"}`);
+  console.log(`🔍 [SMTP_DIAG] Pass: ${SMTP_PASS ? "PRESENT (length: " + SMTP_PASS.length + ")" : "MISSING"}`);
+  console.log(`🔍 [SMTP_DIAG] From: ${SMTP_FROM || "MISSING"}`);
 
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
     console.warn("⚠️  SMTP not configured — emails will be logged to console instead of sent.");
-    console.warn("   Set SMTP_HOST, SMTP_USER, SMTP_PASS in your .env to enable email delivery.\n");
     return;
   }
 
+  const port = parseInt(SMTP_PORT) || 587;
+  const secure = port === 465;
+  console.log(`🔍 [SMTP_DIAG] Security match check: port=${port} secure=${secure}`);
+
+  console.log("🔍 [SMTP_DIAG] Creating Nodemailer transporter...");
   transporter = nodemailer.createTransport({
     host: SMTP_HOST,
-    port: parseInt(SMTP_PORT) || 587,
-    secure: parseInt(SMTP_PORT) === 465, // true for 465, false for other ports
+    port: port,
+    secure: secure,
     auth: {
       user: SMTP_USER,
       pass: SMTP_PASS,
     },
     tls: {
       rejectUnauthorized: false
-    }
+    },
+    family: 4, // Force IPv4 to prevent IPv6 hangs on Render
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
+    logger: true, // Output SMTP conversation details to console
+    debug: true   // Output SMTP debug details
   });
 
   isConfigured = true;
-  console.log(
-    `📧  Mail service initialized (SMTP configured) host=${SMTP_HOST}:${parseInt(SMTP_PORT) || 587} secure=${parseInt(SMTP_PORT) === 465} user=${maskIdentifier(SMTP_USER)}`
-  );
+  console.log("🔍 [SMTP_DIAG] Transporter created. Running connection verification...");
 
   transporter.verify((error) => {
     if (error) {
-      console.error("❌  SMTP verify failed:", {
+      console.error("❌ [SMTP_DIAG] Verification failed:", {
         message: error.message,
         code: error.code,
         responseCode: error.responseCode,
         command: error.command,
+        stack: error.stack
       });
       return;
     }
-    console.log("✅  SMTP verify success: transporter is ready to send emails.");
+    console.log("✅ [SMTP_DIAG] SMTP verification success: Connection is active and ready.");
   });
 }
 
@@ -110,7 +126,7 @@ async function sendMail(to, subject, html, attachments = null) {
   }
 
   try {
-    console.log(`📧  Attempting email send to=${to} subject=${subject}`);
+    console.log(`📧 [SMTP_DIAG] Attempting email send to=${to} subject=${subject}`);
 
     const mailOptions = {
       from: fromAddress,
@@ -123,20 +139,25 @@ async function sendMail(to, subject, html, attachments = null) {
       mailOptions.attachments = attachments;
     }
 
+    console.log(`📧 [SMTP_DIAG] Calling transporter.sendMail to=${to}...`);
     const info = await transporter.sendMail(mailOptions);
 
-    console.log(`📧  Email sent to ${to} — Message ID: ${info.messageId} accepted=${(info.accepted || []).length} rejected=${(info.rejected || []).length}`);
+    console.log(`📧 [SMTP_DIAG] Send success to ${to} — Message ID: ${info.messageId}`);
+    console.log("📧 [SMTP_DIAG] Accepted:", info.accepted);
+    console.log("📧 [SMTP_DIAG] Rejected:", info.rejected);
+    
     if (info.rejected && info.rejected.length > 0) {
-      console.error(`❌  SMTP rejected recipients: ${info.rejected.join(", ")}`);
+      console.error(`❌ [SMTP_DIAG] SMTP rejected recipients: ${info.rejected.join(", ")}`);
     }
     return info;
   } catch (error) {
-    console.error(`❌  Failed to send email to ${to}:`, {
+    console.error(`❌ [SMTP_DIAG] Failed to send email to ${to}:`, {
       message: error.message,
       code: error.code,
       response: error.response,
       responseCode: error.responseCode,
       command: error.command,
+      stack: error.stack
     });
     // Don't throw — email failures shouldn't break the app flow
     return null;
