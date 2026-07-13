@@ -36,7 +36,7 @@ interface AuthState {
 
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; requiresOtp?: boolean; email?: string }>;
   googleLogin: (idToken: string) => Promise<{ success: boolean; requiresOtp?: boolean; email?: string }>;
-  register: (data: RegisterData) => Promise<boolean>;
+  register: (data: RegisterData) => Promise<{ success: boolean; requiresOtp?: boolean; email?: string }>;
   verifyLoginOtp: (otp: string) => Promise<boolean>;
   resendLoginOtp: () => Promise<boolean>;
   logout: () => void;
@@ -185,11 +185,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   /**
    * Register a new user
    */
-  register: async (data: RegisterData): Promise<boolean> => {
-    set({ isLoading: true, error: null });
+  register: async (data: RegisterData): Promise<{ success: boolean; requiresOtp?: boolean; email?: string }> => {
+    set({ isLoading: true, error: null, pendingEmail: null, pendingOtpVerification: false });
 
     try {
       const response = await authApi.register(data);
+
+      if (response.requiresOtp) {
+        set({
+          pendingEmail: response.email || data.email,
+          pendingOtpVerification: true,
+          isLoading: false,
+          error: null,
+          user: null,
+          isAuthenticated: false,
+          doctorProfile: null,
+          loginBranches: [],
+        });
+        return { success: true, requiresOtp: true, email: response.email || data.email };
+      }
 
       // Store token in localStorage
       if (response.token) {
@@ -205,9 +219,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         error: null,
         doctorProfile: null,
         loginBranches: [],
+        pendingEmail: null,
+        pendingOtpVerification: false,
       });
 
-      return true;
+      return { success: true, requiresOtp: false };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Registration failed';
       set({
@@ -216,8 +232,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: false,
         user: null,
         staffList: [],
+        doctorProfile: null,
+        loginBranches: [],
+        pendingEmail: null,
+        pendingOtpVerification: false,
       });
-      return false;
+      return { success: false };
     }
   },
 

@@ -145,15 +145,20 @@ export function Register() {
       return;
     }
 
-    const success = await register({
+    const result = await register({
       firstname: formData.firstname,
       lastname: formData.lastname,
       email: formData.email,
       password: formData.password,
       phone: formData.phone || undefined,
     });
-    
-    if (success) {
+
+    if (result.success && result.requiresOtp) {
+      navigate('/verify-passcode');
+      return;
+    }
+
+    if (result.success) {
       // New users go to onboarding to set up their first branch
       navigate('/onboarding');
     }

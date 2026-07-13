@@ -30,6 +30,12 @@ const {
 let transporter = null;
 let isConfigured = false;
 
+function maskIdentifier(value) {
+  if (!value || typeof value !== "string") return "not-set";
+  if (value.length <= 4) return "****";
+  return `${value.slice(0, 2)}***${value.slice(-2)}`;
+}
+
 function initTransporter() {
   const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
 
@@ -53,7 +59,22 @@ function initTransporter() {
   });
 
   isConfigured = true;
-  console.log("📧  Mail service initialized (SMTP configured)\n");
+  console.log(
+    `📧  Mail service initialized (SMTP configured) host=${SMTP_HOST}:${parseInt(SMTP_PORT) || 587} secure=${parseInt(SMTP_PORT) === 465} user=${maskIdentifier(SMTP_USER)}`
+  );
+
+  transporter.verify((error) => {
+    if (error) {
+      console.error("❌  SMTP verify failed:", {
+        message: error.message,
+        code: error.code,
+        responseCode: error.responseCode,
+        command: error.command,
+      });
+      return;
+    }
+    console.log("✅  SMTP verify success: transporter is ready to send emails.");
+  });
 }
 
 // Initialize on first import
@@ -89,6 +110,8 @@ async function sendMail(to, subject, html, attachments = null) {
   }
 
   try {
+    console.log(`📧  Attempting email send to=${to} subject=${subject}`);
+
     const mailOptions = {
       from: fromAddress,
       to,
@@ -102,10 +125,19 @@ async function sendMail(to, subject, html, attachments = null) {
 
     const info = await transporter.sendMail(mailOptions);
 
-    console.log(`📧  Email sent to ${to} — Message ID: ${info.messageId}`);
+    console.log(`📧  Email sent to ${to} — Message ID: ${info.messageId} accepted=${(info.accepted || []).length} rejected=${(info.rejected || []).length}`);
+    if (info.rejected && info.rejected.length > 0) {
+      console.error(`❌  SMTP rejected recipients: ${info.rejected.join(", ")}`);
+    }
     return info;
   } catch (error) {
-    console.error(`❌  Failed to send email to ${to}:`, error.message);
+    console.error(`❌  Failed to send email to ${to}:`, {
+      message: error.message,
+      code: error.code,
+      response: error.response,
+      responseCode: error.responseCode,
+      command: error.command,
+    });
     // Don't throw — email failures shouldn't break the app flow
     return null;
   }
