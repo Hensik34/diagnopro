@@ -25,6 +25,7 @@ import {
 import { formatAge } from '../../utils/age';
 import {
   computeReportPages,
+  optimizeTestOrder,
   A4_WIDTH_PX,
   A4_HEIGHT_PX,
   PAGE_GAP_PX,
@@ -91,15 +92,6 @@ type ReportData = {
   attach_marketing_pages?: boolean;
   marketing_pages?: any[];
 };
-
-type PageItem =
-  | { type: 'patient' }
-  | { type: 'test'; chunk: { sectionId: string; title: string; continuation: boolean; parameters: Parameter[] } }
-  | { type: 'interpretation'; testId?: string; text: string }
-  | { type: 'generalNotes'; text: string }
-  | { type: 'endMarker' }
-  | { type: 'signature' }
-  | { type: 'marketing'; pageConfig: any };
 
 function clamp(num: number, min: number, max: number) {
   return Math.min(max, Math.max(min, num));
@@ -395,8 +387,24 @@ export function PublicReportDownload() {
       allParams.push(...cleanedParams);
     }
 
-    return { testSections, allParams };
-  }, [report]);
+    const pathologySigUrl = (report as any).pathology_signature_url;
+    const pathologySigLabel = (report as any).pathology_signature_label;
+    const hasDoctorSignature = !!(pathologySigUrl || pathologySigLabel);
+
+    const optimizedSections = optimizeTestOrder(testSections, {
+      safeZones,
+      hasDoctorSignature,
+      density: 'balanced',
+      layoutSnapshots,
+      testData,
+      clinicalNotes: report.clinical_notes,
+      isSelfReport: report.is_self_report,
+      attachMarketingPages: report.attach_marketing_pages,
+      marketingPages: report.marketing_pages,
+    });
+
+    return { testSections: optimizedSections, allParams };
+  }, [report, safeZones]);
 
   // Determine density matching logic
   const density = useMemo(() => {
@@ -445,7 +453,6 @@ export function PublicReportDownload() {
   }, [report, mappedSectionsAndParams, safeZones, density]);
 
   const reportPages = paginationResult.pages;
-  const compactAdjustment = paginationResult.compactAdjustment;
 
   // Download PDF Action
   const handleDownload = useCallback(async () => {
@@ -530,8 +537,7 @@ export function PublicReportDownload() {
       setDownloadProgress(30);
 
       const pagesCount = reportPages.length;
-      const isCompact = compactAdjustment > 0;
-      const pdfRowPad = isCompact ? '2px' : '3px';
+      const pdfRowPad = '1px';
 
       for (let i = 0; i < pagesCount; i++) {
         const node = previewContainerRef.current?.children[i] as HTMLElement;
@@ -551,9 +557,9 @@ export function PublicReportDownload() {
 
         const contentContainer = cloned.querySelector('[data-content-area="true"]') as HTMLElement;
         if (contentContainer) {
-          contentContainer.style.gap = `${isCompact ? 1 : 3}px`;
-          contentContainer.style.fontSize = `${isCompact && compactAdjustment > 60 ? 10.5 : 11}px`;
-          contentContainer.style.lineHeight = `${isCompact && compactAdjustment > 60 ? 1.35 : 1.45}`;
+          contentContainer.style.gap = '2px';
+          contentContainer.style.fontSize = '11px';
+          contentContainer.style.lineHeight = '1.35';
         }
 
         const allCells = cloned.querySelectorAll('td, th');
@@ -628,7 +634,7 @@ export function PublicReportDownload() {
     } finally {
       document.body.removeChild(iframe);
     }
-  }, [report, reportPages, compactAdjustment]);
+  }, [report, reportPages]);
 
   if (loading) {
     return (
@@ -804,9 +810,9 @@ export function PublicReportDownload() {
                     display: 'flex',
                     flexDirection: 'column',
                     paddingBottom: signatureStripHeight,
-                    gap: compactAdjustment > 0 ? 1 : 3,
-                    fontSize: compactAdjustment > 60 ? 10.5 : 11,
-                    lineHeight: compactAdjustment > 60 ? 1.35 : 1.45,
+                    gap: 2,
+                    fontSize: 11,
+                    lineHeight: 1.35,
                   }}
                 >
                   {page.map((item: any, idx: number) => {
@@ -843,18 +849,21 @@ export function PublicReportDownload() {
 
                     if (item.type === 'test') {
                       let lastGroup: string | undefined;
+                      const hasPreviousTestOnPage = page.slice(0, idx).some((prevItem: any) => prevItem.type === 'test');
+                      const shouldAddInterTestGap = hasPreviousTestOnPage;
                       return (
                         <TestSectionBlock
                           key={`t-${idx}`}
                           testName={item.chunk.continuation ? `${item.chunk.title} (cont.)` : item.chunk.title}
                           isFirstSection={false}
+                          extraTopGap={shouldAddInterTestGap ? 22 : 0}
                           colorTokens={C}
                         >
                           <table style={{
                             width: '100%',
                             borderCollapse: 'collapse',
                             tableLayout: 'fixed',
-                            marginTop: compactAdjustment > 0 ? '1px' : '2px'
+                            marginTop: '1px'
                           }}>
                             <InvestigationTableHeader colorTokens={C} />
                             <tbody>
@@ -873,7 +882,7 @@ export function PublicReportDownload() {
                                       <SectionGroupHeader
                                         title={param.group || ''}
                                         colorTokens={C}
-                                        compact={compactAdjustment > 0}
+                                        compact={true}
                                       />
                                     )}
                                     <InvestigationTableRow
@@ -887,7 +896,7 @@ export function PublicReportDownload() {
                                       rowIndex={rowIdx}
                                       indented={!!param.group}
                                       colorTokens={C}
-                                      compact={compactAdjustment > 0}
+                                      compact={true}
                                       customFontSize={(param as any).fontSize}
                                       customBold={(param as any).bold}
                                     />
@@ -953,11 +962,11 @@ export function PublicReportDownload() {
                     }
 
                     if (item.type === 'peripheralSmear') {
-                      const smearRows = item.text
+                      const smearRows: Array<{ label: string; value: string }> = item.text
                         .split('\n')
-                        .map((line) => line.trim())
+                        .map((line: string) => line.trim())
                         .filter(Boolean)
-                        .map((line) => {
+                        .map((line: string) => {
                           const sepIdx = line.indexOf(':');
                           if (sepIdx === -1) {
                             return { label: '', value: line };
@@ -988,7 +997,7 @@ export function PublicReportDownload() {
 
                           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
                             <tbody>
-                              {smearRows.map((row, rowIdx) => {
+                              {smearRows.map((row: { label: string; value: string }, rowIdx: number) => {
                                 if (!row.label) {
                                   return (
                                     <tr key={`smear-row-${rowIdx}`}>
@@ -1027,7 +1036,7 @@ export function PublicReportDownload() {
                                         wordBreak: 'break-word',
                                       }}
                                     >
-                                      {row.value.split(',').map((val) => val.trim()).filter(Boolean).map((subVal, subIdx) => (
+                                      {row.value.split(',').map((val: string) => val.trim()).filter(Boolean).map((subVal: string, subIdx: number) => (
                                         <div key={subIdx} style={{ lineHeight: 1.35 }}>
                                           {subVal}
                                         </div>
@@ -1315,9 +1324,9 @@ export function PublicReportDownload() {
                     display: 'flex',
                     flexDirection: 'column',
                     paddingBottom: signatureStripHeight,
-                    gap: compactAdjustment > 0 ? 1 : 3,
-                    fontSize: compactAdjustment > 60 ? 10.5 : 11,
-                    lineHeight: compactAdjustment > 60 ? 1.35 : 1.45,
+                    gap: 2,
+                    fontSize: 11,
+                    lineHeight: 1.35,
                   }}
                 >
                   {page.map((item: any, idx: number) => {
@@ -1354,18 +1363,21 @@ export function PublicReportDownload() {
 
                     if (item.type === 'test') {
                       let lastGroup: string | undefined;
+                      const hasPreviousTestOnPage = page.slice(0, idx).some((prevItem: any) => prevItem.type === 'test');
+                      const shouldAddInterTestGap = hasPreviousTestOnPage;
                       return (
                         <TestSectionBlock
                           key={`t-${idx}`}
                           testName={item.chunk.continuation ? `${item.chunk.title} (cont.)` : item.chunk.title}
                           isFirstSection={false}
+                          extraTopGap={shouldAddInterTestGap ? 22 : 0}
                           colorTokens={C}
                         >
                           <table style={{
                             width: '100%',
                             borderCollapse: 'collapse',
                             tableLayout: 'fixed',
-                            marginTop: compactAdjustment > 0 ? '1px' : '2px'
+                            marginTop: '1px'
                           }}>
                             <InvestigationTableHeader colorTokens={C} />
                             <tbody>
@@ -1384,7 +1396,7 @@ export function PublicReportDownload() {
                                       <SectionGroupHeader
                                         title={param.group || ''}
                                         colorTokens={C}
-                                        compact={compactAdjustment > 0}
+                                        compact={true}
                                       />
                                     )}
                                     <InvestigationTableRow
@@ -1398,7 +1410,7 @@ export function PublicReportDownload() {
                                       rowIndex={rowIdx}
                                       indented={!!param.group}
                                       colorTokens={C}
-                                      compact={compactAdjustment > 0}
+                                      compact={true}
                                     />
                                   </React.Fragment>
                                 );
