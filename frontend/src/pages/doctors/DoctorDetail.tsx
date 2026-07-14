@@ -326,7 +326,7 @@ export function DoctorDetail() {
   if (error || !doctor) {
     return (
       <div className="space-y-4">
-        <button onClick={() => navigate('/doctors')} className="h-8 w-8 flex items-center justify-center bg-secondary border border-border rounded hover:bg-accent transition-colors">
+        <button onClick={() => navigate('/app/doctors')} className="h-8 w-8 flex items-center justify-center bg-secondary border border-border rounded hover:bg-accent transition-colors">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="bg-destructive/10 border border-destructive/20 rounded p-4 flex items-center gap-2">
@@ -343,7 +343,7 @@ export function DoctorDetail() {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => navigate('/doctors')}
+            onClick={() => navigate('/app/doctors')}
             className="h-8 w-8 flex items-center justify-center bg-secondary border border-border rounded hover:bg-accent transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />

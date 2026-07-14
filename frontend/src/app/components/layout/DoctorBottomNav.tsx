@@ -6,22 +6,22 @@ export function DoctorBottomNav() {
 
   const navItems = [
     {
-      path: '/',
+      path: '/app',
       label: 'Dashboard',
       icon: LayoutDashboard,
-      isActive: (pathname: string) => pathname === '/',
+      isActive: (pathname: string) => pathname === '/app',
     },
     {
-      path: '/doctor-reports',
+      path: '/app/doctor-reports',
       label: 'Reports',
       icon: FileText,
-      isActive: (pathname: string) => pathname.startsWith('/doctor-reports') || pathname.startsWith('/reports'),
+      isActive: (pathname: string) => pathname.startsWith('/app/doctor-reports') || pathname.startsWith('/app/reports'),
     },
     {
-      path: '/profile',
+      path: '/app/profile',
       label: 'Profile',
       icon: User,
-      isActive: (pathname: string) => pathname.startsWith('/profile'),
+      isActive: (pathname: string) => pathname.startsWith('/app/profile'),
     },
   ];
 

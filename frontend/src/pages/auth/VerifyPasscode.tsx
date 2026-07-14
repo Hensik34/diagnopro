@@ -74,10 +74,10 @@ export function VerifyPasscode() {
           navigate('/onboarding');
         } else {
           localStorage.setItem('onboarding_complete', 'true');
-          navigate('/');
+          navigate('/app');
         }
       } catch {
-        navigate('/');
+        navigate('/app');
       }
     }
   };

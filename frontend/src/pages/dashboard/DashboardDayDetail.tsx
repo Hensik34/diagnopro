@@ -86,7 +86,7 @@ export function DashboardDayDetail() {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+          <Link to="/app" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
             <ArrowLeft className="w-4 h-4" /> Dashboard
           </Link>
         </div>
@@ -107,7 +107,7 @@ export function DashboardDayDetail() {
       {/* ── Header ── */}
       <div className="sticky top-12 z-20 bg-background/95 backdrop-blur py-2 flex items-start justify-between">
         <div>
-          <Link to="/" className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 mb-1">
+          <Link to="/app" className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 mb-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Back to Dashboard
           </Link>
           <h1 className="text-foreground text-lg mb-0.5 flex items-center gap-2">

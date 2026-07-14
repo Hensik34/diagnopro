@@ -436,9 +436,9 @@ export interface Report {
   payment_status?: 'paid' | 'partial' | 'pending';
   total_paid?: number;
   // B2B Partner Lab
-  b2b_lab_id?: string;
-  b2b_charge?: number;
-  b2b_lab_name?: string;
+  b2b_lab_id?: string | null;
+  b2b_charge?: number | null;
+  b2b_lab_name?: string | null;
   download_token?: string;
   created_at: string;
   updated_at: string;
@@ -534,7 +534,7 @@ export interface UpdateReportData {
   is_self_report?: boolean;
   price_list_id?: string;
   pricing_items?: Partial<ReportTestPriceSnapshot>[];
-  b2b_lab_id?: string;
+  b2b_lab_id?: string | null;
   b2b_charge?: number;
   base_amount?: number;
   lab_discount_type?: 'percent' | 'amount';

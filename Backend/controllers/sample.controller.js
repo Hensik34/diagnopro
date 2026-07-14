@@ -114,7 +114,7 @@ exports.getNextSampleId = async (req, res) => {
 
     res.json({
       message: "Next sample ID preview",
-      data: { sample_id_code: sampleId }
+      data: { sample_id: sampleId }
     });
   } catch (err) {
     console.error("Peek sample ID error:", err);

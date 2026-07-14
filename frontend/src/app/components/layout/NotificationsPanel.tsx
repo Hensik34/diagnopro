@@ -206,7 +206,7 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
         </div>
         <button
           onClick={onClose}
-          className="p-1 rounded hover:bg-accent transition-colors"
+          className="p-1 rounded hover:bg-accent transition-colors cursor-pointer"
         >
           <X className="w-4 h-4 text-muted-foreground" />
         </button>
@@ -215,11 +215,11 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
       {/* Stats */}
       {visibleNotifications.length > 0 && (
         <div className="px-4 pt-3 pb-2 border-b border-border flex gap-4 bg-secondary/30">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 cursor-pointer">
             <div className="w-2 h-2 rounded-full bg-green-500" />
             <span className="text-xs text-foreground">{successCount} Sent</span>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 cursor-pointer">
             <div className="w-2 h-2 rounded-full bg-red-500" />
             <span className="text-xs text-foreground">{failedCount} Failed</span>
           </div>
@@ -288,7 +288,7 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
                     </div>
                     <button
                       onClick={() => handleDismiss(notification.id)}
-                      className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0 p-1"
+                      className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0 p-1 cursor-pointer"
                       title="Dismiss"
                     >
                       <X className="w-3.5 h-3.5" />

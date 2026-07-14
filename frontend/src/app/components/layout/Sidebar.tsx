@@ -46,120 +46,120 @@ interface SidebarProps {
  */
 const menuItems = [
   {
-    path: '/',
+    path: '/app',
     label: 'Dashboard',
     icon: LayoutDashboard,
     // Dashboard visible to all
   },
   // Doctor-specific items
   {
-    path: '/doctor-reports',
+    path: '/app/doctor-reports',
     label: 'My Reports',
     icon: FileText,
     doctorOnly: true,
   },
   {
-    path: '/profile',
+    path: '/app/profile',
     label: 'My Profile',
     icon: User,
     doctorOnly: true,
   },
   {
-    path: '/reports',
+    path: '/app/reports',
     label: 'Reports',
     icon: FileText,
     permission: PERMISSIONS.REPORT_READ,
     hideForDoctor: true,
   },
   {
-    path: '/reports/review',
+    path: '/app/reports/review',
     label: 'Review Reports',
     icon: CheckSquare,
     permission: PERMISSIONS.REPORT_APPROVE,
   },
   {
-    path: '/patients',
+    path: '/app/patients',
     label: 'Patients',
     icon: User,
     permission: PERMISSIONS.PATIENT_READ,
     hideForDoctor: true,
   },
   {
-    path: '/sample-collection',
+    path: '/app/sample-collection',
     label: 'Sample Collection',
     icon: Syringe,
     permission: PERMISSIONS.COLLECTION_READ,
   },
   {
-    path: '/tests',
+    path: '/app/tests',
     label: 'Test Management',
     icon: Beaker,
     permission: PERMISSIONS.TEST_READ,
     hideForDoctor: true,
     submenus: [
       {
-        path: '/tests',
+        path: '/app/tests',
         label: 'Tests',
         permission: PERMISSIONS.TEST_READ,
       },
       {
-        path: '/tests?tab=packages',
+        path: '/app/tests?tab=packages',
         label: 'Packages',
         permission: PERMISSIONS.TEST_READ,
       },
       {
-        path: '/tests/pricing',
+        path: '/app/tests/pricing',
         label: 'Test Pricing',
         permission: PERMISSIONS.SETTINGS_VIEW,
       },
     ],
   },
   {
-    path: '/doctors',
+    path: '/app/doctors',
     label: 'Doctor Management',
     icon: Stethoscope,
     permission: PERMISSIONS.DOCTOR_UPDATE,
   },
   {
-    path: '/branches',
+    path: '/app/branches',
     label: 'Branches',
     icon: Building2,
     permission: PERMISSIONS.BRANCH_UPDATE,
   },
   {
-    path: '/users',
+    path: '/app/users',
     label: 'Users',
     icon: Users,
     permission: PERMISSIONS.USER_READ,
   },
   {
-    path: '/inventory',
+    path: '/app/inventory',
     label: 'Inventory',
     icon: Package,
     // Placeholder - visible to admin only for now
     permission: PERMISSIONS.SETTINGS_UPDATE,
   },
   {
-    path: '/time-tracking',
+    path: '/app/time-tracking',
     label: 'Time Tracking',
     icon: Clock,
     // Visible to all authenticated users (no permission needed)
     hideForDoctor: true,
   },
   {
-    path: '/working-hours',
+    path: '/app/working-hours',
     label: 'Working Hours',
     icon: Timer,
     permission: PERMISSIONS.TIMELOG_VIEW_ALL,
   },
   {
-    path: '/analytics',
+    path: '/app/analytics',
     label: 'Analytics',
     icon: BarChart3,
     permission: PERMISSIONS.ANALYTICS_VIEW,
   },
   {
-    path: '/b2b',
+    path: '/app/b2b',
     label: 'B2B Lab',
     icon: GitBranch,
     permission: PERMISSIONS.B2B_LAB_READ,
@@ -167,7 +167,7 @@ const menuItems = [
   },
 
   {
-    path: '/settings',
+    path: '/app/settings',
     label: 'Settings',
     icon: Settings,
     permission: PERMISSIONS.SETTINGS_VIEW,
@@ -324,7 +324,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             }}
             className="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10"
           >
-            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-4 h-4 transition-transform duration-200 cursor-pointer ${isExpanded ? 'rotate-180' : ''}`} />
           </div>
         )}
       </Link>
@@ -402,13 +402,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         }`}>
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-border">
+          <div className="flex items-center justify-between p-3 border-b border-border">
             {!collapsed && (
               <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">DiagnoPro</h1>
             )}
             <button
               onClick={onToggle}
-              className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors dark:text-gray-400"
+              className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors dark:text-gray-400 cursor-pointer"
             >
               {collapsed ? (
                 <ChevronRight className="w-5 h-5" />

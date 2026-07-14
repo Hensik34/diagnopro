@@ -206,7 +206,7 @@ export function B2BLabDetail() {
     return (
       <div className="space-y-4">
         <button
-          onClick={() => navigate('/b2b')}
+          onClick={() => navigate('/app/b2b')}
           className="flex items-center gap-2 text-sm text-primary hover:underline"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -226,7 +226,7 @@ export function B2BLabDetail() {
       <div className="flex items-start justify-between">
         <div>
           <button
-            onClick={() => navigate('/b2b')}
+            onClick={() => navigate('/app/b2b')}
             className="flex items-center gap-2 text-sm text-primary hover:underline mb-3"
           >
             <ArrowLeft className="w-4 h-4" />

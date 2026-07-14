@@ -19,6 +19,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { Link, useParams, useSearchParams, useNavigate } from 'react-router';
+import { toast } from 'sonner';
 import { PatientInfoHeader } from '../../app/components/reports/PatientInfoHeader';
 import { format } from 'date-fns';
 import { QRCodeSVG } from 'qrcode.react';
@@ -34,7 +35,7 @@ import {
   SectionGroupHeader,
   TestSectionBlock,
 } from '../../app/components/ImprovedReportLayout';
-import { useAuthStore, useDoctorStore, useSettingsStore } from '../../stores';
+import { useAuthStore, useDoctorStore, useSettingsStore, useB2BStore } from '../../stores';
 import { useBranchStore } from '../../stores/branchStore';
 import { useReportStore } from '../../stores/reportStore';
 import { useTestStore } from '../../stores/testStore';
@@ -247,9 +248,10 @@ export function ReportPreview() {
   const { testFields, fetchTestFieldsMulti } = useTestStore();
   const { settings, fetchSettings } = useSettingsStore();
   const { doctors, fetchDoctors } = useDoctorStore();
-  const { user } = useAuthStore();
+  const { user, staffList, fetchStaffList } = useAuthStore();
+  const { labs: b2bLabs, fetchLabs: fetchB2BLabs } = useB2BStore();
   const [containerWidth, setContainerWidth] = useState(A4_WIDTH_PX);
-  const backPath = user?.role === 'doctor' ? '/doctor-reports' : '/reports';
+  const backPath = user?.role === 'doctor' ? '/app/doctor-reports' : '/app/reports';
   const backLabel = user?.role === 'doctor' ? 'My Reports' : 'Reports';
 
   const [reportData, setReportData] = useState<ReportData | null>(null);
@@ -271,10 +273,58 @@ export function ReportPreview() {
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const shareAutoOpened = useRef(false);
 
+  const [staffId, setStaffId] = useState("");
+  const [isB2B, setIsB2B] = useState(false);
+  const [b2bLabId, setB2bLabId] = useState("");
+  const [b2bCharge, setB2bCharge] = useState("");
+  const [isUpdatingMetadata, setIsUpdatingMetadata] = useState(false);
+
   const rawReport = useMemo(
     () => (selectedReport?.id === id ? selectedReport : reports.find(r => r.id === id)),
     [selectedReport, reports, id],
   );
+
+  useEffect(() => {
+    if (rawReport) {
+      setStaffId(rawReport.staff_id || "");
+      setIsB2B(!!rawReport.b2b_lab_id);
+      setB2bLabId(rawReport.b2b_lab_id || "");
+      setB2bCharge(rawReport.b2b_charge ? String(rawReport.b2b_charge) : "");
+    }
+  }, [rawReport]);
+
+  const isMetadataDirty = useMemo(() => {
+    if (!rawReport) return false;
+    const currentStaffId = rawReport.staff_id || "";
+    const currentB2bLabId = rawReport.b2b_lab_id || "";
+    const currentB2bCharge = rawReport.b2b_charge ? String(rawReport.b2b_charge) : "";
+    const currentIsB2B = !!rawReport.b2b_lab_id;
+
+    if (staffId !== currentStaffId) return true;
+    if (isB2B !== currentIsB2B) return true;
+    if (isB2B) {
+      if (b2bLabId !== currentB2bLabId) return true;
+      if (b2bCharge !== currentB2bCharge) return true;
+    }
+    return false;
+  }, [rawReport, staffId, isB2B, b2bLabId, b2bCharge]);
+
+  const handleSaveMetadata = async () => {
+    if (!id) return;
+    setIsUpdatingMetadata(true);
+    try {
+      await updateReport(id, {
+        staff_id: staffId || null,
+        b2b_lab_id: isB2B && b2bLabId ? b2bLabId : null,
+        b2b_charge: isB2B && b2bCharge ? parseFloat(b2bCharge) : 0,
+      });
+      toast.success("Sample & B2B settings updated");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to update report settings");
+    } finally {
+      setIsUpdatingMetadata(false);
+    }
+  };
 
   const allSelected = visibleSections.size === sectionOrder.length;
   const toggleSelectAll = useCallback(() => {
@@ -314,8 +364,10 @@ export function ReportPreview() {
     if (id) {
       fetchReportById(id);
       fetchBranches();
+      fetchStaffList();
+      fetchB2BLabs();
     }
-  }, [id, fetchReportById, fetchBranches]);
+  }, [id, fetchReportById, fetchBranches, fetchStaffList, fetchB2BLabs]);
 
   const reportBranchId = rawReport?.branch_id || currentBranchId;
 
@@ -410,10 +462,13 @@ export function ReportPreview() {
 
           filteredParams = filteredParams.map((p: any) => {
             const setting = posMap.get(p.name);
-            if (setting && setting.group !== undefined) {
-              return { ...p, group: setting.group || undefined };
+            const extra: any = {};
+            if (setting) {
+              if (setting.group !== undefined) extra.group = setting.group || undefined;
+              if (setting.fontSize !== undefined) extra.fontSize = setting.fontSize;
+              if (setting.bold !== undefined) extra.bold = setting.bold;
             }
-            return p;
+            return { ...p, ...extra };
           });
 
           filteredParams = filterBlankOptionalParams(filteredParams);
@@ -894,6 +949,10 @@ export function ReportPreview() {
     const marketingItem = page[0]?.type === 'marketing' ? page[0] : null;
     const isMarketingPage = !!marketingItem;
 
+    const testData =
+      typeof rawReport?.test_data === 'string' ? JSON.parse(rawReport.test_data) : rawReport?.test_data;
+    const layoutSnapshots = testData?.layout_snapshots || {};
+
     return (
       <>
         {!isMarketingPage && letterheadActive && settings?.letterhead_url && (
@@ -1075,6 +1134,8 @@ export function ReportPreview() {
                                 indented={!!param.group}
                                 colorTokens={C}
                                 compact={compactAdjustment > 0}
+                                customFontSize={(param as any).fontSize}
+                                customBold={(param as any).bold}
                               />
 
                             </React.Fragment>
@@ -1088,21 +1149,27 @@ export function ReportPreview() {
 
               // Render inline clinical significance box
               if (item.type === 'interpretation') {
+                const snapshot = layoutSnapshots[item.testId];
+                const sigLayout = snapshot?.clinicalSignificanceLayout;
+                const sigFontSize = sigLayout?.fontSize ? `${sigLayout.fontSize}px` : '9.5px';
+                const sigFontWeight = sigLayout?.bold ? '700' : '400';
+                const titleFontWeight = sigLayout?.bold ? '800' : '700';
+
                 return (
                   <div
                     key={`i-${idx}`}
                     style={{
                       marginTop: '8px',
-                      fontSize: '9.5px',
+                      fontSize: sigFontSize,
                       color: '#222',
                       lineHeight: 1.45,
                       textAlign: 'left'
                     }}
                   >
-                    <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                    <div style={{ fontWeight: titleFontWeight, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
                       Clinical Significance
                     </div>
-                    <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                    <p style={{ margin: 0, whiteSpace: 'pre-line', fontWeight: sigFontWeight }}>
                       {item.text}
                     </p>
                   </div>
@@ -1357,21 +1424,23 @@ export function ReportPreview() {
       {/* Main workbench */}
       <div className="report-workbench flex-1 flex gap-3 min-h-0 overflow-hidden mb-1 w-full">
 
-        {/* Left Column: Test Order Management */}
-        <aside className="no-print hidden lg:block w-[308px] shrink-0 h-full overflow-hidden">
-          <OrderManagementPanel
-            sections={sectionOrder.map(id => reportData!.testSections.find(s => s.id === id)).filter(Boolean) as TestSection[]}
-            visibleSections={visibleSections}
-            onToggleVisibility={toggleSectionVisibility}
-            moveUp={moveUp}
-            moveDown={moveDown}
-            resetOrder={resetOrder}
-            setDraggingId={setDraggingId}
-            onDropReorder={onDropReorder}
-            allSelected={allSelected}
-            onToggleSelectAll={toggleSelectAll}
-            selectedCount={visibleSections.size}
-          />
+        {/* Left Column: Test Order Management & Settings */}
+        <aside className="no-print hidden lg:block w-[308px] shrink-0 h-full flex flex-col gap-3 overflow-hidden">
+          <div className="flex-1 min-h-0">
+            <OrderManagementPanel
+              sections={sectionOrder.map(id => reportData!.testSections.find(s => s.id === id)).filter(Boolean) as TestSection[]}
+              visibleSections={visibleSections}
+              onToggleVisibility={toggleSectionVisibility}
+              moveUp={moveUp}
+              moveDown={moveDown}
+              resetOrder={resetOrder}
+              setDraggingId={setDraggingId}
+              onDropReorder={onDropReorder}
+              allSelected={allSelected}
+              onToggleSelectAll={toggleSelectAll}
+              selectedCount={visibleSections.size}
+            />
+          </div>
         </aside>
 
         {/* Center Column: A4 Report Pages Stack (the ONLY scrolling container) */}
@@ -1443,30 +1512,32 @@ export function ReportPreview() {
       {isOrderDrawerOpen && (
         <div className="no-print fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/35" onClick={() => setIsOrderDrawerOpen(false)} />
-          <div className="absolute top-0 right-0 h-full w-[88vw] max-w-[360px] bg-white shadow-2xl border-l border-gray-200 p-3 overflow-y-auto">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold text-gray-800">Arrange Tests</p>
+          <div className="absolute top-0 right-0 h-full w-[88vw] max-w-[360px] bg-white shadow-2xl border-l border-gray-200 p-3 overflow-y-auto flex flex-col gap-4">
+            <div className="flex items-center justify-between mb-1 shrink-0">
+              <p className="text-sm font-semibold text-gray-800">Arrange & Configure Settings</p>
               <button
                 onClick={() => setIsOrderDrawerOpen(false)}
-                className="w-8 h-8 inline-flex items-center justify-center rounded border border-gray-300 text-gray-700"
+                className="w-8 h-8 inline-flex items-center justify-center rounded border border-gray-300 text-gray-700 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <OrderManagementPanel
-              sections={sectionOrder.map(id => reportData.testSections.find(s => s.id === id)).filter(Boolean) as TestSection[]}
-              visibleSections={visibleSections}
-              onToggleVisibility={toggleSectionVisibility}
-              moveUp={moveUp}
-              moveDown={moveDown}
-              resetOrder={resetOrder}
-              setDraggingId={setDraggingId}
-              onDropReorder={onDropReorder}
-              compact
-              allSelected={allSelected}
-              onToggleSelectAll={toggleSelectAll}
-              selectedCount={visibleSections.size}
-            />
+            <div className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1 scrollbar-thin">
+              <OrderManagementPanel
+                sections={sectionOrder.map(id => reportData!.testSections.find(s => s.id === id)).filter(Boolean) as TestSection[]}
+                visibleSections={visibleSections}
+                onToggleVisibility={toggleSectionVisibility}
+                moveUp={moveUp}
+                moveDown={moveDown}
+                resetOrder={resetOrder}
+                setDraggingId={setDraggingId}
+                onDropReorder={onDropReorder}
+                compact
+                allSelected={allSelected}
+                onToggleSelectAll={toggleSelectAll}
+                selectedCount={visibleSections.size}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -1599,6 +1670,7 @@ function OrderManagementPanel({
     </div>
   );
 }
+
 
 // Set up pdf.js worker globally
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(

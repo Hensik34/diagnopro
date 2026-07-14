@@ -84,7 +84,7 @@ export function ReportEntryForm() {
       }
       
       // Navigate back to reports list
-      navigate('/reports');
+      navigate('/app/reports');
     } catch (error) {
       console.error('Failed to save:', error);
     } finally {
@@ -108,7 +108,7 @@ export function ReportEntryForm() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/reports')}
+            onClick={() => navigate('/app/reports')}
             className="p-2 hover:bg-accent rounded"
           >
             <ArrowLeft className="w-4 h-4" />

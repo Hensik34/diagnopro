@@ -174,7 +174,7 @@ export function StaffDashboard() {
             <div className="px-3 py-2.5 border-b border-border flex items-center justify-between">
               <h2 className="text-foreground text-sm font-medium">Your Work Queue</h2>
               <button
-                onClick={() => navigate('/reports')}
+                onClick={() => navigate('/app/reports')}
                 className="text-xs text-primary hover:underline inline-flex items-center gap-1"
               >
                 View All <ArrowRight className="w-3 h-3" />
@@ -207,7 +207,7 @@ export function StaffDashboard() {
                       <tr 
                         key={report.id} 
                         className="hover:bg-accent/30 transition-colors cursor-pointer"
-                        onClick={() => navigate(`/reports/${report.id}/entry`)}
+                        onClick={() => navigate(`/app/reports/${report.id}/entry`)}
                       >
                         <td className="px-3 py-2">
                           <span className="text-xs text-foreground font-medium">

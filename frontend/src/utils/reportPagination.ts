@@ -12,6 +12,8 @@ export type Parameter = {
   fieldType?: string;
   group?: string;
   isMandatory?: boolean;
+  fontSize?: number;
+  bold?: boolean;
 };
 
 export type TestSection = {
@@ -41,12 +43,12 @@ export type PageItem =
   | { type: 'signature' }
   | { type: 'marketing'; pageConfig: any };
 
-/**
- * Splits text by newline first, then calculates wrapping per line for accurate height.
- */
-export function estimateInterpretationHeight(text: string, dense: boolean): number {
+export function estimateInterpretationHeight(text: string, dense: boolean, customFontSize?: number): number {
   const charsPerLine = dense ? 100 : 90;
-  const lineHeight = dense ? 13 : 14;
+  let lineHeight = dense ? 13 : 14;
+  if (customFontSize) {
+    lineHeight = Math.ceil(customFontSize * 1.35);
+  }
   const paragraphs = text.split('\n');
   let lines = 0;
   for (const para of paragraphs) {
@@ -71,7 +73,6 @@ export function estimatePeripheralSmearHeight(text: string, dense: boolean): num
 }
 
 export function estimateSectionHeight(section: TestSection, params: Parameter[], dense: boolean): number {
-  const rowHeight = dense ? 21 : 23;
   const groupHeaderHeight = dense ? 23 : 25;
   const uniqueGroupRows = params.reduce((count, p, idx) => {
     if (!p.group) return count;
@@ -81,7 +82,16 @@ export function estimateSectionHeight(section: TestSection, params: Parameter[],
 
   const heading = 26;       // section title with lines + margin
   const tableHeader = 24;   // header row with border
-  const rows = params.length * rowHeight;
+  
+  let rows = 0;
+  for (const p of params) {
+    let size = dense ? 11.5 : 12;
+    if (p.fontSize) {
+      size = p.fontSize;
+    }
+    rows += dense ? Math.max(21, size + 9) : Math.max(23, size + 11);
+  }
+
   const groups = uniqueGroupRows * groupHeaderHeight;
   const spacing = 10;       // bottom margin
   return heading + tableHeader + rows + groups + spacing;
@@ -188,9 +198,11 @@ export function computeReportPages(options: PaginationOptions): PaginationResult
       totalNeeded += estimateSectionHeight(section, chunk.parameters, isDense);
       const isLastChunk = chunks.filter(c => c.sectionId === chunk.sectionId).pop() === chunk;
       if (isLastChunk && section.testId) {
-        const sig = layoutSnapshots[section.testId]?.clinical_significance;
+        const snapshot = layoutSnapshots[section.testId];
+        const sig = snapshot?.clinical_significance;
         if (sig?.trim()) {
-          totalNeeded += estimateInterpretationHeight(sig.trim(), isDense);
+          const customSigFontSize = snapshot?.clinicalSignificanceLayout?.fontSize;
+          totalNeeded += estimateInterpretationHeight(sig.trim(), isDense, customSigFontSize);
         }
         const matchedTest = testData?.tests?.find((t: any) => (t.id || t.testId) === section.testId);
         const remark = matchedTest?.remarks || matchedTest?.notes || '';
@@ -249,11 +261,13 @@ export function computeReportPages(options: PaginationOptions): PaginationResult
     let sigH = 0;
     const isLastChunk = chunks.filter(c => c.sectionId === chunk.sectionId).pop() === chunk;
     if (isLastChunk && section.testId) {
-      const sig = layoutSnapshots[section.testId]?.clinical_significance;
+      const snapshot = layoutSnapshots[section.testId];
+      const sig = snapshot?.clinical_significance;
       if (sig?.trim()) {
+        const customSigFontSize = snapshot?.clinicalSignificanceLayout?.fontSize;
         sigH = needsCompact
-          ? Math.floor(estimateInterpretationHeight(sig.trim(), isDense) * compactScale)
-          : estimateInterpretationHeight(sig.trim(), isDense);
+          ? Math.floor(estimateInterpretationHeight(sig.trim(), isDense, customSigFontSize) * compactScale)
+          : estimateInterpretationHeight(sig.trim(), isDense, customSigFontSize);
       }
     }
 

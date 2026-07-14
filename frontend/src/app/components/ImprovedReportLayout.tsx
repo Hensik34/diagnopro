@@ -153,6 +153,8 @@ export function InvestigationTableRow({
   indented = false,
   colorTokens,
   compact = false,
+  customFontSize,
+  customBold,
 }: {
   investigation: string;
   result: string;
@@ -165,9 +167,13 @@ export function InvestigationTableRow({
   indented?: boolean;
   colorTokens: Record<string, string>;
   compact?: boolean;
+  customFontSize?: number;
+  customBold?: boolean;
 }) {
-  const fontSize = compact ? `${ReportLayoutConfig.fontSize.value - 0.5}px` : `${ReportLayoutConfig.fontSize.value}px`;
+  const fontSize = customFontSize ? `${customFontSize}px` : (compact ? `${ReportLayoutConfig.fontSize.value - 0.5}px` : `${ReportLayoutConfig.fontSize.value}px`);
   const vPad = compact ? '1px' : '0.5px';
+  const fontWeight = customBold !== undefined ? (customBold ? 700 : 400) : (isAbnormal ? 700 : 400);
+  const resultFontWeight = customBold !== undefined ? (customBold ? 800 : 400) : (isAbnormal ? 800 : 400);
 
   return (
     <tr>
@@ -177,7 +183,7 @@ export function InvestigationTableRow({
           paddingBottom: vPad,
           paddingLeft: indented ? '14px' : '0',
           paddingRight: '6px',
-          fontWeight: isAbnormal ? 700 : 400,
+          fontWeight,
           color: isAbnormal ? statusColor : '#222',
           fontSize,
           textAlign: 'left',
@@ -199,7 +205,7 @@ export function InvestigationTableRow({
           paddingLeft: 0,
           paddingRight: 0,
           textAlign: 'left',
-          fontWeight: isAbnormal ? 800 : 400,
+          fontWeight: resultFontWeight,
           color: isAbnormal ? statusColor : '#222',
           fontSize,
           fontVariantNumeric: 'tabular-nums',
@@ -226,7 +232,7 @@ export function InvestigationTableRow({
           paddingRight: 0,
           textAlign: 'left',
           color: '#555',
-          fontWeight: 400,
+          fontWeight: customBold !== undefined ? (customBold ? 700 : 400) : 400,
           fontSize,
           whiteSpace: 'normal',
           wordBreak: 'break-word',
@@ -242,7 +248,7 @@ export function InvestigationTableRow({
           paddingRight: 0,
           textAlign: 'left',
           color: '#555',
-          fontWeight: 400,
+          fontWeight: customBold !== undefined ? (customBold ? 700 : 400) : 400,
           fontSize,
           whiteSpace: 'normal',
           wordBreak: 'break-word',

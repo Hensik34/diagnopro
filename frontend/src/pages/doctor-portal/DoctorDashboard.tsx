@@ -277,7 +277,7 @@ export function DoctorDashboard() {
         <div className="px-3 py-2.5 border-b border-border flex items-center justify-between">
           <h2 className="text-foreground text-sm font-medium">Recent Referrals</h2>
           <button
-            onClick={() => navigate('/doctor-reports')}
+            onClick={() => navigate('/app/doctor-reports')}
             className="text-xs text-primary hover:underline inline-flex items-center gap-1"
           >
             View All <ArrowRight className="w-3 h-3" />
@@ -325,7 +325,7 @@ export function DoctorDashboard() {
                     </td>
                     <td className="px-3 py-2 text-center">
                       <button
-                        onClick={() => navigate(`/reports/preview/${report.id}`)}
+                        onClick={() => navigate(`/app/reports/preview/${report.id}`)}
                         className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-foreground"
                         title="View Report"
                       >

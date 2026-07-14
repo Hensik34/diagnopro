@@ -1,11 +1,18 @@
-import React from 'react';
-import { createBrowserRouter, Navigate } from 'react-router';
+import React, { useEffect } from 'react';
+import { createBrowserRouter, Navigate, useLocation } from 'react-router';
 import { useAuthStore } from '../stores';
 import { PERMISSIONS } from '../utils/permissions';
 // Layout
 import { Root } from '../pages/layout';
 // Auth
 import { Login, Register, ForgotPassword, VerifyPasscode } from '../pages/auth';
+// Marketing Pages
+import MarketingHome from '../pages/marketing/Home';
+import MarketingFeatures from '../pages/marketing/Features';
+import MarketingPricing from '../pages/marketing/Pricing';
+import MarketingAbout from '../pages/marketing/About';
+import MarketingContact from '../pages/marketing/Contact';
+import MarketingLogin from '../pages/marketing/Login';
 // Dashboard
 import { Dashboard, Analytics, DashboardDayDetail } from '../pages/dashboard';
 // Reports
@@ -94,15 +101,20 @@ function doctorOnly(Component: any) {
 }
 
 /**
- * Guard for guest-only pages (Login, Register, ForgotPassword).
- * Redirects logged-in users to the dashboard.
+ * Guard for guest-only pages (Login, Register, ForgotPassword, Marketing).
+ * Redirects logged-in users to the app dashboard.
  */
 function guestOnly(Component: any) {
   const GuestComponent = (props: any): React.ReactElement | null => {
     const { isAuthenticated } = useAuthStore();
+    const { pathname } = useLocation();
+
+    useEffect(() => {
+      window.scrollTo(0, 0);
+    }, [pathname]);
 
     if (isAuthenticated) {
-      return React.createElement(Navigate, { to: '/', replace: true });
+      return React.createElement(Navigate, { to: '/app', replace: true });
     }
 
     return React.createElement(Component, props);
@@ -114,11 +126,33 @@ function guestOnly(Component: any) {
 
 
 export const router = createBrowserRouter([
-  // Public/Guest-only routes
+  // Marketing Pages (Guest Only)
+  {
+    path: '/',
+    Component: guestOnly(MarketingHome),
+  },
+  {
+    path: '/features',
+    Component: guestOnly(MarketingFeatures),
+  },
+  {
+    path: '/pricing',
+    Component: guestOnly(MarketingPricing),
+  },
+  {
+    path: '/about',
+    Component: guestOnly(MarketingAbout),
+  },
+  {
+    path: '/contact',
+    Component: guestOnly(MarketingContact),
+  },
   {
     path: '/login',
-    Component: guestOnly(Login),
+    Component: guestOnly(MarketingLogin),
   },
+
+  // Auth pages (other guest only)
   {
     path: '/verify-passcode',
     Component: guestOnly(VerifyPasscode),
@@ -143,9 +177,9 @@ export const router = createBrowserRouter([
     path: '/public/report/:id/download',
     Component: PublicReportDownload,
   },
-  // Protected routes
+  // Protected routes (mapped under /app)
   {
-    path: '/',
+    path: '/app',
     Component: Root,
     children: [
       { index: true, Component: Dashboard },

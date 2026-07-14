@@ -336,6 +336,16 @@ export function PublicReportDownload() {
             return posA - posB;
           });
 
+          filteredParams = filteredParams.map((p: any) => {
+            const setting = posMap.get(p.name);
+            const extra: any = {};
+            if (setting) {
+              if (setting.fontSize !== undefined) extra.fontSize = setting.fontSize;
+              if (setting.bold !== undefined) extra.bold = setting.bold;
+            }
+            return { ...p, ...extra };
+          });
+
           filteredParams = filterBlankParams(filteredParams);
 
           const extracted = extractPeripheralSmear(filteredParams);
@@ -693,6 +703,8 @@ export function PublicReportDownload() {
           {reportPages.map((page, pageIndex) => {
             const marketingItem = page[0]?.type === 'marketing' ? page[0] : null;
             const isMarketingPage = !!marketingItem;
+            const testData = typeof report.test_data === 'string' ? JSON.parse(report.test_data) : report.test_data;
+            const layoutSnapshots = testData?.layout_snapshots || {};
             return (
               <div
                 key={pageIndex}
@@ -876,6 +888,8 @@ export function PublicReportDownload() {
                                       indented={!!param.group}
                                       colorTokens={C}
                                       compact={compactAdjustment > 0}
+                                      customFontSize={(param as any).fontSize}
+                                      customBold={(param as any).bold}
                                     />
                                   </React.Fragment>
                                 );
@@ -888,21 +902,27 @@ export function PublicReportDownload() {
 
                     // Render inline clinical significance box
                     if (item.type === 'interpretation') {
+                      const snapshot = layoutSnapshots[item.testId];
+                      const sigLayout = snapshot?.clinicalSignificanceLayout;
+                      const sigFontSize = sigLayout?.fontSize ? `${sigLayout.fontSize}px` : '9.5px';
+                      const sigFontWeight = sigLayout?.bold ? '700' : '400';
+                      const titleFontWeight = sigLayout?.bold ? '800' : '700';
+
                       return (
                         <div
                           key={`i-${idx}`}
                           style={{
                             marginTop: '8px',
-                            fontSize: '9.5px',
+                            fontSize: sigFontSize,
                             color: '#222',
                             lineHeight: 1.45,
                             textAlign: 'left'
                           }}
                         >
-                          <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                          <div style={{ fontWeight: titleFontWeight, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
                             Clinical Significance
                           </div>
-                          <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                          <p style={{ margin: 0, whiteSpace: 'pre-line', fontWeight: sigFontWeight }}>
                             {item.text}
                           </p>
                         </div>

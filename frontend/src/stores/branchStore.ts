@@ -216,7 +216,7 @@ export const useBranchStore = create<BranchState>((set, get) => ({
     localStorage.setItem(BRANCH_STORAGE_KEY, branchId);
 
     // 4. Navigate to dashboard
-    navigate('/');
+    navigate('/app');
 
     // 5. Hide overlay after a brief delay so Dashboard can re-mount with new data
     setTimeout(() => {

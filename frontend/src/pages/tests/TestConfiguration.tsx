@@ -471,7 +471,7 @@ export function TestConfiguration() {
       // Sync the test store list
       await fetchTests(currentBranchId || undefined);
       toast.success("Test configuration saved successfully");
-      navigate('/tests');
+      navigate('/app/tests');
     } catch (err: any) {
       console.error('Save test configuration failed:', err);
       toast.error(err.message || "Failed to save test configuration");
@@ -488,7 +488,7 @@ export function TestConfiguration() {
         await resetTestToDefault(testId);
         await fetchTests(currentBranchId || undefined);
         toast.success("Test override reset to default");
-        navigate('/tests');
+        navigate('/app/tests');
       } catch (err: any) {
         console.error('Reset failed:', err);
         toast.error(err.message || "Failed to reset test to default");
@@ -532,7 +532,7 @@ export function TestConfiguration() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-border">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/tests')}
+            onClick={() => navigate('/app/tests')}
             className="p-2 hover:bg-secondary rounded-lg text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             title="Go Back"
           >
@@ -569,7 +569,7 @@ export function TestConfiguration() {
 
           <button
             type="button"
-            onClick={() => navigate('/tests')}
+            onClick={() => navigate('/app/tests')}
             className="h-9 px-4 bg-secondary border border-border rounded-md text-xs font-semibold hover:bg-accent transition-colors cursor-pointer"
           >
             Cancel

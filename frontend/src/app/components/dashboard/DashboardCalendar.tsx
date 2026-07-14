@@ -76,7 +76,7 @@ export function DashboardCalendar({ reports, selectedMonth, onMonthChange }: Das
 
   const handleDayClick = (date: Date) => {
     const key = format(date, 'yyyy-MM-dd');
-    navigate(`/dashboard/${key}`);
+    navigate(`/app/dashboard/${key}`);
   };
 
   const prevMonth = () => onMonthChange(subMonths(selectedMonth, 1));

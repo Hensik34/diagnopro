@@ -6,10 +6,16 @@ export interface ParameterSetting {
   position: number;
   visible: boolean;
   group?: string;
+  fontSize?: number;
+  bold?: boolean;
 }
 
 export interface LayoutConfig {
   parameterSettings: ParameterSetting[];
+  clinicalSignificanceLayout?: {
+    fontSize?: number;
+    bold?: boolean;
+  };
   version?: number;
 }
 

@@ -231,7 +231,7 @@ export function Patients() {
                           <Edit className="w-3.5 h-3.5" />
                         </button>
                         <button 
-                          onClick={() => navigate('/reports/new', { state: { patient } })}
+                          onClick={() => navigate('/app/reports/new', { state: { patient } })}
                           className="w-6 h-6 flex items-center justify-center rounded cursor-pointer hover:bg-accent transition-colors"
                           title="Create Report"
                           style={{ color: 'var(--success)' }}

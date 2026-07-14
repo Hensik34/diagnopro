@@ -28,6 +28,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { useDoctorStore, useReportStore, usePatientStore, useTestStore, useBranchStore } from "../../stores";
 import { useAuthStore } from "../../stores/authStore";
+import { useB2BStore } from "../../stores/b2bStore";
 import { reportApi } from "../../api/reports";
 import { priceListApi, pricingEngineApi } from "../../api/priceLists";
 import { useBillingStore } from "../../stores/billingStore";
@@ -355,6 +356,7 @@ export function ReportEntry() {
   const { fetchPatientById, updatePatient } = usePatientStore();
   const { currentBranchId, fetchBranches } = useBranchStore();
   const { can, user, staffList, fetchStaffList } = useAuthStore();
+  const { labs: b2bLabs, fetchLabs: fetchB2BLabs } = useB2BStore();
   const { tests, testFields, fetchTests, fetchTestFields, fetchTestFieldsMulti } = useTestStore();
   const canAutoApprove = can('report:approve');
   const {
@@ -379,11 +381,12 @@ export function ReportEntry() {
 
   useEffect(() => {
     fetchStaffList();
-  }, [fetchStaffList]);
+    fetchB2BLabs();
+  }, [fetchStaffList, fetchB2BLabs]);
 
   useEffect(() => {
     if (rawReportId === 'undefined' || rawReportId === 'null') {
-      navigate('/reports', { replace: true });
+      navigate('/app/reports', { replace: true });
     }
   }, [rawReportId, navigate]);
 
@@ -552,6 +555,9 @@ export function ReportEntry() {
   const [patient, setPatient] = useState<Patient | null>(initialData?.patient || null);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
+  const [isB2B, setIsB2B] = useState<boolean>(false);
+  const [selectedB2BLabId, setSelectedB2BLabId] = useState<string>("");
+  const [b2bCharge, setB2bCharge] = useState<string>("");
 
   // Previous values state for inline comparison
   const [previousValues, setPreviousValues] = useState<Record<string, { value: number | string; date: string }>>({});
@@ -994,6 +1000,9 @@ export function ReportEntry() {
         selectedReport.staff_id ||
           ((user?.role === 'staff' || user?.role === 'lab_technician') ? user.id : '')
       );
+      setIsB2B(!!selectedReport.b2b_lab_id);
+      setSelectedB2BLabId(selectedReport.b2b_lab_id || "");
+      setB2bCharge(selectedReport.b2b_charge ? String(selectedReport.b2b_charge) : "");
 
       // Set doctor selection (only if not loaded yet or if we have new async doctor details)
       const hasLoadedBefore = loadedDoctorReportIdRef.current === selectedReport.id;
@@ -2220,6 +2229,8 @@ export function ReportEntry() {
       base_amount: baseAmount,
       final_amount: reportAmount,
       pricing_items: selectedReport?.pricing_snapshot || [],
+      b2b_lab_id: isB2B && selectedB2BLabId ? selectedB2BLabId : null,
+      b2b_charge: isB2B && b2bCharge ? parseFloat(b2bCharge) : 0,
     });
 
     if (!result) {
@@ -2254,6 +2265,8 @@ export function ReportEntry() {
           staff_id: selectedStaffId || null,
           referring_doctor_name: !selectedDoctor && referringDoctorName ? referringDoctorName : null,
           is_self_report: !selectedDoctor && !referringDoctorName,
+          b2b_lab_id: isB2B && selectedB2BLabId ? selectedB2BLabId : null,
+          b2b_charge: isB2B && b2bCharge ? parseFloat(b2bCharge) : 0,
         });
 
         if (!result) {
@@ -2355,7 +2368,7 @@ export function ReportEntry() {
         setReportStatus(newStatus);
         setIsEditable(false);
         toast.success(canAutoApprove ? "Report approved successfully!" : "Report submitted for review successfully!");
-        navigate('/reports');
+        navigate('/app/reports');
       } else {
         toast.error(reportError || "Failed to submit report for review.");
       }
@@ -2443,7 +2456,7 @@ export function ReportEntry() {
         if (isEditable) {
           handleSaveDraft();
         } else {
-          navigate('/reports');
+          navigate('/app/reports');
         }
       }
     };
@@ -2562,7 +2575,7 @@ export function ReportEntry() {
       },
     };
 
-    navigate(`/reports/preview/${reportId || patient.id}`, {
+    navigate(`/app/reports/preview/${reportId || patient.id}`, {
       state: { reportData }
     });
   };
@@ -2663,7 +2676,7 @@ export function ReportEntry() {
         referringDoctorName={referringDoctorName}
         formattedCollectionDate={formattedCollectionDate}
         isEditable={isEditable}
-        onBack={() => navigate('/reports')}
+        onBack={() => navigate('/app/reports')}
         onEditPatient={() => setShowEditPatientModal(true)}
         onAddTest={() => setShowAddTestModal(true)}
         onOpenHistory={handleOpenHistory}
@@ -3587,7 +3600,7 @@ export function ReportEntry() {
                   </div>
 
                   {/* Doctor selection block */}
-                  <div className="relative" ref={doctorSearchRef}>
+                  <div className="relative mt-4" ref={doctorSearchRef}>
                     <label className="block text-xs font-semibold text-muted-foreground mb-1">Referring Doctor</label>
                     <div className="relative w-full">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -3668,6 +3681,74 @@ export function ReportEntry() {
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  {/* B2B Partner Lab Settings */}
+                  <div className="border-t border-border pt-4 mt-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-xs font-semibold text-muted-foreground block">B2B Partner Lab</label>
+                        <span className="text-[10px] text-muted-foreground">Assign to B2B lab for this report</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsB2B(!isB2B);
+                          if (!isB2B) {
+                            // If switching on, try to select first active lab if none selected
+                            const activeLabs = b2bLabs.filter(l => l.status === 'active');
+                            if (activeLabs.length > 0 && !selectedB2BLabId) {
+                              setSelectedB2BLabId(activeLabs[0].id);
+                            }
+                          } else {
+                            setSelectedB2BLabId("");
+                            setB2bCharge("");
+                          }
+                        }}
+                        className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer flex-shrink-0 ${
+                          isB2B ? "bg-primary" : "bg-slate-200 dark:bg-slate-800"
+                        }`}
+                      >
+                        <div
+                          className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${
+                            isB2B ? "translate-x-4" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {isB2B && (
+                      <div className="space-y-3 pt-1">
+                        <div>
+                          <label className="block text-xs font-semibold text-muted-foreground mb-1">Select B2B Lab</label>
+                          <select
+                            value={selectedB2BLabId}
+                            onChange={(e) => setSelectedB2BLabId(e.target.value)}
+                            className="w-full h-9 px-3 border border-border rounded-lg bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                          >
+                            <option value="">Select B2B lab</option>
+                            {b2bLabs
+                              .filter((l) => l.status === "active")
+                              .map((lab) => (
+                                <option key={lab.id} value={lab.id}>
+                                  {lab.lab_name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-muted-foreground mb-1">B2B Charge (₹)</label>
+                          <input
+                            type="number"
+                            value={b2bCharge}
+                            onChange={(e) => setB2bCharge(e.target.value)}
+                            placeholder="0.00"
+                            className="w-full h-9 px-3 border border-border rounded-lg bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

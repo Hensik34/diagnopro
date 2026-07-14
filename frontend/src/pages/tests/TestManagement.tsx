@@ -297,7 +297,7 @@ export function TestManagement() {
   useEffect(() => {
     return () => {
       const currentPath = window.location.pathname;
-      if (!currentPath.startsWith('/tests')) {
+      if (!currentPath.startsWith('/app/tests')) {
         sessionStorage.removeItem('test_mgmt_search');
         sessionStorage.removeItem('test_mgmt_category');
         sessionStorage.removeItem('test_mgmt_sort');
@@ -489,11 +489,11 @@ export function TestManagement() {
   // Calculate stats
 
   const handleEdit = (test: Test) => {
-    navigate(`/tests/configure/${test.id}`);
+    navigate(`/app/tests/configure/${test.id}`);
   };
 
   const handleAdd = () => {
-    navigate('/tests/configure/new');
+    navigate('/app/tests/configure/new');
   };
 
   const handleDelete = async (testId: string) => {
@@ -773,7 +773,7 @@ export function TestManagement() {
                               <Edit className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              onClick={() => navigate(`/tests/templates/${test.id}`)}
+                              onClick={() => navigate(`/app/tests/templates/${test.id}`)}
                               className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent transition-colors text-cyan-600"
                               title="Configure Layout"
                             >

@@ -66,7 +66,7 @@ export function DoctorManagement() {
   };
 
   const handleView = (doctorId: string) => {
-    navigate(`/doctors/${doctorId}`);
+    navigate(`/app/doctors/${doctorId}`);
   };
 
   const handleDelete = async (doctorId: string) => {

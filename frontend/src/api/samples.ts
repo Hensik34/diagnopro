@@ -27,8 +27,8 @@ export const sampleApi = {
   /**
    * Get next auto-generated sample ID
    */
-  getNextId: async (branchId?: string): Promise<{ message: string; data: { sample_id_code: string } }> => {
-    const response = await api.get<{ message: string; data: { sample_id_code: string } }>('/samples/next-id', {
+  getNextId: async (branchId?: string): Promise<{ message: string; data: { sample_id: string } }> => {
+    const response = await api.get<{ message: string; data: { sample_id: string } }>('/samples/next-id', {
       params: { branch_id: branchId },
     });
     return response.data;
