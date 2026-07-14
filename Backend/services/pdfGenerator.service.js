@@ -17,20 +17,22 @@ function logPdfDebug(message, data = null) {
 
 /**
  * Generates a PDF buffer for a report by rendering the public report download
- * page in headless Chrome. Uses the LOCAL frontend dev server for rendering so
- * reports created in the local database are always available.
+ * page in headless Chrome using CLIENT_URL from environment.
  *
  * @param {string} reportId The UUID of the report
  * @param {string} downloadToken The JWT token authorizing public view of the report
  * @returns {Promise<Buffer>} The PDF file buffer
  */
 async function generateReportPdf(reportId, downloadToken) {
-  // Always render from the local frontend so the report data is fetched from
-  // the same database this backend is connected to. CLIENT_URL may point to
-  // production (used for shareable links) but Puppeteer must hit the local
-  // frontend to render the current report correctly.
-  const localFrontendUrl = process.env.PDF_RENDER_URL || "http://localhost:5173";
-  const url = `${localFrontendUrl}/public/report/${reportId}/download?token=${downloadToken}&print=true`;
+  const clientUrl = (process.env.CLIENT_URL || "").trim();
+  if (!clientUrl) {
+    const configError = "Missing CLIENT_URL in environment for PDF generation.";
+    logPdfDebug(configError);
+    throw new Error(configError);
+  }
+
+  const baseUrl = clientUrl.replace(/\/+$/, "");
+  const url = `${baseUrl}/public/report/${reportId}/download?token=${downloadToken}&print=true`;
 
   logPdfDebug("generateReportPdf started", { reportId, url });
 
@@ -57,7 +59,7 @@ async function generateReportPdf(reportId, downloadToken) {
       deviceScaleFactor: 2
     });
 
-    // Navigate to local frontend public report print page,
+    // Navigate to CLIENT_URL-based public report print page,
     // waiting for network idle to ensure image/barcode loading
     logPdfDebug(`Navigating to URL: ${url}`);
     await page.goto(url, {
