@@ -199,7 +199,7 @@ export function B2BLabManagement() {
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
-                          onClick={() => navigate(`/b2b/${lab.id}`)}
+                          onClick={() => navigate(`/app/b2b/${lab.id}`)}
                           className="w-7 h-7 flex items-center justify-center rounded hover:bg-primary/10 transition-colors text-muted-foreground hover:text-primary"
                           title="View Details"
                         >

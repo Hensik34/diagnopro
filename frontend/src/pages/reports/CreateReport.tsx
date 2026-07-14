@@ -188,12 +188,11 @@ export function CreateReport() {
     fetchDoctors();
     fetchStaffList();
     fetchB2BLabs();
-    // Peek at next sample ID (does NOT increment counter)
     sampleApi.getNextId(currentBranchId || undefined).then((res) => {
-      setSampleIdCode(res.data.sample_id_code);
+       setSampleIdCode(res.data.sample_id);
     }).catch(() => {
-      // Show format preview if peek fails
-      setSampleIdCode('1001');
+       // Show format preview if peek fails
+       setSampleIdCode('1001');
     });
   }, [fetchPatients, fetchTests, fetchDoctors, fetchStaffList, fetchB2BLabs, currentBranchId]);
 
@@ -329,7 +328,7 @@ export function CreateReport() {
       setPriceListId(defaultList ? defaultList.id : null);
       return;
     }
-    
+
     (async () => {
       try {
         const prRes = await doctorApi.getPricing(selectedDoctor.id, currentBranchId);
@@ -381,12 +380,12 @@ export function CreateReport() {
       doctorId: selectedDoctor?.id || null,
       reportPriceListId: priceListId || null,
     })
-    .then(res => {
-      setResolvedPricesFromEngine(res);
-    })
-    .catch(err => {
-      console.error("Failed to resolve prices:", err);
-    });
+      .then(res => {
+        setResolvedPricesFromEngine(res);
+      })
+      .catch(err => {
+        console.error("Failed to resolve prices:", err);
+      });
   }, [selectedTests, selectedPackages, selectedDoctor?.id, priceListId, currentBranchId]);
 
   // Map final pricing snapshot items for the report payload and UI display
@@ -395,7 +394,7 @@ export function CreateReport() {
 
     // Process individual tests
     selectedTests.forEach(test => {
-      const isPartOfePackage = selectedPackages.some(pkg => 
+      const isPartOfePackage = selectedPackages.some(pkg =>
         pkg.test_ids && Array.isArray(pkg.test_ids) && pkg.test_ids.includes(test.id)
       );
       if (isPartOfePackage) return; // Handled by package price
@@ -790,11 +789,11 @@ export function CreateReport() {
   // Handle package selection
   const handleSelectPackage = (pkg: any) => {
     setSelectedPackages([...selectedPackages, pkg]);
-    
+
     // Add all tests in the package's test_ids array to selectedTests (avoiding duplicates)
     const newTests = [...selectedTests];
     const updatedIndividual = new Set(individuallySelectedTestIds);
-    
+
     if (pkg.test_ids && Array.isArray(pkg.test_ids)) {
       pkg.test_ids.forEach((testId: string) => {
         const testObj = tests.find(t => t.id === testId);
@@ -816,7 +815,7 @@ export function CreateReport() {
     }
     setSelectedTests(newTests);
     setIndividuallySelectedTestIds(updatedIndividual);
-    
+
     setTestSearch("");
     setShowTestDropdown(false);
     setActiveTestIndex(0);
@@ -841,7 +840,7 @@ export function CreateReport() {
       // Keep if individually selected
       if (individuallySelectedTestIds.has(test.id)) return true;
       // Keep if belongs to any of the remaining selected packages
-      const belongsToOtherPackage = updatedPackages.some(p => 
+      const belongsToOtherPackage = updatedPackages.some(p =>
         p.test_ids && Array.isArray(p.test_ids) && p.test_ids.includes(test.id)
       );
       return belongsToOtherPackage;
@@ -852,7 +851,7 @@ export function CreateReport() {
   // Handle test selection
   const handleSelectTest = (test: Test) => {
     // Check if test is already inside any selected package
-    const containingPackage = selectedPackages.find(pkg => 
+    const containingPackage = selectedPackages.find(pkg =>
       pkg.test_ids && Array.isArray(pkg.test_ids) && pkg.test_ids.includes(test.id)
     );
     if (containingPackage) {
@@ -1038,10 +1037,10 @@ export function CreateReport() {
 
       // Navigate to report entry page
       if (report.id) {
-        navigate(`/reports/${report.id}/entry`);
+        navigate(`/app/reports/${report.id}/entry`);
       } else {
         // Defensive fallback if API response is malformed
-        navigate('/reports/entry', {
+        navigate('/app/reports/entry', {
           state: {
             patient: selectedPatient || undefined,
             testName: reportTypeString || selectedTests.map(t => t.test_name).join(', '),
@@ -1145,7 +1144,7 @@ export function CreateReport() {
       {/* Page Header */}
       <div className="flex items-center gap-3">
         <button
-          onClick={() => navigate("/reports")}
+          onClick={() => navigate("/app/reports")}
           className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
           title="Back to Reports"
         >
@@ -1455,9 +1454,8 @@ export function CreateReport() {
                                 type="button"
                                 onClick={handleSelectSelf}
                                 onMouseEnter={() => setActiveDoctorIndex(index)}
-                                className={`w-full px-3 py-2 text-left transition-colors border-b border-border text-[11px] ${
-                                  isActive ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-accent text-muted-foreground'
-                                }`}
+                                className={`w-full px-3 py-2 text-left transition-colors border-b border-border text-[11px] ${isActive ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-accent text-muted-foreground'
+                                  }`}
                               >
                                 Self (No Doctor)
                               </button>
@@ -1470,9 +1468,8 @@ export function CreateReport() {
                                 type="button"
                                 onClick={() => handleSelectDoctor(doc)}
                                 onMouseEnter={() => setActiveDoctorIndex(index)}
-                                className={`w-full px-3 py-2 text-left transition-colors border-b border-border last:border-0 text-[11px] ${
-                                  isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
-                                }`}
+                                className={`w-full px-3 py-2 text-left transition-colors border-b border-border last:border-0 text-[11px] ${isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
+                                  }`}
                               >
                                 <div className="font-medium text-foreground">
                                   {doc.title || 'Dr'}. {doc.name}
@@ -1564,7 +1561,7 @@ export function CreateReport() {
                   <MessageSquare className="w-3.5 h-3.5 text-primary" />
                   <span>WhatsApp Delivery Preferences</span>
                 </div>
-                
+
                 <div className="space-y-2">
                   <label className={`flex items-start gap-2.5 text-xs ${!patientPhone ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                     <input
@@ -1651,7 +1648,7 @@ export function CreateReport() {
                       setActiveTestIndex(0);
                     }}
                     onFocus={() => setShowTestDropdown(true)}
-                      onKeyDown={handleTestSearchKeyDown}
+                    onKeyDown={handleTestSearchKeyDown}
                   />
                   {testsLoading && (
                     <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
@@ -1680,9 +1677,8 @@ export function CreateReport() {
                             <button
                               onClick={() => item.type === 'package' ? handleSelectPackage(item.data) : handleSelectTest(item.data)}
                               onMouseEnter={() => setActiveTestIndex(index)}
-                              className={`w-full px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 ${
-                                index === activeTestIndex ? 'bg-accent font-medium' : 'hover:bg-accent'
-                              }`}
+                              className={`w-full px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 ${index === activeTestIndex ? 'bg-accent font-medium' : 'hover:bg-accent'
+                                }`}
                             >
                               {item.type === 'package' ? (
                                 <div className="flex items-start justify-between">
@@ -1754,7 +1750,7 @@ export function CreateReport() {
                               {pkg.package_code} • {pkg.test_ids?.length || 0} tests included
                             </div>
                           </div>
-                          
+
                           {/* Pricing Details */}
                           <div className="flex items-center gap-2">
                             {/* Source Badge with trace tooltip */}
@@ -1763,7 +1759,7 @@ export function CreateReport() {
                                 {badgeInfo.label}
                                 <Info className="w-3 h-3" />
                               </span>
-                              
+
                               {/* Hover Tooltip */}
                               {trace.length > 0 && (
                                 <div className="absolute right-0 bottom-full mb-1.5 hidden group-hover:block z-50 bg-popover text-popover-foreground text-[10px] p-2 rounded shadow-md border border-border min-w-[200px] pointer-events-none">
@@ -1819,12 +1815,12 @@ export function CreateReport() {
                   <div className={shouldScrollSelectedTests ? "space-y-1 max-h-56 overflow-y-auto pr-1" : "space-y-1"}>
                     {selectedTests.map((test) => {
                       const isTestInPackage = (testId: string) => {
-                        return selectedPackages.some(pkg => 
+                        return selectedPackages.some(pkg =>
                           pkg.test_ids && Array.isArray(pkg.test_ids) && pkg.test_ids.includes(testId)
                         );
                       };
                       const inPackage = isTestInPackage(test.id);
-                      
+
                       const itemSnapshot = resolvedPricingItems[test.id];
                       const resolvedPriceVal = itemSnapshot ? itemSnapshot.applied_price : (test.price || 0);
                       const isOverridden = manualOverrides[test.id] !== undefined;
@@ -1844,7 +1840,7 @@ export function CreateReport() {
                               {test.category || 'General'}
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center gap-2">
                             {inPackage ? (
                               <>
@@ -1863,7 +1859,7 @@ export function CreateReport() {
                                     {badgeInfo.label}
                                     <Info className="w-3 h-3" />
                                   </span>
-                                  
+
                                   {/* Hover Tooltip */}
                                   {trace.length > 0 && (
                                     <div className="absolute right-0 bottom-full mb-1.5 hidden group-hover:block z-50 bg-popover text-popover-foreground text-[10px] p-2 rounded shadow-md border border-border min-w-[200px] pointer-events-none">
@@ -2030,7 +2026,7 @@ export function CreateReport() {
         {/* Action Buttons */}
         <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
           <button
-            onClick={() => navigate("/reports")}
+            onClick={() => navigate("/app/reports")}
             className="h-9 px-4 flex items-center justify-center gap-2 bg-secondary border border-border rounded hover:bg-accent transition-colors text-sm w-full sm:w-auto"
             disabled={isSubmitting}
           >

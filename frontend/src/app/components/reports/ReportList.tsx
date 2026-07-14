@@ -75,7 +75,7 @@ export function ReportList() {
           </p>
         </div>
         <button 
-          onClick={() => navigate('/reports/new')}
+          onClick={() => navigate('/app/reports/new')}
           className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs"
         >
           <Plus className="w-3.5 h-3.5" />

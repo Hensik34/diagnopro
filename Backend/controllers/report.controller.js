@@ -245,15 +245,25 @@ exports.createReport = async (req, res) => {
 
     // Attempt to link a sample if sample_id is provided
     let linkedSampleId = sample_id || null;
+    let sampleIdCode = null;
     if (!linkedSampleId) {
-      // Find a pending/collected sample for this patient
-      const latestSample = await Sample.findOne({
-        where: { patient_id },
-        order: [["created_at", "DESC"]],
-        raw: true,
+      const generatedSampleIdCode =
+        await sampleService.generateSampleId(resolvedBranchId);
+      const sample = await Sample.createSample({
+        patient_id,
+        sample_type: "blood",
+        sample_id_code: generatedSampleIdCode,
+        collection_date: new Date(),
+        collected_by: req.user.id,
+        branch_id: resolvedBranchId,
+        notes: "",
       });
-      if (latestSample) {
-        linkedSampleId = latestSample.id;
+      linkedSampleId = sample.id;
+      sampleIdCode = generatedSampleIdCode;
+    } else {
+      const sampleObj = await Sample.getSampleById(linkedSampleId);
+      if (sampleObj) {
+        sampleIdCode = sampleObj.sample_id_code;
       }
     }
 

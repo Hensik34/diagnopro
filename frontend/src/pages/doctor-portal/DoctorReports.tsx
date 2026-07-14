@@ -142,7 +142,7 @@ export function DoctorReports() {
                     </td>
                     <td className="px-3 py-2.5 text-center">
                       <button
-                        onClick={() => navigate(`/reports/preview/${report.id}`)}
+                        onClick={() => navigate(`/app/reports/preview/${report.id}`)}
                         className="p-1.5 hover:bg-secondary rounded text-muted-foreground hover:text-primary transition-colors"
                         title="View Report"
                       >

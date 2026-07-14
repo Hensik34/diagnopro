@@ -51,7 +51,7 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle, sidebarHidden }: Top
 
   return (
     <header
-      className={`fixed top-0 right-0 h-12 bg-card border-b border-border z-30 transition-all duration-200 print:hidden ${
+      className={`fixed top-0 right-0 h-13 bg-card border-b border-border z-30 transition-all duration-200 print:hidden ${
         sidebarHidden ? 'left-0' : (sidebarCollapsed ? 'left-0 md:left-14' : 'left-0 md:left-56')
       }`}
     >
@@ -79,7 +79,7 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle, sidebarHidden }: Top
           )}
 
           {/* Current Time - Hidden on mobile */}
-          <div className="hidden lg:flex items-center text-xs text-muted-foreground border-l border-border pl-3">
+          <div className="hidden lg:flex items-center text-xs text-blue-500 font-semibold text-muted-foreground border-l border-border pl-3">
             <span>{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
             <span className="mx-1.5">•</span>
             <span>{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
@@ -103,7 +103,7 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle, sidebarHidden }: Top
           {/* Theme toggle */}
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="w-8 h-8 flex items-center justify-center rounded hover:bg-accent transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded hover:bg-accent transition-colors cursor-pointer"
             aria-label="Toggle theme"
           >
             {theme === 'dark' ? (
@@ -118,7 +118,7 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle, sidebarHidden }: Top
             <div className="relative" ref={notificationsRef}>
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
-                className="hidden sm:flex w-8 h-8 items-center justify-center rounded hover:bg-accent transition-colors relative group"
+                className="hidden sm:flex w-8 h-8 items-center justify-center rounded hover:bg-accent transition-colors relative group cursor-pointer"
                 aria-label="Notifications"
                 title="Notifications"
               >
@@ -133,7 +133,7 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle, sidebarHidden }: Top
           <div className="relative ml-0 md:ml-1 md:pl-2 md:border-l border-border" ref={userMenuRef}>
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-1.5 md:gap-2 hover:bg-accent rounded p-1 transition-colors"
+              className="flex items-center gap-1.5 md:gap-2 hover:bg-accent rounded p-1 transition-colors cursor-pointer"
               title={`${user?.firstname} ${user?.lastname}`}
             >
               <div className="hidden md:flex flex-col items-end leading-tight">

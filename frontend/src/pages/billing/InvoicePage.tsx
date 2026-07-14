@@ -145,7 +145,7 @@ export function InvoicePage() {
         <div className="text-center space-y-3">
           <AlertCircle className="w-8 h-8 text-red-500 mx-auto" />
           <p className="text-sm text-gray-700">{reportError}</p>
-          <Link to="/reports" className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1">
+          <Link to="/app/reports" className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Back to Reports
           </Link>
         </div>
@@ -158,7 +158,7 @@ export function InvoicePage() {
       <div className="min-h-screen flex items-center justify-center p-6">
         <div className="text-center space-y-3">
           <p className="text-sm text-gray-500">Report not found</p>
-          <Link to="/reports" className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1">
+          <Link to="/app/reports" className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Back to Reports
           </Link>
         </div>
@@ -175,7 +175,7 @@ export function InvoicePage() {
       {/* Toolbar */}
       <div className="no-print sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-200">
         <div className="max-w-[794px] mx-auto px-6 h-12 flex items-center justify-between">
-          <Link to="/reports" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
+          <Link to="/app/reports" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
             <ArrowLeft className="w-4 h-4" /> Reports
           </Link>
           <div className="flex items-center gap-2">

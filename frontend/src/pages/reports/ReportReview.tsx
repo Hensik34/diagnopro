@@ -302,7 +302,7 @@ export function ReportReview() {
                   {/* Actions */}
                   <div className="flex items-center gap-2 ml-4">
                     <Link
-                      to={`/reports/preview/${report.id}`}
+                      to={`/app/reports/preview/${report.id}`}
                       className="h-8 px-3 flex items-center gap-1.5 bg-secondary border border-border rounded hover:bg-accent transition-colors text-xs"
                     >
                       <Eye className="w-3.5 h-3.5" />
@@ -353,7 +353,7 @@ export function ReportReview() {
       {/* Quick Links */}
       <div className="grid grid-cols-2 gap-3">
         <Link
-          to={user?.role === 'doctor' ? "/doctor-reports" : "/reports"}
+          to={user?.role === 'doctor' ? "/app/doctor-reports" : "/app/reports"}
           className="bg-card border border-border rounded p-3 hover:bg-accent/30 transition-colors flex items-center justify-between"
         >
           <div>
@@ -363,7 +363,7 @@ export function ReportReview() {
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </Link>
         <Link
-          to="/"
+          to="/app"
           className="bg-card border border-border rounded p-3 hover:bg-accent/30 transition-colors flex items-center justify-between"
         >
           <div>

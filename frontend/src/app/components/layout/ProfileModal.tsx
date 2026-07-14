@@ -31,7 +31,7 @@ export function ProfileModal({ user, isOpen, onClose }: ProfileModalProps) {
   };
 
   const handleViewProfile = () => {
-    navigate('/profile');
+    navigate('/app/profile');
     onClose();
   };
 
@@ -108,7 +108,7 @@ export function ProfileModal({ user, isOpen, onClose }: ProfileModalProps) {
         )}
         <button
           onClick={handleLogout}
-          className="w-full h-8 flex items-center justify-center gap-2 rounded text-sm font-medium bg-destructive/10 hover:bg-destructive/20 text-destructive transition-colors"
+          className="w-full h-8 flex items-center justify-center gap-2 rounded text-sm font-medium bg-destructive/10 hover:bg-destructive/20 text-destructive transition-colors cursor-pointer"
         >
           <LogOut className="w-4 h-4" />
           Sign Out

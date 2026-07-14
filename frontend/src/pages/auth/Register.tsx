@@ -29,7 +29,7 @@ export function Register() {
         // Doctor login: skip onboarding check, go straight to dashboard
         if (user?.role === 'doctor') {
           fetchBranches().catch(() => {});
-          navigate('/');
+          navigate('/app');
           return;
         }
 
@@ -41,10 +41,10 @@ export function Register() {
             navigate('/onboarding');
           } else {
             localStorage.setItem('onboarding_complete', 'true');
-            navigate('/');
+            navigate('/app');
           }
         } catch {
-          navigate('/');
+          navigate('/app');
         }
       }
     };

@@ -218,7 +218,7 @@ export function Reports() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
       if (key === 'n' || key === 'a') {
-        navigate('/reports/new');
+        navigate('/app/reports/new');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -462,11 +462,11 @@ export function Reports() {
 
   const handleRowDoubleClick = (report: Report) => {
     if (report.status === 'draft' || report.status === 'rejected') {
-      navigate(`/reports/${report.id}/entry`);
+      navigate(`/app/reports/${report.id}/entry`);
       return;
     }
     if (report.status === 'approved') {
-      navigate(`/reports/preview/${report.id}`);
+      navigate(`/app/reports/preview/${report.id}`);
     }
   };
 
@@ -581,7 +581,7 @@ export function Reports() {
             Refresh
           </button>
           <Link
-            to="/reports/new"
+            to="/app/reports/new"
             className="h-8 px-2.5 flex items-center justify-center gap-1.5 rounded text-xs text-white hover:opacity-90 transition-opacity flex-1 sm:flex-none cursor-pointer"
             style={{ backgroundColor: 'var(--primary)' }}
           >
@@ -876,7 +876,7 @@ export function Reports() {
                             {/* Edit/Enter Results - for draft or rejected reports */}
                             {isEditable(report) && canEdit && (
                               <Link
-                                to={`/reports/${report.id}/entry`}
+                                to={`/app/reports/${report.id}/entry`}
                                 className="h-7 w-7 flex items-center justify-center bg-secondary border border-border rounded hover:bg-accent transition-colors"
                                 title={report.status === 'rejected' ? 'Revise' : 'Enter Results'}
                               >
@@ -887,7 +887,7 @@ export function Reports() {
                             {/* Edit - for admin and technician on any status */}
                             {canEdit && !isEditable(report) && (
                               <Link
-                                to={`/reports/${report.id}/entry?edit=true`}
+                                to={`/app/reports/${report.id}/entry?edit=true`}
                                 className="h-7 w-7 flex items-center justify-center bg-blue-50 border border-blue-200 text-blue-700 rounded hover:bg-blue-100 transition-colors dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400"
                                 title="Edit Report"
                               >
@@ -914,7 +914,7 @@ export function Reports() {
                             {/* View - for under_review or approved reports */}
                             {(report.status === 'under_review' || report.status === 'approved') && (
                               <Link
-                                to={`/reports/preview/${report.id}`}
+                                to={`/app/reports/preview/${report.id}`}
                                 className="h-7 w-7 flex items-center justify-center bg-secondary border border-border rounded hover:bg-accent transition-colors"
                                 title="View Report"
                               >
@@ -925,7 +925,7 @@ export function Reports() {
                             {/* Share - for approved reports (opens preview with share modal) */}
                             {report.status === 'approved' && (
                               <Link
-                                to={`/reports/preview/${report.id}?share=1`}
+                                to={`/app/reports/preview/${report.id}?share=1`}
                                 className="h-7 w-7 flex items-center justify-center bg-indigo-50 border border-indigo-200 text-indigo-700 rounded hover:bg-indigo-100 transition-colors dark:bg-indigo-900/20 dark:border-indigo-800 dark:text-indigo-400"
                                 title="Share Report"
                               >

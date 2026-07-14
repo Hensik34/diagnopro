@@ -15,7 +15,8 @@ import {
   Loader2,
   Package,
   Minus,
-  BookOpen
+  BookOpen,
+  Bold
 } from 'lucide-react';
 import {
   DndContext,
@@ -94,19 +95,21 @@ function GroupInput({ id, initialValue, onChange, availableGroups }: GroupInputP
   };
 
   return (
-    <div className="w-28 sm:w-36 flex-shrink-0">
-      <label className="text-[9px] font-medium text-muted-foreground block mb-0.5 uppercase tracking-wide">
+    <div className="flex items-center gap-1.5 flex-shrink-0">
+      <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
         Group
-      </label>
-      <SmartSelectInput
-        placeholder="No group"
-        value={value}
-        onChange={setValue}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
-        options={availableGroups}
-        className="w-full text-[11px] h-7 px-2 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all font-medium"
-      />
+      </span>
+      <div className="w-24 sm:w-28">
+        <SmartSelectInput
+          placeholder="No group"
+          value={value}
+          onChange={setValue}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          options={availableGroups}
+          className="w-full text-[11px] h-7 px-2 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all font-medium"
+        />
+      </div>
     </div>
   );
 }
@@ -122,6 +125,8 @@ interface SortableFieldRowProps {
   onChangeGroup: (fieldId: string, group: string) => void;
   index: number;
   availableGroups: string[];
+  onToggleBold: (fieldId: string) => void;
+  onFontSizeChange: (fieldId: string, fontSize: number | undefined) => void;
 }
 
 function SortableFieldRow({
@@ -131,7 +136,9 @@ function SortableFieldRow({
   onToggleVisibility,
   onChangeGroup,
   index,
-  availableGroups
+  availableGroups,
+  onToggleBold,
+  onFontSizeChange
 }: SortableFieldRowProps) {
   const {
     attributes,
@@ -188,6 +195,39 @@ function SortableFieldRow({
         availableGroups={availableGroups}
       />
 
+      {/* Font Size & Bold Controls */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <select
+          value={setting.fontSize || ''}
+          onChange={(e) => {
+            const val = e.target.value;
+            onFontSizeChange(setting.fieldId, val ? parseInt(val, 10) : undefined);
+          }}
+          className="text-[11px] h-7 px-1 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary font-medium w-14"
+        >
+          <option value="">Def</option>
+          <option value="10">10px</option>
+          <option value="11">11px</option>
+          <option value="12">12px</option>
+          <option value="13">13px</option>
+          <option value="14">14px</option>
+          <option value="15">15px</option>
+          <option value="16">16px</option>
+        </select>
+
+        <button
+          type="button"
+          onClick={() => onToggleBold(setting.fieldId)}
+          className={`p-1 h-7 w-7 rounded border transition-colors cursor-pointer flex items-center justify-center ${
+            setting.bold
+              ? 'bg-primary/10 border-primary/20 text-primary font-bold hover:bg-primary/20'
+              : 'bg-secondary border-border text-muted-foreground hover:bg-secondary/80'
+          }`}
+        >
+          <Bold className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
       {/* Visibility Button */}
       <button
         type="button"
@@ -215,6 +255,8 @@ interface SortableGroupFieldRowProps {
   onChangeGroup: (fieldId: string, group: string) => void;
   globalIdx: number;
   availableGroups: string[];
+  onToggleBold: (fieldId: string) => void;
+  onFontSizeChange: (fieldId: string, fontSize: number | undefined) => void;
 }
 
 function SortableGroupFieldRow({
@@ -224,7 +266,9 @@ function SortableGroupFieldRow({
   onToggleVisibility,
   onChangeGroup,
   globalIdx,
-  availableGroups
+  availableGroups,
+  onToggleBold,
+  onFontSizeChange
 }: SortableGroupFieldRowProps) {
   const {
     attributes,
@@ -279,6 +323,39 @@ function SortableGroupFieldRow({
         availableGroups={availableGroups}
       />
 
+      {/* Font Size & Bold Controls */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <select
+          value={setting.fontSize || ''}
+          onChange={(e) => {
+            const val = e.target.value;
+            onFontSizeChange(setting.fieldId, val ? parseInt(val, 10) : undefined);
+          }}
+          className="text-[11px] h-7 px-1 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary font-medium w-14"
+        >
+          <option value="">Def</option>
+          <option value="10">10px</option>
+          <option value="11">11px</option>
+          <option value="12">12px</option>
+          <option value="13">13px</option>
+          <option value="14">14px</option>
+          <option value="15">15px</option>
+          <option value="16">16px</option>
+        </select>
+        
+        <button
+          type="button"
+          onClick={() => onToggleBold(setting.fieldId)}
+          className={`p-1 h-7 w-7 rounded border transition-colors cursor-pointer flex items-center justify-center ${
+            setting.bold
+              ? 'bg-primary/10 border-primary/20 text-primary font-bold hover:bg-primary/20'
+              : 'bg-secondary border-border text-muted-foreground hover:bg-secondary/80'
+          }`}
+        >
+          <Bold className="w-3 h-3" />
+        </button>
+      </div>
+
       {/* Visibility */}
       <button
         type="button"
@@ -289,7 +366,7 @@ function SortableGroupFieldRow({
             : 'bg-secondary border-border text-muted-foreground hover:bg-secondary/80'
         }`}
       >
-        {setting.visible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+        {setting.visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
       </button>
     </div>
   );
@@ -308,6 +385,8 @@ interface SortableGroupCardProps {
   onToggleGroupVisibility: (groupName: string, firstFieldId: string) => void;
   parameterSettings: ParameterSetting[];
   availableGroups: string[];
+  onToggleBold: (fieldId: string) => void;
+  onFontSizeChange: (fieldId: string, fontSize: number | undefined) => void;
 }
 
 function SortableGroupCard({
@@ -319,7 +398,9 @@ function SortableGroupCard({
   onChangeGroup,
   onToggleGroupVisibility,
   parameterSettings,
-  availableGroups
+  availableGroups,
+  onToggleBold,
+  onFontSizeChange
 }: SortableGroupCardProps) {
   const {
     attributes,
@@ -405,6 +486,8 @@ function SortableGroupCard({
                 onChangeGroup={onChangeGroup}
                 globalIdx={globalIdx}
                 availableGroups={availableGroups}
+                onToggleBold={onToggleBold}
+                onFontSizeChange={onFontSizeChange}
               />
             );
           })}
@@ -462,6 +545,8 @@ export function TemplateEditor() {
   const [fields, setFields] = useState<TestField[]>([]);
   const [testName, setTestName] = useState<string>('');
   const [clinicalSignificance, setClinicalSignificance] = useState<string>('');
+  const [clinicalSigFontSize, setClinicalSigFontSize] = useState<number | undefined>(undefined);
+  const [clinicalSigBold, setClinicalSigBold] = useState<boolean>(false);
   const [dbUpdatedAt, setDbUpdatedAt] = useState<string>('');
   const [isDirty, setIsDirty] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -521,6 +606,13 @@ export function TemplateEditor() {
         if (data.layoutConfig && Array.isArray(data.layoutConfig.parameterSettings)) {
           // Normalize groups on load to be safe
           setParameterSettings(normalizeContiguousGroups(data.layoutConfig.parameterSettings));
+          if (data.layoutConfig.clinicalSignificanceLayout) {
+            setClinicalSigFontSize(data.layoutConfig.clinicalSignificanceLayout.fontSize);
+            setClinicalSigBold(!!data.layoutConfig.clinicalSignificanceLayout.bold);
+          } else {
+            setClinicalSigFontSize(undefined);
+            setClinicalSigBold(false);
+          }
         } else {
           const defaultSettings = (data.fields || []).map((field, idx) => ({
             fieldId: field.id,
@@ -530,6 +622,8 @@ export function TemplateEditor() {
             group: field.section_group || ''
           }));
           setParameterSettings(defaultSettings);
+          setClinicalSigFontSize(undefined);
+          setClinicalSigBold(false);
         }
         setIsDirty(false);
       } catch (err: any) {
@@ -722,6 +816,34 @@ export function TemplateEditor() {
     });
   };
 
+  // Toggle Bold
+  const handleToggleBold = (fieldId: string) => {
+    setParameterSettings((items) => {
+      const updated = items.map((item) => {
+        if (item.fieldId === fieldId) {
+          return { ...item, bold: !item.bold };
+        }
+        return item;
+      });
+      setIsDirty(true);
+      return updated;
+    });
+  };
+
+  // Change Font Size
+  const handleFontSizeChange = (fieldId: string, fontSize: number | undefined) => {
+    setParameterSettings((items) => {
+      const updated = items.map((item) => {
+        if (item.fieldId === fieldId) {
+          return { ...item, fontSize };
+        }
+        return item;
+      });
+      setIsDirty(true);
+      return updated;
+    });
+  };
+
   // Toggle Visibility
   const handleToggleVisibility = (fieldId: string) => {
     setParameterSettings((items) => {
@@ -768,6 +890,8 @@ export function TemplateEditor() {
           group: field.section_group || ''
         }));
         setParameterSettings(reorderAndNormalize(defaultSettings));
+        setClinicalSigFontSize(undefined);
+        setClinicalSigBold(false);
         setIsDirty(true);
       }
     });
@@ -796,6 +920,10 @@ export function TemplateEditor() {
     const payload = {
       layoutConfig: {
         parameterSettings,
+        clinicalSignificanceLayout: {
+          fontSize: clinicalSigFontSize,
+          bold: clinicalSigBold,
+        },
         version: 1
       },
       clinical_significance: clinicalSignificance,
@@ -937,6 +1065,44 @@ export function TemplateEditor() {
                 className="w-full text-xs p-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-y leading-relaxed"
                 placeholder="Enter clinical significance or interpretation notes..."
               />
+              {/* Clinical Significance Font Styling Controls */}
+              <div className="flex items-center gap-3 pt-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase">Size:</span>
+                  <select
+                    value={clinicalSigFontSize || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setClinicalSigFontSize(val ? parseInt(val, 10) : undefined);
+                      setIsDirty(true);
+                    }}
+                    className="text-[11px] h-7 px-2 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary font-medium"
+                  >
+                    <option value="">Default (9.5px)</option>
+                    <option value="9">9px</option>
+                    <option value="10">10px</option>
+                    <option value="11">11px</option>
+                    <option value="12">12px</option>
+                    <option value="13">13px</option>
+                    <option value="14">14px</option>
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClinicalSigBold(!clinicalSigBold);
+                    setIsDirty(true);
+                  }}
+                  className={`p-1.5 h-7 px-2.5 rounded border transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-medium ${
+                    clinicalSigBold
+                      ? 'bg-primary/10 border-primary/20 text-primary hover:bg-primary/20'
+                      : 'bg-secondary border-border text-muted-foreground hover:bg-secondary/80'
+                  }`}
+                >
+                  <Bold className="w-3.5 h-3.5" />
+                  <span>Bold</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -984,6 +1150,8 @@ export function TemplateEditor() {
                               onToggleGroupVisibility={handleToggleGroupVisibility}
                               parameterSettings={parameterSettings}
                               availableGroups={availableGroups}
+                              onToggleBold={handleToggleBold}
+                              onFontSizeChange={handleFontSizeChange}
                             />
                           );
                         }
@@ -997,6 +1165,8 @@ export function TemplateEditor() {
                             onChangeGroup={handleChangeGroup}
                             index={parameterSettings.findIndex(s => s.fieldId === item.id)}
                             availableGroups={availableGroups}
+                            onToggleBold={handleToggleBold}
+                            onFontSizeChange={handleFontSizeChange}
                           />
                         );
                       })}
@@ -1029,6 +1199,8 @@ export function TemplateEditor() {
                           onToggleGroupVisibility={() => {}}
                           parameterSettings={parameterSettings}
                           availableGroups={availableGroups}
+                          onToggleBold={() => {}}
+                          onFontSizeChange={() => {}}
                         />
                       </div>
                     );
@@ -1045,6 +1217,8 @@ export function TemplateEditor() {
                           onChangeGroup={() => {}}
                           index={parameterSettings.findIndex(s => s.fieldId === activeDragId)}
                           availableGroups={availableGroups}
+                          onToggleBold={() => {}}
+                          onFontSizeChange={() => {}}
                         />
                       </div>
                     );
@@ -1180,6 +1354,8 @@ export function TemplateEditor() {
                             indented={!!setting.group}
                             colorTokens={colorTokens}
                             compact={false}
+                            customFontSize={setting.fontSize}
+                            customBold={setting.bold}
                           />
                         </React.Fragment>
                       );
@@ -1193,15 +1369,15 @@ export function TemplateEditor() {
             {clinicalSignificance && (
               <div style={{
                 marginTop: '8px',
-                fontSize: '9.5px',
+                fontSize: clinicalSigFontSize ? `${clinicalSigFontSize}px` : '9.5px',
                 color: '#222',
                 lineHeight: 1.45,
                 textAlign: 'left'
               }}>
-                <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase' as const, marginBottom: '2px' }}>
+                <div style={{ fontWeight: clinicalSigBold ? 800 : 700, color: '#111', textTransform: 'uppercase' as const, marginBottom: '2px' }}>
                   Clinical Significance
                 </div>
-                <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
+                <p style={{ margin: 0, whiteSpace: 'pre-line', fontWeight: clinicalSigBold ? 700 : 400 }}>
                   {clinicalSignificance}
                 </p>
               </div>
