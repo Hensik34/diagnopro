@@ -2,34 +2,34 @@ import React from 'react';
 
 export const ReportLayoutConfig = {
   spacing: {
-    xs: 2,
-    sm: 3,
-    md: 5,
-    lg: 8,
-    xl: 10,
-    xxl: 14,
+    xs: 1,
+    sm: 2,
+    md: 4,
+    lg: 6,
+    xl: 8,
+    xxl: 10,
   },
   sectionMargin: {
-    top: 4,
-    bottom: 2,
-    between: 6,
+    top: 2,
+    bottom: 1,
+    between: 4,
   },
   boxPadding: {
-    dense: 3,
-    normal: 5,
-    spacious: 8,
+    dense: 2,
+    normal: 4,
+    spacious: 6,
   },
   fontSize: {
-    label: 10,
-    value: 12,
-    header: 13,
-    sectionTitle: 14,
-    patientName: 14,
+    label: 9,
+    value: 11,
+    header: 11.5,
+    sectionTitle: 12.5,
+    patientName: 13,
   },
   lineHeight: {
-    tight: 1.3,
-    normal: 1.45,
-    relaxed: 1.55,
+    tight: 1.25,
+    normal: 1.35,
+    relaxed: 1.45,
   },
   tableColumns: {
     investigation: '30%',
@@ -91,7 +91,7 @@ export function PatientInfoRow({
 export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<string, string> }) {
   const thStyle = (width: string, align: string = 'left'): React.CSSProperties => ({
     textAlign: align as any,
-    padding: '4px 0',
+    padding: '3px 0',
     fontWeight: 700,
     color: '#111',
     fontSize: `${ReportLayoutConfig.fontSize.header}px`,
@@ -124,7 +124,7 @@ export function InvestigationTableHeader({ colorTokens }: { colorTokens: Record<
         <td
           colSpan={5}
           style={{
-            padding: '2px 0 4px 0',
+            padding: '1px 0 2px 0',
             border: 'none',
             lineHeight: 0,
             fontSize: 0,
@@ -170,8 +170,8 @@ export function InvestigationTableRow({
   customFontSize?: number;
   customBold?: boolean;
 }) {
-  const fontSize = customFontSize ? `${customFontSize}px` : (compact ? `${ReportLayoutConfig.fontSize.value - 0.5}px` : `${ReportLayoutConfig.fontSize.value}px`);
-  const vPad = compact ? '1px' : '0.5px';
+  const fontSize = customFontSize ? `${customFontSize}px` : `${ReportLayoutConfig.fontSize.value}px`;
+  const vPad = '1px';
   const fontWeight = customBold !== undefined ? (customBold ? 700 : 400) : (isAbnormal ? 700 : 400);
   const resultFontWeight = customBold !== undefined ? (customBold ? 800 : 400) : (isAbnormal ? 800 : 400);
 
@@ -181,18 +181,18 @@ export function InvestigationTableRow({
         style={{
           paddingTop: vPad,
           paddingBottom: vPad,
-          paddingLeft: indented ? '14px' : '0',
+          paddingLeft: indented ? '12px' : '0',
           paddingRight: '6px',
           fontWeight,
           color: isAbnormal ? statusColor : '#222',
           fontSize,
           textAlign: 'left',
-          verticalAlign: 'baseline',   // was 'middle' — middle pushes descenders into the clip
-          lineHeight: 1.6,             // was 1.5 — more room below baseline for g/y/j
+          verticalAlign: 'baseline',
+          lineHeight: 1.35,
           whiteSpace: 'normal',
           wordBreak: 'break-word',
-          overflow: 'visible',         // was 'hidden' — let descenders render
-          textOverflow: 'clip',        // ellipsis needs overflow:hidden; with fixed table it rarely truncates anyway
+          overflow: 'visible',
+          textOverflow: 'clip',
         }}
       >
         {investigation}
@@ -286,14 +286,15 @@ export function SectionGroupHeader({
       <td
         colSpan={5}
         style={{
-          paddingTop: compact ? '1px' : '2px',
-          paddingBottom: compact ? '1px' : '2px',
+          paddingTop: '2px',
+          paddingBottom: '2px',
           paddingLeft: 0,
           paddingRight: 0,
           fontWeight: 800,
-          fontSize: '11.5px',
+          fontSize: '11px',
           color: '#222',
           letterSpacing: '0.2px',
+          lineHeight: 1.3,
         }}
       >
         {title}
@@ -489,17 +490,19 @@ export function TestSectionBlock({
   children,
   colorTokens,
   isFirstSection = false,
+  extraTopGap = 0,
 }: {
   testName: string;
   children: React.ReactNode;
   colorTokens: Record<string, string>;
   isFirstSection?: boolean;
+  extraTopGap?: number;
 }) {
   return (
     <div
       style={{
         marginBottom: `${ReportLayoutConfig.sectionMargin.between}px`,
-        marginTop: isFirstSection ? 0 : `${ReportLayoutConfig.sectionMargin.top + 2}px`,
+        marginTop: isFirstSection ? 0 : `${ReportLayoutConfig.sectionMargin.top + extraTopGap}px`,
       }}
     >
       {/* Full-width thin line with title overlaid center */}
@@ -508,7 +511,7 @@ export function TestSectionBlock({
           position: 'relative',
           display: 'flex',
           alignItems: 'center',
-          marginBottom: '4px',
+          marginBottom: '3px',
           pageBreakAfter: 'avoid',
         }}
       >
@@ -517,7 +520,7 @@ export function TestSectionBlock({
         {/* Title */}
         <span
           style={{
-            padding: '0 10px',
+            padding: '0 8px',
             fontSize: `${ReportLayoutConfig.fontSize.sectionTitle}px`,
             fontWeight: 800,
             color: '#111',

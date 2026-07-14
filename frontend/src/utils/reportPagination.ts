@@ -44,56 +44,50 @@ export type PageItem =
   | { type: 'marketing'; pageConfig: any };
 
 export function estimateInterpretationHeight(text: string, dense: boolean, customFontSize?: number): number {
-  const charsPerLine = dense ? 100 : 90;
-  let lineHeight = dense ? 13 : 14;
-  if (customFontSize) {
-    lineHeight = Math.ceil(customFontSize * 1.35);
-  }
+  const charsPerLine = 100;
+  const fontSize = customFontSize || 9.5;
+  const lineHeight = Math.ceil(fontSize * 1.35); // e.g. 13px line height for 9.5px font
   const paragraphs = text.split('\n');
   let lines = 0;
   for (const para of paragraphs) {
-    // Empty lines still take up one line height
     lines += Math.max(1, Math.ceil(para.trim().length / charsPerLine));
   }
-  return 24 + lines * lineHeight; // marginTop (8) + heading (14) + heading margin (2) = 24px base
+  return 12 + lines * lineHeight; // title + spacing (12px) + lines * lineHeight
 }
 
 /**
  * Splits text by newline first, then calculates wrapping per line for smear block.
  */
 export function estimatePeripheralSmearHeight(text: string, dense: boolean): number {
-  const charsPerLine = dense ? 95 : 85;
-  const lineHeight = dense ? 14 : 16;
+  const charsPerLine = 95;
+  const lineHeight = 15; // 11.5px font * 1.3
   const paragraphs = text.split('\n');
   let lines = 0;
   for (const para of paragraphs) {
     lines += Math.max(1, Math.ceil(para.trim().length / charsPerLine));
   }
-  return 36 + lines * lineHeight;
+  return 24 + lines * lineHeight; // title + spacing (24px) + lines * lineHeight
 }
 
 export function estimateSectionHeight(section: TestSection, params: Parameter[], dense: boolean): number {
-  const groupHeaderHeight = dense ? 23 : 25;
+  const groupHeaderHeight = 19; // Tight constant group header height
   const uniqueGroupRows = params.reduce((count, p, idx) => {
     if (!p.group) return count;
     const prev = idx > 0 ? params[idx - 1].group : undefined;
     return prev !== p.group ? count + 1 : count;
   }, 0);
 
-  const heading = 26;       // section title with lines + margin
-  const tableHeader = 24;   // header row with border
+  const heading = 22;       // section title block (margin top + title + margin bottom)
+  const tableHeader = 26;   // table header (th + border line spacer)
   
   let rows = 0;
   for (const p of params) {
-    let size = dense ? 11.5 : 12;
-    if (p.fontSize) {
-      size = p.fontSize;
-    }
-    rows += dense ? Math.max(21, size + 9) : Math.max(23, size + 11);
+    const size = p.fontSize || 11; // default 11px
+    rows += Math.ceil(size * 1.35) + 2; // Math.ceil(size * 1.35) + 2px padding
   }
 
   const groups = uniqueGroupRows * groupHeaderHeight;
-  const spacing = 10;       // bottom margin
+  const spacing = 4;       // section bottom margin
   return heading + tableHeader + rows + groups + spacing;
 }
 
@@ -184,59 +178,18 @@ export function computeReportPages(options: PaginationOptions): PaginationResult
 
   const signatureStripHeight = hasDoctorSignature ? 84 : 76;
   const contentHeight = A4_HEIGHT_PX - safeZones.top - safeZones.bottom - signatureStripHeight;
-  const isDense = density !== 'comfortable';
+  const isDense = true; // Always dense as requested (using less space by default)
   const patientHeight = 75;
 
   const maxChunkHeight = Math.max(160, contentHeight - patientHeight - 30);
   const chunks = orderedSections.flatMap(section => splitSection(section, maxChunkHeight, isDense));
 
-  // First pass: calculate total height including all elements to detect overflow correctly
-  let totalNeeded = patientHeight;
-  for (const chunk of chunks) {
-    const section = orderedSections.find(s => s.id === chunk.sectionId);
-    if (section) {
-      totalNeeded += estimateSectionHeight(section, chunk.parameters, isDense);
-      const isLastChunk = chunks.filter(c => c.sectionId === chunk.sectionId).pop() === chunk;
-      if (isLastChunk && section.testId) {
-        const snapshot = layoutSnapshots[section.testId];
-        const sig = snapshot?.clinical_significance;
-        if (sig?.trim()) {
-          const customSigFontSize = snapshot?.clinicalSignificanceLayout?.fontSize;
-          totalNeeded += estimateInterpretationHeight(sig.trim(), isDense, customSigFontSize);
-        }
-        const matchedTest = testData?.tests?.find((t: any) => (t.id || t.testId) === section.testId);
-        const remark = matchedTest?.remarks || matchedTest?.notes || '';
-        if (remark.trim()) {
-          totalNeeded += estimateInterpretationHeight(remark.trim(), isDense);
-        }
-      }
-      if (isLastChunk && section.isCbc && section.peripheralSmearText?.trim()) {
-        totalNeeded += estimatePeripheralSmearHeight(section.peripheralSmearText.trim(), isDense);
-      }
-    }
-  }
-
-  if (clinicalNotes?.trim()) {
-    totalNeeded += estimateInterpretationHeight(clinicalNotes.trim(), isDense);
-  }
-
-  const overflow = totalNeeded - contentHeight;
-  const needsCompact = overflow > 0 && overflow <= 120;
-  const compactAdjustment = needsCompact ? overflow : 0;
-  const compactScale = needsCompact ? Math.max(0.82, 1 - (overflow + 20) / totalNeeded) : 1;
-
-  const estimateHeight = (section: TestSection, params: Parameter[]) => {
-    const base = estimateSectionHeight(section, params, isDense);
-    return needsCompact ? Math.floor(base * compactScale) : base;
-  };
-
   const out: PageItem[][] = [[]];
   let currentHeight = 0;
 
-  // Margin spacing as specified in user request
-  const signatureSafetyMargin = 40;
-  const effectiveContentHeight = contentHeight - signatureSafetyMargin;
-  const minBufferForLastItem = 10;
+  // No signature safety margin since signatureStripHeight already reserves the exact space
+  const effectiveContentHeight = contentHeight;
+  const minBufferForLastItem = 5;
 
   const place = (item: PageItem, itemHeight: number) => {
     if (currentHeight + itemHeight + minBufferForLastItem > effectiveContentHeight && out[out.length - 1].length > 1) {
@@ -256,7 +209,7 @@ export function computeReportPages(options: PaginationOptions): PaginationResult
     const section = orderedSections.find(s => s.id === chunk.sectionId);
     if (!section) continue;
 
-    const chunkH = estimateHeight(section, chunk.parameters);
+    const chunkH = estimateSectionHeight(section, chunk.parameters, isDense);
 
     let sigH = 0;
     const isLastChunk = chunks.filter(c => c.sectionId === chunk.sectionId).pop() === chunk;
@@ -265,9 +218,7 @@ export function computeReportPages(options: PaginationOptions): PaginationResult
       const sig = snapshot?.clinical_significance;
       if (sig?.trim()) {
         const customSigFontSize = snapshot?.clinicalSignificanceLayout?.fontSize;
-        sigH = needsCompact
-          ? Math.floor(estimateInterpretationHeight(sig.trim(), isDense, customSigFontSize) * compactScale)
-          : estimateInterpretationHeight(sig.trim(), isDense, customSigFontSize);
+        sigH = estimateInterpretationHeight(sig.trim(), isDense, customSigFontSize);
       }
     }
 
@@ -278,9 +229,7 @@ export function computeReportPages(options: PaginationOptions): PaginationResult
       const remark = matchedTest?.remarks || matchedTest?.notes || '';
       if (remark.trim()) {
         testRemarkText = remark.trim();
-        testRemarkH = needsCompact
-          ? Math.floor(estimateInterpretationHeight(testRemarkText, isDense) * compactScale)
-          : estimateInterpretationHeight(testRemarkText, isDense);
+        testRemarkH = estimateInterpretationHeight(testRemarkText, isDense);
       }
     }
 
@@ -289,9 +238,7 @@ export function computeReportPages(options: PaginationOptions): PaginationResult
     if (isLastChunkOverall) {
       if (clinicalNotes?.trim()) {
         const notesText = clinicalNotes.trim();
-        trailingH += needsCompact
-          ? Math.floor(estimateInterpretationHeight(notesText, isDense) * compactScale)
-          : estimateInterpretationHeight(notesText, isDense);
+        trailingH += estimateInterpretationHeight(notesText, isDense);
       }
     }
 
@@ -323,11 +270,10 @@ export function computeReportPages(options: PaginationOptions): PaginationResult
 
     if (isLastChunk && section.isCbc && section.peripheralSmearText?.trim()) {
       const smearText = section.peripheralSmearText.trim();
-      const smearH = needsCompact
-        ? Math.floor(estimatePeripheralSmearHeight(smearText, isDense) * compactScale)
-        : estimatePeripheralSmearHeight(smearText, isDense);
+      const smearH = estimatePeripheralSmearHeight(smearText, isDense);
       
-      if (out.length === 1) {
+      // Always push peripheral smear to a new page if the current page has other tests/content
+      if (out[out.length - 1].some(item => item.type === 'test' || item.type === 'interpretation')) {
         out.push([]);
         currentHeight = 0;
         out[out.length - 1].push({ type: 'patient' });
@@ -339,9 +285,7 @@ export function computeReportPages(options: PaginationOptions): PaginationResult
 
   if (clinicalNotes?.trim()) {
     const notesText = clinicalNotes.trim();
-    const notesH = needsCompact
-      ? Math.floor(estimateInterpretationHeight(notesText, isDense) * compactScale)
-      : estimateInterpretationHeight(notesText, isDense);
+    const notesH = estimateInterpretationHeight(notesText, isDense);
     
     if (currentHeight + notesH + minBufferForLastItem > effectiveContentHeight && out[out.length - 1].length > 1) {
       out.push([]);
@@ -362,6 +306,69 @@ export function computeReportPages(options: PaginationOptions): PaginationResult
 
   return {
     pages: out,
-    compactAdjustment,
+    compactAdjustment: 0,
   };
 }
+
+function getPermutations<T>(arr: T[]): T[][] {
+  if (arr.length <= 1) return [arr];
+  const permutations: T[][] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const current = arr[i];
+    const remaining = [...arr.slice(0, i), ...arr.slice(i + 1)];
+    const subPerms = getPermutations(remaining);
+    for (const sub of subPerms) {
+      permutations.push([current, ...sub]);
+    }
+  }
+  return permutations;
+}
+
+/**
+ * Optimizes the default order of test sections to minimize total report page count.
+ * - CBC tests always take first place.
+ * - Remaining tests are arranged/permuted to fit in the minimum possible number of pages.
+ */
+export function optimizeTestOrder(
+  sections: TestSection[],
+  options: Omit<PaginationOptions, 'orderedSections'>
+): TestSection[] {
+  // Separate CBC from non-CBC
+  const cbcSections = sections.filter(s => !!s.isCbc);
+  const otherSections = sections.filter(s => !s.isCbc);
+
+  if (otherSections.length <= 1) {
+    return [...cbcSections, ...otherSections];
+  }
+
+  // To prevent performance lag on large sets, only permute if otherSections.length <= 5
+  if (otherSections.length > 5) {
+    // Fallback: sort other sections by height descending to pack larger items first
+    const sortedOthers = [...otherSections].sort((a, b) => {
+      const hA = estimateSectionHeight(a, a.parameters, true);
+      const hB = estimateSectionHeight(b, b.parameters, true);
+      return hB - hA;
+    });
+    return [...cbcSections, ...sortedOthers];
+  }
+
+  const permutations = getPermutations(otherSections);
+  let bestOrder = [...cbcSections, ...otherSections];
+  let minPages = Infinity;
+
+  for (const perm of permutations) {
+    const candidateOrder = [...cbcSections, ...perm];
+    const result = computeReportPages({
+      ...options,
+      orderedSections: candidateOrder,
+    });
+
+    if (result.pages.length < minPages) {
+      minPages = result.pages.length;
+      bestOrder = candidateOrder;
+    }
+  }
+
+  return bestOrder;
+}
+

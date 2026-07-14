@@ -2712,7 +2712,7 @@ export function ReportEntry() {
                         e.stopPropagation();
                         handleConfirmRemoveTest(section.testId, section.testName);
                       }}
-                      className="opacity-0 group-hover:opacity-100 w-4 h-4 rounded-full flex items-center justify-center text-slate-400 hover:text-destructive hover:bg-destructive/10 transition-all flex-shrink-0"
+                      className="w-4 h-4 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all flex-shrink-0 cursor-pointer"
                       title="Remove test"
                     >
                       <X className="w-3 h-3" />
@@ -3110,7 +3110,7 @@ export function ReportEntry() {
                                         {(customReferenceRanges[param.id] !== undefined ? customReferenceRanges[param.id] : formatReferenceRange(getPatientReferenceRange(param, patient))) || '\u00A0'}
                                       </span>
                                       {isEditable && (
-                                        <Edit2 className="w-3.5 h-3.5 opacity-35 group-hover:opacity-100 transition-all text-slate-400 dark:text-slate-500 hover:text-primary dark:hover:text-primary flex-shrink-0 ml-1.5" />
+                                        <Edit2 className="w-3.5 h-3.5 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-all flex-shrink-0 ml-1.5 cursor-pointer" />
                                       )}
                                     </div>
                                   </td>

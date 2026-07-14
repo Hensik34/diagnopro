@@ -6,3 +6,4 @@ node_modules/
 uploads/
 !uploads/.gitkeep
 data/
+.cache/

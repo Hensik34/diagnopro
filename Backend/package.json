@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "db:sync": "SEQUELIZE_SYNC=true node -e \"require('./models').syncDatabase().then(() => console.log('✅ Sync complete')).catch(e => { console.error(e); process.exit(1); })\""
+    "db:sync": "SEQUELIZE_SYNC=true node -e \"require('./models').syncDatabase().then(() => console.log('✅ Sync complete')).catch(e => { console.error(e); process.exit(1); })\"",
+    "postinstall": "npx puppeteer browsers install chrome"
   },
   "keywords": [
     "lab",
