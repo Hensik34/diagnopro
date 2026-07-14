@@ -4,12 +4,12 @@ import { Building2, MapPin, Phone, Mail, CheckCircle, Loader2, FlaskConical, Use
 import { useBranchStore, useAuthStore } from '../../stores';
 
 const FEATURES = [
-  { icon: FlaskConical, label: 'Tests', description: 'Configure lab tests and parameters', path: '/tests' },
-  { icon: Stethoscope, label: 'Doctors', description: 'Add referring doctors', path: '/doctors' },
-  { icon: Users, label: 'Patients', description: 'Manage patient records', path: '/patients' },
-  { icon: FileText, label: 'Reports', description: 'Create and manage reports', path: '/reports' },
-  { icon: ClipboardList, label: 'Sample Collection', description: 'Track sample collections', path: '/sample-collection' },
-  { icon: Package, label: 'Inventory', description: 'Manage lab inventory', path: '/inventory' },
+  { icon: FlaskConical, label: 'Tests', description: 'Configure lab tests and parameters', path: '/app/tests' },
+  { icon: Stethoscope, label: 'Doctors', description: 'Add referring doctors', path: '/app/doctors' },
+  { icon: Users, label: 'Patients', description: 'Manage patient records', path: '/app/patients' },
+  { icon: FileText, label: 'Reports', description: 'Create and manage reports', path: '/app/reports' },
+  { icon: ClipboardList, label: 'Sample Collection', description: 'Track sample collections', path: '/app/sample-collection' },
+  { icon: Package, label: 'Inventory', description: 'Manage lab inventory', path: '/app/inventory' },
 ];
 
 export function Onboarding() {
