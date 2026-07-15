@@ -1377,9 +1377,23 @@ export function TemplateEditor() {
                 <div style={{ fontWeight: clinicalSigBold ? 800 : 700, color: '#111', textTransform: 'uppercase' as const, marginBottom: '2px' }}>
                   Clinical Significance
                 </div>
-                <p style={{ margin: 0, whiteSpace: 'pre-line', fontWeight: clinicalSigBold ? 700 : 400 }}>
-                  {clinicalSignificance}
-                </p>
+                <div style={{ margin: 0, fontWeight: clinicalSigBold ? 700 : 400 }}>
+                  {clinicalSignificance.split('\n').map((line, lineIdx) => {
+                    const isTableRow = line.includes('\t') || line.includes('   ');
+                    return (
+                      <div
+                        key={lineIdx}
+                        style={{
+                          fontFamily: isTableRow ? 'Consolas, Monaco, "Courier New", Courier, monospace' : 'inherit',
+                          whiteSpace: 'pre-wrap',
+                          minHeight: '1em'
+                        }}
+                      >
+                        {line}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

@@ -151,7 +151,7 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'HAV IgM (Hepatitis A)', 'AHAV-IGM-01', 'Serology', 'Blood', 250, 4, 'Acute Hepatitis A infection', NOW(), NOW()),
   (gen_random_uuid(), 'HAV IgG (Hepatitis A)', 'AHAV-IGG-01', 'Serology', 'Blood', 250, 4, 'Hepatitis A immunity', NOW(), NOW()),
   (gen_random_uuid(), 'Dengue NS1 rapid', 'DENGNS1-RAPID', 'Serology', 'Serum', 300, 4, 'Qualitative detection of Dengue NS1 Antigen', NOW(), NOW()),
-  (gen_random_uuid(), 'Dengue rapid', 'DENGUE-RAPID', 'Serology', 'Serum', 650, 4, 'Qualitative detection of Dengue IgM and IgG antibodies', NOW(), NOW()),
+  (gen_random_uuid(), 'Dengue Card', 'DENGUE-RAPID', 'Serology', 'Serum', 650, 4, 'Qualitative detection of Dengue IgM and IgG antibodies', NOW(), NOW()),
   (gen_random_uuid(), 'Zika IgM', 'ZIKA-IGM-01', 'Serology', 'Blood', 400, 4, 'Zika virus antibodies', NOW(), NOW()),
   (gen_random_uuid(), 'CMV IgM', 'CMV-IGM-01', 'Serology', 'Blood', 350, 4, 'Acute CMV infection', NOW(), NOW()),
   (gen_random_uuid(), 'CMV IgG', 'CMV-IGG-01', 'Serology', 'Blood', 350, 4, 'CMV immunity status', NOW(), NOW()),
@@ -1044,8 +1044,8 @@ NULL,
 false,NOW(),NOW()),
 
 -- WIDAL TEST (WIDAL-01)
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='WIDAL-01'), 'Salmonella typhi ''O'' (TO)', NULL, 'select', 'Negative,1:20,1:40,1:80,1:160,1:320,1:640', 'input', NULL, NULL, 'Widal Titers', 1, NULL, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='WIDAL-01'), 'Salmonella typhi ''H'' (TH)', NULL, 'select', 'Negative,1:20,1:40,1:80,1:160,1:320,1:640', 'input', NULL, NULL, 'Widal Titers', 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='WIDAL-01'), 'Salmonella typhi ''O'' (TO)', NULL, 'select', 'Negative,1:40,1:80,1:160,1:320', 'input', NULL, NULL, 'Widal Titers', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='WIDAL-01'), 'Salmonella typhi ''H'' (TH)', NULL, 'select', 'Negative,1:40,1:80,1:160,1:320', 'input', NULL, NULL, 'Widal Titers', 2, NULL, NULL, true, NOW(), NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='WIDAL-01'), 'Salmonella paratyphi ''AH'' (AH)', NULL, 'select', 'Negative,1:20,1:40,1:80,1:160,1:320,1:640', 'input', NULL, NULL, 'Widal Titers', 3, NULL, NULL, true, NOW(), NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='WIDAL-01'), 'Salmonella paratyphi ''BH'' (BH)', NULL, 'select', 'Negative,1:20,1:40,1:80,1:160,1:320,1:640', 'input', NULL, NULL, 'Widal Titers', 4, NULL, NULL, true, NOW(), NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='WIDAL-01'), 'Method', NULL, 'select', 'Slide Agglutination,Tube Agglutination', 'input', NULL, NULL, 'Method', 5, NULL, NULL, true, NOW(), NOW()),
@@ -1950,9 +1950,20 @@ UPDATE tests SET clinical_significance = '
 • It is necessary to ensure that the patient is fasting for 10 hrs for this test' WHERE test_code = 'LIPID-01';
 
 UPDATE tests SET clinical_significance = '
-TSH levels are subject to circadian variation, reaching peak levels between 2-4 am and at a minimum between 6-10 pm. The variation is of the order of 50%, hence time of the day has influence on the measured serum TSH concentrations.
+• TSH levels are subject to circadian variation, reaching peak levels between 2-4 am and at a minimum between 6-10 pm. The variation is of the order of 50%, hence time of the day has influence on the measured serum TSH concentrations.
 • Rheumatoid factor, human antimouse antibodies, heterophile antibodies may produce spurious results, especially in patients with autoimmune disorders (=10%). - Amiodarone may interfere with TSH.
-• Non thyroidal illness like severe infections, liver disease, renal and hear failure, severe burns, trauma and surgery, pregnancy, Acute psychiatric illness, Severe dehydration may show transient variation in TSH value.' WHERE test_code = 'THYPRO-01';
+• Non thyroidal illness like severe infections, liver disease, renal and heart failure, severe burns, trauma and surgery, pregnancy, Acute psychiatric illness, Severe dehydration may show transient variation in TSH value.
+
+Thyroid Condition                                                 T3          T4          TSH
+1. Normal Thyroid Function (Eurothyroid)                          N           N           N
+2. Primary Hyperthyroidism                                        H           H           L
+3. Secondary Hyperthyroidism Grave''s Thyroiditis                 H           H           H
+4. T3 Thyrotoxicosis                                              H           N           N/L
+5. Primary Hypothyroidism                                         L           L           H/N
+6. Secondary Hypothyroidism                                       L           L           L
+7. Subclinical Hypothyroidism                                     N           N           H
+8. Patient on Treatment                                           N           N/H         L
+9. Non thyroidal illness (NTI) / Subclinical Hyperthyroid         N           N           L' WHERE test_code = 'THYPRO-01';
 
 UPDATE tests SET clinical_significance = '
 • Diagnose Hypothyroidism and Hyperthyroidism
