@@ -1169,9 +1169,23 @@ export function ReportPreview() {
                     <div style={{ fontWeight: titleFontWeight, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
                       Clinical Significance
                     </div>
-                    <p style={{ margin: 0, whiteSpace: 'pre-line', fontWeight: sigFontWeight }}>
-                      {item.text}
-                    </p>
+                    <div style={{ margin: 0, fontWeight: sigFontWeight }}>
+                      {item.text.split('\n').map((line, lineIdx) => {
+                        const isTableRow = line.includes('\t') || line.includes('   ');
+                        return (
+                          <div
+                            key={lineIdx}
+                            style={{
+                              fontFamily: isTableRow ? 'Consolas, Monaco, "Courier New", Courier, monospace' : 'inherit',
+                              whiteSpace: 'pre-wrap',
+                              minHeight: '1em'
+                            }}
+                          >
+                            {line}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               }
@@ -1192,9 +1206,23 @@ export function ReportPreview() {
                     <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
                       Notes / Remarks
                     </div>
-                    <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
-                      {item.text}
-                    </p>
+                    <div style={{ margin: 0 }}>
+                      {item.text.split('\n').map((line, lineIdx) => {
+                        const isTableRow = line.includes('\t') || line.includes('   ');
+                        return (
+                          <div
+                            key={lineIdx}
+                            style={{
+                              fontFamily: isTableRow ? 'Consolas, Monaco, "Courier New", Courier, monospace' : 'inherit',
+                              whiteSpace: 'pre-wrap',
+                              minHeight: '1em'
+                            }}
+                          >
+                            {line}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               }
@@ -1215,9 +1243,23 @@ export function ReportPreview() {
                     <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
                       Technician Notes / Interpretation
                     </div>
-                    <p style={{ margin: 0, whiteSpace: 'pre-line' }}>
-                      {item.text}
-                    </p>
+                    <div style={{ margin: 0 }}>
+                      {item.text.split('\n').map((line, lineIdx) => {
+                        const isTableRow = line.includes('\t') || line.includes('   ');
+                        return (
+                          <div
+                            key={lineIdx}
+                            style={{
+                              fontFamily: isTableRow ? 'Consolas, Monaco, "Courier New", Courier, monospace' : 'inherit',
+                              whiteSpace: 'pre-wrap',
+                              minHeight: '1em'
+                            }}
+                          >
+                            {line}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               }

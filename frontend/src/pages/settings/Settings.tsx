@@ -812,7 +812,7 @@ export function Settings() {
   };
 
   return (
-    <div className="p-3 md:p-4 lg:p-6 max-w-full md:max-w-7xl mx-auto h-auto md:h-[calc(100vh-5rem)] flex flex-col md:flex-row gap-4 md:gap-0">
+    <div className="p-3 md:p-4 lg:p-6 max-w-full md:max-w-10xl mx-auto h-auto md:h-[calc(100vh-5rem)] flex flex-col md:flex-row gap-4 md:gap-0">
       {/* Success Message overlay */}
       {uploadSuccess && (
         <div className="fixed top-20 right-6 z-50 p-3 md:p-4 bg-green-50 border border-green-200 rounded-lg shadow-lg flex items-center gap-3 text-green-700 animate-in slide-in-from-top-2 text-sm md:text-base">
