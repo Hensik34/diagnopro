@@ -43,6 +43,7 @@ import { useTestStore } from '../../stores/testStore';
 import { formatAge } from '../../utils/age';
 import {
   computeReportPages,
+  optimizeTestOrder,
   A4_WIDTH_PX,
   A4_HEIGHT_PX,
   PAGE_GAP_PX,
@@ -519,15 +520,23 @@ export function ReportPreview() {
       params.push(...cleanedParams);
     }
 
-    testSections.sort((a, b) => {
-      const aCbc = !!a.isCbc;
-      const bCbc = !!b.isCbc;
-      if (aCbc === bCbc) return 0;
-      return aCbc ? -1 : 1;
-    });
-
     const collectionDate = rawReport.collection_date || rawReport.created_at;
     const reportedAt = rawReport.approved_at || rawReport.created_at;
+
+    const doctorSignatureUrl = rawReport.pathology_signature_url || rawReport.doctor_signature_url || null;
+    const hasSig = !!(doctorSignatureUrl || rawReport.pathology_signature_label);
+
+    const optimizedSections = optimizeTestOrder(testSections, {
+      safeZones: { top: 80, bottom: 80 },
+      hasDoctorSignature: hasSig,
+      density: 'balanced',
+      layoutSnapshots,
+      testData,
+      clinicalNotes: rawReport.clinical_notes,
+      isSelfReport: rawReport.is_self_report,
+      attachMarketingPages: rawReport.attach_marketing_pages,
+      marketingPages: rawReport.marketing_pages,
+    });
 
     const nextData: ReportData = {
       lab: {
@@ -550,7 +559,7 @@ export function ReportPreview() {
         collectionDate: format(new Date(collectionDate), 'dd MMM yyyy, hh:mm aa'),
         reportedDate: format(new Date(reportedAt), 'dd MMM yyyy, hh:mm aa'),
       },
-      testSections,
+      testSections: optimizedSections,
       parameters: params,
       technician: {
         name:
@@ -561,7 +570,7 @@ export function ReportPreview() {
     };
 
     setReportData(nextData);
-    const ids = nextData.testSections.map(s => s.id);
+    const ids = optimizedSections.map(s => s.id);
     setSectionOrder(ids);
     setOriginalSectionOrder(ids);
     setVisibleSections(new Set(ids));
@@ -753,7 +762,6 @@ export function ReportPreview() {
   }, [reportData, orderedSections, safeZones, rawReport, density, hasDoctorSignature]);
 
   const pages = paginationResult.pages;
-  const compactAdjustment = paginationResult.compactAdjustment;
 
   // Scroll-spying to update active page index
   useEffect(() => {
@@ -1047,9 +1055,9 @@ export function ReportPreview() {
               display: 'flex',
               flexDirection: 'column',
               paddingBottom: signatureStripHeight,
-              gap: compactAdjustment > 0 ? 1 : 3,
-              fontSize: compactAdjustment > 60 ? 10.5 : 11,
-              lineHeight: compactAdjustment > 60 ? 1.35 : 1.45,
+              gap: 2,
+              fontSize: 11,
+              lineHeight: 1.35,
               color: '#222',
               fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
             }}
@@ -1088,11 +1096,14 @@ export function ReportPreview() {
 
               if (item.type === 'test') {
                 let lastGroup: string | undefined;
+                const hasPreviousTestOnPage = page.slice(0, idx).some(prevItem => prevItem.type === 'test');
+                const shouldAddInterTestGap = hasPreviousTestOnPage;
                 return (
                   <TestSectionBlock
                     key={`t-${idx}`}
                     testName={item.chunk.continuation ? `${item.chunk.title} (cont.)` : item.chunk.title}
                     isFirstSection={false}
+                    extraTopGap={shouldAddInterTestGap ? 22 : 0}
                     colorTokens={C}
                   >
                     <table style={{
@@ -1100,7 +1111,7 @@ export function ReportPreview() {
                       borderCollapse: 'separate',
                       borderSpacing: 0,
                       tableLayout: 'fixed',
-                      marginTop: compactAdjustment > 0 ? '1px' : '2px'
+                      marginTop: '1px'
                     }}><InvestigationTableHeader colorTokens={C} /><tbody>
                         {item.chunk.parameters.map((param, rowIdx) => {
                           if (isPeripheralSmearParam(param.name) || isPeripheralSmearGroup(param.group)) {
@@ -1120,7 +1131,7 @@ export function ReportPreview() {
                                 <SectionGroupHeader
                                   title={param.group || ''}
                                   colorTokens={C}
-                                  compact={compactAdjustment > 0}
+                                  compact={true}
                                 />
                               )}
                               <InvestigationTableRow
@@ -1134,7 +1145,7 @@ export function ReportPreview() {
                                 rowIndex={rowIdx}
                                 indented={!!param.group}
                                 colorTokens={C}
-                                compact={compactAdjustment > 0}
+                                compact={true}
                                 customFontSize={(param as any).fontSize}
                                 customBold={(param as any).bold}
                               />
@@ -1397,8 +1408,8 @@ export function ReportPreview() {
       <div className="no-print flex-shrink-0">
         <PatientInfoHeader
           mode="preview"
-          patient={patientProp}
-          selectedReport={rawReport}
+          patient={patientProp as any}
+          selectedReport={rawReport || null}
           selectedDoctor={refDoctor || null}
           referringDoctorName={rawReport?.referring_doctor_name || ''}
           formattedCollectionDate={reportData?.patient.collectionDate || ''}
@@ -1732,6 +1743,7 @@ function PdfThumbnail({
         renderTask = page.render({
           canvasContext: context,
           viewport: viewport,
+          canvas,
         });
 
         await renderTask.promise;
