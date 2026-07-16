@@ -88,14 +88,14 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'Total T3', 'T3-01', 'Hormone', 'Blood', 250, 4, 'Total triiodothyronine level', NOW(), NOW()),
   (gen_random_uuid(), 'Total T4', 'T4-01', 'Hormone', 'Blood', 250, 4, 'Total thyroxine level', NOW(), NOW()),
   (gen_random_uuid(), 'Anti-TPO (Thyroid Peroxidase Antibodies)', 'ATPO-01', 'Immunology', 'Blood', 400, 4, 'Autoimmune thyroid marker', NOW(), NOW()),
-  (gen_random_uuid(), 'Anti-Thyroglobulin', 'ATG-01', 'Immunology', 'Blood', 400, 4, 'Thyroid antibodies', NOW(), NOW()),
+  (gen_random_uuid(), 'Anti TG', 'ATG-01', 'Immunology', 'Blood', 400, 4, 'Thyroid antibodies', NOW(), NOW()),
   (gen_random_uuid(), 'Thyroglobulin', 'TG-01', 'Hormone', 'Blood', 350, 4, 'Thyroid hormone precursor', NOW(), NOW()),
   (gen_random_uuid(), 'FSH (Follicle Stimulating Hormone)', 'FSH-01', 'Hormone', 'Blood', 350, 4, 'Reproductive hormone - pituitary', NOW(), NOW()),
   (gen_random_uuid(), 'LH (Luteinizing Hormone)', 'LH-01', 'Hormone', 'Blood', 350, 4, 'Reproductive hormone - pituitary', NOW(), NOW()),
   (gen_random_uuid(), 'Prolactin', 'PROL-01', 'Hormone', 'Blood', 350, 4, 'Milk production hormone', NOW(), NOW()),
   (gen_random_uuid(), 'Testosterone', 'TEST-01', 'Hormone', 'Blood', 400, 4, 'Male reproductive hormone', NOW(), NOW()),
   (gen_random_uuid(), 'Free Testosterone', 'FTEST-01', 'Hormone', 'Blood', 450, 4, 'Bioavailable testosterone', NOW(), NOW()),
-  (gen_random_uuid(), 'Estradiol', 'ESTR-01', 'Hormone', 'Blood', 400, 4, 'Female reproductive hormone', NOW(), NOW()),
+  (gen_random_uuid(), 'Estradiol (E2)', 'ESTR-01', 'Hormone', 'Blood', 400, 4, 'Female reproductive hormone', NOW(), NOW()),
   (gen_random_uuid(), 'Progesterone', 'PROG-01', 'Hormone', 'Blood', 400, 4, 'Luteal phase hormone', NOW(), NOW()),
   (gen_random_uuid(), 'AMH (Anti-Müllerian Hormone)', 'AMH-01', 'Hormone', 'Blood', 500, 4, 'Ovarian reserve marker', NOW(), NOW()),
   (gen_random_uuid(), 'Beta-HCG (Quantitative)', 'BHCG-Q-01', 'Hormone', 'Blood', 250, 2, 'Pregnancy hormone (quantitative)', NOW(), NOW()),
@@ -234,7 +234,48 @@ INSERT INTO tests (id, test_name, test_code, category, sample_type, price, turna
   (gen_random_uuid(), 'Triple Marker', 'TRPM-01', 'Hormone', 'Serum', 2000, 24, 'Second trimester maternal screening for chromosomal abnormalities and neural tube defects (AFP, HCG, and uE3)', NOW(), NOW()),
   (gen_random_uuid(), 'Rubella IgG', 'RUB-IGG', 'Serology', 'Serum', 400, 4, 'Quantitative determination of IgG antibodies against Rubella virus to evaluate immune status', NOW(), NOW()),
   (gen_random_uuid(), 'Rubella IgM', 'RUB-IGM', 'Serology', 'Serum', 400, 4, 'Qualitative determination of IgM antibodies against Rubella virus to diagnose acute or recent infection', NOW(), NOW()),
-  (gen_random_uuid(), 'G6PD (Glucose-6-Phosphate Dehydrogenase)', 'G6PD-01', 'Biochemistry', 'Whole Blood (EDTA)', 450, 6, 'Measures Glucose-6-Phosphate Dehydrogenase activity in red blood cells to detect G6PD deficiency', NOW(), NOW())
+  (gen_random_uuid(), 'G6PD (Glucose-6-Phosphate Dehydrogenase)', 'G6PD-01', 'Biochemistry', 'Whole Blood (EDTA)', 450, 6, 'Measures Glucose-6-Phosphate Dehydrogenase activity in red blood cells to detect G6PD deficiency', NOW(), NOW()),
+  (gen_random_uuid(), 'Thalassemia ( Hb electrophoresis)', 'THAL-01', 'Hematology', 'Whole Blood (EDTA)', 1500.00, 24, 'Hemoglobin electrophoresis to detect abnormal hemoglobins and screen for thalassemia.', NOW(), NOW()),
+  (gen_random_uuid(), 'ABG (Arterial Blood Gas)', 'ABG-01', 'Biochemistry', 'Heparinized Whole Blood', 800.00, 2, 'Measures acidity (pH) and levels of oxygen and carbon dioxide in arterial blood.', NOW(), NOW()),
+  (gen_random_uuid(), 'ACA IgG (Anti-Cardiolipin Antibody IgG)', 'ACA-IGG-01', 'Immunology', 'Serum', 750.00, 12, 'Measures IgG antibodies to cardiolipin, associated with Antiphospholipid Syndrome.', NOW(), NOW()),
+  (gen_random_uuid(), 'ACA IgM (Anti-Cardiolipin Antibody IgM)', 'ACA-IGM-01', 'Immunology', 'Serum', 750.00, 12, 'Measures IgM antibodies to cardiolipin, associated with Antiphospholipid Syndrome.', NOW(), NOW()),
+  (gen_random_uuid(), 'Aldosterone', 'ALDO-01', 'Hormone', 'Serum', 1200.00, 24, 'Measures aldosterone levels in serum to evaluate renin-aldosterone-angiotensin system.', NOW(), NOW()),
+  (gen_random_uuid(), 'Allergy food & inhalant', 'ALLERGY-FI-01', 'Immunology', 'Serum', 3500.00, 24, 'Screening panel for common food and inhalant allergens.', NOW(), NOW()),
+  (gen_random_uuid(), 'Allergy drugs', 'ALLERGY-DRUG-01', 'Immunology', 'Serum', 3000.00, 24, 'Screening panel for drug-specific IgE antibodies.', NOW(), NOW()),
+  (gen_random_uuid(), 'Allergy food drug & inhalant', 'ALLERGY-FDI-01', 'Immunology', 'Serum', 5000.00, 24, 'Comprehensive screening panel for food, drug, and inhalant allergens.', NOW(), NOW()),
+  (gen_random_uuid(), 'AMA (Anti-Mitochondrial Antibody)', 'AMA-01', 'Immunology', 'Serum', 800.00, 12, 'Measures anti-mitochondrial antibody levels, primarily used for PBC screening.', NOW(), NOW()),
+  (gen_random_uuid(), 'ANA profile', 'ANA-PROF-01', 'Immunology', 'Serum', 2200.00, 24, 'Comprehensive profile checking for specific antinuclear antibodies (ENAs).', NOW(), NOW()),
+  (gen_random_uuid(), 'ANCA by if', 'ANCA-IF-01', 'Immunology', 'Serum', 1500.00, 24, 'Anti-Neutrophil Cytoplasmic Antibody screening by Indirect Immunofluorescence.', NOW(), NOW()),
+  (gen_random_uuid(), 'Anti HCV', 'HCV-ANTI-01', 'Serology', 'Serum', 500.00, 6, 'Detects antibodies against Hepatitis C Virus (HCV).', NOW(), NOW()),
+  (gen_random_uuid(), 'APA IgG (Anti-Phosphatidylserine Antibody IgG)', 'APA-IGG-01', 'Immunology', 'Serum', 800.00, 24, 'Measures IgG antibodies to antiphospholipid/phosphatidylserine.', NOW(), NOW()),
+  (gen_random_uuid(), 'APA IgM (Anti-Phosphatidylserine Antibody IgM)', 'APA-IGM-01', 'Immunology', 'Serum', 800.00, 24, 'Measures IgM antibodies to antiphospholipid/phosphatidylserine.', NOW(), NOW()),
+  (gen_random_uuid(), 'Bicarbonate', 'BICARB-01', 'Biochemistry', 'Serum', 200.00, 4, 'Measures bicarbonate level in blood.', NOW(), NOW()),
+  (gen_random_uuid(), 'BTCT (Bleeding Time & Clotting Time)', 'BTCT-01', 'Hematology', 'Whole Blood', 150.00, 2, 'Combined screen for Bleeding Time and Clotting Time.', NOW(), NOW()),
+  (gen_random_uuid(), 'Calcium urine Random', 'CALC-UR-01', 'Biochemistry', 'Urine (Random)', 250.00, 6, 'Measures calcium levels in a random urine sample.', NOW(), NOW()),
+  (gen_random_uuid(), 'Calcium urine 24 hours', 'CALC-U24-01', 'Biochemistry', 'Urine (24 Hours)', 350.00, 24, 'Measures total calcium excreted in a 24-hour urine sample.', NOW(), NOW()),
+  (gen_random_uuid(), 'Chloride', 'CHLOR-01', 'Biochemistry', 'Serum', 150.00, 4, 'Measures chloride level in blood.', NOW(), NOW()),
+  (gen_random_uuid(), 'Urine Chloride', 'CHLOR-UR-01', 'Biochemistry', 'Urine (Random)', 200.00, 6, 'Measures chloride level in urine.', NOW(), NOW()),
+  (gen_random_uuid(), 'Chikungunya IgM ELISA', 'CHIK-ELISA-01', 'Serology', 'Serum', 800.00, 24, 'Semi-quantitative detection of Chikungunya IgM antibodies by ELISA.', NOW(), NOW()),
+  (gen_random_uuid(), 'Creatinine Urine 24 Hrs', 'CREAT-U24-01', 'Biochemistry', 'Urine (24 Hours)', 350.00, 24, 'Measures total creatinine excreted in a 24-hour urine sample.', NOW(), NOW()),
+  (gen_random_uuid(), 'CSF Routine examination', 'CSF-ROUT-01', 'Clinical Pathology', 'Cerebrospinal Fluid', 1200.00, 6, 'Routine physical, chemical, and microscopic examination of cerebrospinal fluid.', NOW(), NOW()),
+  (gen_random_uuid(), 'Culture - Auto C/S Aerobic Blood 1 Bottle', 'CULT-BLOOD-01', 'Microbiology', 'Blood', 800.00, 72, 'Automated aerobic blood culture and sensitivity testing.', NOW(), NOW()),
+  (gen_random_uuid(), 'DCT - Direct Coombs Test', 'DCT-01', 'Hematology', 'Whole Blood (EDTA)', 400.00, 4, 'Detects antibodies or complement proteins bound to the surface of red blood cells.', NOW(), NOW()),
+  (gen_random_uuid(), 'Dengue PCR Viral Load', 'DENG-PCR-01', 'Serology', 'Serum', 2500.00, 24, 'Quantitative real-time PCR for Dengue virus RNA.', NOW(), NOW()),
+  (gen_random_uuid(), 'DHEA - Dehydro Epiandrosterone', 'DHEA-01', 'Hormone', 'Serum', 900.00, 24, 'Measures unconjugated DHEA in serum to assess adrenal androgen levels.', NOW(), NOW()),
+  (gen_random_uuid(), 'Dopamine Level', 'DOP-01', 'Hormone', 'Plasma', 1500.00, 24, 'Measures plasma dopamine (catecholamine) levels.', NOW(), NOW()),
+  (gen_random_uuid(), 'Electrolytes Urine/Fluid', 'ELEC-UR-01', 'Biochemistry', 'Urine/Fluid', 500.00, 6, 'Measures sodium, potassium, and chloride in urine or body fluids.', NOW(), NOW()),
+  (gen_random_uuid(), 'Erythropoetin', 'EPO-01', 'Hormone', 'Serum', 1200.00, 24, 'Measures erythropoietin (EPO) levels in serum.', NOW(), NOW()),
+  (gen_random_uuid(), 'ABG - Blood Gas Analysis Arterial', 'BCH 11', 'Biochemistry', 'Arterial Blood', 1000.00, 4, 'Measures the acidity (pH) and the levels of oxygen and carbon dioxide in the blood from an artery.', NOW(), NOW()),
+  (gen_random_uuid(), 'ACA - Anti Cardiolipin Antibody IgG', 'ECL 50.2', 'Immunology', 'Serum', 400.00, 24, 'Measures IgG antibodies to cardiolipin to evaluate autoimmune clotting disorders.', NOW(), NOW()),
+  (gen_random_uuid(), 'ACA - Anti Cardiolipin Antibody IgM', 'ECL 50.1', 'Immunology', 'Serum', 400.00, 24, 'Measures IgM antibodies to cardiolipin to evaluate autoimmune clotting disorders.', NOW(), NOW()),
+  (gen_random_uuid(), 'ACE - Angiotensin Converting Enzyme*', 'BIO 08', 'Biochemistry', 'Serum', 1500.00, 24, 'Measures angiotensin converting enzyme levels, often used in sarcoidosis evaluation.', NOW(), NOW()),
+  (gen_random_uuid(), 'Acetone Serum', 'BM 12', 'Biochemistry', 'Serum', 200.00, 6, 'Measures acetone levels in serum.', NOW(), NOW()),
+  (gen_random_uuid(), 'Acetone Urine', 'CPL 01', 'Clinical Pathology', 'Urine', 120.00, 4, 'Measures acetone levels in urine.', NOW(), NOW()),
+  (gen_random_uuid(), 'ACTH - Adrenocorticotropic hormone*', 'BIO 02', 'Hormone', 'Plasma', 1000.00, 24, 'Measures adrenocorticotropic hormone (ACTH) levels to evaluate adrenal gland function.', NOW(), NOW()),
+  (gen_random_uuid(), 'ADA - Adenosine Deaminase CSF', 'BCH 01.2', 'Biochemistry', 'Cerebrospinal Fluid (CSF)', 500.00, 12, 'Measures adenosine deaminase levels in cerebrospinal fluid (CSF).', NOW(), NOW()),
+  (gen_random_uuid(), 'ADA - Adenosine Deaminase Fluid', 'BCH 01.3', 'Biochemistry', 'Body Fluid', 500.00, 12, 'Measures adenosine deaminase levels in pleural, peritoneal, or other body fluids.', NOW(), NOW()),
+  (gen_random_uuid(), 'ADA - Adenosine Deaminase Serum', 'BCH 01.1', 'Biochemistry', 'Serum', 500.00, 12, 'Measures adenosine deaminase levels in serum.', NOW(), NOW()),
+  (gen_random_uuid(), 'AEC - Absolute Eosinophil Count', 'AA 01', 'Hematology', 'Whole Blood (EDTA)', 180.00, 4, 'Measures absolute eosinophil count (AEC) in blood.', NOW(), NOW())
 ON CONFLICT (test_code) DO UPDATE SET price = EXCLUDED.price, updated_at = NOW();
 
 -- ==========================================
@@ -626,7 +667,7 @@ true,NOW(),NOW()),
 'Serum Albumin-Creatinine Ratio','mg/g','number',NULL,'calculated',
 'Albumin / Creatinine','Albumin,Creatinine',
 'Renal Function',9,
-'{"max":60.0}'::jsonb,NULL,
+'{"min":0.0,"max":60.0}'::jsonb,NULL,
 true,NOW(),NOW()),
 
 -- LIPID PROFILE (LIPID-01)
@@ -1108,7 +1149,7 @@ false,NOW(),NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PLT-01'), 'Platelet Count', '/uL', 'number', NULL, 'input', NULL, NULL, 'Platelet Count', 1, '{"min":150000,"max":450000}'::jsonb, '{"low":20000,"high":1000000}'::jsonb, true, NOW(), NOW()),
 
 -- POST GLUCOSE BLOOD SUGAR (PGBS-01)
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PGBS-01'), 'Post Glucose Blood Sugar', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Blood Glucose', 1, '{"max":140}'::jsonb, '{"low":50,"high":400}'::jsonb, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='PGBS-01'), 'Post Glucose Blood Sugar', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Blood Glucose', 1, '{"min":0,"max":140}'::jsonb, '{"low":50,"high":400}'::jsonb, true, NOW(), NOW()),
 
 -- SERUM UREA (UREA-01)
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='UREA-01'), 'Serum Urea', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Renal Function', 1, '{"min":10.0,"max":40.0}'::jsonb, '{"high":100.0}'::jsonb, true, NOW(), NOW()),
@@ -1131,10 +1172,10 @@ false,NOW(),NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ALP-01'), 'Alkaline Phosphatase (ALP)', 'U/L', 'number', NULL, 'input', NULL, NULL, 'Enzymes', 1, '{"min":25.0,"max":100.0}'::jsonb, NULL, true, NOW(), NOW()),
 
 -- SERUM CHOLESTEROL (CHOL-01)
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CHOL-01'), 'Serum Cholesterol', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Lipids', 1, '{"max":200.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CHOL-01'), 'Serum Cholesterol', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Lipids', 1, '{"min":0.0,"max":200.0}'::jsonb, NULL, true, NOW(), NOW()),
 
 -- SERUM TRIGLYCERIDES (TRIG-01)
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TRIG-01'), 'Serum Triglycerides', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Lipids', 1, '{"max":150.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='TRIG-01'), 'Serum Triglycerides', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Lipids', 1, '{"min":0.0,"max":150.0}'::jsonb, NULL, true, NOW(), NOW()),
 
 -- HDL CHOLESTEROL (HDL-01)
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HDL-01'), 'HDL Cholesterol', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Lipids', 1, '{"min":40.0,"max":60.0}'::jsonb, NULL, true, NOW(), NOW()),
@@ -1260,7 +1301,202 @@ false,NOW(),NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Amorphous', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'MICROSCOPIC: ( After centrifugation at 2000 r.p.m. for 10 minutes )', 17, NULL, NULL, true, NOW(), NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'T. Vaginalis', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'MICROSCOPIC: ( After centrifugation at 2000 r.p.m. for 10 minutes )', 18, NULL, NULL, true, NOW(), NOW()),
 (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Bacteria', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'MICROSCOPIC: ( After centrifugation at 2000 r.p.m. for 10 minutes )', 19, '[{"age_group":"all","sex":"any","note":"Absent"}]'::jsonb, NULL, true, NOW(), NOW()),
-(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Budding Yeast', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'MICROSCOPIC: ( After centrifugation at 2000 r.p.m. for 10 minutes )', 20, NULL, NULL, true, NOW(), NOW())
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='URINE-01'), 'Budding Yeast', NULL, 'select', 'Absent,Present', 'input', NULL, NULL, 'MICROSCOPIC: ( After centrifugation at 2000 r.p.m. for 10 minutes )', 20, NULL, NULL, true, NOW(), NOW()),
+
+-- Thalassemia (Hb Electrophoresis) Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='THAL-01'), 'Hb A', '%', 'number', NULL, 'input', NULL, NULL, 'Hemoglobin Electrophoresis', 1, '{"min":95.0,"max":98.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='THAL-01'), 'Hb A2', '%', 'number', NULL, 'input', NULL, NULL, 'Hemoglobin Electrophoresis', 2, '{"min":1.5,"max":3.5}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='THAL-01'), 'Hb F', '%', 'number', NULL, 'input', NULL, NULL, 'Hemoglobin Electrophoresis', 3, '{"min":0.0,"max":2.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='THAL-01'), 'Hb S', '%', 'number', NULL, 'input', NULL, NULL, 'Hemoglobin Electrophoresis', 4, '{"min":0.0,"max":0.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='THAL-01'), 'Hb C', '%', 'number', NULL, 'input', NULL, NULL, 'Hemoglobin Electrophoresis', 5, '{"min":0.0,"max":0.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='THAL-01'), 'Hb D', '%', 'number', NULL, 'input', NULL, NULL, 'Hemoglobin Electrophoresis', 6, '{"min":0.0,"max":0.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='THAL-01'), 'Hb E', '%', 'number', NULL, 'input', NULL, NULL, 'Hemoglobin Electrophoresis', 7, '{"min":0.0,"max":0.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='THAL-01'), 'Electrophoresis Impression', NULL, 'textarea', 'Normal hemoglobin pattern,Beta thalassemia minor,Beta thalassemia major,Sickle cell trait,Sickle cell disease,Hb D trait,Hb E trait', 'input', NULL, NULL, 'Hemoglobin Electrophoresis', 8, NULL, NULL, false, NOW(), NOW()),
+
+-- ABG Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ABG-01'), 'pH', NULL, 'number', NULL, 'input', NULL, NULL, 'Blood Gas Parameters', 1, '{"min":7.35,"max":7.45}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ABG-01'), 'pCO2', 'mmHg', 'number', NULL, 'input', NULL, NULL, 'Blood Gas Parameters', 2, '{"min":35.0,"max":45.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ABG-01'), 'pO2', 'mmHg', 'number', NULL, 'input', NULL, NULL, 'Blood Gas Parameters', 3, '{"min":75.0,"max":100.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ABG-01'), 'HCO3', 'mmol/L', 'number', NULL, 'input', NULL, NULL, 'Blood Gas Parameters', 4, '{"min":22.0,"max":26.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ABG-01'), 'sO2 (Oxygen Saturation)', '%', 'number', NULL, 'input', NULL, NULL, 'Blood Gas Parameters', 5, '{"min":95.0,"max":100.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ABG-01'), 'Base Excess', 'mmol/L', 'number', NULL, 'input', NULL, NULL, 'Blood Gas Parameters', 6, '{"min":-2.0,"max":2.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- ACA IgG Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ACA-IGG-01'), 'ACA IgG Level', 'GPL', 'number', NULL, 'input', NULL, NULL, 'Antiphospholipid Antibodies', 1, '[{"age_group":"all","sex":"any","low":0.0,"high":10.0,"note":"Negative <10 GPL, Equivocal 10-40 GPL, Positive >40 GPL"}]'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ACA-IGG-01'), 'ACA IgG Result', NULL, 'select', 'Negative,Equivocal,Positive', 'input', NULL, NULL, 'Antiphospholipid Antibodies', 2, NULL, NULL, true, NOW(), NOW()),
+
+-- ACA IgM Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ACA-IGM-01'), 'ACA IgM Level', 'MPL', 'number', NULL, 'input', NULL, NULL, 'Antiphospholipid Antibodies', 1, '[{"age_group":"all","sex":"any","low":0.0,"high":10.0,"note":"Negative <10 MPL, Equivocal 10-40 MPL, Positive >40 MPL"}]'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ACA-IGM-01'), 'ACA IgM Result', NULL, 'select', 'Negative,Equivocal,Positive', 'input', NULL, NULL, 'Antiphospholipid Antibodies', 2, NULL, NULL, true, NOW(), NOW()),
+
+-- Aldosterone Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ALDO-01'), 'Aldosterone (Serum)', 'ng/dL', 'number', NULL, 'input', NULL, NULL, 'Adrenal Hormones', 1, '[{"age_group":"all","sex":"any","low":3.0,"high":30.0,"note":"Upright: 4.0-31.0 ng/dL, Supine: 1.0-16.0 ng/dL"}]'::jsonb, NULL, true, NOW(), NOW()),
+
+-- Allergy food & inhalant Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ALLERGY-FI-01'), 'Total IgE', 'IU/mL', 'number', NULL, 'input', NULL, NULL, 'Allergy Profile', 1, '{"min":0.0,"max":100.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ALLERGY-FI-01'), 'Specific IgE - Food Panel', 'kUA/L', 'number', NULL, 'input', NULL, NULL, 'Allergy Profile', 2, '{"min":0.00,"max":0.35}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ALLERGY-FI-01'), 'Specific IgE - Inhalant Panel', 'kUA/L', 'number', NULL, 'input', NULL, NULL, 'Allergy Profile', 3, '{"min":0.00,"max":0.35}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ALLERGY-FI-01'), 'Allergy Screen Result', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Allergy Profile', 4, NULL, NULL, true, NOW(), NOW()),
+
+-- Allergy drugs Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ALLERGY-DRUG-01'), 'Total IgE', 'IU/mL', 'number', NULL, 'input', NULL, NULL, 'Allergy Profile', 1, '{"min":0.0,"max":100.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ALLERGY-DRUG-01'), 'Specific IgE - Drug Panel', 'kUA/L', 'number', NULL, 'input', NULL, NULL, 'Allergy Profile', 2, '{"min":0.00,"max":0.35}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ALLERGY-DRUG-01'), 'Allergy Screen Result', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Allergy Profile', 3, NULL, NULL, true, NOW(), NOW()),
+
+-- Allergy food drug & inhalant Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ALLERGY-FDI-01'), 'Total IgE', 'IU/mL', 'number', NULL, 'input', NULL, NULL, 'Allergy Profile', 1, '{"min":0.0,"max":100.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ALLERGY-FDI-01'), 'Specific IgE - Food Panel', 'kUA/L', 'number', NULL, 'input', NULL, NULL, 'Allergy Profile', 2, '{"min":0.00,"max":0.35}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ALLERGY-FDI-01'), 'Specific IgE - Inhalant Panel', 'kUA/L', 'number', NULL, 'input', NULL, NULL, 'Allergy Profile', 3, '{"min":0.00,"max":0.35}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ALLERGY-FDI-01'), 'Specific IgE - Drug Panel', 'kUA/L', 'number', NULL, 'input', NULL, NULL, 'Allergy Profile', 4, '{"min":0.00,"max":0.35}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ALLERGY-FDI-01'), 'Allergy Screen Result', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Allergy Profile', 5, NULL, NULL, true, NOW(), NOW()),
+
+-- AMA Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='AMA-01'), 'AMA Titer', NULL, 'select', '<1:20,1:20,1:40,1:80,1:160,1:320,>1:320', 'input', NULL, NULL, 'Autoimmune Antibodies', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='AMA-01'), 'AMA (ELISA)', 'Units/mL', 'number', NULL, 'input', NULL, NULL, 'Autoimmune Antibodies', 2, '[{"age_group":"all","sex":"any","low":0.0,"high":20.0,"note":"Negative <20 Units/mL, Equivocal 20-25 Units/mL, Positive >25 Units/mL"}]'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='AMA-01'), 'AMA Result', NULL, 'select', 'Negative,Equivocal,Positive', 'input', NULL, NULL, 'Autoimmune Antibodies', 3, NULL, NULL, true, NOW(), NOW()),
+
+-- ANA Profile Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ANA-PROF-01'), 'ANA Primary Screening', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'ANA Profile Summary', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ANA-PROF-01'), 'ANA Titer', NULL, 'text', NULL, 'input', NULL, NULL, 'ANA Profile Summary', 2, NULL, NULL, false, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ANA-PROF-01'), 'ANA Pattern', NULL, 'select', 'Homogeneous,Speckled,Nucleolar,Centromere,Peripheral,Cytoplasmic,Mixed,Negative', 'input', NULL, NULL, 'ANA Profile Summary', 3, NULL, NULL, false, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ANA-PROF-01'), 'Anti-dsDNA', 'IU/mL', 'number', NULL, 'input', NULL, NULL, 'Specific Antibodies', 4, '{"max":30.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ANA-PROF-01'), 'Anti-Sm', 'Ratio', 'number', NULL, 'input', NULL, NULL, 'Specific Antibodies', 5, '{"max":1.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ANA-PROF-01'), 'Anti-SSA', 'Ratio', 'number', NULL, 'input', NULL, NULL, 'Specific Antibodies', 6, '{"max":1.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ANA-PROF-01'), 'Anti-SSB', 'Ratio', 'number', NULL, 'input', NULL, NULL, 'Specific Antibodies', 7, '{"max":1.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ANA-PROF-01'), 'Anti-RNP', 'Ratio', 'number', NULL, 'input', NULL, NULL, 'Specific Antibodies', 8, '{"max":1.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ANA-PROF-01'), 'Anti-Scl-70', 'Ratio', 'number', NULL, 'input', NULL, NULL, 'Specific Antibodies', 9, '{"max":1.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ANA-PROF-01'), 'Anti-Jo-1', 'Ratio', 'number', NULL, 'input', NULL, NULL, 'Specific Antibodies', 10, '{"max":1.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- ANCA by if Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ANCA-IF-01'), 'c-ANCA (PR3) Titer', NULL, 'select', '<1:20,1:20,1:40,1:80,1:160,1:320,>1:320', 'input', NULL, NULL, 'ANCA Serology', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ANCA-IF-01'), 'p-ANCA (MPO) Titer', NULL, 'select', '<1:20,1:20,1:40,1:80,1:160,1:320,>1:320', 'input', NULL, NULL, 'ANCA Serology', 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ANCA-IF-01'), 'Atypical ANCA', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'ANCA Serology', 3, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ANCA-IF-01'), 'ANCA Impression', NULL, 'text', NULL, 'input', NULL, NULL, 'ANCA Serology', 4, NULL, NULL, false, NOW(), NOW()),
+
+-- Anti HCV Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HCV-ANTI-01'), 'Anti HCV (ELISA)', 'S/CO', 'number', NULL, 'input', NULL, NULL, 'Viral Serology', 1, '{"max":1.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='HCV-ANTI-01'), 'Anti HCV Result', NULL, 'select', 'Negative,Equivocal,Positive', 'input', NULL, NULL, 'Viral Serology', 2, NULL, NULL, true, NOW(), NOW()),
+
+-- Anti TG Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ATG-01'), 'Anti-Thyroglobulin Antibody', 'IU/mL', 'number', NULL, 'input', NULL, NULL, 'Thyroid Autoantibodies', 1, '{"max":115.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ATG-01'), 'Anti-TG Result', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Thyroid Autoantibodies', 2, NULL, NULL, true, NOW(), NOW()),
+
+-- APA IgG Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='APA-IGG-01'), 'APA IgG Level', 'GPL Units/mL', 'number', NULL, 'input', NULL, NULL, 'Antiphospholipid Antibodies', 1, '[{"age_group":"all","sex":"any","low":0.0,"high":15.0,"note":"Negative <15, Weak Positive 15-39, Positive >=40"}]'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='APA-IGG-01'), 'APA IgG Result', NULL, 'select', 'Negative,Weak Positive,Positive', 'input', NULL, NULL, 'Antiphospholipid Antibodies', 2, NULL, NULL, true, NOW(), NOW()),
+
+-- APA IgM Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='APA-IGM-01'), 'APA IgM Level', 'MPL Units/mL', 'number', NULL, 'input', NULL, NULL, 'Antiphospholipid Antibodies', 1, '[{"age_group":"all","sex":"any","low":0.0,"high":15.0,"note":"Negative <15, Weak Positive 15-39, Positive >=40"}]'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='APA-IGM-01'), 'APA IgM Result', NULL, 'select', 'Negative,Weak Positive,Positive', 'input', NULL, NULL, 'Antiphospholipid Antibodies', 2, NULL, NULL, true, NOW(), NOW()),
+
+-- Bicarbonate Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BICARB-01'), 'Bicarbonate (HCO3)', 'mmol/L', 'number', NULL, 'input', NULL, NULL, 'Acid-Base Electrolytes', 1, '{"min":22.0,"max":29.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- BTCT Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BTCT-01'), 'Bleeding Time (BT)', 'minutes', 'number', NULL, 'input', NULL, NULL, 'Coagulation Parameters', 1, '{"min":2.0,"max":7.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BTCT-01'), 'Clotting Time (CT)', 'minutes', 'number', NULL, 'input', NULL, NULL, 'Coagulation Parameters', 2, '{"min":5.0,"max":15.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- Calcium urine Random Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CALC-UR-01'), 'Urine Calcium (Random)', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Urine Electrolytes', 1, '[{"age_group":"all","sex":"any","low":0.0,"high":20.0,"note":"No absolute ref range; highly dependent on diet."}]'::jsonb, NULL, true, NOW(), NOW()),
+
+-- Calcium urine 24 hours Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CALC-U24-01'), '24 Hour Urine Volume', 'mL', 'number', NULL, 'input', NULL, NULL, 'Urine Calcium 24h', 1, '{"min":1000.0,"max":2000.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CALC-U24-01'), 'Urine Calcium Concentration', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Urine Calcium 24h', 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CALC-U24-01'), '24 Hour Urine Calcium Excretion', 'mg/24 hr', 'number', NULL, 'calculated', '(24 Hour Urine Volume * Urine Calcium Concentration) / 100', '24 Hour Urine Volume,Urine Calcium Concentration', 'Urine Calcium 24h', 3, '{"min":100.0,"max":300.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- Chloride Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CHLOR-01'), 'Chloride (Serum)', 'mmol/L', 'number', NULL, 'input', NULL, NULL, 'Serum Electrolytes', 1, '{"min":96.0,"max":106.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- Urine Chloride Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CHLOR-UR-01'), 'Urine Chloride', 'mmol/L', 'number', NULL, 'input', NULL, NULL, 'Urine Electrolytes', 1, '{"min":20.0,"max":110.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- Chikungunya IgM ELISA Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CHIK-ELISA-01'), 'Chikungunya IgM ELISA Index', 'Index', 'number', NULL, 'input', NULL, NULL, 'Chikungunya Serology', 1, '[{"age_group":"all","sex":"any","low":0.0,"high":0.9,"note":"Negative <0.9, Equivocal 0.9-1.1, Positive >1.1"}]'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CHIK-ELISA-01'), 'Chikungunya IgM ELISA Result', NULL, 'select', 'Negative,Equivocal,Positive', 'input', NULL, NULL, 'Chikungunya Serology', 2, NULL, NULL, true, NOW(), NOW()),
+
+-- Creatinine Urine 24 Hrs Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CREAT-U24-01'), '24 Hour Urine Volume', 'mL', 'number', NULL, 'input', NULL, NULL, 'Urine Creatinine 24h', 1, '{"min":1000.0,"max":2000.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CREAT-U24-01'), 'Urine Creatinine Concentration', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Urine Creatinine 24h', 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CREAT-U24-01'), '24 Hour Urine Creatinine Excretion', 'g/24 hr', 'number', NULL, 'calculated', '(24 Hour Urine Volume * Urine Creatinine Concentration) / 100000', '24 Hour Urine Volume,Urine Creatinine Concentration', 'Urine Creatinine 24h', 3, '[{"age_group":"all","sex":"male","low":1.0,"high":2.0},{"age_group":"all","sex":"female","low":0.8,"high":1.8}]'::jsonb, NULL, true, NOW(), NOW()),
+
+-- CSF Routine examination Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CSF-ROUT-01'), 'CSF Colour', NULL, 'select', 'Colorless,Xanthochromic,Bloody,Turbid', 'input', NULL, NULL, 'Macroscopic Examination', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CSF-ROUT-01'), 'CSF Appearance', NULL, 'select', 'Clear,Hazy,Turbid', 'input', NULL, NULL, 'Macroscopic Examination', 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CSF-ROUT-01'), 'CSF Protein', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Chemical Examination', 3, '{"min":15.0,"max":45.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CSF-ROUT-01'), 'CSF Glucose', 'mg/dL', 'number', NULL, 'input', NULL, NULL, 'Chemical Examination', 4, '{"min":50.0,"max":80.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CSF-ROUT-01'), 'CSF Chloride', 'mmol/L', 'number', NULL, 'input', NULL, NULL, 'Chemical Examination', 5, '{"min":118.0,"max":132.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CSF-ROUT-01'), 'CSF Total WBC Count', 'cells/cumm', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 6, '{"min":0.0,"max":5.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CSF-ROUT-01'), 'CSF Total RBC Count', 'cells/cumm', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 7, '{"min":0.0,"max":0.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CSF-ROUT-01'), 'CSF Neutrophils', '%', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 8, '{"min":0.0,"max":0.0}'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CSF-ROUT-01'), 'CSF Lymphocytes', '%', 'number', NULL, 'input', NULL, NULL, 'Microscopic Examination', 9, '{"min":60.0,"max":100.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- Culture - Auto C/S Aerobic Blood 1 Bottle Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CULT-BLOOD-01'), 'Incubation Duration', NULL, 'select', '24 hours,48 hours,72 hours,5 days', 'input', NULL, NULL, 'Aerobic Blood Culture', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CULT-BLOOD-01'), 'Blood Culture Result', NULL, 'select', 'No growth detected after 5 days of incubation,Growth of organism detected', 'input', NULL, NULL, 'Aerobic Blood Culture', 2, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CULT-BLOOD-01'), 'Organism Isolated', NULL, 'text', NULL, 'input', NULL, NULL, 'Aerobic Blood Culture', 3, NULL, NULL, false, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CULT-BLOOD-01'), 'Antibiotic Sensitivity Details', NULL, 'textarea', NULL, 'input', NULL, NULL, 'Aerobic Blood Culture', 4, NULL, NULL, false, NOW(), NOW()),
+
+-- DCT - Direct Coombs Test Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DCT-01'), 'Direct Coombs Test', NULL, 'select', 'Negative,Positive', 'input', NULL, NULL, 'Antiglobulin Testing', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DCT-01'), 'Reaction Strength', NULL, 'select', 'Negative,1+,2+,3+,4+', 'input', NULL, NULL, 'Antiglobulin Testing', 2, NULL, NULL, true, NOW(), NOW()),
+
+-- Dengue PCR Viral Load Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DENG-PCR-01'), 'Dengue PCR Result', NULL, 'select', 'Not Detected,Detected', 'input', NULL, NULL, 'Molecular Diagnostics', 1, NULL, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DENG-PCR-01'), 'Dengue Viral Load', 'copies/mL', 'number', NULL, 'input', NULL, NULL, 'Molecular Diagnostics', 2, '{"min":0.0,"max":0.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- DHEA - Dehydro Epiandrosterone Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DHEA-01'), 'DHEA (Serum)', 'ng/mL', 'number', NULL, 'input', NULL, NULL, 'Adrenal Androgens', 1, '{"min":1.5,"max":10.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+-- Dopamine Level Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='DOP-01'), 'Dopamine (Plasma)', 'pg/mL', 'number', NULL, 'input', NULL, NULL, 'Plasma Catecholamines', 1, '[{"age_group":"all","sex":"any","low":0.0,"high":30.0,"note":"Supine <30 pg/mL, Upright <85 pg/mL"}]'::jsonb, NULL, true, NOW(), NOW()),
+
+-- Estradiol (E2) Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ESTR-01'), 'Estradiol (E2)', 'pg/mL', 'number', NULL, 'input', NULL, NULL, 'Reproductive Hormones', 1, '[{"age_group":"all","sex":"male","low":10.0,"high":50.0,"note":"Male 10-50 pg/mL"},{"age_group":"all","sex":"female","low":30.0,"high":400.0,"note":"Follicular: 30-120 pg/mL, Luteal: 70-250 pg/mL, Mid-cycle: 130-370 pg/mL, Postmenopausal: <30 pg/mL"}]'::jsonb, NULL, true, NOW(), NOW()),
+
+-- Electrolytes Urine/Fluid Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ELEC-UR-01'), 'Urine/Fluid Sodium', 'mmol/L', 'number', NULL, 'input', NULL, NULL, 'Urine/Fluid Electrolytes', 1, '[{"age_group":"all","sex":"any","low":40.0,"high":220.0,"note":"Urine 24hr: 40-220 mmol/24h. Varies by diet."}]'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ELEC-UR-01'), 'Urine/Fluid Potassium', 'mmol/L', 'number', NULL, 'input', NULL, NULL, 'Urine/Fluid Electrolytes', 2, '[{"age_group":"all","sex":"any","low":25.0,"high":125.0,"note":"Urine 24hr: 25-125 mmol/24h. Varies by diet."}]'::jsonb, NULL, true, NOW(), NOW()),
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ELEC-UR-01'), 'Urine/Fluid Chloride', 'mmol/L', 'number', NULL, 'input', NULL, NULL, 'Urine/Fluid Electrolytes', 3, '[{"age_group":"all","sex":"any","low":110.0,"high":250.0,"note":"Urine 24hr: 110-250 mmol/24h. Varies by diet."}]'::jsonb, NULL, true, NOW(), NOW()),
+
+-- Erythropoetin Fields
+(gen_random_uuid(), (SELECT id FROM tests WHERE test_code='EPO-01'), 'Erythropoetin', 'mIU/mL', 'number', NULL, 'input', NULL, NULL, 'Renal Hormones', 1, '{"min":4.3,"max":29.0}'::jsonb, NULL, true, NOW(), NOW()),
+
+  -- ABG - Blood Gas Analysis Arterial Fields
+  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BCH 11'), 'pH', '', 'number', NULL, 'input', NULL, NULL, 'Blood Gas', 1, '[{"age_group":"all","sex":"any","low":7.35,"high":7.45}]'::jsonb, NULL, true, NOW(), NOW()),
+  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BCH 11'), 'pCO2', 'mmHg', 'number', NULL, 'input', NULL, NULL, 'Blood Gas', 2, '[{"age_group":"all","sex":"any","low":35.0,"high":45.0}]'::jsonb, NULL, true, NOW(), NOW()),
+  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BCH 11'), 'pO2', 'mmHg', 'number', NULL, 'input', NULL, NULL, 'Blood Gas', 3, '[{"age_group":"all","sex":"any","low":80.0,"high":100.0}]'::jsonb, NULL, true, NOW(), NOW()),
+  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BCH 11'), 'HCO3', 'mmol/L', 'number', NULL, 'input', NULL, NULL, 'Blood Gas', 4, '[{"age_group":"all","sex":"any","low":22.0,"high":26.0}]'::jsonb, NULL, true, NOW(), NOW()),
+  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BCH 11'), 'O2 Saturation', '%', 'number', NULL, 'input', NULL, NULL, 'Blood Gas', 5, '[{"age_group":"all","sex":"any","low":95.0,"high":100.0}]'::jsonb, NULL, true, NOW(), NOW()),
+
+  -- ACA - Anti Cardiolipin Antibody IgG Fields
+  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ECL 50.2'), 'ACA IgG', 'GPL', 'number', NULL, 'input', NULL, NULL, 'Antiphospholipid Antibodies', 1, '[{"age_group":"all","sex":"any","low":null,"high":10.0,"note":"< 10.0 GPL is Negative"}]'::jsonb, NULL, true, NOW(), NOW()),
+
+  -- ACA - Anti Cardiolipin Antibody IgM Fields
+  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='ECL 50.1'), 'ACA IgM', 'MPL', 'number', NULL, 'input', NULL, NULL, 'Antiphospholipid Antibodies', 1, '[{"age_group":"all","sex":"any","low":null,"high":10.0,"note":"< 10.0 MPL is Negative"}]'::jsonb, NULL, true, NOW(), NOW()),
+
+  -- ACE - Angiotensin Converting Enzyme* Fields
+  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BIO 08'), 'Angiotensin Converting Enzyme (ACE)', 'U/L', 'number', NULL, 'input', NULL, NULL, 'Enzymes', 1, '[{"age_group":"all","sex":"any","low":8.0,"high":52.0}]'::jsonb, NULL, true, NOW(), NOW()),
+
+  -- Acetone Serum Fields
+  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BM 12'), 'Acetone Serum', '', 'string', NULL, 'input', NULL, NULL, 'Ketones', 1, NULL, NULL, true, NOW(), NOW()),
+
+  -- Acetone Urine Fields
+  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='CPL 01'), 'Acetone Urine', '', 'string', NULL, 'input', NULL, NULL, 'Ketones', 1, NULL, NULL, true, NOW(), NOW()),
+
+  -- ACTH - Adrenocorticotropic hormone* Fields
+  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BIO 02'), 'ACTH', 'pg/mL', 'number', NULL, 'input', NULL, NULL, 'Pituitary Hormones', 1, '[{"age_group":"all","sex":"any","low":7.2,"high":63.3}]'::jsonb, NULL, true, NOW(), NOW()),
+
+  -- ADA - Adenosine Deaminase CSF Fields
+  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BCH 01.2'), 'ADA CSF', 'U/L', 'number', NULL, 'input', NULL, NULL, 'Adenosine Deaminase', 1, '[{"age_group":"all","sex":"any","low":null,"high":9.0}]'::jsonb, NULL, true, NOW(), NOW()),
+
+  -- ADA - Adenosine Deaminase Fluid Fields
+  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BCH 01.3'), 'ADA Fluid', 'U/L', 'number', NULL, 'input', NULL, NULL, 'Adenosine Deaminase', 1, '[{"age_group":"all","sex":"any","low":null,"high":40.0}]'::jsonb, NULL, true, NOW(), NOW()),
+
+  -- ADA - Adenosine Deaminase Serum Fields
+  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='BCH 01.1'), 'ADA Serum', 'U/L', 'number', NULL, 'input', NULL, NULL, 'Adenosine Deaminase', 1, '[{"age_group":"all","sex":"any","low":null,"high":15.0}]'::jsonb, NULL, true, NOW(), NOW()),
+
+  -- AEC - Absolute Eosinophil Count Fields
+  (gen_random_uuid(), (SELECT id FROM tests WHERE test_code='AA 01'), 'Absolute Eosinophil Count (AEC)', 'cells/cumm', 'number', NULL, 'input', NULL, NULL, 'Differential Count', 1, '[{"age_group":"all","sex":"any","low":40.0,"high":440.0}]'::jsonb, NULL, true, NOW(), NOW())
 
 ON CONFLICT (test_id, field_name)
 DO UPDATE SET
@@ -1634,9 +1870,7 @@ seed_rows AS (
           jsonb_build_object('age_group', 'adult', 'sex', 'female', 'low', COALESCE(o.min_val, tf.min_value), 'high', COALESCE(o.max_val, tf.max_value)),
           jsonb_build_object('age_group', 'pediatric', 'sex', 'any', 'low', COALESCE(o.min_val, tf.min_value), 'high', COALESCE(o.max_val, tf.max_value))
         )
-        ELSE jsonb_build_array(
-          jsonb_build_object('age_group', 'all', 'sex', 'any', 'note', 'Qualitative cutoff based interpretation')
-        )
+        ELSE NULL
       END::jsonb
     ) AS reference_rules,
     COALESCE(
@@ -1954,16 +2188,17 @@ UPDATE tests SET clinical_significance = '
 • Rheumatoid factor, human antimouse antibodies, heterophile antibodies may produce spurious results, especially in patients with autoimmune disorders (=10%). - Amiodarone may interfere with TSH.
 • Non thyroidal illness like severe infections, liver disease, renal and heart failure, severe burns, trauma and surgery, pregnancy, Acute psychiatric illness, Severe dehydration may show transient variation in TSH value.
 
-Thyroid Condition                                                 T3          T4          TSH
-1. Normal Thyroid Function (Eurothyroid)                          N           N           N
-2. Primary Hyperthyroidism                                        H           H           L
-3. Secondary Hyperthyroidism Grave''s Thyroiditis                 H           H           H
-4. T3 Thyrotoxicosis                                              H           N           N/L
-5. Primary Hypothyroidism                                         L           L           H/N
-6. Secondary Hypothyroidism                                       L           L           L
-7. Subclinical Hypothyroidism                                     N           N           H
-8. Patient on Treatment                                           N           N/H         L
-9. Non thyroidal illness (NTI) / Subclinical Hyperthyroid         N           N           L' WHERE test_code = 'THYPRO-01';
+| Thyroid Condition | T3 | T4 | TSH |
+| --- | --- | --- | --- |
+| 1. Normal Thyroid Function (Eurothyroid) | N | N | N |
+| 2. Primary Hyperthyroidism | H | H | L |
+| 3. Secondary Hyperthyroidism Grave''s Thyroiditis | H | H | H |
+| 4. T3 Thyrotoxicosis | H | N | N/L |
+| 5. Primary Hypothyroidism | L | L | H/N |
+| 6. Secondary Hypothyroidism | L | L | L |
+| 7. Subclinical Hypothyroidism | N | N | H |
+| 8. Patient on Treatment | N | N/H | L |
+| 9. Non thyroidal illness (NTI) / Subclinical Hyperthyroid | N | N | L |' WHERE test_code = 'THYPRO-01';
 
 UPDATE tests SET clinical_significance = '
 • Diagnose Hypothyroidism and Hyperthyroidism
@@ -2178,8 +2413,361 @@ Serum Calcium Decreases in Hypoparathyrodism, Surgical/Idiopathic/Herediatary/ I
 
 Serum Calcium Increases in Primary /Secondary Hyper-parathyroidism, Acute /chronic Renal failure, Malignant tumors (Breast,Lung,Kindney,Lymphoma), Granulomatous Disease(like TB,Sarcoidosis), VitaminD & VitaminA Intoxication, Drugs (like Diurectics and Tamoxifane, androgens), Paget''s Disease, Rhabdomyolysis with Acute renal failure, Dehydration with Hyperprotenemia and Idiopathic Hypercalcemia of Infancy.' WHERE test_code = 'CALC-01';
 
+
+-- ============================================
+-- CLINICAL SIGNIFICANCES FOR NEW TESTS
+-- ============================================
+
+UPDATE tests SET clinical_significance = '
+Hemoglobin Electrophoresis is a laboratory test used to identify and measure the different types of hemoglobin in the bloodstream. Hemoglobin is the protein in red blood cells that carries oxygen. 
+
+Clinical Utility & Interpretation:
+• Diagnosis of Thalassemia: Thalassemia is an inherited blood disorder characterized by abnormal hemoglobin production. This test is essential for diagnosing Alpha and Beta Thalassemia. Beta Thalassemia trait (minor) is typically characterized by an elevation of Hb A2 (3.5% to 8%) and sometimes a mild elevation of Hb F (up to 5%). Beta Thalassemia Major features a severe reduction or complete absence of Hb A, with Hb F constituting up to 90% or more of total hemoglobin.
+• Hemoglobinopathies: It detects abnormal hemoglobins such as Hb S (Sickle Cell disease/trait), Hb C, Hb E, and Hb D. In individuals with Sickle Cell Trait (HbAS), Hb S constitutes 35% to 45% of the total hemoglobin, while Hb A remains dominant. In Sickle Cell Disease (HbSS), Hb A is absent, and Hb S constitutes the majority of the hemoglobin.
+• Family Screening and Counseling: Essential for carrier screening and genetic counseling to assess the risk of hemoglobin disorders in future offspring.' WHERE test_code = 'THAL-01';
+
+UPDATE tests SET clinical_significance = '
+Arterial Blood Gas (ABG) analysis is a critical diagnostic test that measures the levels of oxygen (pO2), carbon dioxide (pCO2), and the acidity (pH) of arterial blood. It is highly useful in emergency medicine and intensive care settings to evaluate gas exchange, lung function, and metabolic state.
+
+Clinical Utility & Interpretation:
+• Acid-Base Disorders: ABG is the primary tool to classify acid-base status. pH < 7.35 indicates acidosis, while pH > 7.45 indicates alkalosis. 
+• Respiratory vs. Metabolic Causes:
+  - Respiratory Acidosis: Characterized by a low pH and an elevated pCO2 (> 45 mmHg), representing alveolar hypoventilation (e.g., COPD, severe asthma, drug-induced respiratory depression).
+  - Respiratory Alkalosis: Characterized by a high pH and a decreased pCO2 (< 35 mmHg), representing hyperventilation (e.g., anxiety, pulmonary embolism, early salicylate toxicity).
+  - Metabolic Acidosis: Characterized by a low pH and a decreased HCO3 (< 22 mmol/L), indicating bicarbonate loss or accumulation of organic acids (e.g., Diabetic Ketoacidosis, renal failure, lactic acidosis).
+  - Metabolic Alkalosis: Characterized by a high pH and an elevated HCO3 (> 26 mmol/L), representing acid loss or alkali ingestion (e.g., prolonged vomiting, severe dehydration, diuretic therapy).
+• Oxygenation Status: Low pO2 (< 75 mmHg) indicates hypoxemia, which guides the administration of supplemental oxygen or adjustments in mechanical ventilation settings.' WHERE test_code = 'ABG-01';
+
+UPDATE tests SET clinical_significance = '
+Anti-Cardiolipin IgG antibody testing is a major diagnostic component for Antiphospholipid Syndrome (APS), an autoimmune disorder characterized by recurrent arterial or venous thrombosis, pregnancy loss, and thrombocytopenia. Cardiolipin is a phospholipid present in cell membranes and mitochondria.
+
+Clinical Utility & Interpretation:
+• Thrombotic Risk Assessment: Elevated levels of Anti-Cardiolipin IgG are strongly associated with a high risk of vascular thrombosis (blood clots in veins or arteries). Positive titers are often observed in patients presenting with unexplained deep vein thrombosis (DVT), pulmonary embolism, stroke, or transient ischemic attacks at a young age.
+• Obstetric Complications: High levels of IgG cardiolipin antibodies are associated with recurrent pregnancy losses (usually three or more consecutive first-trimester losses or one or more late-pregnancy losses), preeclampsia, and placental insufficiency.
+• Clinical Interpretation Cutoffs:
+  - Negative: < 10 GPL units. Indicates no detectable IgG autoantibodies to cardiolipin.
+  - Low Positive / Equivocal: 10 to 40 GPL units. May represent a transient rise due to recent viral infections or medications.
+  - Moderate to High Positive: > 40 GPL units. Strongly suggestive of APS, especially when persistently positive.
+• Diagnostic Confirmation: Since transient anti-cardiolipin antibodies can occur during infections, a positive test MUST be repeated after 12 weeks to confirm persistence for a definitive diagnosis of Antiphospholipid Syndrome.' WHERE test_code = 'ACA-IGG-01';
+
+UPDATE tests SET clinical_significance = '
+Anti-Cardiolipin IgM antibody testing is performed to detect the presence of IgM autoantibodies directed against cardiolipin, a mitochondrial phospholipid. It is one of the laboratory criteria used to diagnose Antiphospholipid Syndrome (APS) and evaluate patients with hypercoagulable states.
+
+Clinical Utility & Interpretation:
+• Evaluation of Autoimmune Activity: IgM autoantibodies are typically the first class of antibodies produced by the immune system in response to an antigen. While IgG antibodies have a stronger correlation with thrombosis and pregnancy complications, elevated IgM levels are also diagnostic of APS.
+• Transient vs. Persistent Positivity: IgM antibodies can frequently rise temporarily due to infectious diseases (such as syphilis, malaria, hepatitis C, or bacterial infections) and certain medications. Persistent positivity (measured again after 12 weeks) is required to establish a diagnosis of APS.
+• Interpretation Guidelines:
+  - Negative: < 10 MPL units. Normal finding.
+  - Equivocal / Borderline: 10 to 40 MPL units. Often transient and associated with non-APS conditions.
+  - Positive: > 40 MPL units. Consistent with APS if persistent.' WHERE test_code = 'ACA-IGM-01';
+
+UPDATE tests SET clinical_significance = '
+Aldosterone is a vital mineralocorticoid steroid hormone produced by the outer section (zona glomerulosa) of the adrenal cortex. It plays a critical role in the homeostatic regulation of blood pressure, blood volume, and the balance of sodium and potassium in the body.
+
+Clinical Utility & Interpretation:
+• Evaluation of Hypertension: Aldosterone testing is primarily indicated in patients with high blood pressure, especially those with resistant hypertension or hypokalemia (low potassium).
+• Primary Aldosteronism (Conn''s Syndrome): Characterized by autonomous, excessive production of aldosterone by the adrenal glands (due to an aldosterone-producing adrenal adenoma or bilateral adrenal hyperplasia). This leads to sodium retention, potassium depletion, and hypertension. In primary aldosteronism, aldosterone is high, while plasma renin activity is suppressed.
+• Secondary Aldosteronism: Occurs when aldosterone excess is driven by overactivation of the renin-angiotensin system. Causes include renal artery stenosis, congestive heart failure, liver cirrhosis, and nephrotic syndrome. Here, both aldosterone and renin levels are elevated.
+• Adrenal Insufficiency (Addison''s Disease): Characterized by primary failure of the adrenal gland, leading to low aldosterone levels. Symptoms include hypotension, hyponatremia, hyperkalemia, and fatigue.
+• Postural Variations: Aldosterone secretion is highly sensitive to posture. Upright posture increases venous return pressure, stimulating renin and aldosterone release. Hence, supine and upright reference ranges differ significantly, and posture must be documented during sample collection.' WHERE test_code = 'ALDO-01';
+
+UPDATE tests SET clinical_significance = '
+Allergy Food & Inhalant panel testing measures specific Immunoglobulin E (IgE) antibodies against common food proteins (such as milk, egg, wheat, nuts, and seafood) and environmental inhalants (such as pollen, house dust mites, animal dander, and mold spores) in serum.
+
+Clinical Utility & Interpretation:
+• Diagnosis of Type I Hypersensitivity: IgE-mediated allergic reactions are responsible for conditions such as allergic rhinitis, asthma, atopic dermatitis (eczema), and food allergies. The presence of specific IgE antibodies indicates sensitization to the corresponding allergen.
+• Total IgE Concentration: Total IgE represents the overall level of IgE antibodies in the circulation. While elevated levels are common in allergic individuals, they can also occur due to parasitic infections, bronchopulmonary aspergillosis, and immunodeficiencies. Normal total IgE levels do not rule out specific allergies.
+• Specific IgE Interpretation:
+  - Level < 0.35 kUA/L (Class 0): Negative / Undetectable. Sensitization is unlikely.
+  - Level >= 0.35 kUA/L (Class 1 to 6): Represents increasing levels of specific IgE antibodies and higher likelihood of clinical allergic symptoms upon exposure to the allergen.
+• Clinical Correlation: A positive specific IgE test indicates sensitization but must always be interpreted in conjunction with the patient''s clinical symptoms and history, as sensitization does not always translate to a clinical allergic reaction.' WHERE test_code = 'ALLERGY-FI-01';
+
+UPDATE tests SET clinical_significance = '
+Allergy Drugs panel testing evaluates specific IgE antibody levels against commonly implicated medications, such as Penicillin, Cephalosporins, and other beta-lactam antibiotics. 
+
+Clinical Utility & Interpretation:
+• Detection of Drug Hypersensitivity: IgE-mediated drug allergies can cause immediate, potentially life-threatening systemic reactions (anaphylaxis), urticaria, angioedema, or bronchospasm. This test helps identify specific drug triggers.
+• Interpretation of Specific IgE Levels:
+  - Specific IgE < 0.35 kUA/L (Class 0): Negative. No IgE antibodies detected. However, a negative result does not completely rule out drug allergy, as some reactions are non-IgE mediated or target drug metabolites not present in the assay.
+  - Specific IgE >= 0.35 kUA/L (Class 1-6): Positive. Indicates immunological sensitization to the drug.
+• Safety Precautions: A positive result indicates a high risk of immediate hypersensitivity. The implicated drug should be avoided, and alternatives should be prescribed. All drug allergy test results must be reviewed by an allergist or immunologist alongside the patient''s drug exposure history.' WHERE test_code = 'ALLERGY-DRUG-01';
+
+UPDATE tests SET clinical_significance = '
+The Comprehensive Food, Drug, and Inhalant Allergy Panel is designed to screen for IgE-mediated hypersensitivities across a broad spectrum of potential allergens including dietary foods, environmental inhalants, and pharmaceutical drugs.
+
+Clinical Utility & Interpretation:
+• Broad Spectrum Screening: Useful for patients with complex or multi-systemic allergic symptoms (such as concurrent chronic urticaria, asthma, and gastrointestinal symptoms) where the triggering allergen is unknown.
+• Key Parameters Evaluated:
+  - Total IgE: Reflects overall immune system allergic activation.
+  - Food Panel specific IgE: Identifies sensitization to major food antigens.
+  - Inhalant Panel specific IgE: Identifies sensitization to airborne particles.
+  - Drug Panel specific IgE: Identifies sensitization to common drugs.
+• Clinical Management: Results guide allergen avoidance strategies, immunotherapy planning, and dietary modifications. A reactive result indicates sensitization, but definitive diagnosis of clinical allergy requires confirmation by clinical history or double-blind food challenges under medical supervision.' WHERE test_code = 'ALLERGY-FDI-01';
+
+UPDATE tests SET clinical_significance = '
+Anti-Mitochondrial Antibodies (AMA) are autoantibodies directed against antigens in the inner mitochondrial membrane, specifically the M2 pyruvate dehydrogenase complex. The AMA test is highly sensitive and specific for Primary Biliary Cholangitis (PBC).
+
+Clinical Utility & Interpretation:
+• Diagnosis of Primary Biliary Cholangitis (PBC): PBC is a chronic, progressive autoimmune liver disease characterized by the destruction of intrahepatic bile ducts, leading to cholestasis, portal inflammation, and liver cirrhosis. AMA is present in approximately 95% of patients with PBC, making it the hallmark diagnostic marker.
+• ELISA Interpretation:
+  - Negative (< 20.0 Units/mL): Normal finding; PBC is unlikely but not ruled out if clinical suspicion remains high.
+  - Equivocal (20.0 - 25.0 Units/mL): Borderline result; retesting in 3-6 months or evaluating other liver enzymes (such as Alkaline Phosphatase) is recommended.
+  - Positive (>= 25.0 Units/mL): Highly suggestive of PBC, particularly in patients with elevated Alkaline Phosphatase (ALP) and symptoms like fatigue or pruritus (itching).
+• Other Conditions: Low titers of AMA may occasionally be detected in other autoimmune diseases, such as Systemic Lupus Erythematosus (SLE), Sjögren''s syndrome, rheumatoid arthritis, and autoimmune hepatitis, but high titers are highly specific for PBC.' WHERE test_code = 'AMA-01';
+
+UPDATE tests SET clinical_significance = '
+Antinuclear Antibody (ANA) Profile is a comprehensive follow-up test performed after a positive ANA primary screen. It uses multiplex assays or ELISA to detect specific autoantibodies directed against Extractable Nuclear Antigens (ENAs) and double-stranded DNA.
+
+Clinical Utility & Interpretation of Key Parameters:
+• Anti-dsDNA: Highly specific for Systemic Lupus Erythematosus (SLE). Levels correlate with disease activity, particularly lupus nephritis.
+• Anti-Sm (Smith): Extremely specific for SLE; considered diagnostic for the disease, though present in only 20-30% of patients.
+• Anti-SSA (Ro) / Anti-SSB (La): Strongly associated with Sjögren''s Syndrome (dry eyes/mouth) and subacute cutaneous lupus. Anti-SSA is also linked to congenital heart block in infants of positive mothers.
+• Anti-RNP (Ribonucleoprotein): High titers are characteristic of Mixed Connective Tissue Disease (MCTD), which shares features of lupus, scleroderma, and polymyositis.
+• Anti-Scl-70 (Topoisomerase I): Highly specific for systemic sclerosis (diffuse scleroderma) and indicates a higher risk of pulmonary fibrosis.
+• Anti-Jo-1 (Histidyl-tRNA synthetase): Associated with inflammatory myopathies (polymyositis, dermatomyositis) and antisynthetase syndrome (myositis, interstitial lung disease, arthritis, Raynaud''s).' WHERE test_code = 'ANA-PROF-01';
+
+UPDATE tests SET clinical_significance = '
+Anti-Neutrophil Cytoplasmic Antibodies (ANCA) are a group of autoantibodies directed against proteins in the cytoplasmic granules of neutrophils and monocytes. ANCA testing is a vital diagnostic tool for systemic necrotizing vasculitis.
+
+Clinical Utility & Interpretation:
+• Indirect Immunofluorescence (IIF) Patterns:
+  - c-ANCA (Cytoplasmic): Characterized by diffuse granular cytoplasmic staining. This pattern is primarily caused by antibodies against Proteinase 3 (PR3). High titers are strongly associated with Granulomatosis with Polyangiitis (GPA, formerly Wegener''s Vasculitis), with a sensitivity of >90% in active generalized disease.
+  - p-ANCA (Perinuclear): Characterized by staining around the nucleus. This pattern is primarily caused by antibodies against Myeloperoxidase (MPO). High titers are associated with Microscopic Polyangiitis (MPA), Eosinophilic Granulomatosis with Polyangiitis (EGPA, Churg-Strauss Syndrome), and anti-GBM disease.
+  - Atypical ANCA: Show varied staining patterns and are commonly found in inflammatory bowel diseases (ulcerative colitis), primary sclerosing cholangitis, and drug-induced vasculitis.
+• Clinical Monitoring: ANCA titers often correlate with disease activity, and a rise in titers may precede clinical relapse, guiding therapeutic decisions in vasculitis management.' WHERE test_code = 'ANCA-IF-01';
+
+UPDATE tests SET clinical_significance = '
+The Anti-HCV test detects the presence of specific antibodies produced by the immune system in response to infection with the Hepatitis C Virus (HCV). It is the primary screening test for Hepatitis C.
+
+Clinical Utility & Interpretation:
+• Screening for Hepatitis C: Used to screen high-risk individuals, blood donors, and patients with unexplained elevations in liver enzymes (AST/ALT).
+• Interpretation:
+  - S/CO < 1.0 (Negative): No detectable antibodies to HCV. Indicates either no exposure to the virus or a very early incubation stage (window period) before antibody development.
+  - S/CO >= 1.0 (Positive / Reactive): Indicates exposure to Hepatitis C Virus. The patient has produced antibodies.
+• Confirmation Requirement: A positive anti-HCV result does not distinguish between an active (chronic/acute) infection and a past infection that has resolved spontaneously or been successfully treated. Therefore, all reactive results MUST be confirmed using a quantitative HCV RNA PCR test to detect viral replication.' WHERE test_code = 'HCV-ANTI-01';
+
+UPDATE tests SET clinical_significance = '
+Anti-Thyroglobulin (Anti-TG) antibodies are autoantibodies directed against thyroglobulin, a large protein precursor synthesized by thyroid follicular cells that is crucial for thyroid hormone synthesis.
+
+Clinical Utility & Interpretation:
+• Autoimmune Thyroiditis (Hashimoto''s Disease): Anti-TG antibodies are present in 60-80% of patients with Hashimoto''s thyroiditis, where immune cells attack the thyroid, eventually causing hypothyroidism. They are also detected in 30% of patients with Graves'' disease (hyperthyroidism).
+• Thyroid Cancer Monitoring: In patients treated for differentiated thyroid cancer (papillary or follicular) via thyroidectomy and radioactive iodine, thyroglobulin (TG) is monitored as a tumor marker. The presence of Anti-TG antibodies can interfere with TG assays, causing false-low results. Monitoring Anti-TG antibody titers over time is crucial: stable or rising titers suggest persistent or recurrent thyroid tissue/tumor, while disappearing titers indicate complete remission.' WHERE test_code = 'ATG-01';
+
+UPDATE tests SET clinical_significance = '
+Anti-Phosphatidylserine / Antiphospholipid IgG antibody testing measures IgG antibodies directed against negatively charged phospholipids, primarily phosphatidylserine. This is an important supplemental test for Antiphospholipid Syndrome (APS).
+
+Clinical Utility & Interpretation:
+• Diagnosis of Antiphospholipid Syndrome (APS): APS is an autoimmune thrombophilic state. While lupus anticoagulant and anti-cardiolipin are the primary classification criteria, some patients with clinical features of APS test negative for these markers. Anti-phosphatidylserine antibodies serve as valuable markers in "seronegative" APS.
+• Thrombosis and Pregnancy Risks: Elevated IgG levels are strongly associated with venous thrombosis, arterial occlusion (leading to stroke or myocardial infarction), and recurrent obstetric losses or late-term pregnancy complications.
+• Range Interpretation:
+  - Negative (< 15 GPL Units/mL): Normal. No significant IgG autoantibodies detected.
+  - Weak Positive (15 - 39 GPL Units/mL): Low levels, may represent transient elevations due to infections.
+  - Positive (>= 40 GPL Units/mL): Suggests persistent autoimmune activation and risk of thrombotic events. Repeating the test after 12 weeks is mandatory for diagnosis.' WHERE test_code = 'APA-IGG-01';
+
+UPDATE tests SET clinical_significance = '
+Anti-Phosphatidylserine / Antiphospholipid IgM antibody testing measures IgM autoantibodies directed against phosphatidylserine. It is utilized to investigate unexplained thromboembolic events and recurrent miscarriages.
+
+Clinical Utility & Interpretation:
+• Early Autoimmune Response: IgM class antibodies indicate an active or early phase autoimmune response. Elevated IgM levels, even in the absence of IgG, support the diagnosis of Antiphospholipid Syndrome (APS) when persistent.
+• Diagnostic Interpretation:
+  - Negative (< 15 MPL Units/mL): Normal finding.
+  - Weak Positive (15 - 39 MPL Units/mL): Low level, common transiently after acute viral or bacterial infections.
+  - Positive (>= 40 MPL Units/mL): Strongly indicates APS if persistent over a 12-week period. It must be interpreted in clinical correlation with the patient''s history of thrombotic episodes or pregnancy losses.' WHERE test_code = 'APA-IGM-01';
+
+UPDATE tests SET clinical_significance = '
+Bicarbonate (HCO3-) is an essential electrolyte that acts as a chemical buffer, playing a fundamental role in maintaining the acid-base balance (pH) of blood and other bodily fluids. It is regulated primarily by the kidneys and lungs.
+
+Clinical Utility & Interpretation:
+• Metabolic Acidosis (Low Bicarbonate < 22 mmol/L): Represents a state where bicarbonate is consumed by excess acids or directly lost. Common causes include:
+  - Kidney Failure (inability to excrete acid and reabsorb bicarbonate).
+  - Diabetic Ketoacidosis (accumulation of acetoacetate and beta-hydroxybutyrate).
+  - Lactic Acidosis (under-perfusion of tissues during shock or sepsis).
+  - Severe Diarrhea (direct gastrointestinal loss of bicarbonate).
+• Metabolic Alkalosis (High Bicarbonate > 29 mmol/L): Represents an accumulation of bicarbonate or loss of hydrogen ions. Common causes include:
+  - Prolonged Vomiting or Nasogastric Suctioning (loss of hydrochloric acid).
+  - Diuretic Therapy (loss of hydrogen and potassium ions in urine).
+  - Hyperaldosteronism (increased renal acid excretion).
+• Respiratory Compensation: Bicarbonate levels are also altered as renal compensation for chronic respiratory disorders (e.g., elevated bicarbonate in chronic COPD to compensate for CO2 retention).' WHERE test_code = 'BICARB-01';
+
+UPDATE tests SET clinical_significance = '
+Bleeding Time (BT) and Clotting Time (CT) are classic in vivo screening tests used to evaluate the primary and secondary pathways of hemostasis (blood clotting). 
+
+Clinical Utility & Interpretation:
+• Bleeding Time (BT): Measures the time taken for bleeding to stop from a standardized superficial skin cut. It primarily evaluates platelet function, platelet-vessel wall interaction (adhesion), and vascular integrity.
+  - Prolonged BT (> 7 minutes): Occurs in thrombocytopenia (low platelet count), qualitative platelet defects (e.g., Glanzmann thrombasthenia, Bernard-Soulier syndrome), von Willebrand disease, and after aspirin ingestion.
+• Clotting Time (CT): Measures the time required for whole blood to clot in a glass tube. It evaluates the intrinsic and common pathways of the coagulation cascade (factors XII, XI, IX, VIII, X, V, II, I).
+  - Prolonged CT (> 15 minutes): Indicates severe deficiencies of clotting factors (e.g., Hemophilia A/B, severe vitamin K deficiency, liver disease) or the presence of circulating anticoagulants/heparin.
+• Pre-operative Screening: Traditionally used as a baseline pre-surgical screen to identify patients with an increased risk of clinical hemorrhage, though now often accompanied by specific tests like PT/INR and APTT.' WHERE test_code = 'BTCT-01';
+
+UPDATE tests SET clinical_significance = '
+Random Urine Calcium testing measures the concentration of calcium excreted in a spot urine sample. Because calcium excretion varies significantly throughout the day and is highly dependent on dietary intake, results are often compared to urine creatinine levels.
+
+Clinical Utility & Interpretation:
+• Evaluation of Calcium Homeostasis: Used alongside serum calcium and parathyroid hormone (PTH) tests to investigate disorders of calcium metabolism.
+• Hypercalciuria (Elevated Urine Calcium): High levels can indicate:
+  - Primary Hyperparathyroidism (excess PTH causing bone resorption and increased calcium filtration).
+  - Vitamin D Toxicity (increased intestinal calcium absorption).
+  - Distal Renal Tubular Acidosis.
+  - Osteolytic bone tumors or prolonged immobilization.
+  - High risk of calcium-containing nephrolithiasis (kidney stones).
+• Hypocalciuria (Decreased Urine Calcium): Low levels are seen in:
+  - Hypoparathyroidism (deficient PTH).
+  - Vitamin D Deficiency (rickets/osteomalacia).
+  - Familial Hypocalciuric Hypercalcemia (FHH).
+  - Thiazide Diuretic therapy (which increases renal calcium reabsorption).' WHERE test_code = 'CALC-UR-01';
+
+UPDATE tests SET clinical_significance = '
+24-Hour Urine Calcium testing provides a quantitative measurement of the total amount of calcium excreted in urine over a full 24-hour period. This eliminates the fluctuations associated with spot urine samples and is the gold standard for assessing hypercalciuria.
+
+Clinical Utility & Interpretation:
+• Evaluation of Nephrolithiasis: Hypercalciuria is the most common metabolic abnormality in patients with calcium oxalate or calcium phosphate kidney stones. A 24-hour excretion of > 300 mg (in men) or > 250 mg (in women) is considered hypercalciuria and guides dietary and pharmacological therapy (e.g., thiazides, low sodium diet).
+• Diagnosis of Endocrine Disorders:
+  - Primary Hyperparathyroidism: Often presents with elevated serum calcium, elevated PTH, and high 24-hour urine calcium due to the increased filtered load of calcium.
+  - Familial Hypocalciuric Hypercalcemia (FHH): A genetic disorder presenting with hypercalcemia but characteristically low 24-hour urine calcium (typically < 100 mg/24h), helping differentiate it from hyperparathyroidism and avoiding unnecessary parathyroid surgery.
+• Monitoring Treatment: Used to monitor the efficacy and safety of calcium and vitamin D supplementation in patients with hypoparathyroidism, osteoporosis, or rickets to avoid hypercalciuria and renal damage.' WHERE test_code = 'CALC-U24-01';
+
+UPDATE tests SET clinical_significance = '
+Chloride is the major extracellular anion (negatively charged electrolyte) in the human body. It works in close association with sodium to maintain osmotic pressure, proper hydration, blood volume, and acid-base balance.
+
+Clinical Utility & Interpretation:
+• Hyperchloremia (Elevated Serum Chloride > 106 mmol/L): Commonly occurs in:
+  - Dehydration (hemoconcentration).
+  - Renal Tubular Acidosis (loss of bicarbonate leading to compensatory chloride retention).
+  - Acute Kidney Injury or Chronic Kidney Disease (impaired renal excretion).
+  - Hyperventilation (respiratory alkalosis).
+  - Saline infusion excess (administration of high amounts of 0.9% NaCl).
+• Hypochloremia (Decreased Serum Chloride < 96 mmol/L): Commonly occurs in:
+  - Prolonged Vomiting or Gastric Suctioning (loss of HCl-rich gastric secretions).
+  - Respiratory Acidosis (chronic lung diseases like COPD with renal compensation retaining bicarbonate and excreting chloride).
+  - Adrenal Insufficiency (Addison''s disease, with sodium and chloride loss).
+  - Overhydration / Syndrome of Inappropriate ADH (dilutional hypochloremia).
+  - Congestive Heart Failure or SIADH.' WHERE test_code = 'CHLOR-01';
+
+UPDATE tests SET clinical_significance = '
+Urine Chloride testing measures the concentration of chloride excreted in urine. It is primarily used to evaluate fluid and electrolyte status, assess acid-base disorders, and differentiate causes of metabolic alkalosis.
+
+Clinical Utility & Interpretation:
+• Differentiating Metabolic Alkalosis:
+  - Chloride-Responsive Metabolic Alkalosis (Urine Chloride < 20 mmol/L): Suggests volume depletion, often due to vomiting, nasogastric suctioning, or remote diuretic use. The kidneys reabsorb sodium and chloride aggressively to restore volume. This condition responds well to intravenous saline infusion.
+  - Chloride-Resistant Metabolic Alkalosis (Urine Chloride > 20 mmol/L): Suggests volume expansion or active mineralocorticoid excess. Causes include primary aldosteronism, Cushing''s syndrome, severe hypokalemia, or active/recent diuretic use. In these cases, saline infusion does not correct the alkalosis.
+• Salt Wasting & Diuretics: Used to monitor compliance and response to loop or thiazide diuretics (which increase urine chloride) and to help diagnose renal salt-wasting syndromes.' WHERE test_code = 'CHLOR-UR-01';
+
+UPDATE tests SET clinical_significance = '
+Chikungunya IgM antibody detection by Enzyme-Linked Immunosorbent Assay (ELISA) is a highly reliable method for diagnosing acute or recent Chikungunya virus infection. Chikungunya is a mosquito-borne viral disease characterized by acute onset of high fever and severe, often debilitating joint pain.
+
+Clinical Utility & Interpretation:
+• Diagnosis of Recent Infection: Chikungunya IgM antibodies become detectable 3 to 5 days after the onset of symptoms and typically peak at 3 to 5 weeks. They can persist in the circulation for 3 to 4 months. A positive IgM ELISA index indicates a recent infection.
+• ELISA Index Interpretation:
+  - Negative (< 0.9 Index): No detectable IgM antibodies. If tested within the first 3 days of illness, a negative result does not rule out infection; retesting or PCR is recommended.
+  - Equivocal (0.9 - 1.1 Index): Borderline result. Suggests checking a convalescent serum sample collected 7-14 days later.
+  - Positive (> 1.1 Index): Confirms acute or recent Chikungunya infection.
+• Differential Diagnosis: Differentiating Chikungunya from Dengue and Zika is critical due to identical vectors (Aedes mosquitoes), overlapping clinical symptoms (fever, rash, joint pain), and geographic distributions. ELISA provides clear serological distinction.' WHERE test_code = 'CHIK-ELISA-01';
+
+UPDATE tests SET clinical_significance = '
+24-Hour Urine Creatinine testing measures the total amount of creatinine excreted in urine over a 24-hour period. Creatinine is a waste product produced at a constant rate by the spontaneous breakdown of creatine phosphate in skeletal muscle.
+
+Clinical Utility & Interpretation:
+• Assessment of Glomerular Filtration: Primarily used in conjunction with serum creatinine to calculate the Creatinine Clearance rate, which provides an estimate of the Glomerular Filtration Rate (GFR) and kidney function.
+• Verifying Collection Completeness: Because daily creatinine excretion is relatively constant and directly proportional to muscle mass, the total 24-hour excretion is used to verify if a 24-hour urine collection was complete. A typical adult male excretes 20-25 mg/kg of creatinine per day, while a female excretes 15-20 mg/kg. Values significantly below this suggest an incomplete collection.
+• Clinical Variations:
+  - Increased Excretion: Observed in conditions with severe muscle breakdown (rhabdomyolysis), gigantism, hyperthyroidism, or high dietary intake of meat.
+  - Decreased Excretion: Observed in advanced kidney failure (decreased filtration), severe muscle wasting (muscular dystrophy, severe cachexia), and malnutrition.' WHERE test_code = 'CREAT-U24-01';
+
+UPDATE tests SET clinical_significance = '
+Cerebrospinal Fluid (CSF) Routine Examination involves physical, chemical, and microscopic analysis of fluid collected via lumbar puncture. It is crucial for diagnosing acute or chronic neurological conditions.
+
+Clinical Utility & Interpretation of Key Parameters:
+• Appearance and Color: Normal CSF is clear and colorless. Xanthochromia (yellow color) suggests subarachnoid hemorrhage or extremely high protein. Turbidity indicates high white blood cells (meningitis).
+• CSF Protein: Elevated protein (> 45 mg/dL) is a sensitive indicator of blood-brain barrier disruption, observed in meningitis, brain abscesses, polyneuropathy (Guillain-Barré syndrome), and CNS tumors.
+• CSF Glucose: Normal glucose is about 60% of plasma glucose. Low glucose (< 50 mg/dL) is characteristic of bacterial, fungal, or tubercular meningitis, while viral meningitis typically presents with normal glucose.
+• Cell Counts and Differential:
+  - Neutrophilic Pleocytosis: High WBCs with a predominance of neutrophils suggests acute bacterial meningitis.
+  - Lymphocytic Pleocytosis: High WBCs with dominant lymphocytes suggests viral, tubercular, or fungal meningitis, or neurosyphilis.' WHERE test_code = 'CSF-ROUT-01';
+
+UPDATE tests SET clinical_significance = '
+Automated Aerobic Blood Culture is the gold standard diagnostic test to detect viable microorganisms (bacteria or yeast) circulating in the bloodstream. It is critical for the diagnosis of bacteremia, septicemia, infective endocarditis, and severe sepsis.
+
+Clinical Utility & Interpretation:
+• Detection of Bloodstream Pathogens: The system automatically monitors culture bottles for CO2 production (a proxy for microbial growth). If growth is detected, a gram stain and subcultures are performed immediately.
+• Interpretation of Results:
+  - No Growth Detected: Indicates no aerobic bacterial growth. A final negative report is generated after 5 days of incubation, which effectively rules out most common pathogens.
+  - Growth of Organism: Confirms bacteremia. The isolated organism is identified, and Antibiotic Susceptibility Testing (AST) is performed to determine the minimum inhibitory concentrations (MICs) of various antibiotics.
+• Distinguishing Contaminants: Isolation of common skin flora (e.g., Coagulase-negative Staphylococci) in only one of multiple culture bottles often suggests skin contamination during venipuncture rather than true bacteremia, requiring clinical correlation.' WHERE test_code = 'CULT-BLOOD-01';
+
+UPDATE tests SET clinical_significance = '
+The Direct Coombs Test (also known as the Direct Antiglobulin Test or DAT) is used to detect the presence of antibodies (IgG) or complement proteins (C3d) that are already bound to the surface of the patient''s red blood cells (RBCs) in vivo.
+
+Clinical Utility & Interpretation:
+• Diagnosis of Autoimmune Hemolytic Anemia (AIHA): DAT is the key test to confirm AIHA.
+  - Warm AIHA: Characterized by IgG (and sometimes complement) coating the RBCs, typically reacting at body temperature.
+  - Cold Agglutinin Disease: Characterized by complement (C3d) coating the RBCs, caused by IgM antibodies reacting at lower temperatures.
+• Hemolytic Disease of the Newborn (HDN): Detects maternal IgG antibodies that have crossed the placenta and bound to the baby''s RBCs (e.g., Rh or ABO incompatibility).
+• Drug-Induced Hemolysis: Some drugs (e.g., penicillin, methyldopa) can induce antibody production against RBCs, leading to a positive DAT and hemolytic anemia.
+• Hemolytic Transfusion Reactions: Detects recipient antibodies bound to transfused donor RBCs.' WHERE test_code = 'DCT-01';
+
+UPDATE tests SET clinical_significance = '
+Dengue virus real-time PCR is a molecular diagnostic test designed to detect and quantify Dengue virus RNA in patient serum or plasma. It is the most sensitive and specific method for confirming dengue infection during the early acute phase.
+
+Clinical Utility & Interpretation:
+• Early Acute Diagnosis (Days 1 to 5): During the first few days of fever, viremia (viral level in blood) is high. PCR can detect the virus before antibodies (IgM/IgG) develop, bridging the diagnostic window.
+• Quantitative Viral Load: Helps evaluate the level of viral replication. High viral load in the early phase has been linked to a higher risk of developing severe dengue manifestations, such as Dengue Hemorrhagic Fever (DHF) or Dengue Shock Syndrome (DSS).
+• Clinical Interpretation:
+  - Not Detected: No viral RNA found. If symptoms persist, serological tests (Dengue NS1 antigen and IgM antibodies) should be performed, as the viremic phase may have passed.
+  - Detected: Confirms active Dengue virus infection. It is highly specific and rules out cross-reactivity with other flaviviruses.' WHERE test_code = 'DENG-PCR-01';
+
+UPDATE tests SET clinical_significance = '
+Dehydroepiandrosterone (DHEA) is a weak male hormone (androgen) produced by the adrenal glands, ovaries, and testes. It is a precursor that is converted into stronger androgens (like testosterone) and estrogens. DHEA levels are measured to evaluate adrenal androgen production.
+
+Clinical Utility & Interpretation:
+• Evaluation of Hyperandrogenism: Measured in women presenting with signs of excess androgen, such as hirsutism (excessive hair growth), acne, male-pattern baldness, and irregular periods.
+• Adrenal Hyperplasia & Tumors: Markedly elevated DHEA levels can indicate congenital adrenal hyperplasia (CAH), adrenal cortical adenomas, or adrenal carcinomas. DHEA helps differentiate adrenal sources of androgens from ovarian sources (where DHEA is typically normal, but testosterone may be elevated).
+• Polycystic Ovary Syndrome (PCOS): Moderate elevations of DHEA may be observed in patients with PCOS.
+• Adrenal Insufficiency: Low DHEA levels are observed in primary adrenal insufficiency (Addison''s disease) and secondary adrenal insufficiency (pituitary dysfunction).' WHERE test_code = 'DHEA-01';
+
+UPDATE tests SET clinical_significance = '
+Dopamine is a catecholamine neurotransmitter synthesized in the brain and adrenal medulla. It is a precursor of norepinephrine and epinephrine. Measurement of plasma dopamine is primarily indicated for evaluating catecholamine-producing neuroendocrine tumors.
+
+Clinical Utility & Interpretation:
+• Diagnosis of Pheochromocytoma and Paraganglioma: These are rare catecholamine-secreting tumors of the adrenal medulla or extra-adrenal chromaffin tissue. While metanephrines are the primary screening tests, measuring dopamine is valuable for identifying tumors that selectively secrete dopamine, which are often malignant.
+• Neuroblastoma: A common pediatric tumor arising from the sympathetic nervous system, frequently presenting with highly elevated dopamine and homovanillic acid (HVA) levels.
+• Clinical Interpretation:
+  - Normal Level (< 30 pg/mL supine): Rules out significant catecholamine excess under baseline conditions.
+  - Elevated Levels: Suggest tumor presence, severe physiological stress, or drug interference (e.g., levodopa, tricyclic antidepressants, labetalol).' WHERE test_code = 'DOP-01';
+
+UPDATE tests SET clinical_significance = '
+Estradiol (E2) is the most potent physiological estrogen and the dominant ovarian hormone in non-pregnant, premenopausal females. In males, it is produced in small amounts by the testes and through peripheral aromatization of testosterones.
+
+Clinical Utility & Interpretation:
+• Ovarian Function & Fertility: Used to evaluate ovarian reserve, menstrual cycle irregularities, amenorrhea (absence of periods), and to monitor follicular development during ovarian stimulation for assisted reproductive technologies (IVF).
+• Female Ranges:
+  - Follicular Phase (30 - 120 pg/mL): Baseline levels at the beginning of the menstrual cycle.
+  - Mid-Cycle Peak (130 - 370 pg/mL): Surge triggering ovulation.
+  - Luteal Phase (70 - 250 pg/mL): Maintained by the corpus luteum.
+  - Postmenopausal (< 30 pg/mL): Reflects cessation of ovarian estrogen synthesis.
+• Gynecomastia and Pubertal Assessment: In males, elevated E2 levels can evaluate the cause of gynecomastia (breast development). In children, E2 helps assess precocious (early) or delayed puberty.' WHERE test_code = 'ESTR-01';
+
+UPDATE tests SET clinical_significance = '
+Urine/Fluid Electrolyte testing measures the concentration of sodium, potassium, and chloride in urine or sterile body fluids (e.g., peritoneal or pleural fluid). It is a valuable diagnostic tool in nephrology and internal medicine.
+
+Clinical Utility & Interpretation:
+• Evaluation of Acute Kidney Injury (AKI):
+  - Urine Sodium < 20 mmol/L: Suggests pre-renal etiology (hypovolemia, dehydration). The kidneys function normally and retain sodium to maintain blood pressure.
+  - Urine Sodium > 40 mmol/L: Suggests intrinsic renal injury (Acute Tubular Necrosis). The damaged renal tubules are unable to reabsorb sodium, causing salt wasting.
+• Hyponatremia Investigation: Helps differentiate SIADH (characterized by high urine sodium > 40 mmol/L despite low serum sodium) from volume depletion or polydipsia.
+• Urine Potassium Excretion: Evaluates hypokalemia. Urine potassium < 20 mmol/L suggests extra-renal potassium loss (e.g., diarrhea); urine potassium > 20 mmol/L suggests renal potassium wasting (e.g., hyperaldosteronism, tubular defects, diuretic use).' WHERE test_code = 'ELEC-UR-01';
+
+UPDATE tests SET clinical_significance = '
+Erythropoietin (EPO) is a glycoprotein hormone produced primarily by interstitial cells in the peritubular capillary bed of the kidneys in response to tissue hypoxia. It binds to receptors on bone marrow erythroid progenitor cells, stimulating red blood cell (RBC) production.
+
+Clinical Utility & Interpretation:
+• Differentiating Polycythemia:
+  - Primary Polycythemia (Polycythemia Vera): An autonomous clonal myeloproliferative disorder presenting with high RBC mass and suppressed, low EPO levels (< 4.3 mIU/mL).
+  - Secondary Polycythemia: Caused by chronic tissue hypoxia (e.g., chronic lung disease, high altitude, sleep apnea, smoking) or EPO-secreting tumors (renal cell carcinoma, cerebellar hemangioblastoma). Here, EPO levels are elevated.
+• Investigation of Anemia: In patients with chronic kidney disease (CKD), damaged kidneys fail to produce sufficient EPO, leading to normocytic normochromic anemia. Low or normal EPO levels in the setting of anemia suggest renal dysfunction or anemia of chronic disease, while high EPO suggests appropriate bone marrow responsiveness (e.g., iron deficiency or hemolytic anemia).' WHERE test_code = 'EPO-01';
+
+
 -- Generic fallback to ensure no test has empty clinical significance
-UPDATE tests SET clinical_significance = 'Clinical significance provides diagnostic context. Results should be interpreted by a qualified clinician in correlation with clinical history, other diagnostic findings, and physical symptoms.' WHERE clinical_significance IS NULL OR clinical_significance = '';
+-- Deleted generic fallback update statement to preserve clean empty values
 
 -- ============================================
 -- WHATSAPP SYSTEM TEMPLATES (from old migration 003)

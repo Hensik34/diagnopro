@@ -93,7 +93,7 @@ export function estimateSectionHeight(section: TestSection, params: Parameter[],
   }
 
   const groups = uniqueGroupRows * groupHeaderHeight;
-  const spacing = 10;       // bottom margin
+  const spacing = 28;       // bottom margin / section separation space
   return heading + tableHeader + rows + groups + spacing;
 }
 
@@ -234,7 +234,7 @@ export function computeReportPages(options: PaginationOptions): PaginationResult
   let currentHeight = 0;
 
   // Margin spacing as specified in user request
-  const signatureSafetyMargin = 40;
+  const signatureSafetyMargin = 70;
   const effectiveContentHeight = contentHeight - signatureSafetyMargin;
   const minBufferForLastItem = 10;
 
@@ -298,7 +298,7 @@ export function computeReportPages(options: PaginationOptions): PaginationResult
     const totalSectionHeight = chunkH + sigH + testRemarkH + trailingH;
 
     const currentHasContent = out[out.length - 1].some(item => item.type === 'test' || item.type === 'interpretation');
-    if (currentHasContent && currentHeight + totalSectionHeight > contentHeight && totalSectionHeight <= contentHeight) {
+    if (currentHasContent && currentHeight + totalSectionHeight > effectiveContentHeight && totalSectionHeight <= effectiveContentHeight) {
       out.push([]);
       currentHeight = 0;
       out[out.length - 1].push({ type: 'patient' });

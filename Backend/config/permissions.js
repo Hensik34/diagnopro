@@ -34,6 +34,7 @@ const PERMISSIONS = {
   REPORT_APPROVE: 'report:approve',
   REPORT_DOWNLOAD: 'report:download',
   REPORT_ASSIGN_TECHNICIAN: 'report:assign_technician',
+  REPORT_REMOVE_TEST: 'report:remove_test',
 
   // Sample Management
   SAMPLE_CREATE: 'sample:create',
@@ -301,6 +302,7 @@ const PERMISSION_GROUPS = {
     PERMISSIONS.REPORT_APPROVE,
     PERMISSIONS.REPORT_DOWNLOAD,
     PERMISSIONS.REPORT_ASSIGN_TECHNICIAN,
+    PERMISSIONS.REPORT_REMOVE_TEST,
   ],
   'Sample Management': [
     PERMISSIONS.SAMPLE_CREATE,

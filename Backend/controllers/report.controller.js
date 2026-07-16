@@ -411,6 +411,44 @@ exports.updateReport = async (req, res) => {
       });
     }
 
+    // Check if tests are being removed and if the user is authorized to do so
+    if (test_data && currentReport.test_data) {
+      let currentTestIds = [];
+      let newTestIds = [];
+
+      try {
+        const currentData = typeof currentReport.test_data === "string"
+          ? JSON.parse(currentReport.test_data)
+          : currentReport.test_data;
+        currentTestIds = currentData?.testIds || [];
+      } catch (e) {
+        console.error("Error parsing current report test_data:", e);
+      }
+
+      try {
+        const newData = typeof test_data === "string"
+          ? JSON.parse(test_data)
+          : test_data;
+        newTestIds = newData?.testIds || [];
+      } catch (e) {
+        console.error("Error parsing incoming test_data:", e);
+      }
+
+      if (currentTestIds.length > 0) {
+        const removedTestIds = currentTestIds.filter(
+          (id) => !newTestIds.includes(id)
+        );
+        if (removedTestIds.length > 0) {
+          const { can } = require("../utils/can");
+          if (!can(req.user.role, "report:remove_test")) {
+            return res.status(403).json({
+              error: "You do not have permission to remove tests from a report once created.",
+            });
+          }
+        }
+      }
+    }
+
     // Get branch_id from current report or patient
     let resolvedBranchId =
       req.body.branch_id || req.query.branch_id || currentReport.branch_id;
@@ -640,16 +678,11 @@ async function triggerWhatsAppDelivery(id) {
       } else {
         // Generate PDF buffer (once)
         try {
-          const downloadToken = jwt.sign(
-            { reportId: fullReport.id },
-            process.env.JWT_SECRET,
-          );
           logWhatsAppDebug("Generating report PDF...", {
             reportId: fullReport.id,
           });
           pdfBuffer = await pdfGenerator.generateReportPdf(
-            fullReport.id,
-            downloadToken,
+            fullReport.id
           );
           logWhatsAppDebug("PDF successfully generated", {
             size: pdfBuffer ? pdfBuffer.length : 0,
@@ -692,7 +725,9 @@ async function triggerWhatsAppDelivery(id) {
               await reportDeliveryService.updateStatus(delivery, "sending");
               const sampleId = fullReport.sample_id_code || "N/A";
               const message = `Hello ${fullReport.patient_name || "Patient"},\n\nYour laboratory test report (${sampleId}) is ready. Please find the report PDF attached.\n\nBest regards,\nDiagnoPro`;
-              const fileName = `Report-${(fullReport.patient_name || "Patient").replace(/\s+/g, "_")}-${fullReport.id}.pdf`;
+              const safePatient = (fullReport.patient_name || "Patient").replace(/\s+/g, "_");
+              const safeSample = (fullReport.sample_id_code || fullReport.id).replace(/\s+/g, "_");
+              const fileName = `Report-${safePatient}-${safeSample}.pdf`;
               const result = await whatsappService.sendMessage({
                 branchId,
                 to: fullReport.patient_phone,
@@ -766,7 +801,9 @@ async function triggerWhatsAppDelivery(id) {
                 const docTitle = doctor.title || "Dr";
                 const docName = `${docTitle}. ${doctor.name}`;
                 const message = `Hello ${docName},\n\nLaboratory test report (${sampleId}) for patient ${fullReport.patient_name || "Patient"} is ready. Please find the report PDF attached.\n\nBest regards,\nDiagnoPro`;
-                const fileName = `Report-${(fullReport.patient_name || "Patient").replace(/\s+/g, "_")}-${fullReport.id}.pdf`;
+                const safePatient = (fullReport.patient_name || "Patient").replace(/\s+/g, "_");
+                const safeSample = (fullReport.sample_id_code || fullReport.id).replace(/\s+/g, "_");
+                const fileName = `Report-${safePatient}-${safeSample}.pdf`;
 
                 logWhatsAppDebug("Sending PDF message to referring doctor", {
                   to: doctor.phone,
@@ -1146,16 +1183,13 @@ exports.sendReport = async (req, res) => {
 
       try {
         await reportDeliveryService.updateStatus(delivery, "sending");
-        const downloadToken = jwt.sign(
-          { reportId: report.id },
-          process.env.JWT_SECRET,
-        );
         const pdfBuffer = await pdfGenerator.generateReportPdf(
-          report.id,
-          downloadToken,
+          report.id
         );
 
-        const fileName = `Report-${(report.patient_name || "Patient").replace(/\s+/g, "_")}-${report.id}.pdf`;
+        const safePatient = (report.patient_name || "Patient").replace(/\s+/g, "_");
+        const safeSample = (report.sample_id_code || report.id).replace(/\s+/g, "_");
+        const fileName = `Report-${safePatient}-${safeSample}.pdf`;
         const result = await whatsappService.sendMessage({
           branchId,
           to: recipientPhone,
@@ -1210,20 +1244,14 @@ exports.sendReport = async (req, res) => {
       try {
         await reportDeliveryService.updateStatus(delivery, "sending");
 
-        // Generate download token
-        const downloadToken = jwt.sign(
-          { reportId: report.id },
-          process.env.JWT_SECRET
-        );
-
         // Generate PDF
         const pdfBuffer = await pdfGenerator.generateReportPdf(
-          report.id,
-          downloadToken
+          report.id
         );
 
         const safePatient = (report.patient_name || "Patient").replace(/\s+/g, "_");
-        const fileName = `Report-${safePatient}-${report.id}.pdf`;
+        const safeSample = (report.sample_id_code || report.id).replace(/\s+/g, "_");
+        const fileName = `Report-${safePatient}-${safeSample}.pdf`;
 
         // Fetch branch name
         let branchName = "DiagnoPro Lab";
@@ -1273,17 +1301,13 @@ exports.downloadReportPdf = async (req, res) => {
       return res.status(404).json({ error: "Report not found" });
     }
 
-    const downloadToken = jwt.sign(
-      { reportId: report.id },
-      process.env.JWT_SECRET,
-    );
     const pdfBuffer = await pdfGenerator.generateReportPdf(
-      report.id,
-      downloadToken,
+      report.id
     );
 
     const safePatient = (report.patient_name || "Patient").replace(/\s+/g, "_");
-    const fileName = `Report-${safePatient}-${report.id}.pdf`;
+    const safeSample = (report.sample_id_code || report.id).replace(/\s+/g, "_");
+    const fileName = `Report-${safePatient}-${safeSample}.pdf`;
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`);
@@ -1397,6 +1421,52 @@ exports.getPublicReport = async (req, res) => {
     });
   } catch (err) {
     console.error("Get public report error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.downloadPublicReportPdf = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(401).json({ error: "Access token is missing" });
+    }
+
+    // Verify token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ error: "Invalid or expired access token" });
+    }
+
+    if (decoded.reportId !== id) {
+      return res.status(403).json({ error: "Token mismatch for this report" });
+    }
+
+    const report = await Report.getReportById(id);
+    if (!report) {
+      return res.status(404).json({ error: "Report not found" });
+    }
+
+    // Security check: Only allow downloading approved reports publicly
+    if (report.status !== "approved") {
+      return res.status(403).json({ error: "Report is not approved yet" });
+    }
+
+    const pdfBuffer = await pdfGenerator.generateReportPdf(report.id);
+
+    const safePatient = (report.patient_name || "Patient").replace(/\s+/g, "_");
+    const safeSample = (report.sample_id_code || report.id).replace(/\s+/g, "_");
+    const fileName = `Report-${safePatient}-${safeSample}.pdf`;
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error("Download public report PDF error:", err);
     res.status(500).json({ error: err.message });
   }
 };

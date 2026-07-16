@@ -359,6 +359,7 @@ export function ReportEntry() {
   const { labs: b2bLabs, fetchLabs: fetchB2BLabs } = useB2BStore();
   const { tests, testFields, fetchTests, fetchTestFields, fetchTestFieldsMulti } = useTestStore();
   const canAutoApprove = can('report:approve');
+  const canRemoveTest = can('report:remove_test');
   const {
     loadFromReport,
     reset: resetBilling,
@@ -1559,6 +1560,10 @@ export function ReportEntry() {
 
   const handleRemoveTest = async (testId: string) => {
     if (!selectedReport) return;
+    if (!canRemoveTest) {
+      toast.error("You do not have permission to remove tests from a report.");
+      return;
+    }
 
     const currentTestIds: string[] = Array.isArray(parsedTestData?.testIds)
       ? (parsedTestData.testIds as string[])
@@ -2301,6 +2306,10 @@ export function ReportEntry() {
   };
 
   const handleConfirmRemoveTest = (testId: string, testName: string) => {
+    if (!canRemoveTest) {
+      toast.error("You do not have permission to remove tests from a report.");
+      return;
+    }
     setTestIdToRemove(testId);
     setConfirmModal({
       isOpen: true,
@@ -2705,7 +2714,7 @@ export function ReportEntry() {
                     <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`} />
                     <span className="truncate">{section.testName}</span>
                   </div>
-                  {isEditable && (
+                  {isEditable && canRemoveTest && (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -2744,7 +2753,7 @@ export function ReportEntry() {
                       }`}
                   >
                     <span>{section.testName}</span>
-                    {isEditable && (
+                    {isEditable && canRemoveTest && (
                       <button
                         type="button"
                         onClick={(e) => {
@@ -3796,14 +3805,16 @@ export function ReportEntry() {
                       >
                         <span>{testDisplayName}</span>
                         {testDisplayCode && <span className="text-[10px] text-muted-foreground uppercase font-semibold">({testDisplayCode})</span>}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTest(tid)}
-                          className="w-4 h-4 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                          title="Remove test"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
+                        {canRemoveTest && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTest(tid)}
+                            className="w-4 h-4 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            title="Remove test"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     );
                   })}

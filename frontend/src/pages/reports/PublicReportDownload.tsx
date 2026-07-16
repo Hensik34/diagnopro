@@ -21,6 +21,7 @@ import {
   InvestigationTableRow,
   SectionGroupHeader,
   TestSectionBlock,
+  FormattedClinicalSignificance,
 } from '../../app/components/ImprovedReportLayout';
 import { formatAge } from '../../utils/age';
 import {
@@ -209,10 +210,10 @@ function Barcode({ value }: { value: string }) {
 export function PublicReportDownload() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
-  const printMode = searchParams.get('print') === 'true';
-
   const [report, setReport] = useState<ReportData | null>(null);
+  const token = searchParams.get('token') || report?.download_token;
+  const printMode = searchParams.get('print') === 'true';
+  const clientOrigin = (window as any).__CLIENT_URL__ || window.location.origin;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -223,6 +224,12 @@ export function PublicReportDownload() {
   // Fetch public report
   useEffect(() => {
     const fetchPublicReport = async () => {
+      if ((window as any).__REPORT_DATA__) {
+        setReport((window as any).__REPORT_DATA__);
+        setLoading(false);
+        return;
+      }
+
       if (!id || !token) {
         setError('Invalid report link. Missing report identifier or token.');
         setLoading(false);
@@ -449,186 +456,34 @@ export function PublicReportDownload() {
 
   // Download PDF Action
   const handleDownload = useCallback(async () => {
-    if (!report || reportPages.length === 0) return;
+    if (!report || !token) return;
     setDownloading(true);
-    setDownloadProgress(10);
-
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.width = `${A4_WIDTH_PX}px`;
-    iframe.style.height = `${A4_HEIGHT_PX}px`;
-    iframe.style.top = '-9999px';
-    iframe.style.left = '-9999px';
-    iframe.style.visibility = 'hidden';
-    document.body.appendChild(iframe);
-
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!iframeDoc) {
-      document.body.removeChild(iframe);
-      setDownloading(false);
-      return;
-    }
-
-    iframeDoc.open();
-    iframeDoc.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          body {
-            margin: 0; padding: 0;
-            background: #ffffff;
-            font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          * {
-            text-rendering: geometricPrecision;
-            -webkit-font-smoothing: antialiased;
-            box-sizing: border-box;
-          }
-        </style>
-      </head>
-      <body><div id="iframe-content-root"></div></body>
-      </html>
-    `);
-    iframeDoc.close();
-
-    // Copy stylesheet styles
-    document.querySelectorAll('style, link[rel="stylesheet"]').forEach((el) => {
-      try {
-        let cssText = '';
-        if (el.tagName === 'STYLE') {
-          cssText = el.textContent || '';
-        } else if (el instanceof HTMLLinkElement && el.sheet) {
-          const rules = el.sheet.cssRules || el.sheet.rules;
-          for (let k = 0; k < rules.length; k++) {
-            cssText += rules[k].cssText + '\n';
-          }
-        }
-        if (cssText) {
-          const cleaned = cssText.replace(/oklch\([^)]+\)/gi, '#212121');
-          const s = iframeDoc.createElement('style');
-          s.textContent = cleaned;
-          iframeDoc.head.appendChild(s);
-        } else if (el instanceof HTMLLinkElement) {
-          iframeDoc.head.appendChild(el.cloneNode(true));
-        }
-      } catch {
-        iframeDoc.head.appendChild(el.cloneNode(true));
-      }
-    });
+    setDownloadProgress(20);
 
     try {
-      const pdf = new jsPDF('p', 'mm', 'a4', true);
-      const root = iframeDoc.getElementById('iframe-content-root');
-      if (!root) throw new Error('Iframe root not found');
-
-      if (iframeDoc.fonts?.ready) await iframeDoc.fonts.ready;
-
-      setDownloadProgress(30);
-
-      const pagesCount = reportPages.length;
-      const isCompact = compactAdjustment > 0;
-      const pdfRowPad = isCompact ? '2px' : '3px';
-
-      for (let i = 0; i < pagesCount; i++) {
-        const node = previewContainerRef.current?.children[i] as HTMLElement;
-        if (!node) continue;
-
-        if (i > 0) pdf.addPage();
-
-        const cloned = node.cloneNode(true) as HTMLElement;
-        cloned.style.transform = 'none';
-        cloned.style.position = 'relative';
-        cloned.style.margin = '0';
-        cloned.style.boxShadow = 'none';
-        cloned.style.border = 'none';
-        cloned.style.width = `${A4_WIDTH_PX}px`;
-        cloned.style.height = `${A4_HEIGHT_PX}px`;
-        cloned.style.overflow = 'hidden';
-
-        const contentContainer = cloned.querySelector('[data-content-area="true"]') as HTMLElement;
-        if (contentContainer) {
-          contentContainer.style.gap = `${isCompact ? 1 : 3}px`;
-          contentContainer.style.fontSize = `${isCompact && compactAdjustment > 60 ? 10.5 : 11}px`;
-          contentContainer.style.lineHeight = `${isCompact && compactAdjustment > 60 ? 1.35 : 1.45}`;
-        }
-
-        const allCells = cloned.querySelectorAll('td, th');
-        allCells.forEach((cell) => {
-          const el = cell as HTMLElement;
-          ['padding', 'paddingTop', 'paddingBottom'].forEach(prop => {
-            const val = (el.style as any)[prop];
-            if (val && typeof val === 'string' && val.includes('var(')) {
-              (el.style as any)[prop] = val.replace(/var\(--row-pad[^)]*\)/g, pdfRowPad);
-            }
-          });
-        });
-
-        root.appendChild(cloned);
-
-        // Resolve SVG namespaces
-        const barcodes = cloned.querySelectorAll('svg');
-        barcodes.forEach((svg) => {
-          svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-        });
-
-        // Wait for images
-        const imgs = cloned.querySelectorAll('img');
-        await Promise.all(
-          Array.from(imgs).map(
-            img => new Promise(resolve => {
-              const imgEl = img as HTMLImageElement;
-              if (imgEl.complete && imgEl.naturalHeight > 0) {
-                resolve(true);
-              } else {
-                imgEl.onload = () => resolve(true);
-                imgEl.onerror = () => resolve(true);
-              }
-            })
-          )
-        );
-
-        await new Promise(r => setTimeout(r, 200));
-
-        const canvas = await html2canvas(cloned, {
-          scale: 3,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-          width: A4_WIDTH_PX,
-          height: A4_HEIGHT_PX,
-          allowTaint: true,
-        });
-
-        root.removeChild(cloned);
-
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-
-        setDownloadProgress(Math.min(90, Math.round(30 + ((i + 1) / pagesCount) * 60)));
-      }
-
-      const fileName = `Report-${report.patient_name.replace(/\s+/g, '_')}-${report.sample_id_code}.pdf`;
-      pdf.save(fileName);
-      setDownloadProgress(100);
-
+      const apiBase = publicApi.defaults.baseURL || 'http://localhost:5000/api';
+      const downloadUrl = `${apiBase}/reports/public/${id}/pdf?token=${token}`;
+      
+      // Navigate to trigger standard browser download stream
+      window.location.href = downloadUrl;
+      
+      // Simulate progress indicator updates for user feedback
+      setDownloadProgress(65);
       setTimeout(() => {
-        setDownloading(false);
-        setDownloadProgress(0);
-      }, 1500);
+        setDownloadProgress(100);
+        setTimeout(() => {
+          setDownloading(false);
+          setDownloadProgress(0);
+        }, 1000);
+      }, 600);
 
     } catch (err) {
-      console.error('PDF generation failed:', err);
-      alert('Could not generate PDF file. Please try again.');
+      console.error('PDF download failed:', err);
+      alert('Could not download PDF file. Please try again.');
       setDownloading(false);
       setDownloadProgress(0);
-    } finally {
-      document.body.removeChild(iframe);
     }
-  }, [report, reportPages, compactAdjustment]);
+  }, [report, id, token]);
 
   if (loading) {
     return (
@@ -827,7 +682,7 @@ export function PublicReportDownload() {
                             collectionAddress={`${report.branch?.location || ''}${report.branch?.city ? `, ${report.branch.city}` : ''}`}
                             qrCode={
                               <QRCodeSVG
-                                value={token ? `${window.location.origin}/public/report/${id}/download?token=${token}` : ''}
+                                value={token ? `${clientOrigin}/public/report/${id}/download?token=${token}` : ''}
                                 size={56}
                                 level="Q"
                                 bgColor="#ffffff"
@@ -905,7 +760,6 @@ export function PublicReportDownload() {
                       const snapshot = layoutSnapshots[item.testId];
                       const sigLayout = snapshot?.clinicalSignificanceLayout;
                       const sigFontSize = sigLayout?.fontSize ? `${sigLayout.fontSize}px` : '9.5px';
-                      const sigFontWeight = sigLayout?.bold ? '700' : '400';
                       const titleFontWeight = sigLayout?.bold ? '800' : '700';
 
                       return (
@@ -913,32 +767,18 @@ export function PublicReportDownload() {
                           key={`i-${idx}`}
                           style={{
                             marginTop: '8px',
-                            fontSize: sigFontSize,
                             color: '#222',
-                            lineHeight: 1.45,
                             textAlign: 'left'
                           }}
                         >
-                          <div style={{ fontWeight: titleFontWeight, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                          <div style={{ fontWeight: titleFontWeight, color: '#111', textTransform: 'uppercase', marginBottom: '2px', fontSize: sigFontSize }}>
                             Clinical Significance
                           </div>
-                          <div style={{ margin: 0, fontWeight: sigFontWeight }}>
-                            {item.text.split('\n').map((line, lineIdx) => {
-                              const isTableRow = line.includes('\t') || line.includes('   ');
-                              return (
-                                <div
-                                  key={lineIdx}
-                                  style={{
-                                    fontFamily: isTableRow ? 'Consolas, Monaco, "Courier New", Courier, monospace' : 'inherit',
-                                    whiteSpace: 'pre-wrap',
-                                    minHeight: '1em'
-                                  }}
-                                >
-                                  {line}
-                                </div>
-                              );
-                            })}
-                          </div>
+                          <FormattedClinicalSignificance
+                            text={item.text}
+                            fontSize={sigFontSize}
+                            bold={!!sigLayout?.bold}
+                          />
                         </div>
                       );
                     }
@@ -950,32 +790,18 @@ export function PublicReportDownload() {
                           key={`gnotes-${idx}`}
                           style={{
                             marginTop: '8px',
-                            fontSize: '9.5px',
                             color: '#222',
-                            lineHeight: 1.45,
                             textAlign: 'left'
                           }}
                         >
-                          <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                          <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px', fontSize: '9.5px' }}>
                             Technician Notes / Interpretation
                           </div>
-                          <div style={{ margin: 0 }}>
-                            {item.text.split('\n').map((line, lineIdx) => {
-                              const isTableRow = line.includes('\t') || line.includes('   ');
-                              return (
-                                <div
-                                  key={lineIdx}
-                                  style={{
-                                    fontFamily: isTableRow ? 'Consolas, Monaco, "Courier New", Courier, monospace' : 'inherit',
-                                    whiteSpace: 'pre-wrap',
-                                    minHeight: '1em'
-                                  }}
-                                >
-                                  {line}
-                                </div>
-                              );
-                            })}
-                          </div>
+                          <FormattedClinicalSignificance
+                            text={item.text}
+                            fontSize="9.5px"
+                            bold={false}
+                          />
                         </div>
                       );
                     }
@@ -1366,7 +1192,7 @@ export function PublicReportDownload() {
                             collectionAddress={`${report.branch?.location || ''}${report.branch?.city ? `, ${report.branch.city}` : ''}`}
                             qrCode={
                               <QRCodeSVG
-                                value={token ? `${window.location.origin}/public/report/${id}/download?token=${token}` : ''}
+                                value={token ? `${clientOrigin}/public/report/${id}/download?token=${token}` : ''}
                                 size={56}
                                 level="Q"
                                 bgColor="#ffffff"
