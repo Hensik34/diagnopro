@@ -16,7 +16,11 @@ import {
   Package,
   Minus,
   BookOpen,
-  Bold
+  Bold,
+  Table,
+  Plus,
+  Trash2,
+  X
 } from 'lucide-react';
 import {
   DndContext,
@@ -49,6 +53,7 @@ import {
   InvestigationTableRow,
   SectionGroupHeader,
   TestSectionBlock,
+  FormattedClinicalSignificance,
 } from '../../app/components/ImprovedReportLayout';
 
 // Color tokens matching the report preview style
@@ -547,6 +552,12 @@ export function TemplateEditor() {
   const [clinicalSignificance, setClinicalSignificance] = useState<string>('');
   const [clinicalSigFontSize, setClinicalSigFontSize] = useState<number | undefined>(undefined);
   const [clinicalSigBold, setClinicalSigBold] = useState<boolean>(false);
+
+  // Table builder modal state
+  const [showTableBuilder, setShowTableBuilder] = useState(false);
+  const [tableHeaders, setTableHeaders] = useState<string[]>(['Column 1', 'Column 2', 'Column 3']);
+  const [tableRows, setTableRows] = useState<string[][]>([['', '', '']]);
+
   const [dbUpdatedAt, setDbUpdatedAt] = useState<string>('');
   const [isDirty, setIsDirty] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -1087,20 +1098,34 @@ export function TemplateEditor() {
                     <option value="14">14px</option>
                   </select>
                 </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase">Style:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClinicalSigBold(prev => !prev);
+                      setIsDirty(true);
+                    }}
+                    className={`h-7 px-2 rounded border text-[11px] font-bold flex items-center gap-1 transition-colors ${clinicalSigBold ? 'bg-primary/10 border-primary text-primary' : 'bg-background border-border text-foreground hover:bg-secondary'}`}
+                  >
+                    <Bold className="w-3 h-3" />
+                    Bold
+                  </button>
+                </div>
+
                 <button
                   type="button"
                   onClick={() => {
-                    setClinicalSigBold(!clinicalSigBold);
-                    setIsDirty(true);
+                    setTableHeaders(['Column 1', 'Column 2', 'Column 3']);
+                    setTableRows([['', '', '']]);
+                    setShowTableBuilder(true);
                   }}
-                  className={`p-1.5 h-7 px-2.5 rounded border transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-medium ${
-                    clinicalSigBold
-                      ? 'bg-primary/10 border-primary/20 text-primary hover:bg-primary/20'
-                      : 'bg-secondary border-border text-muted-foreground hover:bg-secondary/80'
-                  }`}
+                  className="ml-auto h-7 px-2.5 rounded border border-border bg-background text-[11px] font-bold text-primary hover:bg-secondary flex items-center gap-1 transition-colors cursor-pointer"
+                  title="Insert a table template"
                 >
-                  <Bold className="w-3.5 h-3.5" />
-                  <span>Bold</span>
+                  <Table className="w-3 h-3" />
+                  <span>Insert Table</span>
                 </button>
               </div>
             </div>
@@ -1369,31 +1394,17 @@ export function TemplateEditor() {
             {clinicalSignificance && (
               <div style={{
                 marginTop: '8px',
-                fontSize: clinicalSigFontSize ? `${clinicalSigFontSize}px` : '9.5px',
                 color: '#222',
-                lineHeight: 1.45,
                 textAlign: 'left'
               }}>
-                <div style={{ fontWeight: clinicalSigBold ? 800 : 700, color: '#111', textTransform: 'uppercase' as const, marginBottom: '2px' }}>
+                <div style={{ fontWeight: clinicalSigBold ? 800 : 700, color: '#111', textTransform: 'uppercase' as const, marginBottom: '2px', fontSize: clinicalSigFontSize ? `${clinicalSigFontSize}px` : '9.5px' }}>
                   Clinical Significance
                 </div>
-                <div style={{ margin: 0, fontWeight: clinicalSigBold ? 700 : 400 }}>
-                  {clinicalSignificance.split('\n').map((line, lineIdx) => {
-                    const isTableRow = line.includes('\t') || line.includes('   ');
-                    return (
-                      <div
-                        key={lineIdx}
-                        style={{
-                          fontFamily: isTableRow ? 'Consolas, Monaco, "Courier New", Courier, monospace' : 'inherit',
-                          whiteSpace: 'pre-wrap',
-                          minHeight: '1em'
-                        }}
-                      >
-                        {line}
-                      </div>
-                    );
-                  })}
-                </div>
+                <FormattedClinicalSignificance
+                  text={clinicalSignificance}
+                  fontSize={clinicalSigFontSize || 9.5}
+                  bold={clinicalSigBold}
+                />
               </div>
             )}
 
@@ -1438,6 +1449,157 @@ export function TemplateEditor() {
         onConfirm={confirmModal.onConfirm}
         onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
       />
+
+      {/* Table Builder Modal */}
+      {showTableBuilder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs transition-opacity">
+          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-lg p-5 relative animate-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col">
+            <button
+              type="button"
+              onClick={() => setShowTableBuilder(false)}
+              className="absolute top-3 right-3 p-1 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-4">
+              <Table className="w-4 h-4 text-primary" />
+              <h3 className="font-semibold text-sm text-foreground">Insert Table</h3>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground mb-3">
+              Define your custom table headers and rows. Click "Insert" to add the table into Clinical Significance.
+            </p>
+
+            {/* Column count controls */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase">Columns:</span>
+              <button
+                type="button"
+                disabled={tableHeaders.length <= 2}
+                onClick={() => {
+                  setTableHeaders(prev => prev.slice(0, -1));
+                  setTableRows(prev => prev.map(row => row.slice(0, -1)));
+                }}
+                className="w-6 h-6 rounded border border-border bg-background hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed transition-colors"
+              >
+                <Minus className="w-3 h-3" />
+              </button>
+              <span className="text-xs font-bold text-foreground min-w-[20px] text-center">{tableHeaders.length}</span>
+              <button
+                type="button"
+                disabled={tableHeaders.length >= 8}
+                onClick={() => {
+                  setTableHeaders(prev => [...prev, `Column ${prev.length + 1}`]);
+                  setTableRows(prev => prev.map(row => [...row, '']));
+                }}
+                className="w-6 h-6 rounded border border-border bg-background hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </div>
+
+            {/* Table editor */}
+            <div className="flex-1 overflow-auto border border-border rounded-lg">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-secondary/50">
+                    {tableHeaders.map((header, cIdx) => (
+                      <th key={cIdx} className="p-1.5 border-b border-r border-border last:border-r-0">
+                        <input
+                          type="text"
+                          value={header}
+                          onChange={(e) => {
+                            const newHeaders = [...tableHeaders];
+                            newHeaders[cIdx] = e.target.value;
+                            setTableHeaders(newHeaders);
+                          }}
+                          className="w-full text-xs font-bold px-1.5 py-1 bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
+                          placeholder={`Header ${cIdx + 1}`}
+                        />
+                      </th>
+                    ))}
+                    <th className="w-8 p-1 border-b border-border" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableRows.map((row, rIdx) => (
+                    <tr key={rIdx} className="hover:bg-secondary/30">
+                      {row.map((cell, cIdx) => (
+                        <td key={cIdx} className="p-1.5 border-b border-r border-border last:border-r-0">
+                          <input
+                            type="text"
+                            value={cell}
+                            onChange={(e) => {
+                              const newRows = tableRows.map(r => [...r]);
+                              newRows[rIdx][cIdx] = e.target.value;
+                              setTableRows(newRows);
+                            }}
+                            className="w-full text-xs px-1.5 py-1 bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
+                            placeholder="..."
+                          />
+                        </td>
+                      ))}
+                      <td className="w-8 p-1 border-b border-border text-center">
+                        {tableRows.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setTableRows(prev => prev.filter((_, i) => i !== rIdx))}
+                            className="p-0.5 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                            title="Remove row"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Add row */}
+            <button
+              type="button"
+              onClick={() => setTableRows(prev => [...prev, Array(tableHeaders.length).fill('')])}
+              className="mt-2 w-full h-7 rounded border border-dashed border-border bg-secondary/30 hover:bg-secondary text-[11px] font-medium text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 transition-colors cursor-pointer"
+            >
+              <Plus className="w-3 h-3" />
+              Add Row
+            </button>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2.5 mt-4 pt-3 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setShowTableBuilder(false)}
+                className="px-3.5 py-1.5 border border-border rounded-lg hover:bg-muted text-xs font-semibold text-foreground transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  // Build markdown table from headers & rows
+                  const headerLine = '| ' + tableHeaders.map(h => h || ' ').join(' | ') + ' |';
+                  const separatorLine = '| ' + tableHeaders.map(() => '---').join(' | ') + ' |';
+                  const dataLines = tableRows.map(row =>
+                    '| ' + row.map((cell, i) => cell || (i === 0 ? ' ' : ' ')).join(' | ') + ' |'
+                  );
+                  const tableMarkdown = [headerLine, separatorLine, ...dataLines].join('\n');
+                  const prefix = clinicalSignificance ? '\n' : '';
+                  setClinicalSignificance(prev => prev + prefix + tableMarkdown);
+                  setIsDirty(true);
+                  setShowTableBuilder(false);
+                }}
+                className="px-3.5 py-1.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/95 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Insert Table
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

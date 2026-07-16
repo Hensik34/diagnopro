@@ -10,9 +10,9 @@ export const ReportLayoutConfig = {
     xxl: 10,
   },
   sectionMargin: {
-    top: 2,
-    bottom: 1,
-    between: 4,
+    top: 10,
+    bottom: 2,
+    between: 16,
   },
   boxPadding: {
     dense: 2,
@@ -536,6 +536,165 @@ export function TestSectionBlock({
       </div>
 
       {children}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Formatted Clinical Significance Component                         */
+/* ------------------------------------------------------------------ */
+
+interface TableBlock {
+  type: 'table';
+  rows: string[][];
+}
+interface TextBlock {
+  type: 'text';
+  content: string;
+}
+type Block = TableBlock | TextBlock;
+
+function parseLineToColumns(line: string): string[] | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+
+  // Check if it's a markdown table row (starts/ends with |)
+  if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+    const cells = trimmed.split('|').map(c => c.trim());
+    return cells.slice(1, -1);
+  }
+
+  // Check if it contains a tab or multiple spaces
+  const hasTab = line.includes('\t');
+  const hasMultipleSpaces = /\s{3,}/.test(line); // 3 or more spaces
+  if (hasTab || hasMultipleSpaces) {
+    const cols = line.split(/\t|\s{2,}/).map(c => c.trim()).filter(c => c !== '');
+    if (cols.length >= 2) {
+      return cols;
+    }
+  }
+
+  return null;
+}
+
+export function parseClinicalSignificanceToBlocks(text: string): Block[] {
+  const lines = text.split('\n');
+  const blocks: Block[] = [];
+  let currentTableRows: string[][] = [];
+
+  const flushTable = () => {
+    if (currentTableRows.length > 0) {
+      blocks.push({ type: 'table', rows: [...currentTableRows] });
+      currentTableRows = [];
+    }
+  };
+
+  for (const line of lines) {
+    const cols = parseLineToColumns(line);
+    if (cols) {
+      // Check if it's a markdown separator row (e.g. ---)
+      const isSeparator = cols.every(c => /^[:\-\s]+$/.test(c));
+      if (isSeparator) {
+        continue;
+      }
+      currentTableRows.push(cols);
+    } else {
+      flushTable();
+      blocks.push({ type: 'text', content: line });
+    }
+  }
+  flushTable();
+
+  return blocks;
+}
+
+export function FormattedClinicalSignificance({
+  text,
+  fontSize = '9.5px',
+  bold = false,
+}: {
+  text: string;
+  fontSize?: string | number;
+  bold?: boolean;
+}) {
+  if (!text) return null;
+  const blocks = parseClinicalSignificanceToBlocks(text);
+  const sigFontSize = typeof fontSize === 'number' ? `${fontSize}px` : fontSize;
+  const sigFontWeight = bold ? 700 : 400;
+
+  return (
+    <div style={{ fontSize: sigFontSize, fontWeight: sigFontWeight, margin: 0 }}>
+      {blocks.map((block, bIdx) => {
+        if (block.type === 'table') {
+          return (
+            <div key={bIdx} style={{ overflowX: 'auto', margin: '8px 0', pageBreakInside: 'avoid' }}>
+              <table style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                fontSize: 'inherit',
+                lineHeight: 1.4,
+              }}>
+                <thead>
+                  <tr style={{ borderBottom: '1.5px solid #111' }}>
+                    {block.rows[0].map((col, cIdx) => (
+                      <th
+                        key={cIdx}
+                        style={{
+                          padding: '4px 6px',
+                          fontWeight: 700,
+                          textAlign: cIdx === 0 ? 'left' : 'center',
+                          whiteSpace: 'nowrap',
+                          border: 'none',
+                        }}
+                      >
+                        {col}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {block.rows.slice(1).map((row, rIdx) => (
+                    <tr
+                      key={rIdx}
+                      style={{
+                        borderBottom: rIdx === block.rows.length - 2 ? 'none' : '1px solid #e0e0e0'
+                      }}
+                    >
+                      {row.map((col, cIdx) => (
+                        <td
+                          key={cIdx}
+                          style={{
+                            padding: '4.5px 6px',
+                            textAlign: cIdx === 0 ? 'left' : 'center',
+                            whiteSpace: cIdx === 0 ? 'normal' : 'nowrap',
+                            border: 'none',
+                          }}
+                        >
+                          {col}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        } else {
+          return (
+            <div
+              key={bIdx}
+              style={{
+                minHeight: '1em',
+                whiteSpace: 'pre-wrap',
+                lineHeight: 1.45,
+                margin: '2px 0',
+              }}
+            >
+              {block.content}
+            </div>
+          );
+        }
+      })}
     </div>
   );
 }

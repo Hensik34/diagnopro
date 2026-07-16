@@ -509,3 +509,70 @@
     font-size: 10px !important;
   }
 }
+
+/* Sonner Toast styles for cross-browser compatibility, including older Chrome */
+.toaster.group [data-sonner-toast] {
+  background-color: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+  border-color: var(--border) !important;
+}
+
+.toaster.group [data-sonner-toast][data-type="success"] {
+  background-color: var(--success-light) !important;
+  color: var(--success) !important;
+  border-color: var(--success-light-border) !important;
+}
+
+.toaster.group [data-sonner-toast][data-type="error"] {
+  background-color: var(--destructive-light) !important;
+  color: var(--destructive) !important;
+  border-color: var(--destructive-light-border) !important;
+}
+
+.toaster.group [data-sonner-toast][data-type="warning"] {
+  background-color: var(--warning-light) !important;
+  color: var(--warning) !important;
+  border-color: var(--warning-light-border) !important;
+}
+
+.toaster.group [data-sonner-toast][data-type="info"] {
+  background-color: var(--primary-light) !important;
+  color: var(--primary) !important;
+  border-color: var(--primary-light-border) !important;
+}
+
+/* Sonner close button styling override */
+.toaster.group [data-sonner-toast] [data-close-button] {
+  top: 6px;
+  right: 6px;
+  left: auto;
+  transform: none;
+  background: transparent !important;
+  background-color: transparent !important;
+  color: var(--destructive) !important; /* Make close button icon red */
+  border: none !important;
+  transition: opacity 0.2s, background 0.2s, background-color 0.2s;
+  opacity: 0.8;
+  width: 24px !important; /* Slightly bigger button */
+  height: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.toaster.group [data-sonner-toast] [data-close-button] svg {
+  color: inherit !important;
+  width: 14px !important; /* Slightly bigger SVG icon */
+  height: 14px !important;
+}
+
+.toaster.group [data-sonner-toast] [data-close-button]:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.08) !important;
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+.dark .toaster.group [data-sonner-toast] [data-close-button]:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  background-color: rgba(255, 255, 255, 0.15) !important;
+}

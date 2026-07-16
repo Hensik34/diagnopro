@@ -23,6 +23,10 @@ app.use(cors({
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
+// Serve frontend static files from compiled dist folder
+const frontendDistPath = path.join(__dirname, "..", "frontend", "dist");
+app.use(express.static(frontendDistPath));
+
 // Note: File uploads are now stored on Cloudinary — no local static serving needed
 
 // Request logging middleware (opt-in)
@@ -39,6 +43,11 @@ app.use("/api", routes);
 
 app.get("/", (req, res) => {
   res.json({ message: "Welcome to the Lab Management System API" });
+});
+
+// Fallback all non-API GET requests to index.html for React Router SPA
+app.get(/^\/(?!api).*/, (req, res) => {
+  res.sendFile(path.join(frontendDistPath, "index.html"));
 });
 
 // 404 Handler
@@ -78,3 +87,21 @@ async function startServer() {
 }
 
 startServer();
+
+// Graceful shutdown
+const gracefulShutdown = async (signal) => {
+  console.log(`\nStopping server gracefully via ${signal}...`);
+  try {
+    const pdfGenerator = require("./services/pdfGenerator.service");
+    if (pdfGenerator.shutdown) {
+      await pdfGenerator.shutdown();
+    }
+  } catch (e) {
+    console.error("Error during browser shutdown:", e.message);
+  }
+  process.exit(0);
+};
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+
