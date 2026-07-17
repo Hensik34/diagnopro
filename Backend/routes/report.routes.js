@@ -10,6 +10,7 @@ const paymentController = require("../controllers/payment.controller");
 
 // Public report access (no auth required) - read-only for QR scan download
 router.get("/public/:id", reportController.getPublicReport);
+router.get("/public/:id/pdf", reportController.downloadPublicReportPdf);
 
 // Get all reports (with optional filters: patient_id, status, branch_id)
 router.get("/", authorize(PERMISSIONS.REPORT_READ), reportController.getReports);

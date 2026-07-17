@@ -34,6 +34,7 @@ import {
   ReportLayoutConfig,
   SectionGroupHeader,
   TestSectionBlock,
+  FormattedClinicalSignificance,
 } from '../../app/components/ImprovedReportLayout';
 import { useAuthStore, useDoctorStore, useSettingsStore, useB2BStore } from '../../stores';
 import { useBranchStore } from '../../stores/branchStore';
@@ -1163,7 +1164,6 @@ export function ReportPreview() {
                 const snapshot = layoutSnapshots[item.testId];
                 const sigLayout = snapshot?.clinicalSignificanceLayout;
                 const sigFontSize = sigLayout?.fontSize ? `${sigLayout.fontSize}px` : '9.5px';
-                const sigFontWeight = sigLayout?.bold ? '700' : '400';
                 const titleFontWeight = sigLayout?.bold ? '800' : '700';
 
                 return (
@@ -1171,32 +1171,18 @@ export function ReportPreview() {
                     key={`i-${idx}`}
                     style={{
                       marginTop: '8px',
-                      fontSize: sigFontSize,
                       color: '#222',
-                      lineHeight: 1.45,
                       textAlign: 'left'
                     }}
                   >
-                    <div style={{ fontWeight: titleFontWeight, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                    <div style={{ fontWeight: titleFontWeight, color: '#111', textTransform: 'uppercase', marginBottom: '2px', fontSize: sigFontSize }}>
                       Clinical Significance
                     </div>
-                    <div style={{ margin: 0, fontWeight: sigFontWeight }}>
-                      {item.text.split('\n').map((line, lineIdx) => {
-                        const isTableRow = line.includes('\t') || line.includes('   ');
-                        return (
-                          <div
-                            key={lineIdx}
-                            style={{
-                              fontFamily: isTableRow ? 'Consolas, Monaco, "Courier New", Courier, monospace' : 'inherit',
-                              whiteSpace: 'pre-wrap',
-                              minHeight: '1em'
-                            }}
-                          >
-                            {line}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <FormattedClinicalSignificance
+                      text={item.text}
+                      fontSize={sigFontSize}
+                      bold={!!sigLayout?.bold}
+                    />
                   </div>
                 );
               }
@@ -1208,32 +1194,18 @@ export function ReportPreview() {
                     key={`testremark-${idx}`}
                     style={{
                       marginTop: '8px',
-                      fontSize: '9.5px',
                       color: '#222',
-                      lineHeight: 1.45,
                       textAlign: 'left'
                     }}
                   >
-                    <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                    <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px', fontSize: '9.5px' }}>
                       Notes / Remarks
                     </div>
-                    <div style={{ margin: 0 }}>
-                      {item.text.split('\n').map((line, lineIdx) => {
-                        const isTableRow = line.includes('\t') || line.includes('   ');
-                        return (
-                          <div
-                            key={lineIdx}
-                            style={{
-                              fontFamily: isTableRow ? 'Consolas, Monaco, "Courier New", Courier, monospace' : 'inherit',
-                              whiteSpace: 'pre-wrap',
-                              minHeight: '1em'
-                            }}
-                          >
-                            {line}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <FormattedClinicalSignificance
+                      text={item.text}
+                      fontSize="9.5px"
+                      bold={false}
+                    />
                   </div>
                 );
               }
@@ -1245,32 +1217,18 @@ export function ReportPreview() {
                     key={`gnotes-${idx}`}
                     style={{
                       marginTop: '8px',
-                      fontSize: '9.5px',
                       color: '#222',
-                      lineHeight: 1.45,
                       textAlign: 'left'
                     }}
                   >
-                    <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                    <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px', fontSize: '9.5px' }}>
                       Technician Notes / Interpretation
                     </div>
-                    <div style={{ margin: 0 }}>
-                      {item.text.split('\n').map((line, lineIdx) => {
-                        const isTableRow = line.includes('\t') || line.includes('   ');
-                        return (
-                          <div
-                            key={lineIdx}
-                            style={{
-                              fontFamily: isTableRow ? 'Consolas, Monaco, "Courier New", Courier, monospace' : 'inherit',
-                              whiteSpace: 'pre-wrap',
-                              minHeight: '1em'
-                            }}
-                          >
-                            {line}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <FormattedClinicalSignificance
+                      text={item.text}
+                      fontSize="9.5px"
+                      bold={false}
+                    />
                   </div>
                 );
               }
