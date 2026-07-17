@@ -1437,7 +1437,7 @@ export function ReportPreview() {
 
         {/* Left Column: Test Order Management & Settings */}
         <aside className="no-print hidden lg:block w-[308px] shrink-0 h-full flex flex-col gap-3 overflow-hidden">
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 h-full">
             <OrderManagementPanel
               sections={sectionOrder.map(id => reportData!.testSections.find(s => s.id === id)).filter(Boolean) as TestSection[]}
               visibleSections={visibleSections}
@@ -1533,21 +1533,23 @@ export function ReportPreview() {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1 scrollbar-thin">
-              <OrderManagementPanel
-                sections={sectionOrder.map(id => reportData!.testSections.find(s => s.id === id)).filter(Boolean) as TestSection[]}
-                visibleSections={visibleSections}
-                onToggleVisibility={toggleSectionVisibility}
-                moveUp={moveUp}
-                moveDown={moveDown}
-                resetOrder={resetOrder}
-                setDraggingId={setDraggingId}
-                onDropReorder={onDropReorder}
-                compact
-                allSelected={allSelected}
-                onToggleSelectAll={toggleSelectAll}
-                selectedCount={visibleSections.size}
-              />
+            <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 pr-1 scrollbar-thin">
+              <div className="flex-1 min-h-0 h-full">
+                <OrderManagementPanel
+                  sections={sectionOrder.map(id => reportData!.testSections.find(s => s.id === id)).filter(Boolean) as TestSection[]}
+                  visibleSections={visibleSections}
+                  onToggleVisibility={toggleSectionVisibility}
+                  moveUp={moveUp}
+                  moveDown={moveDown}
+                  resetOrder={resetOrder}
+                  setDraggingId={setDraggingId}
+                  onDropReorder={onDropReorder}
+                  compact
+                  allSelected={allSelected}
+                  onToggleSelectAll={toggleSelectAll}
+                  selectedCount={visibleSections.size}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -1599,7 +1601,7 @@ function OrderManagementPanel({
   selectedCount: number;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/70 p-3 sm:p-3.5 shadow-sm h-full flex flex-col overflow-hidden">
+    <div className="rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/70 p-3 sm:p-3.5 shadow-sm h-full min-h-0 flex-1 flex flex-col overflow-hidden">
       <div className="flex items-center justify-between mb-2 flex-shrink-0">
         <p className="text-xs sm:text-sm font-semibold text-slate-800">Test Order Management</p>
         <button
@@ -1627,7 +1629,7 @@ function OrderManagementPanel({
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto flex flex-col gap-2 pr-1 scrollbar-thin">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col gap-2 pr-1 scrollbar-thin">
         {sections.map((section, idx) => (
           <div
             key={section.id}
