@@ -51,9 +51,8 @@ export function TopNav({ sidebarCollapsed, onSidebarToggle, sidebarHidden }: Top
 
   return (
     <header
-      className={`fixed top-0 right-0 h-13 bg-card border-b border-border z-30 transition-all duration-200 print:hidden ${
-        sidebarHidden ? 'left-0' : (sidebarCollapsed ? 'left-0 md:left-14' : 'left-0 md:left-56')
-      }`}
+      className={`fixed top-0 right-0 h-13 bg-card border-b border-border z-30 transition-all duration-200 print:hidden ${sidebarHidden ? 'left-0' : (sidebarCollapsed ? 'left-0 md:left-14' : 'left-0 md:left-56')
+        }`}
     >
       <div className="h-full flex items-center justify-between px-3 md:px-4 gap-2 md:gap-4">
         {/* Mobile Menu Button */}

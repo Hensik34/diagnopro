@@ -297,7 +297,7 @@ export function computeReportPages(options: PaginationOptions): PaginationResult
     place({ type: 'generalNotes', text: notesText }, notesH);
   }
 
-  const shouldAttachMarketing = isSelfReport || attachMarketingPages;
+  const shouldAttachMarketing = attachMarketingPages;
   if (shouldAttachMarketing && marketingPages && Array.isArray(marketingPages)) {
     const activeMarketingPages = marketingPages.filter((p: any) => p.active && (p.url || p.previewUrl));
     for (const mPage of activeMarketingPages) {

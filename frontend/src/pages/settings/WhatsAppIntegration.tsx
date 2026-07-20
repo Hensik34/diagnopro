@@ -23,7 +23,7 @@ type TemplateDraft = {
 export function WhatsAppIntegration() {
   const { branches, currentBranchId } = useBranchStore();
 
-  const [activeBranchId, setActiveBranchId] = useState<string | null>(currentBranchId || null);
+  const activeBranchId = currentBranchId;
   const [connection, setConnection] = useState<WhatsAppSession | null>(null);
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,12 +47,6 @@ export function WhatsAppIntegration() {
     () => branches.find((branch) => branch.id === activeBranchId) || null,
     [branches, activeBranchId]
   );
-
-  useEffect(() => {
-    if (!activeBranchId && currentBranchId) {
-      setActiveBranchId(currentBranchId);
-    }
-  }, [activeBranchId, currentBranchId]);
 
   const hydrateTemplateDrafts = (loadedTemplates: WhatsAppTemplate[]) => {
     const nextDrafts: Record<string, TemplateDraft> = {};
@@ -316,21 +310,13 @@ export function WhatsAppIntegration() {
         </div>
 
         <div className="flex items-center gap-2">
-          <select
-            value={activeBranchId || ''}
-            onChange={(event) => setActiveBranchId(event.target.value)}
-            className="h-10 rounded-md border border-border bg-card px-3 text-sm"
-          >
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>{branch.name}</option>
-            ))}
-          </select>
           <button
             type="button"
             onClick={() => activeBranchId && loadAll(activeBranchId)}
-            className="h-10 px-3 border border-border rounded-md text-sm hover:bg-secondary/50"
+            className="h-10 px-3 border border-border rounded-md text-sm hover:bg-secondary/50 flex items-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
+            <span>Refresh</span>
           </button>
         </div>
       </div>

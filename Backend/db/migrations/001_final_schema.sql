@@ -310,6 +310,8 @@ CREATE TABLE IF NOT EXISTS reports (
     price_locked BOOLEAN DEFAULT FALSE,
     attach_marketing_pages BOOLEAN DEFAULT FALSE,
     staff_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    preview_count INTEGER DEFAULT 0 NOT NULL,
+    print_count INTEGER DEFAULT 0 NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -823,6 +825,22 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     filename VARCHAR(255) UNIQUE NOT NULL,
     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ============================================
+-- 34. RECEIPTS
+-- Model: models/definitions/Receipt.js → tableName: "receipts"
+-- ============================================
+CREATE TABLE IF NOT EXISTS receipts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    report_id UUID NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+    receipt_number VARCHAR(50) NOT NULL UNIQUE,
+    custom_amount DECIMAL(12, 2) NOT NULL,
+    selected_tests TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_receipts_report ON receipts(report_id);
 
 -- ============================================
 -- MIGRATION 001: TABLE CREATION COMPLETE

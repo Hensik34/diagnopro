@@ -20,7 +20,7 @@ export function InvoiceModal({ isOpen, onClose, reportId, onBillingUpdated }: In
       fetchReportById(reportId);
     }
     return () => {
-      if (!isOpen) resetBilling();
+      resetBilling();
     };
   }, [isOpen, reportId, fetchReportById]);
 
@@ -42,7 +42,7 @@ export function InvoiceModal({ isOpen, onClose, reportId, onBillingUpdated }: In
     iframe.style.height = '0';
     iframe.style.border = '0';
     iframe.style.visibility = 'hidden';
-    iframe.src = `/reports/${reportId}/invoice`;
+    iframe.src = `/app/reports/${reportId}/invoice`;
 
     const cleanup = () => {
       if (iframe.parentNode) {
@@ -59,7 +59,7 @@ export function InvoiceModal({ isOpen, onClose, reportId, onBillingUpdated }: In
           setTimeout(cleanup, 10000);
         } catch {
           cleanup();
-          window.open(`/reports/${reportId}/invoice`, '_blank');
+          window.open(`/app/reports/${reportId}/invoice`, '_blank');
         }
       }, 400);
     };

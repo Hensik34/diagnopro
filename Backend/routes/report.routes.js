@@ -96,4 +96,12 @@ router.delete("/:id", authorize(PERMISSIONS.REPORT_DELETE), reportController.del
 // get delivery status of a report
 router.get("/:id/delivery-status", authorize(PERMISSIONS.REPORT_READ), reportController.getDeliveryStatus);
 
+// Increment counts
+router.patch("/:id/increment-preview", authorize(PERMISSIONS.REPORT_READ), reportController.incrementPreviewCount);
+router.patch("/:id/increment-print", authorize(PERMISSIONS.REPORT_READ), reportController.incrementPrintCount);
+
+// Receipt endpoints
+router.get("/:id/receipt", authorize(PERMISSIONS.REPORT_READ), reportController.getReceipt);
+router.post("/:id/receipt", authorize(PERMISSIONS.REPORT_UPDATE), reportController.saveReceipt);
+
 module.exports = router;

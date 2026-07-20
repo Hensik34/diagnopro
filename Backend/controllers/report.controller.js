@@ -7,7 +7,7 @@ const Branch = require("../models/Branch");
 const Doctor = require("../models/Doctor");
 const aiService = require("../services/ai.service");
 const workflowNotificationService = require("../services/workflowNotification.service");
-const { Patient, UserTest, Test } = require("../models");
+const { Patient, UserTest, Test, Receipt } = require("../models");
 const pdfGenerator = require("../services/pdfGenerator.service");
 const whatsappService = require("../services/whatsapp.service");
 const reportDeliveryService = require("../services/reportDelivery.service");
@@ -1295,6 +1295,7 @@ exports.sendReport = async (req, res) => {
 exports.downloadReportPdf = async (req, res) => {
   try {
     const { id } = req.params;
+    const { attach_marketing_pages } = req.query;
 
     const report = await Report.getReportById(id);
     if (!report) {
@@ -1302,7 +1303,8 @@ exports.downloadReportPdf = async (req, res) => {
     }
 
     const pdfBuffer = await pdfGenerator.generateReportPdf(
-      report.id
+      report.id,
+      attach_marketing_pages !== undefined ? attach_marketing_pages === 'true' : undefined
     );
 
     const safePatient = (report.patient_name || "Patient").replace(/\s+/g, "_");
@@ -1428,7 +1430,7 @@ exports.getPublicReport = async (req, res) => {
 exports.downloadPublicReportPdf = async (req, res) => {
   try {
     const { id } = req.params;
-    const { token } = req.query;
+    const { token, attach_marketing_pages } = req.query;
 
     if (!token) {
       return res.status(401).json({ error: "Access token is missing" });
@@ -1456,7 +1458,10 @@ exports.downloadPublicReportPdf = async (req, res) => {
       return res.status(403).json({ error: "Report is not approved yet" });
     }
 
-    const pdfBuffer = await pdfGenerator.generateReportPdf(report.id);
+    const pdfBuffer = await pdfGenerator.generateReportPdf(
+      report.id,
+      attach_marketing_pages !== undefined ? attach_marketing_pages === 'true' : undefined
+    );
 
     const safePatient = (report.patient_name || "Patient").replace(/\s+/g, "_");
     const safeSample = (report.sample_id_code || report.id).replace(/\s+/g, "_");
@@ -1514,6 +1519,95 @@ exports.getDeliveryNotifications = async (req, res) => {
     });
   } catch (err) {
     console.error("Get delivery notifications error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// INCREMENT PREVIEW COUNT
+exports.incrementPreviewCount = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Report.incrementPreviewCount(id);
+    const updatedReport = await Report.getReportById(id);
+    res.json({
+      message: "Report preview count incremented",
+      data: updatedReport,
+    });
+  } catch (err) {
+    console.error("Increment preview count error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// INCREMENT PRINT COUNT
+exports.incrementPrintCount = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Report.incrementPrintCount(id);
+    const updatedReport = await Report.getReportById(id);
+    res.json({
+      message: "Report print count incremented",
+      data: updatedReport,
+    });
+  } catch (err) {
+    console.error("Increment print count error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// GET RECEIPT
+exports.getReceipt = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const receipt = await Receipt.findOne({ where: { report_id: id } });
+    res.json({
+      message: "Receipt retrieved successfully",
+      data: receipt,
+    });
+  } catch (err) {
+    console.error("Get receipt error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// SAVE RECEIPT
+exports.saveReceipt = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { custom_amount, selected_tests } = req.body;
+
+    if (custom_amount === undefined || !selected_tests) {
+      return res.status(400).json({ error: "Missing required fields: custom_amount or selected_tests" });
+    }
+
+    const report = await Report.getReportById(id);
+    if (!report) {
+      return res.status(404).json({ error: "Report not found" });
+    }
+
+    const receiptNumber = `RCP-${report.sample_id_code || report.id.slice(0, 8).toUpperCase()}`;
+
+    const [receipt, created] = await Receipt.findOrCreate({
+      where: { report_id: id },
+      defaults: {
+        receipt_number: receiptNumber,
+        custom_amount,
+        selected_tests,
+      },
+    });
+
+    if (!created) {
+      receipt.custom_amount = custom_amount;
+      receipt.selected_tests = selected_tests;
+      await receipt.save();
+    }
+
+    res.json({
+      message: created ? "Receipt created successfully" : "Receipt updated successfully",
+      data: receipt,
+    });
+  } catch (err) {
+    console.error("Save receipt error:", err);
     res.status(500).json({ error: err.message });
   }
 };
