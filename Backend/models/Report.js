@@ -440,3 +440,24 @@ exports.deleteReport = async (id) => {
   const deleted = await Report.destroy({ where: { id } });
   return deleted ? { id } : null;
 };
+
+// Increment preview count
+exports.incrementPreviewCount = async (id) => {
+  const report = await Report.findByPk(id);
+  if (report) {
+    await report.increment('preview_count', { by: 1 });
+    return report.toJSON();
+  }
+  return null;
+};
+
+// Increment print count
+exports.incrementPrintCount = async (id) => {
+  const report = await Report.findByPk(id);
+  if (report) {
+    await report.increment('print_count', { by: 1 });
+    return report.toJSON();
+  }
+  return null;
+};
+

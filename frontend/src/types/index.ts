@@ -491,6 +491,8 @@ export interface Report {
   pathology_signature_description?: string | null;
   attach_marketing_pages?: boolean;
   marketing_pages?: any[];
+  preview_count?: number;
+  print_count?: number;
 }
 
 export interface CreateReportData {

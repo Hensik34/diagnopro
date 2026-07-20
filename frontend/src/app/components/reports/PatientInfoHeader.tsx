@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronLeft, User, Plus, Clock, ZoomIn, ZoomOut, Download, Printer, Send, FileImage, Loader2, Sliders } from 'lucide-react';
+import { ChevronLeft, User, Plus, Clock, ZoomIn, ZoomOut, Download, Printer, Send, FileImage, Loader2, Sliders, FileText } from 'lucide-react';
 import type { Patient, Doctor, Report } from '../../../types';
 
 interface PatientInfoHeaderProps {
@@ -31,6 +31,9 @@ interface PatientInfoHeaderProps {
   isGeneratingPdf?: boolean;
   hasVisibleTests?: boolean;
   onToggleOrderDrawer?: () => void;
+  showMarketingPages?: boolean;
+  onToggleMarketingPages?: () => void;
+  hasMarketingPages?: boolean;
 }
 
 export function PatientInfoHeader({
@@ -61,6 +64,9 @@ export function PatientInfoHeader({
   isGeneratingPdf = false,
   hasVisibleTests = true,
   onToggleOrderDrawer,
+  showMarketingPages = false,
+  onToggleMarketingPages,
+  hasMarketingPages = false,
 }: PatientInfoHeaderProps) {
   return (
     <div className="flex-shrink-0 bg-white dark:bg-slate-900 rounded-xl px-2 sm:px-4 h-[60px] min-h-[60px] py-0 shadow-sm flex items-center justify-between gap-2 sm:gap-4">
@@ -233,6 +239,7 @@ export function PatientInfoHeader({
           >
             <Printer className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
             <span className="hidden md:inline">Print</span>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">({selectedReport?.print_count || 0})</span>
           </button>
 
           {/* Share */}
@@ -257,7 +264,22 @@ export function PatientInfoHeader({
               }`}
             >
               <FileImage className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">{showLetterhead ? 'Branding On' : 'Branding Off'}</span>
+              <span className="hidden md:inline">Letterhead</span>
+            </button>
+          )}
+
+          {/* Marketing Pages Toggle */}
+          {hasMarketingPages && onToggleMarketingPages && (
+            <button
+              onClick={onToggleMarketingPages}
+              className={`h-8 px-2.5 sm:px-3 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm ${
+                showMarketingPages
+                  ? 'border-blue-200 bg-blue-50/50 text-blue-600 hover:bg-blue-100/50 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-400 dark:hover:bg-blue-950/30'
+                  : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Marketing Pages</span>
             </button>
           )}
         </div>

@@ -46,7 +46,8 @@ exports.createDoctor = async (doctorData) => {
 
   const doctor = await Doctor.create({
     title, name, firstname: name, lastname: "",
-    email, phone, specialization, license_number,
+    email: email || null, phone, specialization: specialization || null,
+    license_number: license_number || null,
     branch_id, commission_percentage, user_id, password_hash,
   });
 
@@ -67,10 +68,10 @@ exports.updateDoctor = async (id, doctorData) => {
   const updateObj = {};
   if (title !== undefined) updateObj.title = title;
   if (name !== undefined) { updateObj.name = name; updateObj.firstname = name; }
-  if (email !== undefined) updateObj.email = email;
+  if (email !== undefined) updateObj.email = email || null;
   if (phone !== undefined) updateObj.phone = phone;
   if (specialization !== undefined) updateObj.specialization = specialization;
-  if (license_number !== undefined) updateObj.license_number = license_number;
+  if (license_number !== undefined) updateObj.license_number = license_number || null;
   if (branch_id !== undefined) updateObj.branch_id = branch_id;
   if (commission_percentage !== undefined) updateObj.commission_percentage = commission_percentage;
   if (signature_url !== undefined) updateObj.signature_url = signature_url;

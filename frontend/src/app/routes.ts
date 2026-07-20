@@ -34,7 +34,7 @@ import { Inventory } from '../pages/inventory';
 // Time Tracking
 import { TimeTracking, WorkingHours } from '../pages/time-tracking';
 // Billing
-import { InvoicePage } from '../pages/billing';
+import { InvoicePage, ReceiptPage } from '../pages/billing';
 // Error Pages
 import { NotFound, Unauthorized } from '../pages/error-pages';
 // Onboarding
@@ -190,6 +190,7 @@ export const router = createBrowserRouter([
       { path: 'reports/:reportId/entry', Component: withPermission(ReportEntry, PERMISSIONS.REPORT_UPDATE) },
       { path: 'reports/preview/:id', Component: withPermission(ReportPreview, PERMISSIONS.REPORT_READ) },
       { path: 'reports/:reportId/invoice', Component: withPermission(InvoicePage, PERMISSIONS.REPORT_READ) },
+      { path: 'reports/:reportId/receipt', Component: withPermission(ReceiptPage, PERMISSIONS.REPORT_READ) },
       { path: 'reports/review', Component: withPermission(ReportReview, PERMISSIONS.REPORT_REVIEW) },
       { path: 'patients', Component: withPermission(Patients, PERMISSIONS.PATIENT_READ) },
       { path: 'sample-collection', Component: withPermission(SampleCollection, PERMISSIONS.SAMPLE_COLLECT) },

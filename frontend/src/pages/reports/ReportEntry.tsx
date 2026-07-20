@@ -23,6 +23,7 @@ import {
   History,
   Check,
   Edit2,
+  Star,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -688,6 +689,7 @@ export function ReportEntry() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [values, setValues] = useState<Record<string, string>>({});
   const [statuses, setStatuses] = useState<Record<string, "low" | "high" | "normal" | "critical" | "empty">>({});
+  const [manualFlags, setManualFlags] = useState<Record<string, boolean>>({});
   const [technicianNotes, setTechnicianNotes] = useState("");
 
   // AI Interpretation state
@@ -962,6 +964,7 @@ export function ReportEntry() {
     setSelectedReport(null); // Clear stale report data before fetching new one
     setValues({});
     setStatuses({});
+    setManualFlags({});
     setTechnicianNotes('');
     setLastSaved(null);
     setReportStatus('draft');
@@ -1084,6 +1087,7 @@ export function ReportEntry() {
     // Populate saved values — prefer grouped (tests[]) with testId scoping to prevent cross-test value swaps
     const testData = parsedTestData;
     const initialCustomRanges: Record<string, string> = {};
+    const initialManualFlags: Record<string, boolean> = {};
 
     if (testData?.tests?.length) {
       // Grouped format: match by BOTH testId AND parameter name to avoid cross-test collisions
@@ -1112,11 +1116,15 @@ export function ReportEntry() {
             if (p.referenceRange !== undefined && p.referenceRange !== null && p.referenceRange !== '') {
               initialCustomRanges[matchedParam.id] = p.referenceRange;
             }
+            if (p.manualFlag === 'high') {
+              initialManualFlags[matchedParam.id] = true;
+            }
           }
         }
       }
       setTestRemarks(initialRemarks);
       setCustomReferenceRanges(initialCustomRanges);
+      setManualFlags(initialManualFlags);
     } else if (testData?.parameters?.length) {
       // Legacy flat format (no testId available): fall back to name-only matching
       for (const p of testData.parameters) {
@@ -1133,9 +1141,13 @@ export function ReportEntry() {
           if (p.referenceRange !== undefined && p.referenceRange !== null && p.referenceRange !== '') {
             initialCustomRanges[matchedParam.id] = p.referenceRange;
           }
+          if (p.manualFlag === 'high') {
+            initialManualFlags[matchedParam.id] = true;
+          }
         }
       }
       setCustomReferenceRanges(initialCustomRanges);
+      setManualFlags(initialManualFlags);
     }
 
     // Set values (this includes the initialized select fields, so status computation runs correctly)
@@ -1783,8 +1795,15 @@ export function ReportEntry() {
       }
     });
 
+    // Apply manual high flags — override auto-computed status
+    for (const [paramId, isManualHigh] of Object.entries(manualFlags)) {
+      if (isManualHigh && newStatuses[paramId] !== undefined) {
+        newStatuses[paramId] = "high";
+      }
+    }
+
     setStatuses(newStatuses);
-  }, [values, dynamicParams, patient, tests, selectedReport, customReferenceRanges]);
+  }, [values, dynamicParams, patient, tests, selectedReport, customReferenceRanges, manualFlags]);
 
   const getStatusBadge = (
     status: "low" | "high" | "normal" | "critical" | "empty" | undefined,
@@ -2102,13 +2121,8 @@ export function ReportEntry() {
         const mappedStatus = localStatus === 'empty' ? undefined : localStatus as 'normal' | 'high' | 'low' | 'critical' | undefined;
         const rawValue = values[param.id];
 
-        // If select type and mandatory (and not a remark field), default to first option if not entered
-        const finalRawValue = (rawValue === undefined || rawValue === '') && param.input_type === 'select' && param.is_mandatory !== false && param.name.toLowerCase() !== 'remark'
-          ? (param.options ? param.options.split(',')[0].trim() : 'Negative')
-          : rawValue;
-
-        const value = finalRawValue !== undefined && finalRawValue !== ''
-          ? ((param.input_type === 'text' || param.input_type === 'select' || param.input_type === 'textarea') ? finalRawValue : parseFloat(finalRawValue))
+        const value = rawValue !== undefined && rawValue !== ''
+          ? ((param.input_type === 'text' || param.input_type === 'select' || param.input_type === 'textarea') ? rawValue : parseFloat(rawValue))
           : null;
 
         const resolvedRange = getPatientReferenceRange(param, patient);
@@ -2123,6 +2137,7 @@ export function ReportEntry() {
           status: mappedStatus,
           fieldType: param.field_type,
           group: param.section_group || undefined,
+          manualFlag: manualFlags[param.id] ? 'high' : undefined,
         };
       }),
     }));
@@ -3124,7 +3139,38 @@ export function ReportEntry() {
                                     </div>
                                   </td>
                                 )}
-                                <td className="px-3 py-1 align-middle text-center">{getStatusBadge(statuses[param.id])}</td>
+                                <td className="px-3 py-1 align-middle text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    {getStatusBadge(statuses[param.id])}
+                                    {isEditable && (
+                                      <button
+                                        type="button"
+                                        title={manualFlags[param.id] ? 'Remove manual High flag' : 'Mark as High'}
+                                        onClick={() => {
+                                          setManualFlags(prev => {
+                                            const next = { ...prev };
+                                            if (next[param.id]) {
+                                              delete next[param.id];
+                                            } else {
+                                              next[param.id] = true;
+                                            }
+                                            return next;
+                                          });
+                                        }}
+                                        className={`p-0.5 rounded transition-all cursor-pointer ${
+                                          manualFlags[param.id]
+                                            ? 'text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300'
+                                            : 'text-slate-500 hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400'
+                                        }`}
+                                      >
+                                        <Star 
+                                          className={`w-3.5 h-3.5 ${manualFlags[param.id] ? 'fill-current' : ''}`} 
+                                          strokeWidth={2.5}
+                                        />
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
                               </tr>
 
                               {showSumAlert && groupInfo && groupInfo.hasAnyValue && groupInfo.sum !== 100 && (
@@ -3158,7 +3204,7 @@ export function ReportEntry() {
                         className="w-full h-9 flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-900/50 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-xs font-bold text-blue-600 dark:text-blue-400 rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
                       >
                         <FileText className="w-4 h-4" />
-                        Preview Report
+                        Preview Report ({selectedReport?.preview_count || 0})
                       </button>
 
                       {(reportStatus === 'draft' || reportStatus === 'rejected') && (
@@ -3340,7 +3386,7 @@ export function ReportEntry() {
                 className="w-full h-9 flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-900/50 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-xs font-bold text-blue-600 dark:text-blue-400 rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
               >
                 <FileText className="w-4 h-4" />
-                Preview Report
+                Preview Report ({selectedReport?.preview_count || 0})
               </button>
 
               {(reportStatus === 'draft' || reportStatus === 'rejected') && (
