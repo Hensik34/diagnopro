@@ -1,11 +1,19 @@
 const { Op } = require("sequelize");
-const { Patient } = require("./index");
+const { Patient, User, Branch } = require("./index");
 
 // Get all patients with optional filters
 exports.getAllPatients = async (filters = {}) => {
   const where = {};
 
   if (filters.branch_id) where.branch_id = filters.branch_id;
+  if (filters.created_by) where.created_by = filters.created_by;
+  if (filters.today_only) {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    where.created_at = { [Op.between]: [todayStart, todayEnd] };
+  }
   if (filters.search) {
     where[Op.or] = [
       { name: { [Op.iLike]: `%${filters.search}%` } },
@@ -13,7 +21,14 @@ exports.getAllPatients = async (filters = {}) => {
     ];
   }
 
-  return await Patient.findAll({ where, order: [["created_at", "DESC"]] });
+  return await Patient.findAll({
+    where,
+    include: [
+      { model: User, as: "creator", attributes: ["id", "firstname", "lastname", "role", "email"] },
+      { model: Branch, as: "branch", attributes: ["id", "name"] }
+    ],
+    order: [["created_at", "DESC"]]
+  });
 };
 
 // Get all patients for a branch

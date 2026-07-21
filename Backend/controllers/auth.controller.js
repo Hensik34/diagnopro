@@ -284,10 +284,19 @@ exports.createUser = async (req, res) => {
   }
 
   try {
+    const targetBranchId = branch_id || req.headers['x-branch-id'];
+
     // Check if email already exists in users
     const existingUser = await User.findUserByEmail(email);
     if (existingUser) {
-      return res.status(400).json({ error: "Email already registered" });
+      // User exists! Assign existing user to the target branch via UserBranch junction
+      if (targetBranchId) {
+        await Branch.assignUserToBranch(existingUser.id, targetBranchId, role || existingUser.role || "staff");
+      }
+      return res.status(200).json({
+        message: "User assigned to branch successfully",
+        user: existingUser,
+      });
     }
 
     // Also check doctors table
@@ -303,14 +312,19 @@ exports.createUser = async (req, res) => {
       can_approve_reports === true || can_approve_reports === "true"
     );
 
-    // If branch_id provided, link user to that branch
-    // Otherwise, link to all of admin's branches
-    if (branch_id) {
-      await Branch.assignUserToBranch(user.id, branch_id, role || "staff");
+    // Link user to target branches
+    const targetBranchIds = Array.isArray(branch_ids) && branch_ids.length > 0
+      ? branch_ids
+      : [(branch_id || req.headers['x-branch-id'])].filter(Boolean);
+
+    if (targetBranchIds.length > 0) {
+      for (const bId of targetBranchIds) {
+        await Branch.assignUserToBranch(user.id, bId, role || "staff");
+      }
     } else {
       const adminBranches = await Branch.getAllBranches(adminId);
-      for (const branch of adminBranches) {
-        await Branch.assignUserToBranch(user.id, branch.id, role || "staff");
+      if (adminBranches.length > 0) {
+        await Branch.assignUserToBranch(user.id, adminBranches[0].id, role || "staff");
       }
     }
 
@@ -665,9 +679,18 @@ exports.getUserProfile = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
+    const branches = await Branch.getUserBranches(user.id);
+
     res.json({
       message: "Profile retrieved successfully",
-      data: user
+      data: user,
+      branches: branches.map(b => ({
+        id: b.id,
+        name: b.name,
+        location: b.location,
+        city: b.city,
+        role: b.user_role
+      }))
     });
   } catch (err) {
     console.error("Get profile error:", err);
@@ -772,15 +795,29 @@ exports.getUsersForSelection = async (req, res) => {
 // ADMIN USER MANAGEMENT
 // ==========================================
 
-// GET ALL USERS (admin sees only their sub-users + self)
+// GET ALL USERS (admin sees sub-users for current active branch + self)
 exports.getAllUsers = async (req, res) => {
   try {
     const adminId = req.user.id;
-    const users = await User.getAllUsers(adminId);
+    const branchId = req.headers['x-branch-id'] || req.query.branch_id;
+    const users = await User.getAllUsers(adminId, branchId);
+
+    const formattedUsers = await Promise.all(
+      users.map(async (u) => {
+        const uJson = u.toJSON ? u.toJSON() : u;
+        const userBranches = await Branch.getUserBranches(uJson.id);
+        return {
+          ...uJson,
+          branches: userBranches.map(b => ({ id: b.id, name: b.name })),
+          branch_names: userBranches.map(b => b.name).join(", ") || "All Branches",
+        };
+      })
+    );
+
     res.json({
       message: "Users retrieved successfully",
-      count: users.length,
-      data: users,
+      count: formattedUsers.length,
+      data: formattedUsers,
     });
   } catch (err) {
     console.error("Get all users error:", err);
@@ -792,7 +829,7 @@ exports.getAllUsers = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { firstname, lastname, phone, role, petrol_price_per_km, can_approve_reports } = req.body;
+    const { firstname, lastname, phone, role, petrol_price_per_km, can_approve_reports, branch_ids } = req.body;
 
     const user = await User.updateUser(id, {
       firstname,
@@ -807,9 +844,25 @@ exports.updateUser = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
+    if (Array.isArray(branch_ids)) {
+      const { UserBranch } = require("../models");
+      await UserBranch.destroy({ where: { user_id: id } });
+      for (const bId of branch_ids) {
+        if (bId) {
+          await Branch.assignUserToBranch(id, bId, role || user.role || "staff");
+        }
+      }
+    }
+
+    const updatedBranches = await Branch.getUserBranches(id);
+
     res.json({
       message: "User updated successfully",
-      data: user,
+      data: {
+        ...user,
+        branches: updatedBranches.map(b => ({ id: b.id, name: b.name })),
+        branch_names: updatedBranches.map(b => b.name).join(", ") || "All Branches",
+      },
     });
   } catch (err) {
     console.error("Update user error:", err);

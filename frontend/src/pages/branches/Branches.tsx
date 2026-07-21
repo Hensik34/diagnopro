@@ -365,6 +365,9 @@ function BranchModal({ branch, onClose, onSave }: BranchModalProps) {
     postal_code: branch?.postal_code || '',
     phone: branch?.phone || '',
     email: branch?.email || '',
+    latitude: branch?.latitude != null ? branch.latitude : undefined,
+    longitude: branch?.longitude != null ? branch.longitude : undefined,
+    geofence_radius_meters: branch?.geofence_radius_meters != null ? branch.geofence_radius_meters : 150,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -475,6 +478,72 @@ function BranchModal({ branch, onClose, onSave }: BranchModalProps) {
                 className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 placeholder="branch@lab.com"
               />
+            </div>
+          </div>
+
+          {/* GPS Location & Geofencing Settings */}
+          <div className="border-t border-border pt-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground uppercase tracking-wide">Lab GPS Geofencing</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                      (pos) => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          latitude: pos.coords.latitude,
+                          longitude: pos.coords.longitude,
+                        }));
+                      },
+                      (err) => alert(`GPS Error: ${err.message}`),
+                      { enableHighAccuracy: true }
+                    );
+                  } else {
+                    alert('Geolocation is not supported by your browser');
+                  }
+                }}
+                className="text-xs text-primary hover:underline flex items-center gap-1 font-medium"
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                Detect My GPS Location
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Latitude</label>
+                <input 
+                  type="number"
+                  step="any"
+                  value={formData.latitude ?? ''}
+                  onChange={e => setFormData(prev => ({ ...prev, latitude: e.target.value ? parseFloat(e.target.value) : undefined }))}
+                  className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="e.g. 28.6139"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Longitude</label>
+                <input 
+                  type="number"
+                  step="any"
+                  value={formData.longitude ?? ''}
+                  onChange={e => setFormData(prev => ({ ...prev, longitude: e.target.value ? parseFloat(e.target.value) : undefined }))}
+                  className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="e.g. 77.2090"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Radius (Meters)</label>
+                <input 
+                  type="number"
+                  value={formData.geofence_radius_meters ?? 150}
+                  onChange={e => setFormData(prev => ({ ...prev, geofence_radius_meters: e.target.value ? parseInt(e.target.value, 10) : 150 }))}
+                  className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="150"
+                />
+              </div>
             </div>
           </div>
 

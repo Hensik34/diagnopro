@@ -5,7 +5,7 @@ import { PERMISSIONS } from '../utils/permissions';
 // Layout
 import { Root } from '../pages/layout';
 // Auth
-import { Login, Register, ForgotPassword, VerifyPasscode } from '../pages/auth';
+import { Login, Register, ForgotPassword, VerifyPasscode, SelectBranch } from '../pages/auth';
 // Marketing Pages
 import MarketingHome from '../pages/marketing/Home';
 import MarketingFeatures from '../pages/marketing/Features';
@@ -106,7 +106,7 @@ function doctorOnly(Component: any) {
  */
 function guestOnly(Component: any) {
   const GuestComponent = (props: any): React.ReactElement | null => {
-    const { isAuthenticated } = useAuthStore();
+    const { isAuthenticated, user, loginBranches } = useAuthStore();
     const { pathname } = useLocation();
 
     useEffect(() => {
@@ -114,6 +114,10 @@ function guestOnly(Component: any) {
     }, [pathname]);
 
     if (isAuthenticated) {
+      const activeBranchId = localStorage.getItem('diagnopro_active_branch');
+      if (user?.role === 'staff' && (loginBranches.length > 1 || !activeBranchId)) {
+        return React.createElement(Navigate, { to: '/select-branch', replace: true });
+      }
       return React.createElement(Navigate, { to: '/app', replace: true });
     }
 
@@ -164,6 +168,10 @@ export const router = createBrowserRouter([
   {
     path: '/forgot-password',
     Component: guestOnly(ForgotPassword),
+  },
+  {
+    path: '/select-branch',
+    Component: SelectBranch,
   },
   {
     path: '/onboarding',

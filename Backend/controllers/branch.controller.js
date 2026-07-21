@@ -75,7 +75,7 @@ exports.getBranchById = async (req, res) => {
 // CREATE BRANCH
 exports.createBranch = async (req, res) => {
   try {
-    const { name, location, city, state, postal_code, phone, email } = req.body;
+    const { name, location, city, state, postal_code, phone, email, latitude, longitude, geofence_radius_meters } = req.body;
     const userId = req.user.id;
     const userRole = req.user.role;
 
@@ -91,7 +91,10 @@ exports.createBranch = async (req, res) => {
       state,
       postal_code,
       phone,
-      email
+      email,
+      latitude: latitude != null ? parseFloat(latitude) : null,
+      longitude: longitude != null ? parseFloat(longitude) : null,
+      geofence_radius_meters: geofence_radius_meters != null ? parseInt(geofence_radius_meters, 10) : 150,
     });
 
     // Auto-link the creating user to this branch
@@ -111,7 +114,7 @@ exports.createBranch = async (req, res) => {
 exports.updateBranch = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, location, city, state, postal_code, phone, email } = req.body;
+    const { name, location, city, state, postal_code, phone, email, latitude, longitude, geofence_radius_meters } = req.body;
 
     const branch = await Branch.updateBranch(id, {
       name,
@@ -120,7 +123,10 @@ exports.updateBranch = async (req, res) => {
       state,
       postal_code,
       phone,
-      email
+      email,
+      latitude: latitude !== undefined ? (latitude != null ? parseFloat(latitude) : null) : undefined,
+      longitude: longitude !== undefined ? (longitude != null ? parseFloat(longitude) : null) : undefined,
+      geofence_radius_meters: geofence_radius_meters !== undefined ? (geofence_radius_meters != null ? parseInt(geofence_radius_meters, 10) : 150) : undefined,
     });
 
     if (!branch) {

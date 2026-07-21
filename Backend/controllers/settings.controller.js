@@ -11,8 +11,8 @@ const ALLOWED_SAMPLE_ID_RESET_POLICIES = ["yearly", "monthly"];
 // GET SETTINGS BY BRANCH
 exports.getSettings = async (req, res) => {
   try {
-    // Get branch_id from query, body, or user
-    const branchId = req.query?.branch_id || req.body?.branch_id || req.user?.branch_id;
+    // Get branch_id from header, query, body, or user
+    const branchId = req.headers['x-branch-id'] || req.query?.branch_id || req.body?.branch_id || req.user?.branch_id;
 
     if (!branchId) {
       return res.status(400).json({ error: "Branch ID not found in request" });
@@ -33,7 +33,7 @@ exports.getSettings = async (req, res) => {
 // CREATE OR UPDATE SETTINGS
 exports.upsertSettings = async (req, res) => {
   try {
-    const branchId = req.body?.branch_id || req.query?.branch_id || req.user?.branch_id;
+    const branchId = req.headers['x-branch-id'] || req.body?.branch_id || req.query?.branch_id || req.user?.branch_id;
 
     if (!branchId) {
       return res.status(400).json({ error: "Branch ID not found in request" });

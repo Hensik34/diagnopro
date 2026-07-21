@@ -3,7 +3,7 @@ const Inventory = require("../models/Inventory");
 // GET ALL INVENTORY ITEMS
 exports.getAll = async (req, res) => {
   try {
-    const { branch_id } = req.query;
+    const branch_id = req.headers['x-branch-id'] || req.query.branch_id;
     if (!branch_id) {
       return res.status(400).json({ error: "branch_id is required" });
     }
@@ -37,8 +37,9 @@ exports.getById = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const { name, category, quantity, alert_threshold, branch_id } = req.body;
+    const targetBranchId = branch_id || req.headers['x-branch-id'];
 
-    if (!name || !branch_id) {
+    if (!name || !targetBranchId) {
       return res.status(400).json({ error: "name and branch_id are required" });
     }
 
@@ -47,7 +48,7 @@ exports.create = async (req, res) => {
       category,
       quantity,
       alert_threshold,
-      branch_id,
+      branch_id: targetBranchId,
     });
 
     res.status(201).json({ message: "Item created successfully", data: item });

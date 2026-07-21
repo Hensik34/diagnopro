@@ -3,14 +3,30 @@ const Patient = require("../models/Patient");
 // GET ALL PATIENTS
 exports.getPatients = async (req, res) => {
   try {
-    const { branch_id, search } = req.query;
+    const { branch_id, search, created_by, today_only } = req.query;
+    const targetBranchId = req.headers['x-branch-id'] || branch_id;
 
-    const patients = await Patient.getAllPatients({ branch_id, search });
+    const patients = await Patient.getAllPatients({
+      branch_id: targetBranchId,
+      search,
+      created_by,
+      today_only: today_only === "true" || today_only === true,
+    });
+
+    const formatted = patients.map(p => {
+      const pJson = p.toJSON ? p.toJSON() : p;
+      return {
+        ...pJson,
+        created_by_name: pJson.creator ? `${pJson.creator.firstname} ${pJson.creator.lastname}` : 'System',
+        creator_role: pJson.creator?.role || 'user',
+        branch_name: pJson.branch ? pJson.branch.name : 'Unknown Branch',
+      };
+    });
 
     res.json({
       message: "Patients retrieved successfully",
-      count: patients.length,
-      data: patients
+      count: formatted.length,
+      data: formatted
     });
   } catch (err) {
     console.error("Get patients error:", err);
@@ -44,8 +60,10 @@ exports.createPatient = async (req, res) => {
   try {
     const { name, email, phone, age, age_unit, gender, address, city, state, postal_code, blood_type, branch_id } = req.body;
 
+    const targetBranchId = branch_id || req.user.branch_id;
+
     // Validation
-    if (!name || age == null || !gender || !branch_id) {
+    if (!name || age == null || !gender || !targetBranchId) {
       return res.status(400).json({ 
         error: "name, age, gender, and branch_id are required" 
       });
@@ -63,7 +81,7 @@ exports.createPatient = async (req, res) => {
       state,
       postal_code,
       blood_type,
-      branch_id,
+      branch_id: targetBranchId,
       created_by: req.user.id // From auth middleware
     });
 

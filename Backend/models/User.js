@@ -1,5 +1,6 @@
+const { Op } = require("sequelize");
 const bcrypt = require("bcrypt");
-const { User } = require("./index");
+const { User, UserBranch } = require("./index");
 
 // Find user by email
 exports.findUserByEmail = async (email) => {
@@ -40,18 +41,24 @@ exports.updateUserProfile = async (id, firstname, lastname, phone) => {
   return updated ? updated.toJSON() : null;
 };
 
-// Get all users created by a specific admin (+ the admin themselves)
-exports.getAllUsers = async (adminId) => {
-  const { Op } = require("sequelize");
+// Get all users created by an admin (or self), optionally filtered by branchId
+exports.getAllUsers = async (adminId, branchId) => {
+  const where = {
+    [Op.or]: [{ created_by: adminId }, { id: adminId }],
+  };
 
-  if (!adminId) {
-    return [];
+  if (branchId) {
+    const branchUserRecords = await UserBranch.findAll({
+      where: { branch_id: branchId },
+      attributes: ["user_id"],
+    });
+    const userIds = branchUserRecords.map((r) => r.user_id);
+    userIds.push(adminId);
+    where.id = { [Op.in]: userIds };
   }
 
   return await User.findAll({
-    where: {
-      [Op.or]: [{ created_by: adminId }, { id: adminId }],
-    },
+    where,
     attributes: { exclude: ["password_hash"] },
     order: [["created_at", "DESC"]],
   });
