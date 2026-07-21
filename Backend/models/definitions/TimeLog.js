@@ -13,6 +13,11 @@ const TimeLog = sequelize.define("TimeLog", {
   total_hours: { type: DataTypes.DECIMAL(10, 2) },
   branch_id: { type: DataTypes.UUID },
   notes: { type: DataTypes.TEXT },
+  start_km: { type: DataTypes.DECIMAL(10, 2) },
+  end_km: { type: DataTypes.DECIMAL(10, 2) },
+  total_km: { type: DataTypes.DECIMAL(10, 2) },
+  end_meter_image: { type: DataTypes.TEXT },
+  location_meta: { type: DataTypes.JSONB, defaultValue: {} },
 }, {
   tableName: "time_logs",
 });

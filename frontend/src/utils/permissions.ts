@@ -241,8 +241,10 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.TIMELOG_TRACK,
   ],
 
-  // Staff: Limited front desk operations - own logs, settings reading, KM tracking
+  // Staff: Limited front desk operations - field patient creation, own logs, settings reading, KM tracking
   [ROLES.STAFF]: [
+    PERMISSIONS.PATIENT_CREATE,
+    PERMISSIONS.PATIENT_READ,
     PERMISSIONS.BRANCH_READ,
     PERMISSIONS.SAMPLE_COLLECT,
     // Collection Tracking

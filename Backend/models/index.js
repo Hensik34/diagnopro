@@ -36,6 +36,7 @@ const DoctorTestPrice = require("./definitions/DoctorTestPrice");
 const ReportTestPrice = require("./definitions/ReportTestPrice");
 const PriceAuditLog = require("./definitions/PriceAuditLog");
 const ReportDelivery = require("./definitions/ReportDelivery");
+const Receipt = require("./definitions/Receipt");
 
 // Associations
 User.belongsToMany(Branch, { through: UserBranch, foreignKey: "user_id", otherKey: "branch_id", as: "branches" });
@@ -88,6 +89,9 @@ Payment.belongsTo(Report, { foreignKey: "report_id", as: "report" });
 Payment.belongsTo(Patient, { foreignKey: "patient_id" });
 Payment.belongsTo(Doctor, { foreignKey: "doctor_id" });
 Report.hasMany(Payment, { foreignKey: "report_id", as: "payments" });
+
+Receipt.belongsTo(Report, { foreignKey: "report_id", as: "report" });
+Report.hasOne(Receipt, { foreignKey: "report_id", as: "receipt" });
 
 Settings.belongsTo(Branch, { foreignKey: "branch_id", as: "branch" });
 Branch.hasOne(Settings, { foreignKey: "branch_id", as: "settings" });
@@ -225,4 +229,5 @@ module.exports = {
   ReportTestPrice,
   PriceAuditLog,
   ReportDelivery,
+  Receipt,
 };

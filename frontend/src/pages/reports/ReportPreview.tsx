@@ -120,7 +120,11 @@ const printStyles = `
     page-break-inside: avoid !important;
     position: relative !important;
   }
-  .report-page:last-child { break-after: auto; page-break-after: auto; }
+  .report-page:last-child,
+  .report-page.last-visible-page {
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
 }
 `;
 
@@ -259,7 +263,8 @@ export function ReportPreview() {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [showLetterhead, setShowLetterhead] = useState(true);
+  const [showLetterhead, setShowLetterhead] = useState(false);
+  const [showMarketingPages, setShowMarketingPages] = useState<boolean>(false);
   const [safeZones, setSafeZones] = useState<SafeZones>({ top: 52, bottom: 56, left: 24, right: 24 });
   const [zoom, setZoom] = useState(1);
   const [baseScale, setBaseScale] = useState(1);
@@ -292,6 +297,7 @@ export function ReportPreview() {
       setIsB2B(!!rawReport.b2b_lab_id);
       setB2bLabId(rawReport.b2b_lab_id || "");
       setB2bCharge(rawReport.b2b_charge ? String(rawReport.b2b_charge) : "");
+      setShowMarketingPages(rawReport.is_self_report === true);
     }
   }, [rawReport]);
 
@@ -364,7 +370,15 @@ export function ReportPreview() {
 
   useEffect(() => {
     if (id) {
-      fetchReportById(id);
+      const incrementAndFetch = async () => {
+        try {
+          await reportApi.incrementPreview(id);
+        } catch (e) {
+          console.error('Failed to increment preview count:', e);
+        }
+        fetchReportById(id);
+      };
+      incrementAndFetch();
       fetchBranches();
       fetchStaffList();
       fetchB2BLabs();
@@ -424,8 +438,8 @@ export function ReportPreview() {
       result: p.value?.toString() || '',
       unit: p.unit || '',
       refRange: p.referenceRange || '',
-      isAbnormal: p.status === 'low' || p.status === 'high',
-      status: p.status,
+      isAbnormal: p.manualFlag === 'high' || p.status === 'low' || p.status === 'high',
+      status: p.manualFlag === 'high' ? 'high' : p.status,
       fieldType: p.fieldType || undefined,
       group: p.group || (testId ? sectionGroupMap.get(`${testId}::${p.name}`) : undefined),
       isMandatory: testId ? isMandatoryMap.get(`${testId}::${p.name}`) ?? true : true,
@@ -756,12 +770,15 @@ export function ReportPreview() {
       testData,
       clinicalNotes: rawReport?.clinical_notes,
       isSelfReport: rawReport?.is_self_report,
-      attachMarketingPages: rawReport?.attach_marketing_pages,
+      attachMarketingPages: showMarketingPages,
       marketingPages: rawReport?.marketing_pages,
     });
-  }, [reportData, orderedSections, safeZones, rawReport, density, hasDoctorSignature]);
+  }, [reportData, orderedSections, safeZones, rawReport, density, hasDoctorSignature, showMarketingPages]);
 
   const pages = paginationResult.pages;
+  const reportPagesCount = useMemo(() => {
+    return pages.filter(p => p[0]?.type !== 'marketing').length;
+  }, [pages]);
 
   // Scroll-spying to update active page index
   useEffect(() => {
@@ -821,7 +838,7 @@ export function ReportPreview() {
     if (!id) return;
     setIsGeneratingPdf(true);
     try {
-      const { blob, filename } = await reportApi.downloadPdf(id);
+      const { blob, filename } = await reportApi.downloadPdf(id, showMarketingPages);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -833,7 +850,19 @@ export function ReportPreview() {
     } finally {
       setIsGeneratingPdf(false);
     }
-  }, [id]);
+  }, [id, showMarketingPages]);
+
+  const handlePrint = useCallback(async () => {
+    window.print();
+    if (id) {
+      try {
+        await reportApi.incrementPrint(id);
+        fetchReportById(id);
+      } catch (err) {
+        console.error('Failed to increment print count:', err);
+      }
+    }
+  }, [id, fetchReportById]);
 
   const moveUp = useCallback((id: string) => {
     setSectionOrder(prev => {
@@ -943,6 +972,11 @@ export function ReportPreview() {
   const headerActive = showLetterhead && !!settings?.header_url && !settings?.letterhead_url;
   const footerActive = showLetterhead && !!settings?.footer_url && !settings?.letterhead_url;
   const hasBranding = !!(settings?.letterhead_url || settings?.header_url || settings?.footer_url);
+  const hasMarketingPages = !!(
+    rawReport?.marketing_pages &&
+    Array.isArray(rawReport.marketing_pages) &&
+    rawReport.marketing_pages.some((p: any) => p.active && (p.url || p.previewUrl))
+  );
   const signatureStripHeight = hasDoctorSignature ? 84 : 76;
   let lastReportPageIndex = -1;
   for (let i = pages.length - 1; i >= 0; i -= 1) {
@@ -1013,9 +1047,11 @@ export function ReportPreview() {
         )}
 
         {/* Centered Page Footer inside A4 paper */}
-        <div className="absolute bottom-4 left-0 right-0 text-center text-[10px] text-slate-400 font-medium select-none pointer-events-none z-10 print:block">
-          Page {pageIndex + 1} of {pages.length}
-        </div>
+        {!isMarketingPage && reportPagesCount > 1 && (
+          <div className="absolute bottom-4 left-0 right-0 text-center text-[10px] text-slate-400 font-medium select-none pointer-events-none z-10 print:block">
+            Page {pageIndex + 1} of {reportPagesCount}
+          </div>
+        )}
 
         {marketingItem ? (
           <div
@@ -1417,7 +1453,7 @@ export function ReportPreview() {
           formatAge={formatAge}
           onBack={() => navigate(backPath)}
           onDownloadPdf={handleDownloadPdf}
-          onPrint={() => window.print()}
+          onPrint={handlePrint}
           onShare={() => setShowShareModal(true)}
           onToggleBranding={() => setShowLetterhead(v => !v)}
           onZoomIn={() => setZoom(z => clamp(z + 0.1, 0.6, 2))}
@@ -1425,6 +1461,9 @@ export function ReportPreview() {
           zoom={zoom}
           effectiveScale={effectiveScale}
           showLetterhead={showLetterhead}
+          showMarketingPages={showMarketingPages}
+          onToggleMarketingPages={() => setShowMarketingPages(v => !v)}
+          hasMarketingPages={hasMarketingPages}
           hasBranding={hasBranding}
           isGeneratingPdf={isGeneratingPdf}
           hasVisibleTests={hasVisibleTests}
@@ -1482,6 +1521,8 @@ export function ReportPreview() {
             >
               {pages.map((page, pageIndex) => {
                 pageRefs.current.length = pages.length;
+                const isMarketingPage = page[0]?.type === 'marketing';
+                const isLastVisible = pageIndex === lastReportPageIndex;
 
                 return (
                   <div
@@ -1489,7 +1530,7 @@ export function ReportPreview() {
                     ref={el => {
                       pageRefs.current[pageIndex] = el;
                     }}
-                    className="report-page bg-white border border-gray-200"
+                    className={`report-page bg-white border border-gray-200 ${isMarketingPage ? 'no-print' : ''} ${isLastVisible ? 'last-visible-page' : ''}`}
                     style={{
                       width: A4_WIDTH_PX,
                       height: A4_HEIGHT_PX,

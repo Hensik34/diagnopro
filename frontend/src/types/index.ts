@@ -13,6 +13,8 @@ export interface User {
   petrol_price_per_km?: number;
   created_by?: string | null;
   can_approve_reports?: boolean;
+  branches?: Array<{ id: string; name: string }>;
+  branch_names?: string;
   created_at: string;
   updated_at: string;
 }
@@ -64,6 +66,9 @@ export interface Branch {
   postal_code?: string;
   phone?: string;
   email?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  geofence_radius_meters?: number;
   created_at: string;
   updated_at: string;
 }
@@ -93,6 +98,8 @@ export interface Patient {
   updated_at: string;
   // Joined fields
   branch_name?: string;
+  created_by_name?: string;
+  creator_role?: string;
 }
 
 export interface CreatePatientData {
@@ -492,6 +499,8 @@ export interface Report {
   pathology_signature_description?: string | null;
   attach_marketing_pages?: boolean;
   marketing_pages?: any[];
+  preview_count?: number;
+  print_count?: number;
 }
 
 export interface CreateReportData {
@@ -645,6 +654,8 @@ export interface ApiError {
 export interface PatientFilters {
   branch_id?: string;
   search?: string;
+  created_by?: string;
+  today_only?: boolean;
 }
 
 export interface ReportFilters {

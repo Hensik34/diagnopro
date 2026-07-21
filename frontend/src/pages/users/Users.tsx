@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  Search, 
+import {
+  Plus,
+  Search,
   Shield,
   Mail,
   Phone,
@@ -16,6 +16,7 @@ import {
   Check,
 } from 'lucide-react';
 import { authApi } from '../../api/auth';
+import { useBranchStore } from '../../stores/branchStore';
 import type { User } from '../../types';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -25,6 +26,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export function Users() {
+  const { branches, currentBranchId, fetchBranches } = useBranchStore();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,11 +48,15 @@ export function Users() {
   const [formConfirmPassword, setFormConfirmPassword] = useState('');
   const [formPetrolPrice, setFormPetrolPrice] = useState('');
   const [formCanApproveReports, setFormCanApproveReports] = useState(false);
+  const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
 
-  // Fetch users on mount
+  // Fetch users on mount and branch change, also fetch branches list
   useEffect(() => {
     fetchUsers();
-  }, []);
+    if (branches.length === 0) {
+      fetchBranches();
+    }
+  }, [currentBranchId]);
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -135,6 +141,7 @@ export function Users() {
     setFormRole(user.role);
     setFormPetrolPrice(user.petrol_price_per_km?.toString() || '');
     setFormCanApproveReports(user.can_approve_reports || false);
+    setSelectedBranchIds(user.branches && user.branches.length > 0 ? user.branches.map(b => b.id) : (currentBranchId ? [currentBranchId] : []));
     setFormPassword('');
     setFormConfirmPassword('');
     setModalError(null);
@@ -150,6 +157,7 @@ export function Users() {
     setFormRole('staff');
     setFormPetrolPrice('');
     setFormCanApproveReports(false);
+    setSelectedBranchIds(currentBranchId ? [currentBranchId] : []);
     setFormPassword('');
     setFormConfirmPassword('');
     setModalError(null);
@@ -191,6 +199,7 @@ export function Users() {
           role: formRole,
           petrol_price_per_km: formRole !== 'lab_technician' && formPetrolPrice ? Number(formPetrolPrice) : undefined,
           can_approve_reports: formRole === 'staff' ? false : formCanApproveReports,
+          branch_ids: selectedBranchIds,
         });
         setUsers(prev => prev.map(u =>
           u.id === selectedUser.id ? response.data : u
@@ -216,6 +225,7 @@ export function Users() {
           role: formRole,
           petrol_price_per_km: formRole !== 'lab_technician' && formPetrolPrice ? Number(formPetrolPrice) : undefined,
           can_approve_reports: formRole === 'staff' ? false : formCanApproveReports,
+          branch_ids: selectedBranchIds,
         });
         // Refetch to get the new user
         await fetchUsers();
@@ -263,7 +273,7 @@ export function Users() {
             Manage staff and lab technician accounts
           </p>
         </div>
-        <button 
+        <button
           onClick={handleAdd}
           className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs"
         >
@@ -315,7 +325,7 @@ export function Users() {
       <div className="flex items-center gap-3 bg-card border border-border rounded p-2.5">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
-          <input 
+          <input
             type="text"
             placeholder="Search by name, email, or ID..."
             className="w-full h-8 pl-8 pr-3 bg-secondary border-0 rounded text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -323,10 +333,10 @@ export function Users() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        
+
         <div className="h-6 w-px bg-border"></div>
 
-        <select 
+        <select
           className="h-8 text-xs bg-secondary border-0 rounded px-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
@@ -336,7 +346,7 @@ export function Users() {
           <option value="staff">Staff</option>
         </select>
 
-        <select 
+        <select
           className="h-8 text-xs bg-secondary border-0 rounded px-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -356,6 +366,7 @@ export function Users() {
                 <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">User</th>
                 <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Contact</th>
                 <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Role</th>
+                <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Branch Access</th>
                 <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Status</th>
                 <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Created</th>
                 <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-20">Action</th>
@@ -363,13 +374,13 @@ export function Users() {
             </thead>
             <tbody className="divide-y divide-border">
               {filteredUsers.map((user) => (
-                <tr 
-                  key={user.id} 
+                <tr
+                  key={user.id}
                   className="hover:bg-accent/30 transition-colors"
                 >
                   <td className="px-3 py-2">
                     <div className="flex flex-col">
-                      <span className="text-xs text-foreground">{user.firstname} {user.lastname}</span>
+                      <span className="text-xs text-foreground font-medium">{user.firstname} {user.lastname}</span>
                       <span className="text-[10px] text-muted-foreground tabular-nums">{user.id.slice(0, 8)}</span>
                     </div>
                   </td>
@@ -397,6 +408,21 @@ export function Users() {
                       )}
                     </div>
                   </td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap gap-1">
+                      {user.branches && user.branches.length > 0 ? (
+                        user.branches.map((b) => (
+                          <span key={b.id} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
+                            {b.name}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-secondary text-muted-foreground border border-border">
+                          {user.branch_names || 'Active Branch'}
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-3 py-2 text-center">
                     {getStatusBadge(user.is_active)}
                   </td>
@@ -405,14 +431,14 @@ export function Users() {
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center justify-center gap-1">
-                      <button 
+                      <button
                         onClick={() => handleEdit(user)}
                         className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
                         title="Edit"
                       >
                         <Edit className="w-3.5 h-3.5" />
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleToggleStatus(user.id)}
                         className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
                         title={user.is_active ? 'Deactivate' : 'Activate'}
@@ -429,7 +455,7 @@ export function Users() {
               ))}
               {filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={7} className="px-3 py-8 text-center text-sm text-muted-foreground">
                     No users found
                   </td>
                 </tr>
@@ -455,7 +481,7 @@ export function Users() {
               <h2 className="text-foreground text-sm">
                 {selectedUser ? 'Edit User' : 'Add New User'}
               </h2>
-              <button 
+              <button
                 onClick={() => setShowModal(false)}
                 className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors"
               >
@@ -479,7 +505,7 @@ export function Users() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-foreground block mb-1">First Name *</label>
-                    <input 
+                    <input
                       type="text"
                       className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                       value={formFirstname}
@@ -489,7 +515,7 @@ export function Users() {
                   </div>
                   <div>
                     <label className="text-xs text-foreground block mb-1">Last Name *</label>
-                    <input 
+                    <input
                       type="text"
                       className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                       value={formLastname}
@@ -499,7 +525,7 @@ export function Users() {
                   </div>
                   <div>
                     <label className="text-xs text-foreground block mb-1">Email Address *</label>
-                    <input 
+                    <input
                       type="email"
                       className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                       value={formEmail}
@@ -510,7 +536,7 @@ export function Users() {
                   </div>
                   <div>
                     <label className="text-xs text-foreground block mb-1">Phone Number</label>
-                    <input 
+                    <input
                       type="tel"
                       className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                       value={formPhone}
@@ -558,11 +584,10 @@ export function Users() {
                       onClick={() => setFormCanApproveReports(!formCanApproveReports)}
                       className="flex items-center gap-2 cursor-pointer focus:outline-none"
                     >
-                      <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
-                        formCanApproveReports 
-                          ? 'border-green-500 bg-green-500 text-white' 
+                      <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${formCanApproveReports
+                          ? 'border-green-500 bg-green-500 text-white'
                           : 'border-border bg-background text-transparent'
-                      }`}>
+                        }`}>
                         <Check className="w-3.5 h-3.5 stroke-[3]" />
                       </div>
                       <span className="text-xs font-medium text-foreground select-none">
@@ -573,6 +598,38 @@ export function Users() {
                 )}
               </div>
 
+              {/* Branch Access (Assignments) - Only shown when multiple branches exist */}
+              {branches.length > 1 && (
+                <div className="border-t border-border pt-4">
+                  <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Branch Access (Assignments)</h3>
+                  <p className="text-[11px] text-muted-foreground mb-3">Select which lab branches this user is authorized to access</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {branches.map((b) => {
+                      const isChecked = selectedBranchIds.includes(b.id);
+                      return (
+                        <label key={b.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer p-2 border border-border rounded hover:bg-accent/40 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              if (isChecked) {
+                                if (selectedBranchIds.length > 1) {
+                                  setSelectedBranchIds(selectedBranchIds.filter((id) => id !== b.id));
+                                }
+                              } else {
+                                setSelectedBranchIds([...selectedBranchIds, b.id]);
+                              }
+                            }}
+                            className="rounded border-border text-primary focus:ring-primary"
+                          />
+                          <span className="font-medium text-xs">{b.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Login Credentials - only for new users */}
               {!selectedUser && (
                 <div>
@@ -580,7 +637,7 @@ export function Users() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs text-foreground block mb-1">Password *</label>
-                      <input 
+                      <input
                         type="password"
                         className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                         value={formPassword}
@@ -590,7 +647,7 @@ export function Users() {
                     </div>
                     <div>
                       <label className="text-xs text-foreground block mb-1">Confirm Password *</label>
-                      <input 
+                      <input
                         type="password"
                         className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                         value={formConfirmPassword}
@@ -605,14 +662,14 @@ export function Users() {
 
             {/* Modal Footer */}
             <div className="sticky bottom-0 bg-card border-t border-border px-4 py-3 flex items-center justify-end gap-2">
-              <button 
+              <button
                 onClick={() => setShowModal(false)}
                 disabled={isSaving}
                 className="h-8 px-3 bg-secondary border border-border rounded text-xs hover:bg-accent transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={handleSave}
                 disabled={isSaving}
                 className="h-8 px-3 bg-primary text-white rounded text-xs hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5"

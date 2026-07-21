@@ -149,7 +149,7 @@ const manager = new PuppeteerManager();
  * @param {string} reportId The UUID of the report
  * @returns {Promise<Buffer>} The PDF file buffer
  */
-async function generateReportPdf(reportId) {
+async function generateReportPdf(reportId, attachMarketingPages) {
   const start = Date.now();
   let dbFetchTime = 0;
   let queueWaitTime = 0;
@@ -207,7 +207,10 @@ async function generateReportPdf(reportId) {
 
       // Define local URL to navigate to. It will load locally from dist.
       const localFrontendUrl = process.env.PDF_RENDER_URL || `http://localhost:${process.env.PORT || 5000}`;
-      const url = `${localFrontendUrl}/public/report/${reportId}/download?print=true`;
+      let url = `${localFrontendUrl}/public/report/${reportId}/download?print=true`;
+      if (attachMarketingPages !== undefined) {
+        url += `&attach_marketing_pages=${attachMarketingPages}`;
+      }
 
       logPdfDebug(`Navigating page (attempt ${attempts}) to: ${url}`);
       await page.goto(url, {

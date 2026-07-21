@@ -74,6 +74,7 @@ export function offLogout(cb: LogoutCallback): void {
  */
 const USER_SCOPED_STORAGE_KEYS = [
   'token',
+  'diagnopro_active_branch',
   'onboarding_complete',
   'lastStockReminderDate',
 ] as const;

@@ -1,11 +1,28 @@
 import api from './client';
 
+export interface LocationMetaPayload {
+  lat?: number | null;
+  lng?: number | null;
+  verified?: boolean;
+  distance_meters?: number;
+  message?: string;
+  timestamp?: string;
+}
+
 export interface TimeLog {
   id: string;
   user_id: string;
   clock_in: string;
   clock_out: string | null;
   total_hours: number | null;
+  start_km?: number | null;
+  end_km?: number | null;
+  total_km?: number | null;
+  end_meter_image?: string | null;
+  location_meta?: {
+    clock_in?: LocationMetaPayload;
+    clock_out?: LocationMetaPayload;
+  } | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -22,22 +39,48 @@ export interface UserTimeSummary {
   lastname: string;
   email: string;
   role: string;
+  petrol_price_per_km?: number;
   total_sessions: number;
   total_hours: number;
+  total_km?: number;
   first_clock_in: string | null;
   last_clock_out: string | null;
 }
 
 export const timeLogApi = {
   // Clock in
-  clockIn: async (branchId?: string): Promise<{ message: string; data: TimeLog }> => {
-    const response = await api.post('/time-logs/clock-in', { branch_id: branchId });
+  clockIn: async (data?: {
+    branchId?: string;
+    start_km?: number;
+    start_meter_image?: string;
+    latitude?: number;
+    longitude?: number;
+  }): Promise<{ message: string; data: TimeLog }> => {
+    const response = await api.post('/time-logs/clock-in', {
+      branch_id: data?.branchId,
+      start_km: data?.start_km,
+      start_meter_image: data?.start_meter_image,
+      latitude: data?.latitude,
+      longitude: data?.longitude,
+    });
     return response.data;
   },
 
   // Clock out
-  clockOut: async (notes?: string): Promise<{ message: string; data: TimeLog }> => {
-    const response = await api.post('/time-logs/clock-out', { notes });
+  clockOut: async (data?: {
+    notes?: string;
+    end_km?: number;
+    end_meter_image?: string;
+    latitude?: number;
+    longitude?: number;
+  }): Promise<{ message: string; data: TimeLog }> => {
+    const response = await api.post('/time-logs/clock-out', {
+      notes: data?.notes,
+      end_km: data?.end_km,
+      end_meter_image: data?.end_meter_image,
+      latitude: data?.latitude,
+      longitude: data?.longitude,
+    });
     return response.data;
   },
 

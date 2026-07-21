@@ -5,7 +5,7 @@ import { PERMISSIONS } from '../utils/permissions';
 // Layout
 import { Root } from '../pages/layout';
 // Auth
-import { Login, Register, ForgotPassword, VerifyPasscode } from '../pages/auth';
+import { Login, Register, ForgotPassword, VerifyPasscode, SelectBranch } from '../pages/auth';
 // Marketing Pages
 import MarketingHome from '../pages/marketing/Home';
 import MarketingFeatures from '../pages/marketing/Features';
@@ -34,7 +34,7 @@ import { Inventory } from '../pages/inventory';
 // Time Tracking
 import { TimeTracking, WorkingHours } from '../pages/time-tracking';
 // Billing
-import { InvoicePage } from '../pages/billing';
+import { InvoicePage, ReceiptPage } from '../pages/billing';
 // Error Pages
 import { NotFound, Unauthorized } from '../pages/error-pages';
 // Onboarding
@@ -106,7 +106,7 @@ function doctorOnly(Component: any) {
  */
 function guestOnly(Component: any) {
   const GuestComponent = (props: any): React.ReactElement | null => {
-    const { isAuthenticated } = useAuthStore();
+    const { isAuthenticated, user, loginBranches } = useAuthStore();
     const { pathname } = useLocation();
 
     useEffect(() => {
@@ -114,6 +114,10 @@ function guestOnly(Component: any) {
     }, [pathname]);
 
     if (isAuthenticated) {
+      const activeBranchId = localStorage.getItem('diagnopro_active_branch');
+      if (user?.role === 'staff' && (loginBranches.length > 1 || !activeBranchId)) {
+        return React.createElement(Navigate, { to: '/select-branch', replace: true });
+      }
       return React.createElement(Navigate, { to: '/app', replace: true });
     }
 
@@ -166,6 +170,10 @@ export const router = createBrowserRouter([
     Component: guestOnly(ForgotPassword),
   },
   {
+    path: '/select-branch',
+    Component: SelectBranch,
+  },
+  {
     path: '/onboarding',
     Component: Onboarding,
   },
@@ -190,6 +198,7 @@ export const router = createBrowserRouter([
       { path: 'reports/:reportId/entry', Component: withPermission(ReportEntry, PERMISSIONS.REPORT_UPDATE) },
       { path: 'reports/preview/:id', Component: withPermission(ReportPreview, PERMISSIONS.REPORT_READ) },
       { path: 'reports/:reportId/invoice', Component: withPermission(InvoicePage, PERMISSIONS.REPORT_READ) },
+      { path: 'reports/:reportId/receipt', Component: withPermission(ReceiptPage, PERMISSIONS.REPORT_READ) },
       { path: 'reports/review', Component: withPermission(ReportReview, PERMISSIONS.REPORT_REVIEW) },
       { path: 'patients', Component: withPermission(Patients, PERMISSIONS.PATIENT_READ) },
       { path: 'sample-collection', Component: withPermission(SampleCollection, PERMISSIONS.SAMPLE_COLLECT) },

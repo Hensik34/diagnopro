@@ -99,7 +99,7 @@ export const useDoctorStore = create<DoctorState>((set) => ({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create doctor';
       set({ error: errorMessage, isLoading: false });
-      return null;
+      throw error;
     }
   },
 

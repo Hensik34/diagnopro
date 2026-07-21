@@ -22,8 +22,15 @@ export const api = axios.create({
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('token');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+    const activeBranchId = localStorage.getItem('diagnopro_active_branch');
+
+    if (config.headers) {
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      if (activeBranchId) {
+        config.headers['x-branch-id'] = activeBranchId;
+      }
     }
     return config;
   },
@@ -41,14 +48,23 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     // Handle 401 Unauthorized - Token expired or invalid
     if (error.response?.status === 401) {
-      // Clear the token immediately
-      localStorage.removeItem('token');
-      // Wipe all stores via dynamic import (avoids circular dependency)
-      import('../stores/resetStores').then(({ resetAllStores }) => {
-        resetAllStores();
-      });
-      // Redirect to login if not already there
-      if (window.location.pathname !== '/login') {
+      const requestUrl = error.config?.url || '';
+      const isAuthEndpoint = requestUrl.includes('/auth/login') ||
+                             requestUrl.includes('/auth/verify-otp') ||
+                             requestUrl.includes('/auth/register') ||
+                             requestUrl.includes('/auth/google-login');
+
+      const currentPath = window.location.pathname;
+      const isAuthPage = currentPath === '/login' ||
+                         currentPath === '/verify-otp' ||
+                         currentPath === '/register';
+
+      // Only perform forced logout redirect if it's NOT an auth endpoint and NOT on auth pages
+      if (!isAuthEndpoint && !isAuthPage) {
+        localStorage.clear();
+        import('../stores/resetStores').then(({ resetAllStores }) => {
+          resetAllStores();
+        });
         window.location.href = '/login';
       }
     }

@@ -35,6 +35,8 @@ import type { Report, ReportStatus } from '../../types';
 import { InvoiceModal } from '../../app/components/reports/InvoiceModal';
 import { sampleApi } from '../../api/samples';
 import { SampleBarcodeModal } from '../../app/components/reports/SampleBarcodeModal';
+import { ReceiptModal } from '../../app/components/reports/ReceiptModal';
+import { BillingOptionModal } from '../../app/components/reports/BillingOptionModal';
 
 const getLocalDateString = (date: Date = new Date()) => {
   const year = date.getFullYear();
@@ -86,7 +88,10 @@ export function Reports() {
   };
 
   // Payment modal state
-  const [invoiceReportId, setInvoiceReportId] = useState<string | null>(null);
+  const [billingAction, setBillingAction] = useState<{
+    reportId: string;
+    type: 'option' | 'bill' | 'receipt';
+  } | null>(null);
 
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -1062,14 +1067,17 @@ export function Reports() {
                               </Link>
                             )}
 
-                            {/* Payment Details (popup with print & send) */}
-                            <button
-                              onClick={() => setInvoiceReportId(report.id)}
-                              className="h-7 w-7 flex items-center justify-center bg-amber-50 border border-amber-200 text-amber-700 rounded hover:bg-amber-100 cursor-pointer transition-colors dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400"
-                              title="Payment Details"
-                            >
-                              <IndianRupee className="w-3.5 h-3.5" />
-                            </button>
+                             {/* Payment / Receipt Option Button */}
+                             <button
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 setBillingAction({ reportId: report.id, type: 'option' });
+                               }}
+                               className="h-7 w-7 flex items-center justify-center bg-amber-50 border border-amber-200 text-amber-700 rounded hover:bg-amber-100 cursor-pointer transition-colors dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400"
+                               title="Payment & Receipts"
+                             >
+                               <IndianRupee className="w-3.5 h-3.5" />
+                             </button>
 
                             {/* Delete - admin only */}
                             {canDelete && (
@@ -1121,11 +1129,11 @@ export function Reports() {
       </div>
 
       {/* Payment Details Modal */}
-      {invoiceReportId && (
+      {billingAction?.type === 'bill' && (
         <InvoiceModal
-          isOpen={!!invoiceReportId}
-          onClose={() => setInvoiceReportId(null)}
-          reportId={invoiceReportId}
+          isOpen={true}
+          onClose={() => setBillingAction(null)}
+          reportId={billingAction.reportId}
           onBillingUpdated={refreshReportsData}
         />
       )}
@@ -1139,6 +1147,33 @@ export function Reports() {
         }}
         report={selectedBarcodeReport}
       />
+      {/* Receipt Modal */}
+      {billingAction?.type === 'receipt' && (
+        <ReceiptModal
+          isOpen={true}
+          onClose={() => setBillingAction(null)}
+          reportId={billingAction.reportId}
+        />
+      )}
+
+      {/* Billing Option Selection Modal */}
+      {billingAction?.type === 'option' && (() => {
+        const report = reports.find(r => r.id === billingAction.reportId);
+        return (
+          <BillingOptionModal
+            isOpen={true}
+            onClose={() => setBillingAction(null)}
+            patientName={report?.patient_name}
+            sampleCode={report?.sample_id_code}
+            onSelect={(option) => {
+              setBillingAction({
+                reportId: billingAction.reportId,
+                type: option === 'bill' ? 'bill' : 'receipt',
+              });
+            }}
+          />
+        );
+      })()}
 
       <CustomConfirmModal
         isOpen={confirmModal.isOpen}

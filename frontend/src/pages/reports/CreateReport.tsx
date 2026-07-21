@@ -591,6 +591,12 @@ export function CreateReport() {
     setShowPatientDropdown(false);
     setActivePatientIndex(0);
     setIsNewPatient(false);
+
+    // Auto-select staff who created this patient
+    if (patient.created_by && staffList.some(s => s.id === patient.created_by)) {
+      setSelectedStaffId(patient.created_by);
+    }
+
     window.requestAnimationFrame(() => {
       doctorSearchInputRef.current?.focus();
     });

@@ -46,6 +46,8 @@ const Report = sequelize.define("Report", {
   price_list_id: { type: DataTypes.UUID },
   price_locked: { type: DataTypes.BOOLEAN, defaultValue: false },
   attach_marketing_pages: { type: DataTypes.BOOLEAN, defaultValue: false },
+  preview_count: { type: DataTypes.INTEGER, defaultValue: 0, allowNull: false },
+  print_count: { type: DataTypes.INTEGER, defaultValue: 0, allowNull: false },
 }, {
   tableName: "reports",
 });

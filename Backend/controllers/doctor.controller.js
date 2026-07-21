@@ -9,7 +9,7 @@ exports.getDoctors = async (req, res) => {
     const userId = req.user.id;
     const source = req.user.source;
 
-    let branchFilter = branch_id || null;
+    let branchFilter = req.headers['x-branch-id'] || branch_id || null;
 
     // If no branch_id provided, auto-filter by user's/doctor's branches
     if (!branchFilter) {
