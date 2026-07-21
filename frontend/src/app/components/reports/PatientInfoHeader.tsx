@@ -15,6 +15,8 @@ interface PatientInfoHeaderProps {
   onOpenHistory?: () => void;
   patientInitials: string;
   formatAge: (age: number | undefined, unit: any) => string;
+  onMarkSampleReceived?: () => void;
+  onPrintSampleBarcodes?: () => void;
   
   // Preview mode props
   mode?: 'entry' | 'preview';
@@ -46,6 +48,8 @@ export function PatientInfoHeader({
   onOpenHistory,
   patientInitials,
   formatAge,
+  onMarkSampleReceived,
+  onPrintSampleBarcodes,
   
   mode = 'entry',
   onDownloadPdf,
@@ -172,6 +176,24 @@ export function PatientInfoHeader({
                   {selectedReport?.payment_status || 'Pending'}
                 </span>
               </div>
+
+              {/* Sample Status */}
+              <div 
+                className="hidden lg:flex flex-col leading-tight cursor-pointer select-none" 
+                onClick={onMarkSampleReceived}
+                title={selectedReport?.sample_status === 'received' ? 'Sample is Received' : 'Click to Mark Sample as Received'}
+              >
+                <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider">Sample Status</span>
+                <span
+                  className={`text-[11px] font-bold mt-1.5 capitalize ${
+                    selectedReport?.sample_status === 'received'
+                      ? 'text-success'
+                      : 'text-warning hover:text-warning/80'
+                  }`}
+                >
+                  {selectedReport?.sample_status === 'received' ? 'Received' : 'Pending'}
+                </span>
+              </div>
             </>
           )}
         </div>
@@ -263,6 +285,16 @@ export function PatientInfoHeader({
         </div>
       ) : (
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+          {onPrintSampleBarcodes && (
+            <button
+              onClick={onPrintSampleBarcodes}
+              className="h-8 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Print Tube Barcodes"
+            >
+              <Printer className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span className="hidden sm:inline">Tube Barcodes</span>
+            </button>
+          )}
           <button
             onClick={onEditPatient}
             disabled={!isEditable}

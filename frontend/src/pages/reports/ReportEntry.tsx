@@ -23,6 +23,7 @@ import {
   History,
   Check,
   Edit2,
+  Printer,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -31,6 +32,8 @@ import { useAuthStore } from "../../stores/authStore";
 import { useB2BStore } from "../../stores/b2bStore";
 import { reportApi } from "../../api/reports";
 import { priceListApi, pricingEngineApi } from "../../api/priceLists";
+import { sampleApi } from "../../api/samples";
+import { SampleBarcodeModal } from "../../app/components/reports/SampleBarcodeModal";
 import { useBillingStore } from "../../stores/billingStore";
 import type { AgeUnit, Doctor, Patient, Report, Test, TestField, ReferenceRule, CriticalRules, ReportTestPriceSnapshot } from "../../types";
 import { BillingSection } from "../../app/components/reports/BillingSection";
@@ -334,6 +337,9 @@ export function ReportEntry() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const isEditMode = searchParams.get('edit') === 'true';
+
+  // Barcode Modal State
+  const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
 
   // Get initial data from navigation state (from CreateReport page)
   const initialData = location.state as {
@@ -2248,6 +2254,27 @@ export function ReportEntry() {
     return true;
   };
 
+  const handleMarkSampleReceived = async () => {
+    if (!selectedReport?.sample_id) return;
+    try {
+      await sampleApi.update(selectedReport.sample_id, { status: 'received' });
+      // Update selectedReport inside the reportStore instantly
+      useReportStore.setState((state) => ({
+        selectedReport: state.selectedReport 
+          ? { ...state.selectedReport, sample_status: 'received' } 
+          : null,
+        // Also update in the list of reports if they are there
+        reports: state.reports.map((r) => 
+          r.id === selectedReport.id ? { ...r, sample_status: 'received' } : r
+        )
+      }));
+      toast.success("Sample marked as received successfully!");
+    } catch (err) {
+      console.error('Failed to mark sample as received:', err);
+      toast.error("Failed to mark sample as received");
+    }
+  };
+
   const handleSavePatientDetails = async () => {
     if (!patient) return;
     try {
@@ -2319,7 +2346,7 @@ export function ReportEntry() {
     });
   };
 
-  // Save draft functionality - saves to backend
+  // Save draft functionality - saves to backend and goes ahead to next test
   const handleSaveDraft = async () => {
     if (!reportId) {
       toast.error("No report ID available. Please create a report first.");
@@ -2340,9 +2367,43 @@ export function ReportEntry() {
       const saved = await saveCurrentReportData();
       if (saved) {
         toast.success(reportStatus === 'approved' ? "Report updated successfully" : "Draft saved successfully");
+        
+        // Go ahead to next test if available
+        const currentIndex = testSections.findIndex(s => s.testId === activeTestId);
+        if (currentIndex < testSections.length - 1) {
+          setActiveTestId(testSections[currentIndex + 1].testId);
+        } else {
+          toast.info("Saved! You are at the last test.");
+        }
       }
     } catch (error) {
       console.error("Failed to save draft:", error);
+      toast.error("Failed to save draft. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Save and exit functionality - saves to backend and returns to reports list
+  const handleSaveAndExit = async () => {
+    if (!isEditable || !reportId) {
+      navigate('/app/reports');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (reportStatus === 'approved' && !approvedHasChanges) {
+        navigate('/app/reports');
+        return;
+      }
+      const saved = await saveCurrentReportData();
+      if (saved) {
+        toast.success(reportStatus === 'approved' ? "Report updated successfully" : "Draft saved successfully");
+        navigate('/app/reports');
+      }
+    } catch (error) {
+      console.error("Failed to save draft on exit:", error);
       toast.error("Failed to save draft. Please try again.");
     } finally {
       setIsSaving(false);
@@ -2433,20 +2494,29 @@ export function ReportEntry() {
     }
   };
 
+  const handleSaveDraftRef = useRef(handleSaveDraft);
+  handleSaveDraftRef.current = handleSaveDraft;
+
+  const handleSaveAndExitRef = useRef(handleSaveAndExit);
+  handleSaveAndExitRef.current = handleSaveAndExit;
+
+  const handleSubmitForReviewRef = useRef(handleSubmitForReview);
+  handleSubmitForReviewRef.current = handleSubmitForReview;
+
   // Keyboard shortcut for save
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        if (isEditable) handleSaveDraft();
+        if (isEditable) handleSaveDraftRef.current();
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
-        if (isEditable) handleSubmitForReview();
+        if (isEditable) handleSubmitForReviewRef.current();
       }
       if (e.key === 'F10') {
         e.preventDefault();
-        if (isEditable) handleSaveDraft();
+        if (isEditable) handleSaveDraftRef.current();
       }
       if (e.key === 'Escape') {
         // Guard: check if any modals or dropdowns are active/open
@@ -2462,28 +2532,18 @@ export function ReportEntry() {
         }
 
         e.preventDefault();
-        if (isEditable) {
-          handleSaveDraft();
-        } else {
-          navigate('/app/reports');
-        }
+        handleSaveAndExitRef.current();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
-    reportId,
-    values,
-    selectedDoctor,
-    referringDoctorName,
-    isEditable,
     showEditPatientModal,
     showAddTestModal,
     showHistoryModal,
     confirmModal,
     showDoctorDropdown,
     showTestDropdown,
-    navigate
   ]);
 
   // Preview report (navigate to preview page)
@@ -2685,12 +2745,14 @@ export function ReportEntry() {
         referringDoctorName={referringDoctorName}
         formattedCollectionDate={formattedCollectionDate}
         isEditable={isEditable}
-        onBack={() => navigate('/app/reports')}
+        onBack={handleSaveAndExit}
         onEditPatient={() => setShowEditPatientModal(true)}
         onAddTest={() => setShowAddTestModal(true)}
         onOpenHistory={handleOpenHistory}
         patientInitials={patientInitials}
         formatAge={formatAge}
+        onMarkSampleReceived={handleMarkSampleReceived}
+        onPrintSampleBarcodes={() => setIsBarcodeModalOpen(true)}
       />
 
       {/* Three Column Workbench Grid */}
@@ -3475,8 +3537,8 @@ export function ReportEntry() {
       {/* Compact Bottom Action Bar */}
       <div className="flex-shrink-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-2 px-4 flex items-center justify-between shadow-[0_-2px_10px_rgba(0,0,0,0.03)] rounded-xl">
         <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
-          <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-          <span>Auto Saved • {lastSaved ? format(lastSaved, "hh:mm a") : format(new Date(), "hh:mm a")}</span>
+          <span className={`w-2 h-2 rounded-full ${lastSaved ? 'bg-success animate-pulse' : 'bg-amber-500'}`} />
+          <span>{lastSaved ? `Saved • ${format(lastSaved, "hh:mm a")}` : "Unsaved Changes"}</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -3487,6 +3549,16 @@ export function ReportEntry() {
             className="h-8 px-3.5 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Previous Test
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSaveAndExit}
+            disabled={isSaving}
+            className="h-8 px-4 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title={isEditable ? "Save changes and return to list (Esc)" : "Return to list (Esc)"}
+          >
+            {isEditable ? "Save & Exit" : "Exit"}
           </button>
 
           <button
@@ -3971,6 +4043,13 @@ export function ReportEntry() {
           setConfirmModal(prev => ({ ...prev, isOpen: false }));
           setTestIdToRemove(null);
         }}
+      />
+
+      {/* Sample Barcode Printer Modal */}
+      <SampleBarcodeModal
+        isOpen={isBarcodeModalOpen}
+        onClose={() => setIsBarcodeModalOpen(false)}
+        report={selectedReport}
       />
 
       {/* Test specific remarks/notes suggestions portal */}

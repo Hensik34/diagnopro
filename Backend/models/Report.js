@@ -59,7 +59,7 @@ exports.getAllReports = async (filters = {}) => {
     { model: Doctor, as: "doctor", attributes: ["title", "name", "firstname", "lastname"] },
     { model: User, as: "technician", attributes: ["firstname", "lastname"] },
     { model: User, as: "staff", attributes: ["firstname", "lastname"] },
-    { model: Sample, as: "sample", attributes: ["sample_id_code", "sample_type"] },
+    { model: Sample, as: "sample", attributes: ["sample_id_code", "sample_type", "status"] },
     { model: B2BLab, as: "b2bLab", attributes: ["lab_name"], required: false },
   ];
 
@@ -103,6 +103,7 @@ exports.getAllReports = async (filters = {}) => {
     staff_lastname: r.staff?.lastname,
     sample_id_code: r.sample?.sample_id_code,
     sample_type: r.sample?.sample_type,
+    sample_status: r.sample?.status,
     b2b_lab_name: r.b2bLab?.lab_name,
   }));
 };
@@ -115,7 +116,7 @@ exports.getReportById = async (id) => {
       { model: Doctor, as: "doctor", attributes: ["title", "name", "firstname", "lastname", "phone", "email", "signature_url"] },
       { model: User, as: "technician", attributes: ["firstname", "lastname"] },
       { model: User, as: "staff", attributes: ["firstname", "lastname"] },
-      { model: Sample, as: "sample", attributes: ["sample_id_code", "sample_type"] },
+      { model: Sample, as: "sample", attributes: ["sample_id_code", "sample_type", "status"] },
       { model: User, as: "approvedByUser", attributes: ["firstname", "lastname"] },
       { model: User, as: "submittedByUser", attributes: ["firstname", "lastname"] },
       { model: User, as: "rejectedByUser", attributes: ["firstname", "lastname"] },
@@ -157,6 +158,7 @@ exports.getReportById = async (id) => {
     staff_lastname: row.staff?.lastname,
     sample_id_code: row.sample?.sample_id_code,
     sample_type: row.sample?.sample_type,
+    sample_status: row.sample?.status,
     letterhead_url: settings?.letterhead_url,
     header_url: settings?.header_url,
     footer_url: settings?.footer_url,

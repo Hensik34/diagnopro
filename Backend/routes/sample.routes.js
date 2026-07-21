@@ -23,7 +23,7 @@ router.get("/:id", authorize(PERMISSIONS.SAMPLE_READ), sampleController.getSampl
 router.post("/", authorize([PERMISSIONS.SAMPLE_CREATE, PERMISSIONS.SAMPLE_COLLECT]), sampleController.createSample);
 
 // Update sample
-router.put("/:id", authorize(PERMISSIONS.SAMPLE_UPDATE), sampleController.updateSample);
+router.put("/:id", authorize([PERMISSIONS.SAMPLE_UPDATE, PERMISSIONS.SAMPLE_COLLECT]), sampleController.updateSample);
 
 // Delete sample
 router.delete("/:id", authorize(PERMISSIONS.SAMPLE_DELETE), sampleController.deleteSample);

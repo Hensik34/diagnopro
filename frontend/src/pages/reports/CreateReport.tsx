@@ -53,7 +53,6 @@ export function CreateReport() {
   const { labs: b2bLabs, fetchLabs: fetchB2BLabs } = useB2BStore();
 
   // Patient search and selection
-  const [patientSearch, setPatientSearch] = useState("");
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isNewPatient, setIsNewPatient] = useState(false);
@@ -147,7 +146,6 @@ export function CreateReport() {
   }, [user, selectedStaffId]);
 
   const patientSearchRef = useRef<HTMLDivElement>(null);
-  const patientSearchInputRef = useRef<HTMLInputElement>(null);
   const patientNameInputRef = useRef<HTMLInputElement>(null);
   const testSearchRef = useRef<HTMLDivElement>(null);
   const testSearchInputRef = useRef<HTMLInputElement>(null);
@@ -206,8 +204,8 @@ export function CreateReport() {
 
   // Filter patients based on search
   const filteredPatients = useMemo(() => {
-    if (!patientSearch) return [];
-    const searchLower = patientSearch.toLowerCase();
+    if (!patientName) return [];
+    const searchLower = patientName.toLowerCase();
     return patients.filter((p) => {
       const name = (p.name || '').toLowerCase();
       return (
@@ -216,7 +214,7 @@ export function CreateReport() {
         (p.phone || '').toLowerCase().includes(searchLower)
       );
     }).slice(0, 10);
-  }, [patients, patientSearch]);
+  }, [patients, patientName]);
 
   // Filter doctors based on search
   const filteredDoctors = useMemo(() => {
@@ -584,7 +582,6 @@ export function CreateReport() {
   // Handle patient selection
   const handleSelectPatient = (patient: Patient) => {
     setSelectedPatient(patient);
-    setPatientSearch(patient.name || '');
     setPatientName(patient.name || '');
     setPatientAge(patient.age != null ? String(patient.age) : '');
     setPatientAgeUnit(normalizeAgeUnit(patient.age_unit));
@@ -595,8 +592,32 @@ export function CreateReport() {
     setActivePatientIndex(0);
     setIsNewPatient(false);
     window.requestAnimationFrame(() => {
-      patientSearchInputRef.current?.focus();
+      doctorSearchInputRef.current?.focus();
     });
+  };
+
+  // Handle patient clearance / deselection
+  const handleClearPatient = () => {
+    setSelectedPatient(null);
+    setPatientName("");
+    setPatientAge("");
+    setPatientAgeUnit(DEFAULT_AGE_UNIT);
+    setPatientGender("Male");
+    setPatientPhone("");
+    setPatientAddress("");
+    setPatientEmail("");
+    setIsNewPatient(false);
+    setShowPatientDropdown(false);
+    setActivePatientIndex(0);
+    setTimeout(() => {
+      patientNameInputRef.current?.focus();
+    }, 50);
+  };
+
+  const handlePatientBlur = () => {
+    setTimeout(() => {
+      setShowPatientDropdown(false);
+    }, 200);
   };
 
   useEffect(() => {
@@ -609,7 +630,7 @@ export function CreateReport() {
   const handleCreateNewPatient = () => {
     setIsNewPatient(true);
     setSelectedPatient(null);
-    const capitalizedName = patientSearch.trim()
+    const capitalizedName = patientName.trim()
       .split(' ')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
@@ -625,26 +646,21 @@ export function CreateReport() {
 
   const handlePatientSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      if (!showPatientDropdown) {
-        setShowPatientDropdown(true);
-        return;
-      }
-
-      if (filteredPatients.length > 0) {
+      if (filteredPatients.length > 0 && showPatientDropdown) {
+        event.preventDefault();
         setActivePatientIndex((currentIndex) => (currentIndex + 1) % filteredPatients.length);
+      } else {
+        // No results, or dropdown closed, go down to Age input
+        event.preventDefault();
+        const ageInput = document.querySelector('input[placeholder="Age"]') as HTMLElement;
+        ageInput?.focus();
       }
       return;
     }
 
     if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (!showPatientDropdown) {
-        setShowPatientDropdown(true);
-        return;
-      }
-
-      if (filteredPatients.length > 0) {
+      if (filteredPatients.length > 0 && showPatientDropdown) {
+        event.preventDefault();
         setActivePatientIndex((currentIndex) =>
           currentIndex === 0 ? filteredPatients.length - 1 : currentIndex - 1
         );
@@ -653,7 +669,7 @@ export function CreateReport() {
     }
 
     if (event.key === 'Enter') {
-      if (filteredPatients.length > 0) {
+      if (filteredPatients.length > 0 && showPatientDropdown) {
         event.preventDefault();
         const patientToSelect = filteredPatients[activePatientIndex] ?? filteredPatients[0];
         if (patientToSelect) {
@@ -662,9 +678,14 @@ export function CreateReport() {
         return;
       }
 
-      if (patientSearch.trim()) {
+      if (patientName.trim()) {
         event.preventDefault();
         handleCreateNewPatient();
+        // Focus the next input (Age)
+        setTimeout(() => {
+          const ageInput = document.querySelector('input[placeholder="Age"]') as HTMLElement;
+          ageInput?.focus();
+        }, 50);
       }
       return;
     }
@@ -1099,7 +1120,7 @@ export function CreateReport() {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
       const target = e.target as HTMLElement;
       if (
-        target === patientSearchInputRef.current ||
+        target === patientNameInputRef.current ||
         target === testSearchInputRef.current ||
         target === doctorSearchInputRef.current
       ) return;
@@ -1232,119 +1253,102 @@ export function CreateReport() {
               </h2>
             </div>
             <div className="p-2 space-y-2 flex-1">
-              {/* Patient Search */}
-              <div className="relative" ref={patientSearchRef}>
-                <label className="text-xs text-muted-foreground block mb-0.5">
-                  Search Patient
-                </label>
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
-                  <input
-                    ref={patientSearchInputRef}
-                    type="text"
-                    placeholder="Search by name, mobile, or patient ID..."
-                    className="w-full h-9 pl-8 pr-3 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    value={patientSearch}
-                    onChange={(e) => {
-                      setPatientSearch(e.target.value);
-                      setShowPatientDropdown(true);
-                      setActivePatientIndex(0);
-                      if (e.target.value.length >= 2) {
-                        fetchPatients({ search: e.target.value });
-                      }
-                    }}
-                    onFocus={() => setShowPatientDropdown(true)}
-                    onKeyDown={handlePatientSearchKeyDown}
-                  />
-                  {patientsLoading && (
-                    <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
-                  )}
-                </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                <div className="border border-border rounded p-2 space-y-1.5">
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Required Details</div>
+                  <div className="relative" ref={patientSearchRef}>
+                    <label className="text-xs text-muted-foreground block mb-0.5">
+                      Patient Name <span className="text-destructive">*</span>
+                    </label>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
+                      <input
+                        ref={patientNameInputRef}
+                        type="text"
+                        placeholder="Search existing or enter new patient..."
+                        className="w-full h-8 pl-8 pr-8 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={patientName}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const capitalized = val
+                            .split(' ')
+                            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                            .join(' ');
+                          setPatientName(capitalized);
+                          
+                          if (selectedPatient) {
+                            setSelectedPatient(null);
+                            setPatientAge('');
+                            setPatientAgeUnit(DEFAULT_AGE_UNIT);
+                            setPatientGender('Male');
+                            setPatientPhone('');
+                            setPatientAddress('');
+                            setPatientEmail('');
+                            setIsNewPatient(true);
+                          }
+                          
+                          const lower = val.toLowerCase().trim();
+                          const femaleRegex = /\b\w*(ben|kumari|baa|ba|devi|kaur|wati|bai)\b/i;
+                          const maleRegex = /\b\w*(bhai|kumar|singh|ram|ji|lal|prasad|rao|sing|sinh)\b/i;
+                          if (femaleRegex.test(lower)) {
+                            setPatientGender('Female');
+                          } else if (maleRegex.test(lower)) {
+                            setPatientGender('Male');
+                          }
+                          
+                          setShowPatientDropdown(true);
+                          setActivePatientIndex(0);
+                          if (val.length >= 2) {
+                            fetchPatients({ search: val });
+                          }
+                        }}
+                        onFocus={() => setShowPatientDropdown(true)}
+                        onBlur={handlePatientBlur}
+                        onKeyDown={handlePatientSearchKeyDown}
+                      />
+                      {patientsLoading && (
+                        <Loader2 className="absolute right-8 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                      )}
+                      {patientName && (
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={handleClearPatient}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors focus:outline-none"
+                          title="Clear patient details"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
 
-                {/* Patient Dropdown */}
-                {showPatientDropdown && patientSearch && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg max-h-64 overflow-auto z-10">
-                    {filteredPatients.length > 0 ? (
-                      <>
+                    {/* Patient Dropdown */}
+                    {showPatientDropdown && patientName && filteredPatients.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg max-h-64 overflow-auto z-50">
                         {filteredPatients.map((patient, index) => (
                           <button
                             key={patient.id}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
                             onClick={() => handleSelectPatient(patient)}
                             onMouseEnter={() => setActivePatientIndex(index)}
-                            className={`w-full px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 ${index === activePatientIndex ? 'bg-accent' : 'hover:bg-accent'
+                            className={`w-full px-3 py-2 text-left transition-colors border-b border-border last:border-0 ${index === activePatientIndex ? 'bg-accent font-medium' : 'hover:bg-accent text-muted-foreground'
                               }`}
                           >
                             <div className="flex items-start justify-between">
                               <div>
-                                <div className="text-sm text-foreground font-medium">
+                                <div className="text-xs text-foreground">
                                   {patient.name}
                                 </div>
-                                <div className="text-xs text-muted-foreground mt-0.5">
+                                <div className="text-[10px] text-muted-foreground mt-0.5">
                                   {patient.id.slice(0, 8)} • {formatAge(patient.age, patient.age_unit)} {patient.gender?.charAt(0) || ''} • {patient.phone || '-'}
                                 </div>
                               </div>
                             </div>
                           </button>
                         ))}
-                        <button
-                          onClick={handleCreateNewPatient}
-                          className="w-full px-3 py-2.5 text-left hover:bg-accent transition-colors border-t-2 border-primary/20 flex items-center gap-2 text-primary"
-                        >
-                          <UserPlus className="w-4 h-4" />
-                          <span className="text-sm font-medium">
-                            Create New Patient: {patientSearch}
-                          </span>
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={handleCreateNewPatient}
-                        className="w-full px-3 py-4 text-center hover:bg-accent transition-colors flex flex-col items-center gap-2 text-primary"
-                      >
-                        <UserPlus className="w-5 h-5" />
-                        <div>
-                          <div className="text-sm font-medium">No patient found</div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            Click to create new patient: {patientSearch}
-                          </div>
-                        </div>
-                      </button>
+                      </div>
                     )}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                <div className="border border-border rounded p-2 space-y-1.5">
-                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Required Details</div>
-                  <div>
-                    <label className="text-xs text-muted-foreground block mb-0.5">
-                      Patient Name <span className="text-destructive">*</span>
-                    </label>
-                    <input
-                      ref={patientNameInputRef}
-                      type="text"
-                      className="w-full h-8 px-2.5 bg-background border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      value={patientName}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        const capitalized = val
-                          .split(' ')
-                          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                          .join(' ');
-                        setPatientName(capitalized);
-                        const lower = val.toLowerCase().trim();
-                        const femaleRegex = /\b\w*(ben|kumari|baa|ba|devi|kaur|wati|bai)\b/i;
-                        const maleRegex = /\b\w*(bhai|kumar|singh|ram|ji|lal|prasad|rao|sing|sinh)\b/i;
-                        if (femaleRegex.test(lower)) {
-                          setPatientGender('Female');
-                        } else if (maleRegex.test(lower)) {
-                          setPatientGender('Male');
-                        }
-                      }}
-                      placeholder="Full name"
-                      disabled={!isNewPatient && !!selectedPatient}
-                    />
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground block mb-0.5">
