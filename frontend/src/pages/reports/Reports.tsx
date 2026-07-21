@@ -24,6 +24,8 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Check,
+  Printer,
 } from 'lucide-react';
 import { useReportStore, useReportSummary } from '../../stores/reportStore';
 import { useBranchStore } from '../../stores/branchStore';
@@ -31,6 +33,8 @@ import { useAuthStore } from '../../stores/authStore';
 import { useTestStore } from '../../stores/testStore';
 import type { Report, ReportStatus } from '../../types';
 import { InvoiceModal } from '../../app/components/reports/InvoiceModal';
+import { sampleApi } from '../../api/samples';
+import { SampleBarcodeModal } from '../../app/components/reports/SampleBarcodeModal';
 import { ReceiptModal } from '../../app/components/reports/ReceiptModal';
 import { BillingOptionModal } from '../../app/components/reports/BillingOptionModal';
 
@@ -48,11 +52,15 @@ const getLocalDateString = (date: Date = new Date()) => {
 export function Reports() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<'pending' | 'review' | 'approved' | 'all'>('pending');
   const [dateFilter, setDateFilter] = useState<string>(() => {
     return sessionStorage.getItem('diagnopro_reports_date_filter') || getLocalDateString();
   });
   const [sortField, setSortField] = useState<'sample_id_code' | 'patient_name' | 'test_type' | 'doctor' | 'status' | 'created_at' | 'technician' | 'payment_status'>('created_at');
+
+  // Barcode modal states
+  const [selectedBarcodeReport, setSelectedBarcodeReport] = useState<Report | null>(null);
+  const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
 
   const handleDateChange = (val: string) => {
     const newDate = val || getLocalDateString();
@@ -129,6 +137,22 @@ export function Reports() {
   const canEdit = can('report:update');
   const canDelete = can('report:delete');
   const hasAnyAction = canEdit || canDelete || can('report:create') || can('report:read') || can('report:approve');
+
+  const handleMarkSampleReceived = async (report: Report) => {
+    if (!report.sample_id) return;
+    try {
+      await sampleApi.update(report.sample_id, { status: 'received' });
+      // Update local store instantly
+      useReportStore.setState((state) => ({
+        reports: state.reports.map((r) =>
+          r.id === report.id ? { ...r, sample_status: 'received' } : r
+        )
+      }));
+    } catch (err) {
+      console.error('Failed to mark sample as received:', err);
+      alert('Failed to mark sample as received');
+    }
+  };
 
   console.log('RBAC Reports Table Debug:', {
     userRole: useAuthStore.getState().user?.role,
@@ -383,10 +407,47 @@ export function Reports() {
   }, [reports, dateFilter]);
 
   /**
-   * Filter reports based on search and filters
+   * Calculate live badge counts for each queue
    */
+  const tabCounts = useMemo(() => {
+    let pending = 0;
+    let review = 0;
+    let approved = 0;
+
+    reports.forEach((report) => {
+      const status = report.status;
+      
+      // Calculate Pending (all dates)
+      if (['draft', 'rejected', 'created', 'collected', 'processing'].includes(status)) {
+        pending++;
+      }
+      
+      // Calculate Review (all dates)
+      if (status === 'under_review') {
+        review++;
+      }
+      
+      // Calculate Approved (for the selected date)
+      if (report.created_at) {
+        try {
+          const reportDate = new Date(report.created_at);
+          const reportLocalDateStr = getLocalDateString(reportDate);
+          if (reportLocalDateStr === dateFilter) {
+            if (['approved', 'completed'].includes(status)) {
+              approved++;
+            }
+          }
+        } catch (e) {
+          // ignore invalid dates
+        }
+      }
+    });
+
+    return { pending, review, approved };
+  }, [reports, dateFilter]);
+
   /**
-   * Filter and sort reports based on search, filters, and selected column
+   * Filter and sort reports based on search, active tab, and selected column
    */
   const sortedAndFilteredReports = useMemo(() => {
     const filtered = reports.filter((report) => {
@@ -400,11 +461,22 @@ export function Reports() {
         report.id.toLowerCase().includes(searchLower) ||
         (report.report_type || '').toLowerCase().includes(searchLower);
 
-      const matchesStatus =
-        statusFilter === 'all' || report.status === statusFilter;
+      // Status filtering based on activeTab
+      let matchesStatus = false;
+      if (activeTab === 'pending') {
+        matchesStatus = ['draft', 'rejected', 'created', 'collected', 'processing'].includes(report.status);
+      } else if (activeTab === 'review') {
+        matchesStatus = report.status === 'under_review';
+      } else if (activeTab === 'approved') {
+        matchesStatus = ['approved', 'completed'].includes(report.status);
+      } else {
+        matchesStatus = true; // 'all'
+      }
 
+      // Date filtering: ignored for pending and review tabs to show all outstanding tasks
       let matchesDate = true;
-      if (dateFilter && report.created_at) {
+      const isDateIgnoredTab = activeTab === 'pending' || activeTab === 'review';
+      if (!isDateIgnoredTab && dateFilter && report.created_at) {
         try {
           const reportDate = new Date(report.created_at);
           const reportLocalDateStr = getLocalDateString(reportDate);
@@ -457,7 +529,7 @@ export function Reports() {
           : (bVal > aVal ? 1 : bVal < aVal ? -1 : 0);
       }
     });
-  }, [reports, searchQuery, statusFilter, dateFilter, sortField, sortOrder, tests]);
+  }, [reports, searchQuery, activeTab, dateFilter, sortField, sortOrder, tests]);
 
   const refreshReportsData = useCallback(async () => {
     if (!currentBranchId) return;
@@ -659,6 +731,44 @@ export function Reports() {
         </div>
       </div> */}
 
+      {/* Work Queue Tabs */}
+      <div className="flex border-b border-border gap-1 overflow-x-auto scrollbar-none mb-1">
+        {[
+          { id: 'pending' as const, label: 'Pending Queue', count: tabCounts.pending, icon: Edit },
+          { id: 'review' as const, label: 'Under Review', count: tabCounts.review, icon: Clock },
+          { id: 'approved' as const, label: 'Approved Today', count: tabCounts.approved, icon: CheckCircle },
+          { id: 'all' as const, label: 'All Reports', count: undefined, icon: FileText }
+        ].map((tab) => {
+          const isActive = activeTab === tab.id;
+          const TabIcon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setActiveTab(tab.id);
+                // Proactively clear search query when switching queues for faster workspace switching
+                setSearchQuery('');
+              }}
+              className={`px-4 py-2 flex items-center gap-2 text-xs md:text-sm font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap -mb-px ${
+                isActive
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+              }`}
+            >
+              <TabIcon className="w-3.5 h-3.5" />
+              <span>{tab.label}</span>
+              {tab.count !== undefined && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] tabular-nums font-bold ${
+                  isActive ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground'
+                }`}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Filters and Search */}
       <div className="bg-card border border-border rounded p-2 md:p-3">
         <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 md:gap-3">
@@ -683,31 +793,17 @@ export function Reports() {
             )}
           </div>
 
-          {/* Status Filter */}
-          <div className="relative w-full sm:w-auto">
-            <select
-              className="w-full h-8 pl-2.5 pr-7 bg-secondary border border-border rounded text-xs appearance-none focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">All Status</option>
-              <option value="draft">Draft</option>
-              <option value="under_review">Under Review</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
-          </div>
-
-          {/* Date Filter */}
-          <div className="relative w-full sm:w-auto flex items-center gap-1.5">
-            <input
-              type="date"
-              className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer text-foreground"
-              value={dateFilter}
-              onChange={(e) => handleDateChange(e.target.value)}
-            />
-          </div>
+          {/* Date Filter (Only visible on Approved and All tabs) */}
+          {(activeTab === 'approved' || activeTab === 'all') && (
+            <div className="relative w-full sm:w-auto flex items-center gap-1.5">
+              <input
+                type="date"
+                className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer text-foreground"
+                value={dateFilter}
+                onChange={(e) => handleDateChange(e.target.value)}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -780,6 +876,9 @@ export function Reports() {
                   <div className="flex items-center justify-center gap-1">
                     Payment {renderSortIcon('payment_status')}
                   </div>
+                </th>
+                <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">
+                  Sample
                 </th>
                 {hasAnyAction && (
                   <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">
@@ -874,6 +973,36 @@ export function Reports() {
                             </span>
                           );
                         })()}
+                      </td>
+                      {/* Sample Status Column */}
+                      <td className="px-3 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1.5">
+                          {report.sample_status === 'received' ? (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-green-500/10 text-green-700 dark:text-green-400 font-medium">
+                              Received
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleMarkSampleReceived(report)}
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-400 font-medium cursor-pointer transition-colors"
+                              title="Click to Mark Received"
+                            >
+                              Pending
+                            </button>
+                          )}
+                          
+                          {/* Print Barcodes Button */}
+                          <button
+                            onClick={() => {
+                              setSelectedBarcodeReport(report);
+                              setIsBarcodeModalOpen(true);
+                            }}
+                            className="p-1 text-muted-foreground hover:text-foreground hover:bg-secondary border border-border/50 rounded transition-all cursor-pointer"
+                            title="Print Tube Barcodes"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                       {hasAnyAction && (
                         <td className="px-3 py-1.5">
@@ -973,18 +1102,22 @@ export function Reports() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={hasAnyAction ? 9 : 8} className="px-3 py-8 text-center">
+                  <td colSpan={hasAnyAction ? 10 : 9} className="px-3 py-8 text-center">
                     <p className="text-sm text-muted-foreground">
                       {isLoading ? (
                         'Loading reports...'
-                      ) : dateFilter ? (
+                      ) : activeTab === 'pending' ? (
+                        'No pending reports to work on'
+                      ) : activeTab === 'review' ? (
+                        'No reports awaiting review'
+                      ) : activeTab === 'approved' ? (
                         (() => {
                           const [y, m, d] = dateFilter.split('-').map(Number);
                           const localDate = new Date(y, m - 1, d);
-                          return `No reports found for ${localDate.toLocaleDateString(undefined, { dateStyle: 'medium' })}`;
+                          return `No approved reports found for ${localDate.toLocaleDateString(undefined, { dateStyle: 'medium' })}`;
                         })()
                       ) : (
-                        'No reports found matching your filters'
+                        'No reports found matching filters'
                       )}
                     </p>
                   </td>
@@ -1005,6 +1138,15 @@ export function Reports() {
         />
       )}
 
+      {/* Sample Barcode Printer Modal */}
+      <SampleBarcodeModal
+        isOpen={isBarcodeModalOpen}
+        onClose={() => {
+          setIsBarcodeModalOpen(false);
+          setSelectedBarcodeReport(null);
+        }}
+        report={selectedBarcodeReport}
+      />
       {/* Receipt Modal */}
       {billingAction?.type === 'receipt' && (
         <ReceiptModal

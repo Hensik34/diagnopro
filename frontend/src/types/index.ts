@@ -468,6 +468,7 @@ export interface Report {
   technician_lastname?: string;
   sample_id_code?: string;
   sample_type?: string;
+  sample_status?: string;
   approved_by_firstname?: string;
   approved_by_lastname?: string;
   submitted_by_firstname?: string;
