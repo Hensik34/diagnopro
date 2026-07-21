@@ -57,6 +57,14 @@ exports.getUserBranches = async (userId) => {
     order: [["created_at", "DESC"]],
   });
 
+  if (records.length === 0) {
+    const allBranches = await Branch.findAll({ order: [["created_at", "ASC"]] });
+    if (allBranches.length > 0) {
+      await UserBranch.upsert({ user_id: userId, branch_id: allBranches[0].id, role: "staff" });
+      return [{ ...allBranches[0].toJSON(), user_role: "staff", assigned_at: new Date() }];
+    }
+  }
+
   return records.map((r) => {
     const branch = r.Branch ? r.Branch.toJSON() : {};
     return { ...branch, user_role: r.role, assigned_at: r.created_at };

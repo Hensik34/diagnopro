@@ -66,15 +66,23 @@ export function VerifyPasscode() {
     if (success) {
       toast.success('Identity verified successfully.');
       
-      // Post-login branch check (same as Login.tsx)
+      // Post-login branch check — /select-branch is ONLY for staff users with multiple branches
       try {
         await fetchBranches();
         const branches = useBranchStore.getState().branches;
-        if (branches.length === 0) {
-          navigate('/onboarding');
-        } else {
+        const user = useAuthStore.getState().user;
+
+        if (user?.role === 'staff' && branches.length > 1) {
+          navigate('/select-branch');
+        } else if (branches.length >= 1) {
+          useBranchStore.getState().setCurrentBranchId(branches[0].id);
+          localStorage.setItem('diagnopro_active_branch', branches[0].id);
           localStorage.setItem('onboarding_complete', 'true');
           navigate('/app');
+        } else if (user?.role === 'doctor') {
+          navigate('/app');
+        } else {
+          navigate('/onboarding');
         }
       } catch {
         navigate('/app');

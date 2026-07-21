@@ -18,6 +18,8 @@ export const patientApi = {
     const params = new URLSearchParams();
     if (filters?.branch_id) params.append('branch_id', filters.branch_id);
     if (filters?.search) params.append('search', filters.search);
+    if (filters?.created_by) params.append('created_by', filters.created_by);
+    if (filters?.today_only) params.append('today_only', 'true');
     
     const response = await api.get<ApiResponse<Patient[]>>(`/patients?${params.toString()}`);
     return response.data;

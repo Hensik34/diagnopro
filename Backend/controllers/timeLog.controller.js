@@ -1,7 +1,10 @@
 const TimeLog = require("../models/TimeLog");
+const CollectionTracking = require("../models/CollectionTracking");
 const { User, UserBranch, Branch } = require("../models");
 const whatsappService = require("../services/whatsapp.service");
 const { emitBranchWhatsAppEvent } = require("../services/realtime.service");
+const { verifyBranchLocation } = require("../utils/locationVerify");
+const { uploadBase64ToCloudinary } = require("../utils/upload");
 const { Op } = require("sequelize");
 
 async function sendClockNotification(userId, branchId, action, notes = null) {
@@ -75,7 +78,7 @@ async function sendClockNotification(userId, branchId, action, notes = null) {
 exports.clockIn = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { branch_id } = req.body;
+    const { branch_id, start_km, start_meter_image, latitude, longitude } = req.body;
 
     // Check if user already has an active session
     const activeSession = await TimeLog.getActiveSession(userId);
@@ -86,7 +89,70 @@ exports.clockIn = async (req, res) => {
       });
     }
 
-    const log = await TimeLog.clockIn(userId, branch_id || req.user.branch_id || null);
+    const targetBranchId = req.headers['x-branch-id'] || branch_id || req.user.branch_id || null;
+    let locationCheck = { verified: true, bypass: true };
+    
+    if (targetBranchId) {
+      const branch = await Branch.findByPk(targetBranchId);
+      if (branch) {
+        locationCheck = verifyBranchLocation(branch, latitude, longitude);
+        if (!locationCheck.verified && !locationCheck.bypass) {
+          return res.status(403).json({
+            error: locationCheck.message,
+            distance_meters: locationCheck.distanceMeters,
+            radius: locationCheck.radius,
+          });
+        }
+      }
+    }
+
+    // Mandatory Start Meter Photo
+    if (!start_meter_image || !start_meter_image.startsWith("data:image/")) {
+      return res.status(400).json({ error: "Start bike meter photo is required to start shift." });
+    }
+
+    // Upload start meter photo to Cloudinary
+    let startMeterUrl = null;
+    try {
+      startMeterUrl = await uploadBase64ToCloudinary(
+        start_meter_image,
+        "start_meter",
+        targetBranchId || "general",
+        "collection-tracking"
+      );
+    } catch (uploadErr) {
+      console.error("Failed to upload start meter photo to Cloudinary:", uploadErr);
+      startMeterUrl = start_meter_image;
+    }
+
+    const location_meta = {
+      clock_in: {
+        lat: latitude || null,
+        lng: longitude || null,
+        verified: locationCheck.verified,
+        distance_meters: locationCheck.distanceMeters || 0,
+        message: locationCheck.message,
+        timestamp: new Date().toISOString(),
+      }
+    };
+
+    const log = await TimeLog.clockIn(userId, targetBranchId, {
+      start_km,
+      location_meta,
+    });
+
+    // Always create a new CollectionTracking entry for this shift check-in
+    try {
+      await CollectionTracking.create({
+        staff_id: userId,
+        branch_id: targetBranchId,
+        start_km,
+        start_meter_image: startMeterUrl,
+        date: new Date(),
+      });
+    } catch (ctErr) {
+      console.error("Failed to sync CollectionTracking on clockIn:", ctErr);
+    }
 
     // Trigger notification in background
     if (log && log.branch_id) {
@@ -104,11 +170,81 @@ exports.clockIn = async (req, res) => {
 exports.clockOut = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { notes } = req.body;
+    const { notes, end_km, end_meter_image, latitude, longitude } = req.body;
 
-    const log = await TimeLog.clockOut(userId, notes || null);
-    if (!log) {
+    const activeSession = await TimeLog.getActiveSession(userId);
+    if (!activeSession) {
       return res.status(400).json({ error: "No active session found to clock out" });
+    }
+
+    // Verify Lab Location
+    const targetBranchId = activeSession.branch_id || req.user.branch_id || null;
+    let locationCheck = { verified: true, bypass: true };
+
+    if (targetBranchId) {
+      const branch = await Branch.findByPk(targetBranchId);
+      if (branch) {
+        locationCheck = verifyBranchLocation(branch, latitude, longitude);
+        if (!locationCheck.verified && !locationCheck.bypass) {
+          return res.status(403).json({
+            error: locationCheck.message,
+            distance_meters: locationCheck.distanceMeters,
+            radius: locationCheck.radius,
+          });
+        }
+      }
+    }
+
+    // Mandate End Meter Photo Upload
+    if (!end_meter_image || !end_meter_image.startsWith("data:image/")) {
+      return res.status(400).json({
+        error: "End bike meter photo is required to clock out.",
+      });
+    }
+
+    // Upload end meter photo to Cloudinary
+    let endMeterUrl = null;
+    try {
+      endMeterUrl = await uploadBase64ToCloudinary(
+        end_meter_image,
+        "end_meter",
+        targetBranchId || "general",
+        "collection-tracking"
+      );
+    } catch (uploadErr) {
+      console.error("Failed to upload end meter photo to Cloudinary:", uploadErr);
+      endMeterUrl = end_meter_image; // Fallback to original string if upload fails
+    }
+
+    const location_meta = {
+      clock_out: {
+        lat: latitude || null,
+        lng: longitude || null,
+        verified: locationCheck.verified,
+        distance_meters: locationCheck.distanceMeters || 0,
+        message: locationCheck.message,
+        timestamp: new Date().toISOString(),
+      }
+    };
+
+    const log = await TimeLog.clockOut(userId, notes || null, {
+      end_km,
+      end_meter_image: endMeterUrl,
+      location_meta,
+    });
+
+    // Find the open CollectionTracking record for this shift and update with end_km & end_meter_image
+    try {
+      const todayRecords = await CollectionTracking.getTodayByStaff(userId);
+      const openRecord = todayRecords.find(r => r.end_km == null) || todayRecords[0];
+      if (openRecord) {
+        await CollectionTracking.update(openRecord.id, {
+          end_km,
+          end_meter_image: endMeterUrl,
+        });
+      }
+    } catch (ctErr) {
+      console.error("Failed to sync CollectionTracking on clockOut:", ctErr);
     }
 
     // Trigger notification in background
@@ -138,13 +274,14 @@ exports.getActiveSession = async (req, res) => {
 exports.getMyLogs = async (req, res) => {
   try {
     const { start_date, end_date, branch_id } = req.query;
+    const targetBranchId = req.headers['x-branch-id'] || branch_id || null;
     
     // Default to current month
     const now = new Date();
     const startDate = start_date || new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const endDate = end_date || new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
-    const logs = await TimeLog.getByUser(req.user.id, startDate, endDate, branch_id || null);
+    const logs = await TimeLog.getByUser(req.user.id, startDate, endDate, targetBranchId);
     
     const totalHours = logs.reduce((sum, log) => sum + (parseFloat(log.total_hours) || 0), 0);
 
@@ -164,13 +301,14 @@ exports.getMyLogs = async (req, res) => {
 exports.getAllLogs = async (req, res) => {
   try {
     const { start_date, end_date, branch_id } = req.query;
+    const targetBranchId = req.headers['x-branch-id'] || branch_id || null;
     const adminId = req.user.id;
     
     const now = new Date();
     const startDate = start_date || new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const endDate = end_date || new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
-    const logs = await TimeLog.getAll(startDate, endDate, adminId, branch_id || null);
+    const logs = await TimeLog.getAll(startDate, endDate, adminId, targetBranchId);
     res.json({
       message: "All time logs retrieved",
       count: logs.length,
@@ -186,13 +324,14 @@ exports.getAllLogs = async (req, res) => {
 exports.getUserSummary = async (req, res) => {
   try {
     const { start_date, end_date, branch_id } = req.query;
+    const targetBranchId = req.headers['x-branch-id'] || branch_id || null;
     const adminId = req.user.id;
     
     const now = new Date();
     const startDate = start_date || new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const endDate = end_date || new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
-    const summary = await TimeLog.getUserSummary(startDate, endDate, adminId, branch_id || null);
+    const summary = await TimeLog.getUserSummary(startDate, endDate, adminId, targetBranchId);
     
     const totalHoursAll = summary.reduce((sum, u) => sum + (parseFloat(u.total_hours) || 0), 0);
 

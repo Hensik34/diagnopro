@@ -15,8 +15,8 @@ interface TimeLogState {
   error: string | null;
 
   // Actions
-  clockIn: (branchId?: string) => Promise<boolean>;
-  clockOut: (notes?: string) => Promise<boolean>;
+  clockIn: (params?: { branchId?: string; start_km?: number; start_meter_image?: string; latitude?: number; longitude?: number }) => Promise<boolean>;
+  clockOut: (params?: { notes?: string; end_km?: number; end_meter_image?: string; latitude?: number; longitude?: number }) => Promise<boolean>;
   fetchActiveSession: () => Promise<void>;
   fetchMyLogs: (startDate?: string, endDate?: string, branchId?: string) => Promise<void>;
   fetchAllLogs: (startDate?: string, endDate?: string, branchId?: string) => Promise<void>;
@@ -37,27 +37,41 @@ export const useTimeLogStore = create<TimeLogState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  clockIn: async (branchId?: string) => {
+  clockIn: async (params) => {
     set({ isLoading: true, error: null });
     try {
-      const activeBranchId = branchId || useBranchStore.getState().currentBranchId || undefined;
-      const res = await timeLogApi.clockIn(activeBranchId);
+      const activeBranchId = params?.branchId || useBranchStore.getState().currentBranchId || undefined;
+      const res = await timeLogApi.clockIn({
+        branchId: activeBranchId,
+        start_km: params?.start_km,
+        start_meter_image: params?.start_meter_image,
+        latitude: params?.latitude,
+        longitude: params?.longitude,
+      });
       set({ activeSession: res.data, isLoading: false });
       return true;
-    } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Clock in failed', isLoading: false });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || (err instanceof Error ? err.message : 'Clock in failed');
+      set({ error: msg, isLoading: false });
       return false;
     }
   },
 
-  clockOut: async (notes?: string) => {
+  clockOut: async (params) => {
     set({ isLoading: true, error: null });
     try {
-      await timeLogApi.clockOut(notes);
+      await timeLogApi.clockOut({
+        notes: params?.notes,
+        end_km: params?.end_km,
+        end_meter_image: params?.end_meter_image,
+        latitude: params?.latitude,
+        longitude: params?.longitude,
+      });
       set({ activeSession: null, isLoading: false });
       return true;
-    } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Clock out failed', isLoading: false });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || (err instanceof Error ? err.message : 'Clock out failed');
+      set({ error: msg, isLoading: false });
       return false;
     }
   },

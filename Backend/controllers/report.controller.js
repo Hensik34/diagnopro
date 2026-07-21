@@ -116,13 +116,14 @@ exports.getReports = async (req, res) => {
   try {
     const { patient_id, status, branch_id } = req.query;
     const userId = req.user.id;
+    const activeBranchId = req.headers['x-branch-id'] || branch_id;
 
     // Build filters
     const filters = { patient_id, status };
 
-    if (branch_id) {
-      // Explicit branch filter from query
-      filters.branch_id = branch_id;
+    if (activeBranchId) {
+      // Filter strictly by the active branch
+      filters.branch_id = activeBranchId;
     } else {
       // Auto-filter by user's/doctor's branches to prevent cross-org data leakage
       let userBranches;

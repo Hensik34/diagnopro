@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { authApi, setAuthToken, getAuthToken } from '../api';
 import type { User, LoginCredentials, DoctorProfile, LoginBranch } from '../types';
 import { resetAllStores } from './resetStores';
+import { useBranchStore } from './branchStore';
 import {
   checkRolePermission,
   checkRolePermissionAny,
@@ -9,6 +10,22 @@ import {
   PERMISSIONS,
   type Permission
 } from '../utils/permissions';
+
+const syncActiveBranch = (branches?: LoginBranch[], defaultBranchId?: string, userRole?: string) => {
+  const isStaffMultiBranch = userRole === 'staff' && branches && branches.length > 1;
+
+  if (isStaffMultiBranch) {
+    localStorage.removeItem('diagnopro_active_branch');
+    useBranchStore.getState().setCurrentBranchId(null);
+    return;
+  }
+
+  const targetId = branches?.[0]?.id || defaultBranchId;
+  if (targetId) {
+    localStorage.setItem('diagnopro_active_branch', targetId);
+    useBranchStore.getState().setCurrentBranchId(targetId);
+  }
+};
 
 // ==========================================
 // Auth Store State Interface
@@ -95,12 +112,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { success: true, requiresOtp: true, email: response.email };
       }
 
-      // Store token in localStorage (only token allowed)
+      // Store token in localStorage
       if (response.token) {
         setAuthToken(response.token);
       }
 
-      // Store user in Zustand state (not localStorage)
+      syncActiveBranch(response.branches, response.user?.branch_id, response.user?.role);
+
+      // Store user in Zustand state
       set({
         user: response.user || null,
         staffList: [],
@@ -152,6 +171,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (response.token) {
         setAuthToken(response.token);
       }
+
+      syncActiveBranch(response.branches, response.user?.branch_id, response.user?.role);
 
       // Store user in Zustand state
       set({
@@ -210,6 +231,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         setAuthToken(response.token);
       }
 
+      syncActiveBranch(response.branches, response.user?.branch_id, response.user?.role);
+
       // Store user in Zustand state
       set({
         user: response.user,
@@ -260,6 +283,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (response.token) {
         setAuthToken(response.token);
       }
+
+      syncActiveBranch(response.branches, response.user?.branch_id, response.user?.role);
 
       // Store user in Zustand state
       set({
@@ -326,9 +351,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       pendingOtpVerification: false,
     });
 
-    // 2. Reset ALL stores + clear user-scoped localStorage SYNCHRONOUSLY
-    //    This prevents race conditions where a new user logs in before
-    //    the old user's data is fully wiped.
+    // 2. Clear all localStorage items (tokens, active branch, session keys)
+    localStorage.clear();
+
+    // 3. Reset ALL stores SYNCHRONOUSLY
     resetAllStores();
   },
 
@@ -345,6 +371,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       const response = await authApi.getProfile();
+      syncActiveBranch(response.branches, response.data?.branch_id);
       set({
         user: response.data,
         isAuthenticated: true,

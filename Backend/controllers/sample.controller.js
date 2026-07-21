@@ -4,8 +4,9 @@ const Sample = require("../models/Sample");
 exports.getSamples = async (req, res) => {
   try {
     const { branch_id, status, patient_id } = req.query;
+    const targetBranchId = req.headers['x-branch-id'] || branch_id;
 
-    const samples = await Sample.getAllSamples({ branch_id, status, patient_id });
+    const samples = await Sample.getAllSamples({ branch_id: targetBranchId, status, patient_id });
 
     res.json({
       message: "Samples retrieved successfully",

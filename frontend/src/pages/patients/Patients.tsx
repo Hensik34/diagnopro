@@ -182,8 +182,7 @@ export function Patients() {
                 <tr className="border-b border-border">
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Name</th>
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Age/Gender</th>
-                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Phone</th>
-                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Email</th>
+                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Created By</th>
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Branch</th>
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Registered</th>
                   <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-24">Actions</th>
@@ -206,6 +205,15 @@ export function Patients() {
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
                       {patient.email || '-'}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${
+                        patient.creator_role === 'staff' 
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' 
+                          : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                      }`}>
+                        {patient.created_by_name || 'Admin'}
+                      </span>
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
                       {patient.branch_name || getBranchName(patient.branch_id)}

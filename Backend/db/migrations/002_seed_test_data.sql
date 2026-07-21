@@ -1536,9 +1536,9 @@ WITH template_fields (
   -- CBC, KFT, Lipid fields now seeded directly via migration 002 - New simplified structure
   -- Old template entries (CBC_EXTENDED, KFT_COMPREHENSIVE, LIPID_ADVANCED) removed per migration 003
 
-  ('THYROID_COMPREHENSIVE', 'TSH', 'uIU/mL', 0.40, 4.50, 'number', NULL, 1, 'input', NULL, NULL, 'Thyroid | Hormones', NULL, '{"high":100,"low":0.01}'::jsonb, NULL, true),
-  ('THYROID_COMPREHENSIVE', 'Total T3', 'ng/dL', 80.00, 200.00, 'number', NULL, 2, 'input', NULL, NULL, 'Thyroid | Hormones', NULL, NULL, NULL, true),
-  ('THYROID_COMPREHENSIVE', 'Total T4', 'ug/dL', 4.60, 12.00, 'number', NULL, 3, 'input', NULL, NULL, 'Thyroid | Hormones', NULL, NULL, NULL, true),
+  ('THYROID_COMPREHENSIVE', 'Total T3', 'ng/dL', 80.00, 200.00, 'number', NULL, 1, 'input', NULL, NULL, 'Thyroid | Hormones', NULL, NULL, NULL, true),
+  ('THYROID_COMPREHENSIVE', 'Total T4', 'ug/dL', 4.60, 12.00, 'number', NULL, 2, 'input', NULL, NULL, 'Thyroid | Hormones', NULL, NULL, NULL, true),
+  ('THYROID_COMPREHENSIVE', 'TSH', 'uIU/mL', 0.40, 4.50, 'number', NULL, 3, 'input', NULL, NULL, 'Thyroid | Hormones', NULL, '{"high":100,"low":0.01}'::jsonb, NULL, true),
 
   ('URINE_ROUTINE_COMPLETE', 'Color', NULL, NULL, NULL, 'select', 'Straw,Light yellow,Yellow,Dark yellow,Amber,Red,Brown,Black,Green', 1, 'input', NULL, NULL, 'Urine | Physical', NULL, NULL, NULL, true),
   ('URINE_ROUTINE_COMPLETE', 'Appearance', NULL, NULL, NULL, 'select', 'Clear,Slightly hazy,Turbid,Milky', 2, 'input', NULL, NULL, 'Urine | Physical', NULL, NULL, NULL, true),

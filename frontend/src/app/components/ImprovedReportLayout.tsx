@@ -558,19 +558,33 @@ function parseLineToColumns(line: string): string[] | null {
   const trimmed = line.trim();
   if (!trimmed) return null;
 
-  // Check if it's a markdown table row (starts/ends with |)
-  if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+  // 1. Pipe-delimited (standard markdown table)
+  if (trimmed.includes('|')) {
     const cells = trimmed.split('|').map(c => c.trim());
-    return cells.slice(1, -1);
+    if (cells[0] === '') cells.shift();
+    if (cells[cells.length - 1] === '') cells.pop();
+    if (cells.length >= 2) {
+      return cells;
+    }
   }
 
-  // Check if it contains a tab or multiple spaces
-  const hasTab = line.includes('\t');
-  const hasMultipleSpaces = /\s{3,}/.test(line); // 3 or more spaces
-  if (hasTab || hasMultipleSpaces) {
-    const cols = line.split(/\t|\s{2,}/).map(c => c.trim()).filter(c => c !== '');
+  // 2. Tab-delimited table line
+  if (line.includes('\t')) {
+    const cols = line.split('\t').map(c => c.trim()).filter(Boolean);
     if (cols.length >= 2) {
       return cols;
+    }
+  }
+
+  // 3. Multi-space aligned table line (2 or more spaces separating columns)
+  // Skip bullet points and normal paragraph lines starting with •, -, *
+  if (!/^[•\-\*]/.test(trimmed)) {
+    const hasMultipleSpaces = /\s{2,}/.test(trimmed);
+    if (hasMultipleSpaces) {
+      const cols = trimmed.split(/\s{2,}/).map(c => c.trim()).filter(Boolean);
+      if (cols.length >= 3 || (cols.length === 2 && cols[1].length <= 30)) {
+        return cols;
+      }
     }
   }
 
@@ -626,8 +640,12 @@ export function FormattedClinicalSignificance({
     <div style={{ fontSize: sigFontSize, fontWeight: sigFontWeight, margin: 0 }}>
       {blocks.map((block, bIdx) => {
         if (block.type === 'table') {
+          if (!block.rows || block.rows.length === 0) return null;
+          const headerRow = block.rows[0] || [];
+          const bodyRows = block.rows.slice(1);
+
           return (
-            <div key={bIdx} style={{ overflowX: 'auto', margin: '8px 0', pageBreakInside: 'avoid' }}>
+            <div key={bIdx} style={{ overflowX: 'auto', margin: '12px 0', pageBreakInside: 'avoid' }}>
               <table style={{
                 width: '100%',
                 borderCollapse: 'collapse',
@@ -636,7 +654,7 @@ export function FormattedClinicalSignificance({
               }}>
                 <thead>
                   <tr style={{ borderBottom: '1.5px solid #111' }}>
-                    {block.rows[0].map((col, cIdx) => (
+                    {headerRow.map((col, cIdx) => (
                       <th
                         key={cIdx}
                         style={{
@@ -653,14 +671,14 @@ export function FormattedClinicalSignificance({
                   </tr>
                 </thead>
                 <tbody>
-                  {block.rows.slice(1).map((row, rIdx) => (
+                  {bodyRows.map((row, rIdx) => (
                     <tr
                       key={rIdx}
                       style={{
-                        borderBottom: rIdx === block.rows.length - 2 ? 'none' : '1px solid #e0e0e0'
+                        borderBottom: rIdx === bodyRows.length - 1 ? 'none' : '1px solid #e0e0e0'
                       }}
                     >
-                      {row.map((col, cIdx) => (
+                      {headerRow.map((_, cIdx) => (
                         <td
                           key={cIdx}
                           style={{
@@ -670,7 +688,7 @@ export function FormattedClinicalSignificance({
                             border: 'none',
                           }}
                         >
-                          {col}
+                          {row[cIdx] != null ? row[cIdx] : ''}
                         </td>
                       ))}
                     </tr>
@@ -687,7 +705,7 @@ export function FormattedClinicalSignificance({
                 minHeight: '1em',
                 whiteSpace: 'pre-wrap',
                 lineHeight: 1.45,
-                margin: '2px 0',
+                margin: '6px 0',
               }}
             >
               {block.content}

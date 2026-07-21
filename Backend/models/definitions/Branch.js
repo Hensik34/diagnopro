@@ -14,6 +14,9 @@ const Branch = sequelize.define("Branch", {
   postal_code: { type: DataTypes.STRING(20) },
   phone: { type: DataTypes.STRING(20) },
   email: { type: DataTypes.STRING(255) },
+  latitude: { type: DataTypes.DECIMAL(10, 8) },
+  longitude: { type: DataTypes.DECIMAL(11, 8) },
+  geofence_radius_meters: { type: DataTypes.INTEGER, defaultValue: 150 },
 }, {
   tableName: "branches",
 });

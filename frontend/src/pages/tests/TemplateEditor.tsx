@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { useParams, useNavigate } from 'react-router';
 import { CustomConfirmModal } from '../../app/components/ui/CustomConfirmModal';
@@ -55,6 +55,12 @@ import {
   TestSectionBlock,
   FormattedClinicalSignificance,
 } from '../../app/components/ImprovedReportLayout';
+import {
+  computeReportPages,
+  type Parameter,
+  type TestSection,
+  type PageItem,
+} from '../../utils/reportPagination';
 
 // Color tokens matching the report preview style
 const colorTokens = {
@@ -539,6 +545,576 @@ function normalizeContiguousGroups(list: ParameterSetting[]): ParameterSetting[]
 }
 
 // ============================================
+// Bi-directional Markdown Table & Text Parser
+// ============================================
+interface EditableTableBlock {
+  id: string;
+  type: 'table';
+  headers: string[];
+  rows: string[][];
+}
+
+interface EditableTextBlock {
+  id: string;
+  type: 'text';
+  content: string;
+}
+
+type EditableBlock = EditableTableBlock | EditableTextBlock;
+
+function parseLineToCols(line: string): string[] | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+
+  // 1. Pipe-delimited (standard markdown table)
+  if (trimmed.includes('|')) {
+    const cells = trimmed.split('|').map(c => c.trim());
+    if (cells[0] === '') cells.shift();
+    if (cells[cells.length - 1] === '') cells.pop();
+    if (cells.length >= 2) {
+      return cells;
+    }
+  }
+
+  // 2. Tab-delimited table line
+  if (line.includes('\t')) {
+    const cols = line.split('\t').map(c => c.trim()).filter(Boolean);
+    if (cols.length >= 2) {
+      return cols;
+    }
+  }
+
+  // 3. Multi-space aligned table line (2 or more spaces separating columns)
+  // Skip bullet points and normal paragraph lines starting with •, -, *
+  if (!/^[•\-\*]/.test(trimmed)) {
+    const hasMultipleSpaces = /\s{2,}/.test(trimmed);
+    if (hasMultipleSpaces) {
+      const cols = trimmed.split(/\s{2,}/).map(c => c.trim()).filter(Boolean);
+      if (cols.length >= 3 || (cols.length === 2 && cols[1].length <= 30)) {
+        return cols;
+      }
+    }
+  }
+
+  return null;
+}
+
+function parseMarkdownToEditableBlocks(markdown: string): EditableBlock[] {
+  if (!markdown) return [{ id: 'b-1', type: 'text', content: '' }];
+
+  const lines = markdown.split('\n');
+  const blocks: EditableBlock[] = [];
+  let currentTextLines: string[] = [];
+  let currentTableRows: string[][] = [];
+  let blockCounter = 1;
+
+  const flushText = () => {
+    if (currentTextLines.some(l => l.trim() !== '')) {
+      blocks.push({
+        id: `b-${blockCounter++}`,
+        type: 'text',
+        content: currentTextLines.join('\n').trim()
+      });
+      currentTextLines = [];
+    } else {
+      currentTextLines = [];
+    }
+  };
+
+  const flushTable = () => {
+    if (currentTableRows.length > 0) {
+      const headers = currentTableRows[0] || ['Col 1', 'Col 2'];
+      const rows = currentTableRows.slice(1);
+      blocks.push({
+        id: `b-${blockCounter++}`,
+        type: 'table',
+        headers,
+        rows: rows.length > 0 ? rows : [Array(headers.length).fill('')]
+      });
+      currentTableRows = [];
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const cols = parseLineToCols(line);
+
+    if (cols) {
+      const isSeparator = cols.every(c => /^[:\-\s]+$/.test(c));
+      if (isSeparator) {
+        continue;
+      }
+      flushText();
+      currentTableRows.push(cols);
+    } else {
+      flushTable();
+      currentTextLines.push(line);
+    }
+  }
+
+  flushText();
+  flushTable();
+
+  if (blocks.length === 0) {
+    blocks.push({ id: 'b-1', type: 'text', content: '' });
+  }
+
+  return blocks;
+}
+
+function serializeBlocksToMarkdown(blocks: EditableBlock[]): string {
+  const blockStrings: string[] = [];
+
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    if (block.type === 'text') {
+      if (block.content.trim() || blocks.length === 1) {
+        blockStrings.push(block.content.trim());
+      }
+    } else if (block.type === 'table') {
+      if (block.headers && block.headers.length > 0) {
+        const headerLine = '| ' + block.headers.map(h => h.trim() || ' ').join(' | ') + ' |';
+        const sepLine = '| ' + block.headers.map(() => '---').join(' | ') + ' |';
+        const rowLines = block.rows.map(row => {
+          const paddedRow = block.headers.map((_, colIdx) => (row[colIdx] != null ? row[colIdx].trim() : ''));
+          return '| ' + paddedRow.map(cell => cell || ' ').join(' | ') + ' |';
+        });
+        blockStrings.push([headerLine, sepLine, ...rowLines].join('\n'));
+      }
+    }
+  }
+
+  return blockStrings.filter(Boolean).join('\n\n');
+}
+
+// ============================================
+// Clinical Significance Visual & Raw Editor Component
+// ============================================
+interface ClinicalSignificanceEditorProps {
+  value: string;
+  onChange: (newValue: string) => void;
+  fontSize?: number;
+  onFontSizeChange: (size?: number) => void;
+  bold: boolean;
+  onBoldToggle: () => void;
+}
+
+function ClinicalSignificanceEditor({
+  value,
+  onChange,
+  fontSize,
+  onFontSizeChange,
+  bold,
+  onBoldToggle,
+}: ClinicalSignificanceEditorProps) {
+  const [editorMode, setEditorMode] = useState<'visual' | 'raw'>('visual');
+  const [blocks, setBlocks] = useState<EditableBlock[]>(() => parseMarkdownToEditableBlocks(value));
+
+  // Sync blocks when value prop changes from outside
+  useEffect(() => {
+    setBlocks(parseMarkdownToEditableBlocks(value));
+  }, [value]);
+
+  const updateBlocksAndSave = (newBlocks: EditableBlock[]) => {
+    setBlocks(newBlocks);
+    const newMarkdown = serializeBlocksToMarkdown(newBlocks);
+    onChange(newMarkdown);
+  };
+
+  const handleTextChange = (blockId: string, content: string) => {
+    const newBlocks = blocks.map(b => (b.id === blockId ? { ...b, content } : b));
+    updateBlocksAndSave(newBlocks);
+  };
+
+  const handleHeaderChange = (blockId: string, colIdx: number, text: string) => {
+    const newBlocks = blocks.map(b => {
+      if (b.id === blockId && b.type === 'table') {
+        const newHeaders = [...b.headers];
+        newHeaders[colIdx] = text;
+        return { ...b, headers: newHeaders };
+      }
+      return b;
+    });
+    updateBlocksAndSave(newBlocks);
+  };
+
+  const handleCellChange = (blockId: string, rowIdx: number, colIdx: number, text: string) => {
+    const newBlocks = blocks.map(b => {
+      if (b.id === blockId && b.type === 'table') {
+        const newRows = b.rows.map((row, rI) => {
+          if (rI === rowIdx) {
+            const newRow = [...row];
+            newRow[colIdx] = text;
+            return newRow;
+          }
+          return row;
+        });
+        return { ...b, rows: newRows };
+      }
+      return b;
+    });
+    updateBlocksAndSave(newBlocks);
+  };
+
+  const handleAddRow = (blockId: string) => {
+    const newBlocks = blocks.map(b => {
+      if (b.id === blockId && b.type === 'table') {
+        const newRow = Array(b.headers.length).fill('');
+        return { ...b, rows: [...b.rows, newRow] };
+      }
+      return b;
+    });
+    updateBlocksAndSave(newBlocks);
+  };
+
+  const handleDeleteRow = (blockId: string, rowIdx: number) => {
+    const newBlocks = blocks.map(b => {
+      if (b.id === blockId && b.type === 'table') {
+        const newRows = b.rows.filter((_, rI) => rI !== rowIdx);
+        return { ...b, rows: newRows.length > 0 ? newRows : [Array(b.headers.length).fill('')] };
+      }
+      return b;
+    });
+    updateBlocksAndSave(newBlocks);
+  };
+
+  const handleAddColumn = (blockId: string) => {
+    const newBlocks = blocks.map(b => {
+      if (b.id === blockId && b.type === 'table') {
+        const newHeaders = [...b.headers, `Col ${b.headers.length + 1}`];
+        const newRows = b.rows.map(row => [...row, '']);
+        return { ...b, headers: newHeaders, rows: newRows };
+      }
+      return b;
+    });
+    updateBlocksAndSave(newBlocks);
+  };
+
+  const handleDeleteColumn = (blockId: string, colIdx: number) => {
+    const newBlocks = blocks.map(b => {
+      if (b.id === blockId && b.type === 'table') {
+        if (b.headers.length <= 1) {
+          return null; // delete table if last column deleted
+        }
+        const newHeaders = b.headers.filter((_, cI) => cI !== colIdx);
+        const newRows = b.rows.map(row => row.filter((_, cI) => cI !== colIdx));
+        return { ...b, headers: newHeaders, rows: newRows };
+      }
+      return b;
+    }).filter(Boolean) as EditableBlock[];
+
+    updateBlocksAndSave(newBlocks);
+  };
+
+  const handleDeleteTable = (blockId: string) => {
+    const newBlocks = blocks.filter(b => b.id !== blockId);
+    if (newBlocks.length === 0) {
+      newBlocks.push({ id: `b-${Date.now()}`, type: 'text', content: '' });
+    }
+    updateBlocksAndSave(newBlocks);
+  };
+
+  const handleDeleteTextBlock = (blockId: string) => {
+    const newBlocks = blocks.filter(b => b.id !== blockId);
+    if (newBlocks.length === 0) {
+      newBlocks.push({ id: `b-${Date.now()}`, type: 'text', content: '' });
+    }
+    updateBlocksAndSave(newBlocks);
+  };
+
+  const handleInsertTableBlock = () => {
+    const newTableBlock: EditableTableBlock = {
+      id: `b-table-${Date.now()}`,
+      type: 'table',
+      headers: ['Header 1', 'Header 2', 'Header 3'],
+      rows: [['', '', '']]
+    };
+
+    // Filter out any empty text blocks before adding the new table
+    const cleanedBlocks = blocks.filter(b => b.type !== 'text' || b.content.trim() !== '');
+
+    const newBlocks = [...cleanedBlocks, newTableBlock];
+    updateBlocksAndSave(newBlocks);
+    setEditorMode('visual');
+  };
+
+  const handleAddTextBlock = () => {
+    const newTextBlock: EditableTextBlock = {
+      id: `b-text-${Date.now()}`,
+      type: 'text',
+      content: ''
+    };
+    const newBlocks = [...blocks, newTextBlock];
+    updateBlocksAndSave(newBlocks);
+  };
+
+  const hasTables = blocks.some(b => b.type === 'table');
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-xs">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-primary" />
+          <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
+            Clinical Significance
+          </h3>
+          {hasTables && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+              Table Included
+            </span>
+          )}
+        </div>
+
+        {/* View Mode Switcher */}
+        <div className="flex items-center gap-1 bg-secondary p-0.5 rounded-md border border-border">
+          <button
+            type="button"
+            onClick={() => setEditorMode('visual')}
+            className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+              editorMode === 'visual'
+                ? 'bg-background text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Visual Editor
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditorMode('raw')}
+            className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+              editorMode === 'raw'
+                ? 'bg-background text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Raw Markdown
+          </button>
+        </div>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground">
+        This default text will be displayed in patient reports for this test. Users can edit it per test report.
+      </p>
+
+      {/* Editor Content */}
+      {editorMode === 'raw' ? (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          rows={6}
+          className="w-full text-xs p-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-y leading-relaxed font-mono"
+          placeholder="Enter clinical significance or interpretation notes..."
+        />
+      ) : (
+        <div className="space-y-3">
+          {blocks.map((block) => {
+            if (block.type === 'text') {
+              return (
+                <div key={block.id} className="relative group space-y-1">
+                  {blocks.length > 1 && (
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                      <span className="font-semibold uppercase tracking-wider">Text Section</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTextBlock(block.id)}
+                        className="p-0.5 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                        title="Delete Text Section"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  <textarea
+                    value={block.content}
+                    onChange={(e) => handleTextChange(block.id, e.target.value)}
+                    rows={Math.max(2, block.content.split('\n').length)}
+                    className="w-full text-xs p-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-y leading-relaxed"
+                    placeholder="Enter notes, bullet points, or interpretation..."
+                  />
+                </div>
+              );
+            }
+
+            if (block.type === 'table') {
+              return (
+                <div key={block.id} className="border-2 border-primary/20 bg-primary/5 dark:bg-primary/10 rounded-xl p-3 space-y-2.5">
+                  {/* Table Block Header Bar */}
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-primary">
+                      <Table className="w-3.5 h-3.5" />
+                      <span>Table Editor</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">
+                        ({block.headers.length} cols × {block.rows.length} rows)
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleAddColumn(block.id)}
+                        className="px-2 py-0.5 text-[10px] font-semibold bg-background border border-border rounded hover:bg-secondary text-foreground flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Add Column"
+                      >
+                        <Plus className="w-2.5 h-2.5" />
+                        <span>Add Col</span>
+                      </button>
+                      {block.headers.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteColumn(block.id, block.headers.length - 1)}
+                          className="px-2 py-0.5 text-[10px] font-semibold bg-background border border-border rounded hover:bg-secondary text-destructive flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Remove Last Column"
+                        >
+                          <Minus className="w-2.5 h-2.5" />
+                          <span>Del Col</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTable(block.id)}
+                        className="px-2 py-0.5 text-[10px] font-semibold bg-destructive/10 border border-destructive/20 text-destructive rounded hover:bg-destructive/20 flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Delete Entire Table"
+                      >
+                        <Trash2 className="w-2.5 h-2.5" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Interactive Editable Table */}
+                  <div className="overflow-x-auto border border-border rounded-lg bg-background shadow-2xs">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-secondary/70 border-b border-border">
+                          {block.headers.map((header, cIdx) => (
+                            <th key={cIdx} className="p-1.5 border-r border-border last:border-r-0 min-w-[100px]">
+                              <input
+                                type="text"
+                                value={header}
+                                onChange={(e) => handleHeaderChange(block.id, cIdx, e.target.value)}
+                                className="w-full text-xs font-bold px-1.5 py-1 bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground text-center"
+                                placeholder={`Header ${cIdx + 1}`}
+                              />
+                            </th>
+                          ))}
+                          <th className="w-8 p-1 text-center" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {block.rows.map((row, rIdx) => (
+                          <tr key={rIdx} className="hover:bg-secondary/40 border-b border-border last:border-b-0">
+                            {block.headers.map((_, cIdx) => (
+                              <td key={cIdx} className="p-1.5 border-r border-border last:border-r-0 min-w-[100px]">
+                                <input
+                                  type="text"
+                                  value={row[cIdx] != null ? row[cIdx] : ''}
+                                  onChange={(e) => handleCellChange(block.id, rIdx, cIdx, e.target.value)}
+                                  className="w-full text-xs px-1.5 py-1 bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
+                                  placeholder="..."
+                                />
+                              </td>
+                            ))}
+                            <td className="w-8 p-1 text-center">
+                              {block.rows.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteRow(block.id, rIdx)}
+                                  className="p-1 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                                  title="Delete Row"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Add Row Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleAddRow(block.id)}
+                    className="w-full h-7 rounded border border-dashed border-primary/30 bg-background hover:bg-primary/10 text-[11px] font-bold text-primary flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add Table Row
+                  </button>
+                </div>
+              );
+            }
+
+            return null;
+          })}
+
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={handleAddTextBlock}
+              className="text-[11px] font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 py-1 rounded hover:bg-secondary transition-colors cursor-pointer"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Add Text Section</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Clinical Significance Styling Controls */}
+      <div className="flex items-center gap-3 pt-2 border-t border-border">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase">Size:</span>
+          <select
+            value={fontSize || ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              onFontSizeChange(val ? parseInt(val, 10) : undefined);
+            }}
+            className="text-[11px] h-7 px-2 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary font-medium"
+          >
+            <option value="">Default (9.5px)</option>
+            <option value="9">9px</option>
+            <option value="10">10px</option>
+            <option value="11">11px</option>
+            <option value="12">12px</option>
+            <option value="13">13px</option>
+            <option value="14">14px</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase">Style:</span>
+          <button
+            type="button"
+            onClick={onBoldToggle}
+            className={`h-7 px-2 rounded border text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+              bold
+                ? 'bg-primary/10 border-primary text-primary'
+                : 'bg-background border-border text-foreground hover:bg-secondary'
+            }`}
+          >
+            <Bold className="w-3 h-3" />
+            Bold
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleInsertTableBlock}
+          className="ml-auto h-7 px-2.5 rounded border border-primary/30 bg-primary/10 text-[11px] font-bold text-primary hover:bg-primary/20 flex items-center gap-1 transition-colors cursor-pointer"
+          title="Add a table block"
+        >
+          <Table className="w-3 h-3" />
+          <span>Insert Table</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
 // Main TemplateEditor Component
 // ============================================
 export function TemplateEditor() {
@@ -984,6 +1560,65 @@ export function TemplateEditor() {
 
   const visibleSettings = parameterSettings.filter((s) => s.visible);
 
+  // Live A4 pagination computation
+  const paginationResult = useMemo(() => {
+    const safeZones = { top: 52, bottom: 56 };
+    const orderedSections: TestSection[] = [
+      {
+        id: testId || 'test-1',
+        testId: testId || 'test-1',
+        testName: testName || 'TEST REPORT',
+        parameters: visibleSettings.map((setting) => {
+          const field = fieldsMap.get(setting.fieldId);
+          const mockVal = getMockValue(setting.fieldName, field?.unit, field?.input_type);
+          const refRange = field?.min_value != null && field?.max_value != null
+            ? `${field.min_value} - ${field.max_value}`
+            : field?.min_value != null
+            ? `>= ${field.min_value}`
+            : field?.max_value != null
+            ? `<= ${field.max_value}`
+            : 'Normal';
+
+          return {
+            name: setting.fieldName,
+            result: mockVal,
+            unit: field?.unit || '-',
+            refRange: refRange,
+            isAbnormal: false,
+            group: setting.group,
+            fontSize: setting.fontSize,
+            bold: setting.bold,
+          };
+        }),
+      },
+    ];
+
+    const layoutSnapshots = {
+      [testId || 'test-1']: {
+        clinical_significance: clinicalSignificance,
+        clinicalSignificanceLayout: {
+          fontSize: clinicalSigFontSize,
+          bold: clinicalSigBold,
+        },
+      },
+    };
+
+    return computeReportPages({
+      orderedSections,
+      safeZones,
+      hasDoctorSignature: true,
+      density: 'dense',
+      layoutSnapshots,
+      testData: {
+        tests: [{ id: testId || 'test-1', testId: testId || 'test-1' }]
+      },
+      clinicalNotes: null,
+      isSelfReport: false,
+      attachMarketingPages: false,
+      marketingPages: [],
+    });
+  }, [testId, testName, visibleSettings, fieldsMap, clinicalSignificance, clinicalSigFontSize, clinicalSigBold]);
+
   return (
     <div className="flex flex-col lg:flex-row h-screen max-w-full overflow-hidden bg-background">
       {/* Toast notifications */}
@@ -1055,82 +1690,7 @@ export function TemplateEditor() {
 
         {/* Scrollable list */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {!isLoading && (
-            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-xs">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-primary" />
-                <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
-                  Clinical Significance
-                </h3>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                This default text will be displayed in patient reports for this test. Users can edit it per test report.
-              </p>
-              <textarea
-                value={clinicalSignificance}
-                onChange={(e) => {
-                  setClinicalSignificance(e.target.value);
-                  setIsDirty(true);
-                }}
-                rows={4}
-                className="w-full text-xs p-2.5 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-y leading-relaxed"
-                placeholder="Enter clinical significance or interpretation notes..."
-              />
-              {/* Clinical Significance Font Styling Controls */}
-              <div className="flex items-center gap-3 pt-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase">Size:</span>
-                  <select
-                    value={clinicalSigFontSize || ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setClinicalSigFontSize(val ? parseInt(val, 10) : undefined);
-                      setIsDirty(true);
-                    }}
-                    className="text-[11px] h-7 px-2 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary font-medium"
-                  >
-                    <option value="">Default (9.5px)</option>
-                    <option value="9">9px</option>
-                    <option value="10">10px</option>
-                    <option value="11">11px</option>
-                    <option value="12">12px</option>
-                    <option value="13">13px</option>
-                    <option value="14">14px</option>
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase">Style:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setClinicalSigBold(prev => !prev);
-                      setIsDirty(true);
-                    }}
-                    className={`h-7 px-2 rounded border text-[11px] font-bold flex items-center gap-1 transition-colors ${clinicalSigBold ? 'bg-primary/10 border-primary text-primary' : 'bg-background border-border text-foreground hover:bg-secondary'}`}
-                  >
-                    <Bold className="w-3 h-3" />
-                    Bold
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTableHeaders(['Column 1', 'Column 2', 'Column 3']);
-                    setTableRows([['', '', '']]);
-                    setShowTableBuilder(true);
-                  }}
-                  className="ml-auto h-7 px-2.5 rounded border border-border bg-background text-[11px] font-bold text-primary hover:bg-secondary flex items-center gap-1 transition-colors cursor-pointer"
-                  title="Insert a table template"
-                >
-                  <Table className="w-3 h-3" />
-                  <span>Insert Table</span>
-                </button>
-              </div>
-            </div>
-          )}
-
+          {/* 1. Parameters list shown FIRST */}
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -1252,6 +1812,27 @@ export function TemplateEditor() {
               </DragOverlay>
             </DndContext>
           )}
+
+          {/* 2. Clinical Significance shown AFTER parameters */}
+          {!isLoading && (
+            <ClinicalSignificanceEditor
+              value={clinicalSignificance}
+              onChange={(val) => {
+                setClinicalSignificance(val);
+                setIsDirty(true);
+              }}
+              fontSize={clinicalSigFontSize}
+              onFontSizeChange={(size) => {
+                setClinicalSigFontSize(size);
+                setIsDirty(true);
+              }}
+              bold={clinicalSigBold}
+              onBoldToggle={() => {
+                setClinicalSigBold((prev) => !prev);
+                setIsDirty(true);
+              }}
+            />
+          )}
         </div>
       </div>
 
@@ -1262,182 +1843,206 @@ export function TemplateEditor() {
           <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
             Live Report Preview
           </span>
-          <span className="text-[10px] bg-secondary px-2.5 py-1 rounded-md text-muted-foreground font-mono">
-            {visibleSettings.length} of {parameterSettings.length} visible
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] bg-secondary px-2.5 py-1 rounded-md text-muted-foreground font-mono">
+              {paginationResult.pages.length} Page{paginationResult.pages.length > 1 ? 's' : ''}
+            </span>
+            <span className="text-[10px] bg-secondary px-2.5 py-1 rounded-md text-muted-foreground font-mono">
+              {visibleSettings.length} of {parameterSettings.length} visible
+            </span>
+          </div>
         </div>
 
-        {/* Preview Scroll Container */}
-        <div className="flex-1 overflow-y-auto p-6 flex justify-center items-start">
-          <div
-            className="w-[794px] min-h-[500px] bg-white shadow-lg border border-gray-200 rounded-xs flex flex-col relative text-[#212121]"
-            style={{
-              fontFamily: '"Inter", "Segoe UI", Arial, sans-serif',
-              boxSizing: 'border-box',
-              padding: '52px 24px 56px 24px'
-            }}
-          >
-            {/* Patient Info Box - Using ImprovedPatientBox */}
-            <ImprovedPatientBox
-              patientName="Jane Doe"
-              age={32}
-              gender="Female"
-              patientId="PID-982741"
-              sampleId="REG-82749"
-              referringDoctor="Dr. A. K. Sharma, MD"
-              reportDate="12 Jun 2026"
-              reportTime="09:30 AM"
-              collectionDate="12 Jun 2026, 09:15 AM"
-              reportedDate="12 Jun 2026, 02:30 PM"
-              collectionAddress="Medical District"
-              qrCode={
-                <div style={{
-                  width: 68,
-                  height: 68,
-                  background: '#f0f0f0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '8px',
-                  color: '#999',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: 3
-                }}>
-                  QR
-                </div>
-              }
-              barcode={
-                <div style={{
-                  width: 120,
-                  height: 30,
-                  background: '#f0f0f0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '8px',
-                  color: '#999',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: 2
-                }}>
-                  BARCODE
-                </div>
-              }
-              colorTokens={colorTokens}
-            />
-
-            {/* Test Section - Using TestSectionBlock with actual ImprovedReportLayout components */}
-            <TestSectionBlock
-              testName={testName || 'TEST REPORT'}
-              isFirstSection={true}
-              colorTokens={colorTokens}
+        {/* Preview Scroll Container - Multi-page A4 sheets */}
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center gap-6">
+          {paginationResult.pages.map((page, pageIndex) => (
+            <div
+              key={`preview-page-${pageIndex}`}
+              className="w-[794px] h-[1123px] bg-white shadow-lg border border-gray-200 rounded-xs flex flex-col relative text-[#212121] flex-shrink-0"
+              style={{
+                fontFamily: '"Inter", "Segoe UI", Arial, sans-serif',
+                boxSizing: 'border-box',
+                padding: '52px 24px 56px 24px',
+              }}
             >
-              <table style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                tableLayout: 'fixed',
-                marginTop: '2px'
-              }}>
-                <InvestigationTableHeader colorTokens={colorTokens} />
-                <tbody>
-                  {visibleSettings.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} style={{ padding: '32px 0', textAlign: 'center', color: '#999', fontSize: '11px', fontStyle: 'italic' }}>
-                        No parameters visible. Toggle visibility to add parameters.
-                      </td>
-                    </tr>
-                  ) : (
-                    visibleSettings.map((setting, idx) => {
-                      const field = fieldsMap.get(setting.fieldId);
-                      const mockVal = getMockValue(setting.fieldName, field?.unit, field?.input_type);
-                      const refRange = field?.min_value != null && field?.max_value != null
-                        ? `${field.min_value} - ${field.max_value}`
-                        : field?.min_value != null
-                        ? `>= ${field.min_value}`
-                        : field?.max_value != null
-                        ? `<= ${field.max_value}`
-                        : 'Normal';
+              {/* Page Number Badge */}
+              <div className="absolute top-3 right-4 text-[10px] font-bold text-gray-400 select-none uppercase tracking-wider">
+                Page {pageIndex + 1} of {paginationResult.pages.length}
+              </div>
 
-                      const isGroupHeader = idx === 0 || visibleSettings[idx - 1].group !== setting.group;
-
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: '100%',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  {page.map((item: PageItem, idx: number) => {
+                    if (item.type === 'patient') {
                       return (
-                        <React.Fragment key={setting.fieldId}>
-                          {setting.group && isGroupHeader && (
-                            <SectionGroupHeader
-                              title={setting.group}
-                              colorTokens={colorTokens}
-                              compact={false}
-                            />
-                          )}
-                          <InvestigationTableRow
-                            investigation={setting.fieldName}
-                            result={mockVal}
-                            refRange={refRange}
-                            unit={field?.unit || '-'}
-                            isAbnormal={false}
-                            statusColor={colorTokens.text}
-                            rowIndex={idx}
-                            indented={!!setting.group}
+                        <div key={`p-${idx}`} style={{ marginBottom: '6px' }}>
+                          <ImprovedPatientBox
+                            patientName="Jane Doe"
+                            age={32}
+                            gender="Female"
+                            patientId="PID-982741"
+                            sampleId="REG-82749"
+                            referringDoctor="Dr. A. K. Sharma, MD"
+                            reportDate="12 Jun 2026"
+                            reportTime="09:30 AM"
+                            collectionDate="12 Jun 2026, 09:15 AM"
+                            reportedDate="12 Jun 2026, 02:30 PM"
+                            collectionAddress="Medical District"
+                            qrCode={
+                              <div style={{
+                                width: 68,
+                                height: 68,
+                                background: '#f0f0f0',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '8px',
+                                color: '#999',
+                                border: '1px solid #e0e0e0',
+                                borderRadius: 3
+                              }}>
+                                QR
+                              </div>
+                            }
+                            barcode={
+                              <div style={{
+                                width: 120,
+                                height: 30,
+                                background: '#f0f0f0',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '8px',
+                                color: '#999',
+                                border: '1px solid #e0e0e0',
+                                borderRadius: 2
+                              }}>
+                                BARCODE
+                              </div>
+                            }
                             colorTokens={colorTokens}
-                            compact={false}
-                            customFontSize={setting.fontSize}
-                            customBold={setting.bold}
                           />
-                        </React.Fragment>
+                        </div>
                       );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </TestSectionBlock>
+                    }
 
-            {/* Clinical Significance Preview */}
-            {clinicalSignificance && (
-              <div style={{
-                marginTop: '8px',
-                color: '#222',
-                textAlign: 'left'
-              }}>
-                <div style={{ fontWeight: clinicalSigBold ? 800 : 700, color: '#111', textTransform: 'uppercase' as const, marginBottom: '2px', fontSize: clinicalSigFontSize ? `${clinicalSigFontSize}px` : '9.5px' }}>
-                  Clinical Significance
-                </div>
-                <FormattedClinicalSignificance
-                  text={clinicalSignificance}
-                  fontSize={clinicalSigFontSize || 9.5}
-                  bold={clinicalSigBold}
-                />
-              </div>
-            )}
+                    if (item.type === 'test') {
+                      return (
+                        <TestSectionBlock
+                          key={`t-${idx}`}
+                          testName={item.chunk.continuation ? `${item.chunk.title} (cont.)` : item.chunk.title}
+                          isFirstSection={true}
+                          colorTokens={colorTokens}
+                        >
+                          <table style={{
+                            width: '100%',
+                            borderCollapse: 'collapse',
+                            tableLayout: 'fixed',
+                            marginTop: '2px'
+                          }}>
+                            <InvestigationTableHeader colorTokens={colorTokens} />
+                            <tbody>
+                              {item.chunk.parameters.length === 0 ? (
+                                <tr>
+                                  <td colSpan={5} style={{ padding: '32px 0', textAlign: 'center', color: '#999', fontSize: '11px', fontStyle: 'italic' }}>
+                                    No parameters visible. Toggle visibility to add parameters.
+                                  </td>
+                                </tr>
+                              ) : (
+                                item.chunk.parameters.map((param: any, rowIdx: number) => {
+                                  const isGroupHeader = rowIdx === 0 || item.chunk.parameters[rowIdx - 1].group !== param.group;
 
-            {/* Spacer */}
-            <div style={{ flex: 1, minHeight: '40px' }} />
+                                  return (
+                                    <React.Fragment key={`${param.name}-${rowIdx}`}>
+                                      {param.group && isGroupHeader && (
+                                        <SectionGroupHeader
+                                          title={param.group}
+                                          colorTokens={colorTokens}
+                                          compact={false}
+                                        />
+                                      )}
+                                      <InvestigationTableRow
+                                        investigation={param.name}
+                                        result={param.result}
+                                        refRange={param.refRange}
+                                        unit={param.unit}
+                                        isAbnormal={false}
+                                        statusColor={colorTokens.text}
+                                        rowIndex={rowIdx}
+                                        indented={!!param.group}
+                                        colorTokens={colorTokens}
+                                        compact={false}
+                                        customFontSize={param.fontSize}
+                                        customBold={param.bold}
+                                      />
+                                    </React.Fragment>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        </TestSectionBlock>
+                      );
+                    }
 
-            {/* Mock Signatures */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'flex-end',
-              justifyContent: 'space-between',
-              borderTop: `1px solid ${colorTokens.borderLight}`,
-              paddingTop: '20px',
-              marginTop: '24px'
-            }}>
-              <div style={{ textAlign: 'center', width: '140px' }}>
-                <div style={{ height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', fontSize: '12px', color: '#bbb' }}>
-                  *technician*
+                    if (item.type === 'interpretation') {
+                      return (
+                        <div key={`i-${idx}`} style={{ marginTop: '8px', color: '#222', textAlign: 'left' }}>
+                          <div style={{ fontWeight: clinicalSigBold ? 800 : 700, color: '#111', textTransform: 'uppercase', marginBottom: '2px', fontSize: clinicalSigFontSize ? `${clinicalSigFontSize}px` : '9.5px' }}>
+                            Clinical Significance
+                          </div>
+                          <FormattedClinicalSignificance
+                            text={item.text}
+                            fontSize={clinicalSigFontSize || 9.5}
+                            bold={clinicalSigBold}
+                          />
+                        </div>
+                      );
+                    }
+
+                    return null;
+                  })}
                 </div>
-                <p style={{ fontWeight: 700, color: '#37474F', fontSize: '9px', marginTop: '4px', borderTop: `1px solid ${colorTokens.borderLight}`, paddingTop: '4px' }}>
-                  Technician Sign
-                </p>
-              </div>
-              <div style={{ textAlign: 'center', width: '140px' }}>
-                <div style={{ height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', fontSize: '12px', color: '#bbb' }}>
-                  *doctor*
-                </div>
-                <p style={{ fontWeight: 700, color: '#37474F', fontSize: '9px', marginTop: '4px', borderTop: `1px solid ${colorTokens.borderLight}`, paddingTop: '4px' }}>
-                  Pathologist MD Sign
-                </p>
+
+                {/* Mock Signatures on last page */}
+                {pageIndex === paginationResult.pages.length - 1 && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    justifyContent: 'space-between',
+                    borderTop: `1px solid ${colorTokens.borderLight}`,
+                    paddingTop: '16px',
+                    marginTop: '16px',
+                    flexShrink: 0,
+                  }}>
+                    <div style={{ textAlign: 'center', width: '140px' }}>
+                      <div style={{ height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', fontSize: '12px', color: '#bbb' }}>
+                        *technician*
+                      </div>
+                      <p style={{ fontWeight: 700, color: '#37474F', fontSize: '9px', marginTop: '4px', borderTop: `1px solid ${colorTokens.borderLight}`, paddingTop: '4px' }}>
+                        Technician Sign
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'center', width: '140px' }}>
+                      <div style={{ height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', fontSize: '12px', color: '#bbb' }}>
+                        *doctor*
+                      </div>
+                      <p style={{ fontWeight: 700, color: '#37474F', fontSize: '9px', marginTop: '4px', borderTop: `1px solid ${colorTokens.borderLight}`, paddingTop: '4px' }}>
+                        Pathologist MD Sign
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
+          ))}
         </div>
       </div>
 

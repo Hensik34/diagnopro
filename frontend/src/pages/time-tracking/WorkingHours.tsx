@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Clock, Users, Calendar, Timer, ChevronDown, ChevronUp, Trash2, Loader2 } from 'lucide-react';
+import { Clock, Users, Calendar, Timer, ChevronDown, ChevronUp, Trash2, Loader2, User as UserIcon } from 'lucide-react';
 import { useTimeLogStore } from '../../stores';
 import { useBranchStore } from '../../stores/branchStore';
 import type { TimeLog } from '../../api/timeLogs';
@@ -34,6 +34,7 @@ export function WorkingHours() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [selectedStaffId, setSelectedStaffId] = useState<string>('');
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [userLogs, setUserLogs] = useState<TimeLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
@@ -75,7 +76,6 @@ export function WorkingHours() {
     if (success) {
       setUserLogs((prev) => prev.filter((l) => l.id !== logId));
       toast.success("Time log deleted successfully");
-      // Refresh summary
       const [year, month] = selectedMonth.split('-').map(Number);
       fetchUserSummary(
         new Date(year, month - 1, 1).toISOString(),
@@ -92,24 +92,50 @@ export function WorkingHours() {
   const formatTime = (dt: string) =>
     new Date(dt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-  const totalSessions = userSummary.reduce((sum, u) => sum + Number(u.total_sessions), 0);
+  const filteredUserSummary = userSummary.filter(
+    (u) => !selectedStaffId || u.user_id === selectedStaffId
+  );
+
+  const totalSessions = filteredUserSummary.reduce((sum, u) => sum + Number(u.total_sessions), 0);
+  const displayTotalHours = filteredUserSummary.reduce(
+    (sum, u) => sum + parseFloat(String(u.total_hours) || '0'),
+    0
+  );
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-semibold text-foreground mb-0.5">Working Hours</h1>
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground mb-0.5">Staff Working Hours</h1>
           <p className="text-muted-foreground text-xs">
-            View and manage staff working hours
+            View and manage staff shift attendance & duration
           </p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
+        <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto flex-shrink-0">
+          {/* Staff Filter Dropdown */}
+          <div className="relative w-full sm:w-48">
+            <UserIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+            <select
+              value={selectedStaffId}
+              onChange={(e) => setSelectedStaffId(e.target.value)}
+              className="w-full h-8 pl-8 pr-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary appearance-none cursor-pointer"
+            >
+              <option value="">All Staff</option>
+              {userSummary.map((s) => (
+                <option key={s.user_id} value={s.user_id}>
+                  {s.firstname} {s.lastname}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Month Selector */}
           <input
             type="month"
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
-            className="w-full sm:w-auto h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer text-foreground"
+            className="w-full sm:w-auto h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer text-foreground"
           />
         </div>
       </div>
@@ -118,7 +144,7 @@ export function WorkingHours() {
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-700 dark:text-red-400 flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={clearError} className="text-red-500 hover:text-red-700 font-medium">Dismiss</button>
+          <button onClick={clearError} className="text-red-500 hover:text-red-700 font-medium text-xs">Dismiss</button>
         </div>
       )}
 
@@ -131,32 +157,32 @@ export function WorkingHours() {
           </div>
           <div className="mb-2">
             <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
-              {userSummary.length}
+              {filteredUserSummary.length}
             </span>
           </div>
           <div className="flex items-center gap-1 text-xs">
-            <span className="text-muted-foreground">Staff tracked this month</span>
+            <span className="text-muted-foreground">Staff tracked this period</span>
           </div>
         </div>
 
         <div className="bg-card border border-border rounded p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Total Hours</span>
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Total Working Hours</span>
             <Timer className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </div>
           <div className="mb-2">
             <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
-              {totalHoursAll}h
+              {displayTotalHours.toFixed(1)}h
             </span>
           </div>
           <div className="flex items-center gap-1 text-xs">
-            <span className="text-muted-foreground">Accumulated duration</span>
+            <span className="text-muted-foreground">Accumulated shift duration</span>
           </div>
         </div>
 
         <div className="bg-card border border-border rounded p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Total Sessions</span>
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">Total Shift Sessions</span>
             <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </div>
           <div className="mb-2">
@@ -170,28 +196,29 @@ export function WorkingHours() {
         </div>
       </div>
 
-      {/* User List */}
+      {/* User Hours Summary List */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Staff Hours Summary</h2>
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Staff Shift Summary</h2>
+          <span className="text-xs text-muted-foreground">Click staff row to view day-by-day shift breakdown</span>
         </div>
 
         {isLoading && userSummary.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
           </div>
-        ) : userSummary.length === 0 ? (
+        ) : filteredUserSummary.length === 0 ? (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <Clock className="w-10 h-10 mx-auto mb-2 opacity-50" />
-            <p>No time records for this period</p>
+            <p>No time records found for this selection</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-100 dark:divide-gray-700">
-            {userSummary.map((user) => (
+            {filteredUserSummary.map((user) => (
               <div key={user.user_id}>
                 <button
                   onClick={() => handleExpandUser(user.user_id)}
-                  className="w-full px-4 py-1.5 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -211,8 +238,10 @@ export function WorkingHours() {
                   </div>
                   <div className="flex items-center gap-6">
                     <div className="text-right">
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">{Number(user.total_hours).toFixed(1)}h</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{user.total_sessions} sessions</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">
+                        {Number(user.total_hours).toFixed(1)}h Total
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{user.total_sessions} shift sessions</p>
                     </div>
                     {expandedUser === user.user_id ? (
                       <ChevronUp className="w-4 h-4 text-gray-400" />
@@ -222,7 +251,7 @@ export function WorkingHours() {
                   </div>
                 </button>
 
-                {/* Expanded user logs */}
+                {/* Day-by-Day Shift Breakdown */}
                 {expandedUser === user.user_id && (
                   <div className="bg-gray-50 dark:bg-gray-900/50 px-4 pb-4">
                     {loadingLogs ? (
@@ -234,28 +263,42 @@ export function WorkingHours() {
                     ) : (
                       <table className="w-full text-sm mt-2">
                         <thead>
-                          <tr className="text-left text-gray-500 dark:text-gray-400">
+                          <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                             <th className="pb-2 font-medium">Date</th>
                             <th className="pb-2 font-medium">Clock In</th>
                             <th className="pb-2 font-medium">Clock Out</th>
-                            <th className="pb-2 font-medium">Hours</th>
-                            <th className="pb-2 font-medium">Notes</th>
-                            <th className="pb-2 font-medium"></th>
+                            <th className="pb-2 font-medium">Day Working Duration</th>
+                            <th className="pb-2 font-medium">Lab Location Check</th>
+                            <th className="pb-2 font-medium">Shift Notes</th>
+                            <th className="pb-2 font-medium text-right">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                           {userLogs.map((log) => (
                             <tr key={log.id} className="text-gray-700 dark:text-gray-300">
-                              <td className="py-2">{formatDate(log.clock_in)}</td>
-                              <td className="py-2">{formatTime(log.clock_in)}</td>
-                              <td className="py-2">
+                              <td className="py-2.5 font-medium">{formatDate(log.clock_in)}</td>
+                              <td className="py-2.5">{formatTime(log.clock_in)}</td>
+                              <td className="py-2.5">
                                 {log.clock_out ? formatTime(log.clock_out) : (
-                                  <span className="text-xs px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">Active</span>
+                                  <span className="text-xs px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">Active Shift</span>
                                 )}
                               </td>
-                              <td className="py-2 font-medium">{log.total_hours ? `${log.total_hours}h` : '—'}</td>
-                              <td className="py-2 text-gray-500 max-w-[150px] truncate">{log.notes || '—'}</td>
-                              <td className="py-2">
+                              <td className="py-2.5 font-semibold text-gray-900 dark:text-white">
+                                {log.total_hours ? `${log.total_hours} hrs` : '—'}
+                              </td>
+                              <td className="py-2.5">
+                                {log.location_meta?.clock_in?.verified || log.location_meta?.clock_out?.verified ? (
+                                  <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">
+                                    🟢 Lab Verified
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">Standard</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 text-xs text-muted-foreground max-w-[180px] truncate">
+                                {log.notes || '—'}
+                              </td>
+                              <td className="py-2.5 text-right">
                                 <button
                                   onClick={() => handleDeleteLog(log.id)}
                                   className="p-1 text-red-500 hover:text-red-700 rounded hover:bg-red-50 dark:hover:bg-red-900/20"

@@ -804,6 +804,29 @@ export function PublicReportDownload() {
                       );
                     }
 
+                    // Render inline test-specific remark box
+                    if (item.type === 'testRemark') {
+                      return (
+                        <div
+                          key={`testremark-${idx}`}
+                          style={{
+                            marginTop: '8px',
+                            color: '#222',
+                            textAlign: 'left'
+                          }}
+                        >
+                          <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px', fontSize: '9.5px' }}>
+                            Notes / Remarks
+                          </div>
+                          <FormattedClinicalSignificance
+                            text={item.text}
+                            fontSize="9.5px"
+                            bold={false}
+                          />
+                        </div>
+                      );
+                    }
+
                     // Render inline general/technician notes box
                     if (item.type === 'generalNotes') {
                       return (
@@ -1289,37 +1312,51 @@ export function PublicReportDownload() {
 
                     // Render inline clinical significance box
                     if (item.type === 'interpretation') {
+                      const snapshot = layoutSnapshots[item.testId];
+                      const sigLayout = snapshot?.clinicalSignificanceLayout;
+                      const sigFontSize = sigLayout?.fontSize ? `${sigLayout.fontSize}px` : '9.5px';
+                      const titleFontWeight = sigLayout?.bold ? '800' : '700';
+
                       return (
                         <div
                           key={`i-${idx}`}
                           style={{
                             marginTop: '8px',
-                            fontSize: '9.5px',
                             color: '#222',
-                            lineHeight: 1.45,
                             textAlign: 'left'
                           }}
                         >
-                          <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                          <div style={{ fontWeight: titleFontWeight, color: '#111', textTransform: 'uppercase', marginBottom: '2px', fontSize: sigFontSize }}>
                             Clinical Significance
                           </div>
-                          <div style={{ margin: 0 }}>
-                            {item.text.split('\n').map((line, lineIdx) => {
-                              const isTableRow = line.includes('\t') || line.includes('   ');
-                              return (
-                                <div
-                                  key={lineIdx}
-                                  style={{
-                                    fontFamily: isTableRow ? 'Consolas, Monaco, "Courier New", Courier, monospace' : 'inherit',
-                                    whiteSpace: 'pre-wrap',
-                                    minHeight: '1em'
-                                  }}
-                                >
-                                  {line}
-                                </div>
-                              );
-                            })}
+                          <FormattedClinicalSignificance
+                            text={item.text}
+                            fontSize={sigFontSize}
+                            bold={!!sigLayout?.bold}
+                          />
+                        </div>
+                      );
+                    }
+
+                    // Render inline test-specific remark box
+                    if (item.type === 'testRemark') {
+                      return (
+                        <div
+                          key={`testremark-${idx}`}
+                          style={{
+                            marginTop: '8px',
+                            color: '#222',
+                            textAlign: 'left'
+                          }}
+                        >
+                          <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px', fontSize: '9.5px' }}>
+                            Notes / Remarks
                           </div>
+                          <FormattedClinicalSignificance
+                            text={item.text}
+                            fontSize="9.5px"
+                            bold={false}
+                          />
                         </div>
                       );
                     }
@@ -1331,32 +1368,18 @@ export function PublicReportDownload() {
                           key={`gnotes-${idx}`}
                           style={{
                             marginTop: '8px',
-                            fontSize: '9.5px',
                             color: '#222',
-                            lineHeight: 1.45,
                             textAlign: 'left'
                           }}
                         >
-                          <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px' }}>
+                          <div style={{ fontWeight: 800, color: '#111', textTransform: 'uppercase', marginBottom: '2px', fontSize: '9.5px' }}>
                             Technician Notes / Interpretation
                           </div>
-                          <div style={{ margin: 0 }}>
-                            {item.text.split('\n').map((line, lineIdx) => {
-                              const isTableRow = line.includes('\t') || line.includes('   ');
-                              return (
-                                <div
-                                  key={lineIdx}
-                                  style={{
-                                    fontFamily: isTableRow ? 'Consolas, Monaco, "Courier New", Courier, monospace' : 'inherit',
-                                    whiteSpace: 'pre-wrap',
-                                    minHeight: '1em'
-                                  }}
-                                >
-                                  {line}
-                                </div>
-                              );
-                            })}
-                          </div>
+                          <FormattedClinicalSignificance
+                            text={item.text}
+                            fontSize="9.5px"
+                            bold={false}
+                          />
                         </div>
                       );
                     }
