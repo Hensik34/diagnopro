@@ -25,6 +25,7 @@ import {
   Edit2,
   Printer,
   Star,
+  RefreshCw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -359,6 +360,10 @@ export function ReportEntry() {
     fetchReportById,
     updateReport,
     submitReport,
+    approveTest,
+    rejectTest,
+    sendTestForApproval,
+    sendAllTestsForApproval,
     setSelectedReport,
     isLoading: reportLoading,
     error: reportError
@@ -1057,9 +1062,15 @@ export function ReportEntry() {
         originalSnapshotRef.current = selectedReport.pricing_snapshot || [];
       }
 
-      // Auto-prompt sample reception modal if pending on initial entry
-      if (selectedReport.sample_status !== 'received' && hasPromptedReceptionRef.current !== selectedReport.id) {
+      // Auto-prompt sample reception modal if pending on initial entry (never for approved reports)
+      if (
+        selectedReport.status !== 'approved' &&
+        selectedReport.sample_status !== 'received' &&
+        hasPromptedReceptionRef.current !== selectedReport.id
+      ) {
         setIsSampleReceptionModalOpen(true);
+        hasPromptedReceptionRef.current = selectedReport.id;
+      } else if (hasPromptedReceptionRef.current !== selectedReport.id) {
         hasPromptedReceptionRef.current = selectedReport.id;
       }
     }
@@ -2160,13 +2171,24 @@ export function ReportEntry() {
     // Also build flat parameters list for backward compatibility
     const allParameters = groupedTests.flatMap(g => g.parameters);
 
+    let existingApprovals = {};
+    try {
+      const rawTd = selectedReport?.test_data;
+      const parsedTd = typeof rawTd === 'string' ? JSON.parse(rawTd) : (rawTd || {});
+      existingApprovals = parsedTd.test_approvals || {};
+    } catch (e) {
+      existingApprovals = {};
+    }
+
     return {
       testName,
       testType: selectedReport?.test_data?.testType || 'General',
       testIds,
       tests: groupedTests,
       parameters: allParameters,
-      remarks: technicianNotes
+      remarks: technicianNotes,
+      test_approvals: existingApprovals,
+      testRemarks,
     };
   };
 
@@ -2485,6 +2507,67 @@ export function ReportEntry() {
     }
   };
 
+  const handleApproveCurrentTest = async () => {
+    if (!reportId || !activeSection) return;
+    setIsSubmitting(true);
+    try {
+      await saveCurrentReportData();
+      const res = await approveTest(reportId, activeSection.testId);
+      if (res) {
+        toast.success(`${activeSection.testName} approved successfully!`);
+        await fetchReportById(reportId);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to approve test");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSendCurrentTestForApproval = async () => {
+    if (!reportId || !activeSection) return;
+    setIsSubmitting(true);
+    try {
+      await saveCurrentReportData();
+      const res = await sendTestForApproval(reportId, activeSection.testId);
+      if (res) {
+        toast.success(`${activeSection.testName} sent for approval!`);
+        await fetchReportById(reportId);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to send test for approval");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSendAllForApproval = async () => {
+    if (!reportId) return;
+    setIsSubmitting(true);
+    try {
+      await saveCurrentReportData();
+      const res = await sendAllTestsForApproval(reportId);
+      if (res) {
+        toast.success("All tests sent for approval!");
+        await fetchReportById(reportId);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to send tests for approval");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRefreshReport = async () => {
+    if (!reportId) return;
+    try {
+      await fetchReportById(reportId);
+      toast.success("Report refreshed");
+    } catch (e) {
+      toast.error("Failed to refresh report");
+    }
+  };
+
   // Generate AI interpretation
   const handleGenerateInterpretation = async () => {
     if (!reportId) {
@@ -2798,6 +2881,7 @@ export function ReportEntry() {
           <div className="flex-1 overflow-y-auto scrollbar-hide space-y-1">
             {testSections.map((section) => {
               const isActive = section.testId === activeTestId;
+              const approval = (parsedTestData?.test_approvals || {})[section.testId];
               return (
                 <div
                   key={section.testId}
@@ -2808,9 +2892,23 @@ export function ReportEntry() {
                     }`}
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                      approval?.status === 'approved'
+                        ? 'bg-emerald-500'
+                        : approval?.status === 'under_review' || approval?.status === 'pending_approval'
+                        ? 'bg-amber-500'
+                        : approval?.status === 'rejected'
+                        ? 'bg-rose-500'
+                        : isActive ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'
+                    }`} />
                     <span className="truncate">{section.testName}</span>
                   </div>
+                  {approval?.status === 'approved' && (
+                    <span className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold ml-1">✓</span>
+                  )}
+                  {approval?.status === 'rejected' && (
+                    <span className="text-[9px] bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded font-bold ml-1">✗</span>
+                  )}
                   {isEditable && canRemoveTest && (
                     <button
                       type="button"
@@ -2818,7 +2916,7 @@ export function ReportEntry() {
                         e.stopPropagation();
                         handleConfirmRemoveTest(section.testId, section.testName);
                       }}
-                      className="w-4 h-4 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all flex-shrink-0 cursor-pointer"
+                      className="w-4 h-4 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all flex-shrink-0 cursor-pointer ml-1"
                       title="Remove test"
                     >
                       <X className="w-3 h-3" />
@@ -2882,7 +2980,16 @@ export function ReportEntry() {
                       {activeSection.testCode}
                     </span>
                   )}
+                  {(() => {
+                    const approval = (parsedTestData?.test_approvals || {})[activeSection.testId];
+                    if (approval?.status === 'approved') return <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-bold flex-shrink-0">Approved</span>;
+                    if (approval?.status === 'under_review' || approval?.status === 'pending_approval') return <span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded font-bold flex-shrink-0">In Review</span>;
+                    if (approval?.status === 'rejected') return <span className="text-[10px] bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded font-bold flex-shrink-0">Rejected</span>;
+                    return null;
+                  })()}
                 </div>
+
+
 
                 {/* Mobile/Tablet Sub-Tab Switcher */}
                 <div className="lg:hidden flex items-center border border-slate-200 dark:border-slate-800 rounded-lg p-0.5 bg-white dark:bg-slate-950 flex-shrink-0">
@@ -3422,35 +3529,21 @@ export function ReportEntry() {
           )}
         </div>
 
-        {/* Right Column: Summary, Quick Actions, Notes, AIInterpretation */}
+        {/* Right Column: Quick Actions, Notes, AIInterpretation */}
         <div className="hidden lg:flex h-full flex-col gap-3 overflow-hidden flex-shrink-0">
-          {/* Report Summary Card */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm space-y-2 flex-shrink-0">
-            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 px-0.5">Report Summary</h3>
-            <div className="bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-900 rounded-xl p-3 space-y-2.5 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Total Tests</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">{summaryCounts.total}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Completed</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">{summaryCounts.completed}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">In Progress</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">{summaryCounts.inProgress}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Pending</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">{summaryCounts.pending}</span>
-              </div>
-            </div>
-          </div>
 
           {/* Quick Actions Card */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm space-y-2 flex-shrink-0">
             <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 px-0.5">Quick Actions</h3>
             <div className="space-y-2">
+              <button
+                onClick={handleRefreshReport}
+                className="w-full h-9 flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 rounded-lg transition-colors shadow-sm cursor-pointer"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh Report
+              </button>
+
               <button
                 onClick={handleSaveDraft}
                 disabled={isSaving || !reportId}
@@ -3471,6 +3564,38 @@ export function ReportEntry() {
                 Preview Report ({selectedReport?.preview_count || 0})
               </button>
 
+              {reportId && isEditable && (
+                canAutoApprove ? (
+                  <button
+                    onClick={handleApproveCurrentTest}
+                    disabled={isSubmitting || !activeSection}
+                    className="w-full h-9 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Approve Single Test
+                  </button>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={handleSendCurrentTestForApproval}
+                      disabled={isSubmitting || !activeSection}
+                      className="w-full h-9 flex items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      Send Test
+                    </button>
+                    <button
+                      onClick={handleSendAllForApproval}
+                      disabled={isSubmitting}
+                      className="w-full h-9 flex items-center justify-center gap-1 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      Send All
+                    </button>
+                  </div>
+                )
+              )}
+
               {(reportStatus === 'draft' || reportStatus === 'rejected') && (
                 <button
                   onClick={handleSubmitForReview}
@@ -3480,8 +3605,8 @@ export function ReportEntry() {
                 >
                   <CheckCircle className="w-4 h-4" />
                   {reportStatus === 'rejected'
-                    ? (canAutoApprove ? 'Re-Approve Report' : 'Resubmit for Review')
-                    : (canAutoApprove ? 'Approve Report' : 'Submit for Review')}
+                    ? (canAutoApprove ? 'Re-Approve Full Report' : 'Resubmit Full Report')
+                    : (canAutoApprove ? 'Approve Full Report' : 'Submit Full Report')}
                 </button>
               )}
             </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Navigate } from 'react-router';
 import { SummaryCards } from '../../app/components/dashboard/SummaryCards';
 import { DashboardCalendar } from '../../app/components/dashboard/DashboardCalendar';
 import { StaffDashboard } from '../../app/components/dashboard/StaffDashboard';
@@ -19,13 +20,14 @@ export function Dashboard() {
   const currentRole = getBranchRole();
   const isAdmin = can(PERMISSIONS.USER_MANAGE_ROLES);
   const isDoctor = currentRole === 'doctor';
+  const isPathologist = currentRole === 'pathologist';
 
   useEffect(() => {
-    if (!isDoctor) {
+    if (!isDoctor && !isPathologist) {
       const filters = currentBranchId ? { branch_id: currentBranchId } : {};
       fetchReports(filters);
     }
-  }, [fetchReports, currentBranchId, isDoctor]);
+  }, [fetchReports, currentBranchId, isDoctor, isPathologist]);
 
   const handleRefresh = () => {
     const filters = currentBranchId ? { branch_id: currentBranchId } : {};
@@ -35,6 +37,11 @@ export function Dashboard() {
   // Doctor gets their own dashboard
   if (isDoctor) {
     return <DoctorDashboard />;
+  }
+
+  // Pathologist gets redirected directly to Report Review
+  if (isPathologist) {
+    return <Navigate to="/app/reports/review" replace />;
   }
 
   // Staff / Technician see a different dashboard

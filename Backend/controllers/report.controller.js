@@ -863,34 +863,21 @@ async function triggerWhatsAppDelivery(id) {
   }
 }
 
-// SUBMIT REPORT FOR REVIEW (draft/rejected → under_review)
+// SUBMIT REPORT FOR REVIEW (draft/rejected → under_review or approved)
 exports.submitReport = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
     const userRole = req.user.role;
 
-    logWhatsAppDebug("submitReport controller started", {
-      reportId: id,
-      userId,
-      userRole,
-    });
-
     const report = await reportService.submitForReview(id, userId, userRole);
 
-    let whatsappDelivery = undefined;
-    if (report && report.status === "approved") {
-      logWhatsAppDebug(
-        "Report was auto-approved upon submission. Triggering WhatsApp auto-delivery.",
-      );
-      whatsappDelivery = { queued: true };
-      setImmediate(() => {
-        triggerWhatsAppDelivery(id).catch((err) =>
-          logWhatsAppDebug("Background delivery failed after submit auto-approve", {
-            id,
-            error: err.message,
-          }),
-        );
+    if (report && report.branch_id) {
+      emitBranchWhatsAppEvent(report.branch_id, "report:status_change", {
+        report_id: report.id,
+        patient_name: report.patient ? report.patient.name : 'Patient',
+        status: report.status,
+        updated_at: new Date().toISOString(),
       });
     }
 
@@ -900,12 +887,8 @@ exports.submitReport = async (req, res) => {
           ? "Report approved successfully"
           : "Report submitted for review successfully",
       data: report,
-      whatsapp_delivery: whatsappDelivery,
     });
   } catch (err) {
-    logWhatsAppDebug("submitReport controller threw error", {
-      error: err.message,
-    });
     console.error("Submit report error:", err);
     res.status(400).json({ error: err.message });
   }
@@ -955,6 +938,116 @@ exports.reviseReport = async (req, res) => {
     });
   } catch (err) {
     console.error("Revise report error:", err);
+    res.status(400).json({ error: err.message });
+  }
+};
+
+// APPROVE SINGLE TEST
+exports.approveTest = async (req, res) => {
+  try {
+    const { id, testId } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    const report = await reportService.approveTest(id, testId, userId, userRole);
+
+    if (report && report.branch_id) {
+      emitBranchWhatsAppEvent(report.branch_id, "report:status_change", {
+        report_id: report.id,
+        test_id: testId,
+        status: report.status,
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    res.json({
+      message: "Test approved successfully",
+      data: report,
+    });
+  } catch (err) {
+    console.error("Approve test error:", err);
+    res.status(400).json({ error: err.message });
+  }
+};
+
+// REJECT SINGLE TEST
+exports.rejectTest = async (req, res) => {
+  try {
+    const { id, testId } = req.params;
+    const { reason } = req.body;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    const report = await reportService.rejectTest(id, testId, userId, userRole, reason);
+
+    if (report && report.branch_id) {
+      emitBranchWhatsAppEvent(report.branch_id, "report:status_change", {
+        report_id: report.id,
+        test_id: testId,
+        status: report.status,
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    res.json({
+      message: "Test rejected",
+      data: report,
+    });
+  } catch (err) {
+    console.error("Reject test error:", err);
+    res.status(400).json({ error: err.message });
+  }
+};
+
+// SEND SINGLE TEST FOR APPROVAL
+exports.sendTestForApproval = async (req, res) => {
+  try {
+    const { id, testId } = req.params;
+    const userId = req.user.id;
+
+    const report = await reportService.sendTestForApproval(id, testId, userId);
+
+    if (report && report.branch_id) {
+      emitBranchWhatsAppEvent(report.branch_id, "report:status_change", {
+        report_id: report.id,
+        test_id: testId,
+        status: report.status,
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    res.json({
+      message: "Test sent for approval",
+      data: report,
+    });
+  } catch (err) {
+    console.error("Send test for approval error:", err);
+    res.status(400).json({ error: err.message });
+  }
+};
+
+// SEND ALL TESTS FOR APPROVAL
+exports.sendAllTestsForApproval = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const report = await reportService.sendAllTestsForApproval(id, userId);
+
+    if (report && report.branch_id) {
+      emitBranchWhatsAppEvent(report.branch_id, "report:status_change", {
+        report_id: report.id,
+        status: report.status,
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    res.json({
+      message: "All tests sent for approval",
+      data: report,
+    });
+  } catch (err) {
+    console.error("Send all tests for approval error:", err);
     res.status(400).json({ error: err.message });
   }
 };
@@ -1030,34 +1123,22 @@ exports.approveReport = async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role;
 
-    logWhatsAppDebug("approveReport controller started", {
-      reportId: id,
-      userId,
-      userRole,
-    });
-
     const report = await reportService.approveReport(id, userId, userRole);
 
-    // Respond immediately — report is already approved in DB
+    if (report && report.branch_id) {
+      emitBranchWhatsAppEvent(report.branch_id, "report:status_change", {
+        report_id: report.id,
+        patient_name: report.patient ? report.patient.name : 'Patient',
+        status: report.status,
+        updated_at: new Date().toISOString(),
+      });
+    }
+
     res.json({
       message: "Report approved successfully",
       data: report,
-      whatsapp_delivery: { queued: true },
-    });
-
-    // Run PDF generation + WhatsApp send in the background (do NOT await)
-    setImmediate(() => {
-      triggerWhatsAppDelivery(id).catch((err) =>
-        logWhatsAppDebug("Background delivery failed", {
-          id,
-          error: err.message,
-        }),
-      );
     });
   } catch (err) {
-    logWhatsAppDebug("approveReport controller threw error", {
-      error: err.message,
-    });
     console.error("Approve report error:", err);
     res.status(400).json({ error: err.message });
   }

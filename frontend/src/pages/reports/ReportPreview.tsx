@@ -454,11 +454,16 @@ export function ReportPreview() {
     const testSections: TestSection[] = [];
     const params: Parameter[] = [];
 
-    const layoutSnapshots = testData?.layout_snapshots || {};
+    const testApprovals = testData?.test_approvals || {};
 
     if (testData?.tests?.length) {
       for (let i = 0; i < testData.tests.length; i++) {
         const group = testData.tests[i];
+        const isTestApproved = rawReport.status === 'approved' || testApprovals[group.testId]?.status === 'approved';
+        if (!isTestApproved && rawReport.status !== 'approved') {
+          continue;
+        }
+
         const sectionParams = (group.parameters || []).map((p: any) => mapParam(p, group.testId));
 
         const snapshot = layoutSnapshots[group.testId];

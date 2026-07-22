@@ -149,6 +149,38 @@ export const reportApi = {
     return response.data;
   },
 
+  /**
+   * Approve a single test in a report
+   */
+  approveTest: async (id: string, testId: string): Promise<ApiResponse<Report>> => {
+    const response = await api.patch<ApiResponse<Report>>(`/reports/${id}/approve-test/${testId}`);
+    return response.data;
+  },
+
+  /**
+   * Reject a single test in a report
+   */
+  rejectTest: async (id: string, testId: string, reason: string): Promise<ApiResponse<Report>> => {
+    const response = await api.patch<ApiResponse<Report>>(`/reports/${id}/reject-test/${testId}`, { reason });
+    return response.data;
+  },
+
+  /**
+   * Send a single test for approval
+   */
+  sendTestForApproval: async (id: string, testId: string): Promise<ApiResponse<Report>> => {
+    const response = await api.patch<ApiResponse<Report>>(`/reports/${id}/send-test-for-approval/${testId}`);
+    return response.data;
+  },
+
+  /**
+   * Send all tests in a report for approval
+   */
+  sendAllTestsForApproval: async (id: string): Promise<ApiResponse<Report>> => {
+    const response = await api.patch<ApiResponse<Report>>(`/reports/${id}/send-all-for-approval`);
+    return response.data;
+  },
+
   // ==========================================
   // LEGACY/UTILITY ACTIONS
   // ==========================================

@@ -31,6 +31,8 @@ export function ReportReview() {
     fetchReports, 
     approveReport, 
     rejectReport,
+    approveTest,
+    rejectTest,
     isLoading, 
     isActionLoading,
     actionId,
@@ -39,83 +41,78 @@ export function ReportReview() {
   } = useReportStore();
   const { user } = useAuthStore();
 
-  // Filter for under_review reports using useMemo to prevent infinite loops
+  // Filter for under_review or draft reports having tests pending approval
   const underReviewReports = useMemo(
-    () => reports.filter((r) => r.status === 'under_review'),
+    () => reports.filter((r) => r.status === 'under_review' || r.status === 'draft'),
     [reports]
   );
 
   // UI State
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
 
   // Fetch reports on mount
   useEffect(() => {
-    fetchReports({ status: 'under_review' });
+    fetchReports();
   }, [fetchReports]);
 
   /**
-   * Handle approve action
+   * Handle approve entire report
    */
   const handleApprove = async (reportId: string) => {
     const result = await approveReport(reportId);
     if (result) {
       toast.success('Report approved successfully!');
-      
-      // Check WhatsApp delivery details
-      const delivery = result.whatsapp_delivery;
-      if (delivery) {
-        const warnings: string[] = [];
-        
-        if (delivery.patient && !delivery.patient.sent && !delivery.patient.skipped) {
-          warnings.push(`Patient: ${delivery.patient.reason || 'Failed'}`);
-        }
-        if (delivery.doctor && !delivery.doctor.sent && !delivery.doctor.skipped) {
-          warnings.push(`Doctor: ${delivery.doctor.reason || 'Failed'}`);
-        }
-        
-        if (warnings.length > 0) {
-          toast.warning(`WhatsApp auto-send issues: ${warnings.join('; ')}`, {
-            duration: 6000
-          });
-        } else if (
-          (delivery.patient && delivery.patient.sent) ||
-          (delivery.doctor && delivery.doctor.sent)
-        ) {
-          toast.success('WhatsApp notifications sent successfully!');
-        }
-      }
-
-      // Remove from list by refreshing
-      fetchReports({ status: 'under_review' });
+      fetchReports();
     }
   };
 
   /**
-   * Handle reject action
+   * Handle approve single test
+   */
+  const handleApproveSingleTest = async (reportId: string, testId: string, testName: string) => {
+    const result = await approveTest(reportId, testId);
+    if (result) {
+      toast.success(`${testName} approved successfully!`);
+      fetchReports();
+    }
+  };
+
+  /**
+   * Handle reject action (report or single test)
    */
   const handleReject = async () => {
     if (!selectedReport) return;
     if (!rejectReason.trim()) {
-      alert('Please provide a reason for rejection');
+      toast.error('Please provide a reason for rejection');
       return;
     }
 
-    const result = await rejectReport(selectedReport.id, rejectReason);
+    let result;
+    if (selectedTestId) {
+      result = await rejectTest(selectedReport.id, selectedTestId, rejectReason);
+    } else {
+      result = await rejectReport(selectedReport.id, rejectReason);
+    }
+
     if (result) {
+      toast.success(selectedTestId ? 'Test rejected' : 'Report rejected');
       setShowRejectModal(false);
       setSelectedReport(null);
+      setSelectedTestId(null);
       setRejectReason('');
-      fetchReports({ status: 'under_review' });
+      fetchReports();
     }
   };
 
   /**
-   * Open reject modal
+   * Open reject modal for report or test
    */
-  const openRejectModal = (report: Report) => {
+  const openRejectModal = (report: Report, testId: string | null = null) => {
     setSelectedReport(report);
+    setSelectedTestId(testId);
     setRejectReason('');
     setShowRejectModal(true);
   };
@@ -246,96 +243,184 @@ export function ReportReview() {
 
         {underReviewReports.length > 0 ? (
           <div className="divide-y divide-border">
-            {underReviewReports.map((report) => (
-              <div 
-                key={report.id}
-                className="p-2.5 hover:bg-accent/30 transition-colors"
-              >
-                <div className="flex items-start justify-between">
-                  {/* Report Info */}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-foreground">
-                        {report.report_type || 'General Test'}
-                      </span>
-                      <span className="text-[10px] bg-warning/20 text-warning px-1.5 py-0.5 rounded">
-                        Under Review
-                      </span>
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-4 text-xs text-muted-foreground mt-2">
-                      {/* Patient */}
-                      <div className="flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5" />
-                        <div>
-                          <div className="text-foreground">{getPatientName(report)}</div>
-                          <div className="text-[10px]">{report.patient_id?.slice(0, 8) || 'N/A'}</div>
-                        </div>
+            {underReviewReports.map((report) => {
+              let parsedData: any = {};
+              try {
+                parsedData = typeof report.test_data === 'string' ? JSON.parse(report.test_data) : (report.test_data || {});
+              } catch (e) {
+                parsedData = {};
+              }
+
+              const testsList: any[] = parsedData.tests || [];
+              const testApprovals: Record<string, any> = parsedData.test_approvals || {};
+
+              return (
+                <div 
+                  key={report.id}
+                  className="p-3 hover:bg-accent/30 transition-colors space-y-3"
+                >
+                  <div className="flex items-start justify-between">
+                    {/* Report Info */}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-semibold text-foreground">
+                          {report.report_type || 'General Test'}
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                          report.status === 'approved'
+                            ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                            : report.status === 'under_review'
+                            ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {report.status === 'under_review' ? 'Under Review' : report.status}
+                        </span>
                       </div>
                       
-                      {/* Submitted */}
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5" />
-                        <div>
-                          <div className="text-foreground">
-                            {report.submitted_at 
-                              ? format(new Date(report.submitted_at), 'MMM d, yyyy')
-                              : report.created_at 
-                                ? format(new Date(report.created_at), 'MMM d, yyyy')
-                                : 'N/A'}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-muted-foreground mt-2">
+                        {/* Patient */}
+                        <div className="flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 flex-shrink-0" />
+                          <div>
+                            <div className="text-foreground font-medium">{getPatientName(report)}</div>
+                            <div className="text-[10px]">Patient</div>
                           </div>
-                          <div className="text-[10px]">Submitted</div>
+                        </div>
+
+                        {/* Referring Doctor */}
+                        <div className="flex items-center gap-1.5">
+                          <Microscope className="w-3.5 h-3.5 flex-shrink-0" />
+                          <div>
+                            <div className="text-foreground font-medium">{report.doctor_name || report.referring_doctor_name || 'Self'}</div>
+                            <div className="text-[10px]">Doctor</div>
+                          </div>
+                        </div>
+                        
+                        {/* Submitted */}
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                          <div>
+                            <div className="text-foreground">
+                              {report.submitted_at 
+                                ? format(new Date(report.submitted_at), 'MMM d, yyyy')
+                                : report.created_at 
+                                  ? format(new Date(report.created_at), 'MMM d, yyyy')
+                                  : 'N/A'}
+                            </div>
+                            <div className="text-[10px]">Submitted</div>
+                          </div>
+                        </div>
+                        
+                        {/* Technician */}
+                        <div className="flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 flex-shrink-0" />
+                          <div>
+                            <div className="text-foreground">{getTechnicianName(report)}</div>
+                            <div className="text-[10px]">Technician</div>
+                          </div>
                         </div>
                       </div>
-                      
-                      {/* Technician */}
-                      <div className="flex items-center gap-1.5">
-                        <Microscope className="w-3.5 h-3.5" />
-                        <div>
-                          <div className="text-foreground">{getTechnicianName(report)}</div>
-                          <div className="text-[10px]">Technician</div>
-                        </div>
-                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 ml-4">
+                      <Link
+                        to={`/app/reports/preview/${report.id}`}
+                        className="h-8 px-3 flex items-center gap-1.5 bg-secondary border border-border rounded hover:bg-accent transition-colors text-xs font-medium"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        View
+                      </Link>
+                      <button
+                        onClick={() => openRejectModal(report)}
+                        disabled={isActionLoading && actionId === report.id}
+                        className="h-8 px-3 flex items-center gap-1.5 bg-destructive/10 border border-destructive/20 text-destructive rounded hover:bg-destructive/20 transition-colors text-xs font-medium disabled:opacity-50 cursor-pointer"
+                      >
+                        {isActionLoading && actionId === report.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <XCircle className="w-3.5 h-3.5" />
+                        )}
+                        Reject All
+                      </button>
+                      <button
+                        onClick={() => handleApprove(report.id)}
+                        disabled={isActionLoading && actionId === report.id}
+                        className="h-8 px-3 flex items-center gap-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors text-xs font-bold disabled:opacity-50 cursor-pointer"
+                      >
+                        {isActionLoading && actionId === report.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle className="w-3.5 h-3.5" />
+                        )}
+                        Approve All
+                      </button>
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 ml-4">
-                    <Link
-                      to={`/app/reports/preview/${report.id}`}
-                      className="h-8 px-3 flex items-center gap-1.5 bg-secondary border border-border rounded hover:bg-accent transition-colors text-xs"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      View
-                    </Link>
-                    <button
-                      onClick={() => openRejectModal(report)}
-                      disabled={isActionLoading && actionId === report.id}
-                      className="h-8 px-3 flex items-center gap-1.5 bg-destructive/10 border border-destructive/20 text-destructive rounded hover:bg-destructive/20 transition-colors text-xs disabled:opacity-50"
-                    >
-                      {isActionLoading && actionId === report.id ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <XCircle className="w-3.5 h-3.5" />
-                      )}
-                      Reject
-                    </button>
-                    <button
-                      onClick={() => handleApprove(report.id)}
-                      disabled={isActionLoading && actionId === report.id}
-                      className="h-8 px-3 flex items-center gap-1.5 bg-success text-white rounded hover:opacity-90 transition-opacity text-xs disabled:opacity-50"
-                    >
-                      {isActionLoading && actionId === report.id ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <CheckCircle className="w-3.5 h-3.5" />
-                      )}
-                      Approve
-                    </button>
-                  </div>
+                  {/* Individual Tests Breakdown */}
+                  {testsList.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-border/50 bg-secondary/20 rounded-lg p-2.5 space-y-2">
+                      <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                        Individual Tests ({testsList.length})
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {testsList.map((t: any) => {
+                          const testId = t.testId || t.id;
+                          const approval = testApprovals[testId];
+                          const status = approval?.status || 'pending';
+
+                          return (
+                            <div 
+                              key={testId}
+                              className="flex items-center justify-between p-2 rounded bg-card border border-border/60 text-xs"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="font-semibold text-foreground truncate">
+                                  {t.testName || t.name}
+                                </span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold flex-shrink-0 ${
+                                  status === 'approved'
+                                    ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                                    : status === 'under_review' || status === 'pending_approval'
+                                    ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                                    : status === 'rejected'
+                                    ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400'
+                                    : 'bg-muted text-muted-foreground'
+                                }`}>
+                                  {status === 'under_review' || status === 'pending_approval' ? 'Pending' : status}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                                {status !== 'approved' && (
+                                  <>
+                                    <button
+                                      onClick={() => openRejectModal(report, testId)}
+                                      disabled={isActionLoading && actionId === report.id}
+                                      className="px-2 py-1 bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive/20 rounded text-[11px] font-medium cursor-pointer"
+                                    >
+                                      Reject
+                                    </button>
+                                    <button
+                                      onClick={() => handleApproveSingleTest(report.id, testId, t.testName || t.name)}
+                                      disabled={isActionLoading && actionId === report.id}
+                                      className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold cursor-pointer"
+                                    >
+                                      Approve
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="p-8 text-center">

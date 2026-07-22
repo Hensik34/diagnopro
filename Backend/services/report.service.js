@@ -177,7 +177,18 @@ async function createDraftReport(data, userId, branchId) {
 }
 
 /**
- * Submit report for review (draft -> under_review)
+ * Helper to compute report overall status based on test_approvals
+ */
+function computeReportStatus(testApprovals = {}, testIds = []) {
+  if (!testIds || testIds.length === 0) return REPORT_STATUS.DRAFT;
+  const statuses = testIds.map(id => testApprovals[id]?.status || 'pending');
+  if (statuses.every(s => s === 'approved')) return REPORT_STATUS.APPROVED;
+  if (statuses.every(s => s === 'pending_approval' || s === 'approved')) return REPORT_STATUS.UNDER_REVIEW;
+  return REPORT_STATUS.DRAFT;
+}
+
+/**
+ * Submit report for review (draft -> under_review or approved)
  * If user has REPORT_APPROVE permission, auto-approves instead of going to review
  * @param {string} reportId 
  * @param {string} userId 
@@ -205,21 +216,56 @@ async function submitForReview(reportId, userId, userRole) {
     throw new Error(`Test data validation failed: ${errors.join(', ')}`);
   }
 
-  // Auto-approve if user has REPORT_APPROVE permission (admin, doctor)
-  if (can(userRole, PERMISSIONS.REPORT_APPROVE)) {
+  const UserModel = require('../models/User');
+  const dbUser = await UserModel.findUserById(userId);
+  const userCanApprove = can(userRole, PERMISSIONS.REPORT_APPROVE, { can_approve_reports: dbUser?.can_approve_reports });
+
+  let rawTestData = report.test_data || {};
+  let parsedTestData = typeof rawTestData === 'string' ? JSON.parse(rawTestData) : { ...rawTestData };
+  let testIds = parsedTestData.testIds || (parsedTestData.tests ? parsedTestData.tests.map(t => t.testId || t.id).filter(Boolean) : []);
+  let testApprovals = { ...(parsedTestData.test_approvals || {}) };
+
+  const nowStr = new Date().toISOString();
+  const userName = dbUser ? `${dbUser.firstname || ''} ${dbUser.lastname || ''}`.trim() : 'User';
+
+  if (userCanApprove) {
+    for (const tid of testIds) {
+      testApprovals[tid] = {
+        status: REPORT_STATUS.APPROVED,
+        approved_by: userId,
+        approved_at: nowStr,
+        approved_by_name: userName,
+      };
+    }
+    parsedTestData.test_approvals = testApprovals;
+
     return await Report.updateReport(reportId, {
       status: REPORT_STATUS.APPROVED,
-      submitted_at: new Date().toISOString(),
+      test_data: parsedTestData,
+      submitted_at: nowStr,
       submitted_by: userId,
       approved_by: userId,
-      approved_at: new Date().toISOString(),
+      approved_at: nowStr,
       reviewed_by: userId,
     });
   }
 
+  for (const tid of testIds) {
+    if (!testApprovals[tid] || testApprovals[tid].status !== REPORT_STATUS.APPROVED) {
+      testApprovals[tid] = {
+        status: REPORT_STATUS.UNDER_REVIEW,
+        sent_at: nowStr,
+        sent_by: userId,
+        sent_by_name: userName,
+      };
+    }
+  }
+  parsedTestData.test_approvals = testApprovals;
+
   return await Report.updateReport(reportId, {
     status: REPORT_STATUS.UNDER_REVIEW,
-    submitted_at: new Date().toISOString(),
+    test_data: parsedTestData,
+    submitted_at: nowStr,
     submitted_by: userId,
   });
 }
@@ -238,26 +284,41 @@ async function approveReport(reportId, userId, userRole) {
     throw new Error('Report not found');
   }
 
-  if (report.status !== REPORT_STATUS.UNDER_REVIEW) {
-    throw new Error(`Cannot approve report with status '${report.status}'. Only reports under review can be approved.`);
+  if (report.status !== REPORT_STATUS.UNDER_REVIEW && report.status !== REPORT_STATUS.DRAFT) {
+    throw new Error(`Cannot approve report with status '${report.status}'.`);
   }
 
   const UserModel = require('../models/User');
   const dbUser = await UserModel.findUserById(userId);
-  const isApprovedAllowed = (userRole === 'admin') || (dbUser && dbUser.can_approve_reports === true);
+  const isApprovedAllowed = can(userRole, PERMISSIONS.REPORT_APPROVE, { can_approve_reports: dbUser?.can_approve_reports });
 
   if (!isApprovedAllowed) {
     throw new Error('You do not have permission to approve reports');
   }
 
-  if (!canPerformTransition(userRole, report.status, REPORT_STATUS.APPROVED)) {
-    throw new Error('You do not have permission to approve reports');
+  const nowStr = new Date().toISOString();
+  const userName = dbUser ? `${dbUser.firstname || ''} ${dbUser.lastname || ''}`.trim() : 'User';
+
+  let rawTestData = report.test_data || {};
+  let parsedTestData = typeof rawTestData === 'string' ? JSON.parse(rawTestData) : { ...rawTestData };
+  let testIds = parsedTestData.testIds || (parsedTestData.tests ? parsedTestData.tests.map(t => t.testId || t.id).filter(Boolean) : []);
+  let testApprovals = { ...(parsedTestData.test_approvals || {}) };
+
+  for (const tid of testIds) {
+    testApprovals[tid] = {
+      status: REPORT_STATUS.APPROVED,
+      approved_by: userId,
+      approved_at: nowStr,
+      approved_by_name: userName,
+    };
   }
+  parsedTestData.test_approvals = testApprovals;
 
   return await Report.updateReport(reportId, {
     status: REPORT_STATUS.APPROVED,
+    test_data: parsedTestData,
     approved_by: userId,
-    approved_at: new Date().toISOString(),
+    approved_at: nowStr,
     reviewed_by: userId,
   });
 }
@@ -283,13 +344,9 @@ async function rejectReport(reportId, userId, userRole, reason) {
 
   const UserModel = require('../models/User');
   const dbUser = await UserModel.findUserById(userId);
-  const isApprovedAllowed = (userRole === 'admin') || (dbUser && dbUser.can_approve_reports === true);
+  const isApprovedAllowed = can(userRole, PERMISSIONS.REPORT_APPROVE, { can_approve_reports: dbUser?.can_approve_reports });
 
   if (!isApprovedAllowed) {
-    throw new Error('You do not have permission to reject reports');
-  }
-
-  if (!canPerformTransition(userRole, report.status, REPORT_STATUS.REJECTED)) {
     throw new Error('You do not have permission to reject reports');
   }
 
@@ -297,12 +354,211 @@ async function rejectReport(reportId, userId, userRole, reason) {
     throw new Error('Rejection reason is required');
   }
 
+  const nowStr = new Date().toISOString();
+  const userName = dbUser ? `${dbUser.firstname || ''} ${dbUser.lastname || ''}`.trim() : 'User';
+
+  let rawTestData = report.test_data || {};
+  let parsedTestData = typeof rawTestData === 'string' ? JSON.parse(rawTestData) : { ...rawTestData };
+  let testIds = parsedTestData.testIds || (parsedTestData.tests ? parsedTestData.tests.map(t => t.testId || t.id).filter(Boolean) : []);
+  let testApprovals = { ...(parsedTestData.test_approvals || {}) };
+
+  for (const tid of testIds) {
+    if (testApprovals[tid]?.status === REPORT_STATUS.UNDER_REVIEW) {
+      testApprovals[tid] = {
+        status: REPORT_STATUS.REJECTED,
+        rejected_by: userId,
+        rejected_at: nowStr,
+        rejected_by_name: userName,
+        reason: reason.trim(),
+      };
+    }
+  }
+  parsedTestData.test_approvals = testApprovals;
+
   return await Report.updateReport(reportId, {
+    status: REPORT_STATUS.REJECTED,
+    test_data: parsedTestData,
+    rejected_by: userId,
+    rejected_at: nowStr,
+    rejection_reason: reason.trim(),
+    reviewed_by: userId,
+  });
+}
+
+/**
+ * Approve a single test inside a report
+ */
+async function approveTest(reportId, testId, userId, userRole) {
+  const report = await Report.getReportById(reportId);
+  if (!report) throw new Error('Report not found');
+
+  const UserModel = require('../models/User');
+  const dbUser = await UserModel.findUserById(userId);
+  const isApprovedAllowed = can(userRole, PERMISSIONS.REPORT_APPROVE, { can_approve_reports: dbUser?.can_approve_reports });
+
+  if (!isApprovedAllowed) {
+    throw new Error('You do not have permission to approve tests');
+  }
+
+  let rawTestData = report.test_data || {};
+  let parsedTestData = typeof rawTestData === 'string' ? JSON.parse(rawTestData) : { ...rawTestData };
+  let testIds = parsedTestData.testIds || (parsedTestData.tests ? parsedTestData.tests.map(t => t.testId || t.id).filter(Boolean) : []);
+  
+  if (!testIds.includes(testId)) {
+    throw new Error('Test ID not found in report');
+  }
+
+  let testApprovals = { ...(parsedTestData.test_approvals || {}) };
+  const userName = dbUser ? `${dbUser.firstname || ''} ${dbUser.lastname || ''}`.trim() : 'User';
+
+  testApprovals[testId] = {
+    status: REPORT_STATUS.APPROVED,
+    approved_by: userId,
+    approved_at: new Date().toISOString(),
+    approved_by_name: userName,
+  };
+
+  parsedTestData.test_approvals = testApprovals;
+  const newReportStatus = computeReportStatus(testApprovals, testIds);
+
+  const updatePayload = {
+    test_data: parsedTestData,
+    status: newReportStatus,
+  };
+
+  if (newReportStatus === REPORT_STATUS.APPROVED) {
+    updatePayload.approved_by = userId;
+    updatePayload.approved_at = new Date().toISOString();
+    updatePayload.reviewed_by = userId;
+  }
+
+  return await Report.updateReport(reportId, updatePayload);
+}
+
+/**
+ * Reject a single test inside a report
+ */
+async function rejectTest(reportId, testId, userId, userRole, reason) {
+  const report = await Report.getReportById(reportId);
+  if (!report) throw new Error('Report not found');
+
+  if (!reason || reason.trim().length === 0) {
+    throw new Error('Rejection reason is required');
+  }
+
+  const UserModel = require('../models/User');
+  const dbUser = await UserModel.findUserById(userId);
+  const isApprovedAllowed = can(userRole, PERMISSIONS.REPORT_APPROVE, { can_approve_reports: dbUser?.can_approve_reports });
+
+  if (!isApprovedAllowed) {
+    throw new Error('You do not have permission to reject tests');
+  }
+
+  let rawTestData = report.test_data || {};
+  let parsedTestData = typeof rawTestData === 'string' ? JSON.parse(rawTestData) : { ...rawTestData };
+  let testIds = parsedTestData.testIds || (parsedTestData.tests ? parsedTestData.tests.map(t => t.testId || t.id).filter(Boolean) : []);
+
+  if (!testIds.includes(testId)) {
+    throw new Error('Test ID not found in report');
+  }
+
+  let testApprovals = { ...(parsedTestData.test_approvals || {}) };
+  const userName = dbUser ? `${dbUser.firstname || ''} ${dbUser.lastname || ''}`.trim() : 'User';
+
+  testApprovals[testId] = {
     status: REPORT_STATUS.REJECTED,
     rejected_by: userId,
     rejected_at: new Date().toISOString(),
-    rejection_reason: reason.trim(),
-    reviewed_by: userId,
+    rejected_by_name: userName,
+    reason: reason.trim(),
+  };
+
+  parsedTestData.test_approvals = testApprovals;
+  const newReportStatus = computeReportStatus(testApprovals, testIds);
+
+  return await Report.updateReport(reportId, {
+    test_data: parsedTestData,
+    status: newReportStatus,
+    rejection_reason: `Test rejected: ${reason.trim()}`,
+  });
+}
+
+/**
+ * Send a single test for approval
+ */
+async function sendTestForApproval(reportId, testId, userId) {
+  const report = await Report.getReportById(reportId);
+  if (!report) throw new Error('Report not found');
+
+  const UserModel = require('../models/User');
+  const dbUser = await UserModel.findUserById(userId);
+
+  let rawTestData = report.test_data || {};
+  let parsedTestData = typeof rawTestData === 'string' ? JSON.parse(rawTestData) : { ...rawTestData };
+  let testIds = parsedTestData.testIds || (parsedTestData.tests ? parsedTestData.tests.map(t => t.testId || t.id).filter(Boolean) : []);
+
+  if (!testIds.includes(testId)) {
+    throw new Error('Test ID not found in report');
+  }
+
+  let testApprovals = { ...(parsedTestData.test_approvals || {}) };
+  const userName = dbUser ? `${dbUser.firstname || ''} ${dbUser.lastname || ''}`.trim() : 'User';
+
+  testApprovals[testId] = {
+    status: REPORT_STATUS.UNDER_REVIEW,
+    sent_at: new Date().toISOString(),
+    sent_by: userId,
+    sent_by_name: userName,
+  };
+
+  parsedTestData.test_approvals = testApprovals;
+  const newReportStatus = computeReportStatus(testApprovals, testIds);
+
+  return await Report.updateReport(reportId, {
+    test_data: parsedTestData,
+    status: newReportStatus,
+    submitted_at: new Date().toISOString(),
+    submitted_by: userId,
+  });
+}
+
+/**
+ * Send all tests for approval
+ */
+async function sendAllTestsForApproval(reportId, userId) {
+  const report = await Report.getReportById(reportId);
+  if (!report) throw new Error('Report not found');
+
+  const UserModel = require('../models/User');
+  const dbUser = await UserModel.findUserById(userId);
+
+  let rawTestData = report.test_data || {};
+  let parsedTestData = typeof rawTestData === 'string' ? JSON.parse(rawTestData) : { ...rawTestData };
+  let testIds = parsedTestData.testIds || (parsedTestData.tests ? parsedTestData.tests.map(t => t.testId || t.id).filter(Boolean) : []);
+
+  let testApprovals = { ...(parsedTestData.test_approvals || {}) };
+  const userName = dbUser ? `${dbUser.firstname || ''} ${dbUser.lastname || ''}`.trim() : 'User';
+  const nowStr = new Date().toISOString();
+
+  for (const tid of testIds) {
+    if (!testApprovals[tid] || testApprovals[tid].status !== REPORT_STATUS.APPROVED) {
+      testApprovals[tid] = {
+        status: REPORT_STATUS.UNDER_REVIEW,
+        sent_at: nowStr,
+        sent_by: userId,
+        sent_by_name: userName,
+      };
+    }
+  }
+
+  parsedTestData.test_approvals = testApprovals;
+  const newReportStatus = computeReportStatus(testApprovals, testIds);
+
+  return await Report.updateReport(reportId, {
+    test_data: parsedTestData,
+    status: newReportStatus,
+    submitted_at: nowStr,
+    submitted_by: userId,
   });
 }
 
@@ -404,6 +660,7 @@ module.exports = {
   isEditable,
   validateTestData,
   calculateCommission,
+  computeReportStatus,
   
   // Core operations
   createDraftReport,
@@ -413,4 +670,10 @@ module.exports = {
   updateTestData,
   reviseReport,
   getReportsWithSummary,
+
+  // Per-test approval operations
+  approveTest,
+  rejectTest,
+  sendTestForApproval,
+  sendAllTestsForApproval,
 };

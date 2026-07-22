@@ -130,6 +130,7 @@ export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
 export const ROLES = {
   ADMIN: 'admin',
   DOCTOR: 'doctor',
+  PATHOLOGIST: 'pathologist',
   TECHNICIAN: 'lab_technician',
   STAFF: 'staff',
   B2B_LAB: 'b2b_lab',
@@ -268,6 +269,19 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.B2B_REPORT_DOWNLOAD,
     PERMISSIONS.B2B_DASHBOARD_VIEW,
     PERMISSIONS.B2B_PAYMENT_READ,
+  ],
+
+  // MD Pathologist: Focused on report review & approval
+  [ROLES.PATHOLOGIST]: [
+    PERMISSIONS.PATIENT_READ,
+    PERMISSIONS.REPORT_READ,
+    PERMISSIONS.REPORT_APPROVE,
+    PERMISSIONS.REPORT_REVIEW,
+    PERMISSIONS.REPORT_DOWNLOAD,
+    PERMISSIONS.TEST_READ,
+    PERMISSIONS.BRANCH_READ,
+    PERMISSIONS.DOCTOR_READ,
+    PERMISSIONS.SETTINGS_VIEW,
   ],
 };
 
