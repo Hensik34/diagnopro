@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router';
+import { toast } from 'sonner';
 import { 
   Clock, 
   LogIn, 
@@ -8,20 +9,21 @@ import {
   Loader2,
   Syringe,
   ClipboardList,
-  ArrowRight,
   UserPlus,
   Camera,
   AlertCircle,
   Gauge,
   X,
   User as UserIcon,
-  Plus
+  Globe,
+  DollarSign
 } from 'lucide-react';
 import { useTimeLogStore } from '../../../stores/timeLogStore';
 import { useReportStore } from '../../../stores/reportStore';
 import { useAuthStore } from '../../../stores/authStore';
 import { useBranchStore } from '../../../stores/branchStore';
 import { patientApi } from '../../../api/patients';
+import { addWatermarkToImage } from '../../../utils/watermark';
 import type { Patient, AgeUnit } from '../../../types';
 
 export function StaffDashboard() {
@@ -30,32 +32,38 @@ export function StaffDashboard() {
   const { currentBranchId } = useBranchStore();
   const {
     activeSession,
+    pendingApprovals,
     isLoading: timeLoading,
     error: timeError,
     clockIn,
     clockOut,
     fetchActiveSession,
+    fetchPendingApprovals,
     clearError,
   } = useTimeLogStore();
-  const { reports, fetchReports, isLoading: reportsLoading } = useReportStore();
+  const { reports, fetchReports } = useReportStore();
 
   // Modals state
   const [showClockInModal, setShowClockInModal] = useState(false);
   const [showClockOutModal, setShowClockOutModal] = useState(false);
   const [showPatientModal, setShowPatientModal] = useState(false);
 
-  // Clock In state
+  // Checkin state
   const [startKm, setStartKm] = useState('');
   const startImageInputRef = useRef<HTMLInputElement>(null);
   const [startMeterImageBase64, setStartMeterImageBase64] = useState<string | null>(null);
   const [startMeterImageName, setStartMeterImageName] = useState<string | null>(null);
+  const [isOutsideCheckin, setIsOutsideCheckin] = useState(false);
+  const [outsideCheckinReason, setOutsideCheckinReason] = useState('');
 
-  // Clock Out state
+  // Checkout state
   const [endKm, setEndKm] = useState('');
   const [clockOutNotes, setClockOutNotes] = useState('');
   const endImageInputRef = useRef<HTMLInputElement>(null);
   const [endMeterImageBase64, setEndMeterImageBase64] = useState<string | null>(null);
   const [endMeterImageName, setEndMeterImageName] = useState<string | null>(null);
+  const [isOutsideCheckout, setIsOutsideCheckout] = useState(false);
+  const [outsideCheckoutReason, setOutsideCheckoutReason] = useState('');
 
   // Location capture state
   const [gettingLocation, setGettingLocation] = useState(false);
@@ -70,6 +78,7 @@ export function StaffDashboard() {
   const [patientAddress, setPatientAddress] = useState('');
   const [patientCity, setPatientCity] = useState('');
   const [patientBloodType, setPatientBloodType] = useState('');
+  const [patientVisitCharge, setPatientVisitCharge] = useState('0');
   const [savingPatient, setSavingPatient] = useState(false);
   const [patientError, setPatientError] = useState<string | null>(null);
 
@@ -82,12 +91,14 @@ export function StaffDashboard() {
   useEffect(() => {
     if (!isAdmin) {
       fetchActiveSession();
+    } else {
+      fetchPendingApprovals();
     }
     if (user?.role !== 'staff') {
       const filters = currentBranchId ? { branch_id: currentBranchId } : {};
       fetchReports(filters);
     }
-  }, [fetchActiveSession, fetchReports, currentBranchId, user, isAdmin]);
+  }, [fetchActiveSession, fetchPendingApprovals, fetchReports, currentBranchId, user, isAdmin]);
 
   useEffect(() => {
     if (user?.id) {
@@ -147,11 +158,13 @@ export function StaffDashboard() {
       reader.readAsDataURL(file);
     });
 
-  // Start Clock In
+  // Start Checkin
   const handleOpenClockInModal = () => {
     setStartKm('');
     setStartMeterImageBase64(null);
     setStartMeterImageName(null);
+    setIsOutsideCheckin(false);
+    setOutsideCheckinReason('');
     if (startImageInputRef.current) startImageInputRef.current.value = '';
     setLocationError(null);
     clearError();
@@ -168,31 +181,50 @@ export function StaffDashboard() {
   };
 
   const handleConfirmClockIn = async () => {
-    if (!startMeterImageBase64) {
-      alert("Start Bike Meter photo is required to start shift!");
+    if (user?.requires_meter_photo !== false && !startMeterImageBase64) {
+      alert("Start Bike Meter photo is required to checkin!");
       return;
     }
 
+    let finalStartImage = startMeterImageBase64 || undefined;
+    if (startMeterImageBase64) {
+      finalStartImage = await addWatermarkToImage({
+        imageBase64: startMeterImageBase64,
+        title: 'DIAGNOPRO • CHECK-IN',
+        staffName: `${user?.firstname || ''} ${user?.lastname || ''}`.trim() || undefined,
+        kmReading: startKm ? `START KM: ${startKm} km` : undefined,
+      });
+    }
+
     const coords = await getCoordinates();
-    const success = await clockIn({
+    const result = await clockIn({
       start_km: startKm ? parseFloat(startKm) : undefined,
-      start_meter_image: startMeterImageBase64,
+      start_meter_image: finalStartImage,
       latitude: coords?.latitude,
       longitude: coords?.longitude,
+      is_outside: isOutsideCheckin,
+      outside_reason: outsideCheckinReason || undefined,
     });
 
-    if (success) {
+    if (result.success) {
       setShowClockInModal(false);
       fetchActiveSession();
+      if (result.is_outside) {
+        toast.info("Outside Checkin request submitted for Admin approval.");
+      } else {
+        toast.success("Checked in successfully.");
+      }
     }
   };
 
-  // Start Clock Out
+  // Start Checkout
   const handleOpenClockOutModal = () => {
     setEndKm('');
     setClockOutNotes('');
     setEndMeterImageBase64(null);
     setEndMeterImageName(null);
+    setIsOutsideCheckout(false);
+    setOutsideCheckoutReason('');
     if (endImageInputRef.current) endImageInputRef.current.value = '';
     setLocationError(null);
     clearError();
@@ -209,23 +241,40 @@ export function StaffDashboard() {
   };
 
   const handleConfirmClockOut = async () => {
-    if (!endMeterImageBase64) {
-      alert("End Bike Meter photo is required to clock out!");
+    if (user?.requires_meter_photo !== false && !endMeterImageBase64) {
+      alert("End Bike Meter photo is required to checkout!");
       return;
     }
 
+    let finalEndImage = endMeterImageBase64 || undefined;
+    if (endMeterImageBase64) {
+      finalEndImage = await addWatermarkToImage({
+        imageBase64: endMeterImageBase64,
+        title: 'DIAGNOPRO • CHECK-OUT',
+        staffName: `${user?.firstname || ''} ${user?.lastname || ''}`.trim() || undefined,
+        kmReading: endKm ? `END KM: ${endKm} km` : undefined,
+      });
+    }
+
     const coords = await getCoordinates();
-    const success = await clockOut({
+    const result = await clockOut({
       notes: clockOutNotes || undefined,
       end_km: endKm ? parseFloat(endKm) : undefined,
-      end_meter_image: endMeterImageBase64,
+      end_meter_image: finalEndImage,
       latitude: coords?.latitude,
       longitude: coords?.longitude,
+      is_outside: isOutsideCheckout,
+      outside_reason: outsideCheckoutReason || undefined,
     });
 
-    if (success) {
+    if (result.success) {
       setShowClockOutModal(false);
       fetchActiveSession();
+      if (result.is_outside) {
+        toast.info("Outside Checkout request submitted for Admin approval.");
+      } else {
+        toast.success("Checked out successfully.");
+      }
     }
   };
 
@@ -255,6 +304,7 @@ export function StaffDashboard() {
         city: patientCity.trim() || undefined,
         blood_type: patientBloodType.trim() || undefined,
         branch_id: currentBranchId,
+        sample_collection_visit_charge: patientVisitCharge ? parseFloat(patientVisitCharge) : 0,
       });
 
       setShowPatientModal(false);
@@ -264,6 +314,8 @@ export function StaffDashboard() {
       setPatientAddress('');
       setPatientCity('');
       setPatientBloodType('');
+      setPatientVisitCharge('0');
+      toast.success("Field Patient registered successfully");
       fetchTodayPatients();
     } catch (err: any) {
       setPatientError(err?.response?.data?.error || err.message || "Failed to register patient");
@@ -296,6 +348,15 @@ export function StaffDashboard() {
     });
   };
 
+  // Calculations for Checkout Summary
+  const startKmNum = activeSession?.start_km != null ? Number(activeSession.start_km) : null;
+  const endKmNum = endKm ? Number(endKm) : null;
+  const calculatedTotalKm = (startKmNum != null && endKmNum != null) ? Math.max(0, endKmNum - startKmNum) : 0;
+  const petrolRate = Number(user?.petrol_price_per_km || 0);
+  const calculatedPetrolCost = calculatedTotalKm * petrolRate;
+  const todayTotalVisitCharges = todayPatients.reduce((sum, p) => sum + (Number(p.sample_collection_visit_charge) || 0), 0);
+  const checkoutGrandTotal = calculatedPetrolCost + todayTotalVisitCharges;
+
   return (
     <div className="space-y-4">
       {/* Header with Quick Actions */}
@@ -316,7 +377,7 @@ export function StaffDashboard() {
           className="h-9 px-3.5 bg-primary text-white rounded-lg text-xs font-medium hover:opacity-90 transition-opacity flex items-center gap-1.5 w-full sm:w-auto justify-center shadow-sm cursor-pointer"
         >
           <UserPlus className="w-4 h-4" />
-          + Register Patient
+          + Register Field Patient
         </button>
       </div>
 
@@ -331,7 +392,33 @@ export function StaffDashboard() {
         </div>
       )}
 
-      {/* Clock In/Out Card - Only for Non-Admin Staff */}
+      {/* Pending Outside Approvals Banner for Admin */}
+      {isAdmin && pendingApprovals.length > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <Globe className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <span>{pendingApprovals.length} Pending Outside Shift Approval Request{pendingApprovals.length > 1 ? 's' : ''}</span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold">Action Needed</span>
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Staff requested checkin/checkout from outside the lab geofence. Click to review & approve/reject.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/app/time-tracking?tab=pending')}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer"
+          >
+            <CheckCircle className="w-4 h-4" /> Review Approvals ({pendingApprovals.length})
+          </button>
+        </div>
+      )}
+
+      {/* Checkin / Checkout Card - Only for Non-Admin Staff */}
       {!isAdmin && (
         <div className={`rounded-xl border-2 p-5 transition-all ${
           activeSession 
@@ -350,9 +437,16 @@ export function StaffDashboard() {
               <div>
                 {activeSession ? (
                   <>
-                    <p className="text-sm font-medium text-foreground">You are clocked in</p>
+                    <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                      <span>You are checked in</span>
+                      {activeSession.is_outside && (
+                        <span className="text-[10px] px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded font-medium">
+                          Outside Shift
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Started shift at {new Date(activeSession.clock_in).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      Checked in at {new Date(activeSession.requested_clock_in || activeSession.clock_in).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                     {activeSession.start_km != null && (
                       <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
@@ -362,8 +456,8 @@ export function StaffDashboard() {
                   </>
                 ) : (
                   <>
-                    <p className="text-sm font-medium text-foreground">You are not clocked in</p>
-                    <p className="text-xs text-muted-foreground">Start your shift to begin tracking</p>
+                    <p className="text-sm font-medium text-foreground">You are not checked in</p>
+                    <p className="text-xs text-muted-foreground">Checkin to start tracking shift & odometer</p>
                   </>
                 )}
               </div>
@@ -373,19 +467,19 @@ export function StaffDashboard() {
               <button
                 onClick={handleOpenClockOutModal}
                 disabled={timeLoading}
-                className="h-10 px-5 inline-flex items-center gap-2 bg-red-600 text-white rounded-lg font-medium text-sm hover:bg-red-700 transition-colors disabled:opacity-50 w-full sm:w-auto justify-center cursor-pointer"
+                className="h-10 px-5 inline-flex items-center gap-2 bg-red-600 text-white rounded-lg font-medium text-sm hover:bg-red-700 transition-colors disabled:opacity-50 w-full sm:w-auto justify-center cursor-pointer shadow-sm"
               >
                 {timeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
-                Clock Out
+                Checkout
               </button>
             ) : (
               <button
                 onClick={handleOpenClockInModal}
                 disabled={timeLoading}
-                className="h-10 px-5 inline-flex items-center gap-2 bg-green-600 text-white rounded-lg font-medium text-sm hover:bg-green-700 transition-colors disabled:opacity-50 w-full sm:w-auto justify-center cursor-pointer"
+                className="h-10 px-5 inline-flex items-center gap-2 bg-green-600 text-white rounded-lg font-medium text-sm hover:bg-green-700 transition-colors disabled:opacity-50 w-full sm:w-auto justify-center cursor-pointer shadow-sm"
               >
                 {timeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
-                Clock In
+                Checkin
               </button>
             )}
           </div>
@@ -436,7 +530,7 @@ export function StaffDashboard() {
           </div>
           <button 
             onClick={fetchTodayPatients}
-            className="text-xs text-primary hover:underline font-medium"
+            className="text-xs text-primary hover:underline font-medium cursor-pointer"
           >
             Refresh List
           </button>
@@ -461,6 +555,7 @@ export function StaffDashboard() {
                   <th className="px-3 py-2">Phone</th>
                   <th className="px-3 py-2">Age / Gender</th>
                   <th className="px-3 py-2">Address</th>
+                  <th className="px-3 py-2 text-right">Visit Charge</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -470,7 +565,10 @@ export function StaffDashboard() {
                     <td className="px-3 py-2 font-medium text-foreground">{p.name}</td>
                     <td className="px-3 py-2 text-foreground">{p.phone || '—'}</td>
                     <td className="px-3 py-2 text-foreground">{p.age} {p.age_unit || 'yrs'} ({p.gender || '—'})</td>
-                    <td className="px-3 py-2 text-muted-foreground max-w-[200px] truncate">{p.address || '—'}</td>
+                    <td className="px-3 py-2 text-muted-foreground max-w-[180px] truncate">{p.address || '—'}</td>
+                    <td className="px-3 py-2 text-right font-semibold text-green-600 dark:text-green-400 tabular-nums">
+                      {p.sample_collection_visit_charge ? `₹${p.sample_collection_visit_charge}` : '₹0'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -479,17 +577,17 @@ export function StaffDashboard() {
         )}
       </div>
 
-      {/* Clock In Modal */}
+      {/* Checkin Modal */}
       {showClockInModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-2">
               <LogIn className="w-5 h-5 text-green-600" />
-              <h3 className="text-lg font-semibold text-foreground">Start Shift (Clock In)</h3>
+              <h3 className="text-lg font-semibold text-foreground">Shift Checkin</h3>
             </div>
             
             <p className="text-xs text-muted-foreground">
-              Location will be verified at Lab Branch and Start Bike Meter photo is required.
+              Verify Lab location or checkin from field with photo & reason.
             </p>
 
             {locationError && (
@@ -540,6 +638,29 @@ export function StaffDashboard() {
               )}
             </div>
 
+            {/* Outside Checkin Request Toggle */}
+            <div className="p-3 bg-secondary/40 border border-border rounded-lg space-y-2">
+              <label className="flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isOutsideCheckin}
+                  onChange={(e) => setIsOutsideCheckin(e.target.checked)}
+                  className="rounded border-border text-primary focus:ring-primary"
+                />
+                <Globe className="w-3.5 h-3.5 text-blue-500" />
+                Checkin from Field / Outside Lab (Requires Admin Approval)
+              </label>
+              {isOutsideCheckin && (
+                <input
+                  type="text"
+                  value={outsideCheckinReason}
+                  onChange={(e) => setOutsideCheckinReason(e.target.value)}
+                  placeholder="e.g. Patient Home Visit at Hospital/Residence"
+                  className="w-full h-8 px-2.5 border border-border rounded text-xs bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              )}
+            </div>
+
             <div className="flex justify-end gap-2 pt-2 border-t border-border">
               <button
                 onClick={() => setShowClockInModal(false)}
@@ -553,24 +674,24 @@ export function StaffDashboard() {
                 className="px-4 py-2 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 inline-flex items-center gap-2 cursor-pointer"
               >
                 {(timeLoading || gettingLocation) && <Loader2 className="w-4 h-4 animate-spin" />}
-                Confirm Clock In
+                Confirm Checkin
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Clock Out Modal */}
+      {/* Checkout Modal */}
       {showClockOutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-2">
               <LogOut className="w-5 h-5 text-red-600" />
-              <h3 className="text-lg font-semibold text-foreground">End Shift (Clock Out)</h3>
+              <h3 className="text-lg font-semibold text-foreground">Shift Checkout</h3>
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Lab location will be verified and End Bike Meter photo upload is mandatory.
+              End shift, upload final bike meter photo, and review daily settlement summary.
             </p>
 
             {locationError && (
@@ -593,7 +714,7 @@ export function StaffDashboard() {
               />
             </div>
 
-            {/* Mandatory End Meter Photo Upload */}
+            {/* End Meter Photo Upload */}
             <div>
               <label className="text-xs font-medium text-foreground block mb-1">
                 End Bike Meter Photo * (Mandatory)
@@ -618,6 +739,52 @@ export function StaffDashboard() {
                 <div className="mt-2 text-center">
                   <img src={endMeterImageBase64} alt="End meter preview" className="max-h-32 mx-auto rounded border border-border object-contain" />
                 </div>
+              )}
+            </div>
+
+            {/* End of Day Checkout Summary */}
+            <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-1.5 text-xs">
+              <div className="font-semibold text-foreground flex items-center gap-1 mb-1">
+                <DollarSign className="w-4 h-4 text-primary" /> End-of-Day Checkout Summary
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Distance Traveled:</span>
+                <strong className="text-foreground">{calculatedTotalKm} KM</strong>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Petrol Allowance ({petrolRate}₹/KM):</span>
+                <strong className="text-foreground">₹{calculatedPetrolCost.toFixed(2)}</strong>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Today's Visit Charges ({todayPatients.length} patients):</span>
+                <strong className="text-foreground">₹{todayTotalVisitCharges.toFixed(2)}</strong>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-primary/20 font-bold text-primary">
+                <span>Estimated Daily Payout:</span>
+                <span>₹{checkoutGrandTotal.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Outside Checkout Toggle */}
+            <div className="p-3 bg-secondary/40 border border-border rounded-lg space-y-2">
+              <label className="flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isOutsideCheckout}
+                  onChange={(e) => setIsOutsideCheckout(e.target.checked)}
+                  className="rounded border-border text-primary focus:ring-primary"
+                />
+                <Globe className="w-3.5 h-3.5 text-blue-500" />
+                Checkout from Field / Outside Lab (Requires Admin Approval)
+              </label>
+              {isOutsideCheckout && (
+                <input
+                  type="text"
+                  value={outsideCheckoutReason}
+                  onChange={(e) => setOutsideCheckoutReason(e.target.value)}
+                  placeholder="e.g. Completed patient home collections"
+                  className="w-full h-8 px-2.5 border border-border rounded text-xs bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
               )}
             </div>
 
@@ -647,7 +814,7 @@ export function StaffDashboard() {
                 className="px-4 py-2 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2 cursor-pointer"
               >
                 {(timeLoading || gettingLocation) && <Loader2 className="w-4 h-4 animate-spin" />}
-                Confirm Clock Out
+                Confirm Checkout
               </button>
             </div>
           </div>
@@ -665,7 +832,7 @@ export function StaffDashboard() {
               </div>
               <button
                 onClick={() => setShowPatientModal(false)}
-                className="text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -740,6 +907,20 @@ export function StaffDashboard() {
                     <option value="days">Days</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Sample Collection Visit Charge (Optional, defaults to 0) */}
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1">
+                  Sample Collection Visit Charge (₹) (Optional)
+                </label>
+                <input
+                  type="number"
+                  value={patientVisitCharge}
+                  onChange={(e) => setPatientVisitCharge(e.target.value)}
+                  placeholder="0 (Optional visit fee)"
+                  className="w-full h-9 px-3 border border-border rounded-lg text-sm bg-secondary text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
               </div>
 
               <div>

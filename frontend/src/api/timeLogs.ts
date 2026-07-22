@@ -18,7 +18,17 @@ export interface TimeLog {
   start_km?: number | null;
   end_km?: number | null;
   total_km?: number | null;
+  start_meter_image?: string | null;
   end_meter_image?: string | null;
+  approval_status?: 'approved' | 'pending' | 'rejected' | 'rejected_with_penalty' | string;
+  is_outside?: boolean;
+  outside_reason?: string | null;
+  rejection_note?: string | null;
+  penalty_hours?: number;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  requested_clock_in?: string | null;
+  requested_clock_out?: string | null;
   location_meta?: {
     clock_in?: LocationMetaPayload;
     clock_out?: LocationMetaPayload;
@@ -26,11 +36,18 @@ export interface TimeLog {
   notes: string | null;
   created_at: string;
   updated_at: string;
-  // Joined fields (from admin endpoints)
+  // Joined fields
   firstname?: string;
   lastname?: string;
   email?: string;
   role?: string;
+  user?: {
+    id: string;
+    firstname: string;
+    lastname: string;
+    email: string;
+    role: string;
+  };
 }
 
 export interface UserTimeSummary {
@@ -43,18 +60,21 @@ export interface UserTimeSummary {
   total_sessions: number;
   total_hours: number;
   total_km?: number;
+  total_penalty_hours?: number;
   first_clock_in: string | null;
   last_clock_out: string | null;
 }
 
 export const timeLogApi = {
-  // Clock in
+  // Checkin
   clockIn: async (data?: {
     branchId?: string;
     start_km?: number;
     start_meter_image?: string;
     latitude?: number;
     longitude?: number;
+    is_outside?: boolean;
+    outside_reason?: string;
   }): Promise<{ message: string; data: TimeLog }> => {
     const response = await api.post('/time-logs/clock-in', {
       branch_id: data?.branchId,
@@ -62,17 +82,21 @@ export const timeLogApi = {
       start_meter_image: data?.start_meter_image,
       latitude: data?.latitude,
       longitude: data?.longitude,
+      is_outside: data?.is_outside,
+      outside_reason: data?.outside_reason,
     });
     return response.data;
   },
 
-  // Clock out
+  // Checkout
   clockOut: async (data?: {
     notes?: string;
     end_km?: number;
     end_meter_image?: string;
     latitude?: number;
     longitude?: number;
+    is_outside?: boolean;
+    outside_reason?: string;
   }): Promise<{ message: string; data: TimeLog }> => {
     const response = await api.post('/time-logs/clock-out', {
       notes: data?.notes,
@@ -80,6 +104,8 @@ export const timeLogApi = {
       end_meter_image: data?.end_meter_image,
       latitude: data?.latitude,
       longitude: data?.longitude,
+      is_outside: data?.is_outside,
+      outside_reason: data?.outside_reason,
     });
     return response.data;
   },
@@ -99,6 +125,28 @@ export const timeLogApi = {
     if (endDate) params.append('end_date', endDate);
     if (branchId) params.append('branch_id', branchId);
     const response = await api.get(`/time-logs/my-logs?${params.toString()}`);
+    return response.data;
+  },
+
+  // Admin: Get pending outside approvals
+  getPendingApprovals: async (branchId?: string): Promise<{
+    count: number; data: TimeLog[]
+  }> => {
+    const params = new URLSearchParams();
+    if (branchId) params.append('branch_id', branchId);
+    const response = await api.get(`/time-logs/pending-approvals?${params.toString()}`);
+    return response.data;
+  },
+
+  // Admin: Approve request
+  approveClockRequest: async (id: string): Promise<{ message: string; data: TimeLog }> => {
+    const response = await api.post(`/time-logs/${id}/approve`);
+    return response.data;
+  },
+
+  // Admin: Reject request
+  rejectClockRequest: async (id: string, rejection_note?: string): Promise<{ message: string; data: TimeLog }> => {
+    const response = await api.post(`/time-logs/${id}/reject`, { rejection_note });
     return response.data;
   },
 

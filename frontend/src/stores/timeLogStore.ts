@@ -9,16 +9,38 @@ interface TimeLogState {
   myLogs: TimeLog[];
   myTotalHours: number;
   allLogs: TimeLog[];
+  pendingApprovals: TimeLog[];
   userSummary: UserTimeSummary[];
   totalHoursAll: number;
   isLoading: boolean;
   error: string | null;
 
   // Actions
-  clockIn: (params?: { branchId?: string; start_km?: number; start_meter_image?: string; latitude?: number; longitude?: number }) => Promise<boolean>;
-  clockOut: (params?: { notes?: string; end_km?: number; end_meter_image?: string; latitude?: number; longitude?: number }) => Promise<boolean>;
+  clockIn: (params?: { 
+    branchId?: string; 
+    start_km?: number; 
+    start_meter_image?: string; 
+    latitude?: number; 
+    longitude?: number;
+    is_outside?: boolean;
+    outside_reason?: string;
+  }) => Promise<{ success: boolean; is_outside?: boolean; message?: string }>;
+  
+  clockOut: (params?: { 
+    notes?: string; 
+    end_km?: number; 
+    end_meter_image?: string; 
+    latitude?: number; 
+    longitude?: number;
+    is_outside?: boolean;
+    outside_reason?: string;
+  }) => Promise<{ success: boolean; is_outside?: boolean; message?: string }>;
+
   fetchActiveSession: () => Promise<void>;
   fetchMyLogs: (startDate?: string, endDate?: string, branchId?: string) => Promise<void>;
+  fetchPendingApprovals: (branchId?: string) => Promise<void>;
+  approveClockRequest: (id: string) => Promise<boolean>;
+  rejectClockRequest: (id: string, rejectionNote?: string) => Promise<boolean>;
   fetchAllLogs: (startDate?: string, endDate?: string, branchId?: string) => Promise<void>;
   fetchUserSummary: (startDate?: string, endDate?: string, branchId?: string) => Promise<void>;
   fetchUserLogs: (userId: string, startDate?: string, endDate?: string, branchId?: string) => Promise<TimeLog[]>;
@@ -32,6 +54,7 @@ export const useTimeLogStore = create<TimeLogState>((set, get) => ({
   myLogs: [],
   myTotalHours: 0,
   allLogs: [],
+  pendingApprovals: [],
   userSummary: [],
   totalHoursAll: 0,
   isLoading: false,
@@ -47,32 +70,36 @@ export const useTimeLogStore = create<TimeLogState>((set, get) => ({
         start_meter_image: params?.start_meter_image,
         latitude: params?.latitude,
         longitude: params?.longitude,
+        is_outside: params?.is_outside,
+        outside_reason: params?.outside_reason,
       });
       set({ activeSession: res.data, isLoading: false });
-      return true;
+      return { success: true, is_outside: res.data?.is_outside, message: res.message };
     } catch (err: any) {
-      const msg = err?.response?.data?.error || (err instanceof Error ? err.message : 'Clock in failed');
+      const msg = err?.response?.data?.error || (err instanceof Error ? err.message : 'Checkin failed');
       set({ error: msg, isLoading: false });
-      return false;
+      return { success: false, message: msg };
     }
   },
 
   clockOut: async (params) => {
     set({ isLoading: true, error: null });
     try {
-      await timeLogApi.clockOut({
+      const res = await timeLogApi.clockOut({
         notes: params?.notes,
         end_km: params?.end_km,
         end_meter_image: params?.end_meter_image,
         latitude: params?.latitude,
         longitude: params?.longitude,
+        is_outside: params?.is_outside,
+        outside_reason: params?.outside_reason,
       });
       set({ activeSession: null, isLoading: false });
-      return true;
+      return { success: true, is_outside: res.data?.is_outside, message: res.message };
     } catch (err: any) {
-      const msg = err?.response?.data?.error || (err instanceof Error ? err.message : 'Clock out failed');
+      const msg = err?.response?.data?.error || (err instanceof Error ? err.message : 'Checkout failed');
       set({ error: msg, isLoading: false });
-      return false;
+      return { success: false, message: msg };
     }
   },
 
@@ -81,7 +108,6 @@ export const useTimeLogStore = create<TimeLogState>((set, get) => ({
       const res = await timeLogApi.getActiveSession();
       set({ activeSession: res.data });
     } catch (err) {
-      // Silently fail - no active session
       set({ activeSession: null });
     }
   },
@@ -94,6 +120,47 @@ export const useTimeLogStore = create<TimeLogState>((set, get) => ({
       set({ myLogs: res.data, myTotalHours: res.total_hours, isLoading: false });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to fetch logs', isLoading: false });
+    }
+  },
+
+  fetchPendingApprovals: async (branchId?: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const activeBranchId = branchId || useBranchStore.getState().currentBranchId || undefined;
+      const res = await timeLogApi.getPendingApprovals(activeBranchId);
+      set({ pendingApprovals: res.data, isLoading: false });
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Failed to fetch pending approvals', isLoading: false });
+    }
+  },
+
+  approveClockRequest: async (id: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await timeLogApi.approveClockRequest(id);
+      set((state) => ({
+        pendingApprovals: state.pendingApprovals.filter((p) => p.id !== id),
+        isLoading: false,
+      }));
+      return true;
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Failed to approve request', isLoading: false });
+      return false;
+    }
+  },
+
+  rejectClockRequest: async (id: string, rejectionNote?: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await timeLogApi.rejectClockRequest(id, rejectionNote);
+      set((state) => ({
+        pendingApprovals: state.pendingApprovals.filter((p) => p.id !== id),
+        isLoading: false,
+      }));
+      return true;
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Failed to reject request', isLoading: false });
+      return false;
     }
   },
 
@@ -132,7 +199,6 @@ export const useTimeLogStore = create<TimeLogState>((set, get) => ({
   deleteLog: async (id: string) => {
     try {
       await timeLogApi.deleteLog(id);
-      // Refresh lists
       set((state) => ({
         allLogs: state.allLogs.filter((l) => l.id !== id),
         myLogs: state.myLogs.filter((l) => l.id !== id),
@@ -151,6 +217,7 @@ export const useTimeLogStore = create<TimeLogState>((set, get) => ({
     myLogs: [],
     myTotalHours: 0,
     allLogs: [],
+    pendingApprovals: [],
     userSummary: [],
     totalHoursAll: 0,
     isLoading: false,
@@ -158,7 +225,6 @@ export const useTimeLogStore = create<TimeLogState>((set, get) => ({
   }),
 }));
 
-// Selector hooks
 export const useActiveSession = () => useTimeLogStore((s) => s.activeSession);
 export const useTimeLogLoading = () => useTimeLogStore((s) => s.isLoading);
 export const useTimeLogError = () => useTimeLogStore((s) => s.error);

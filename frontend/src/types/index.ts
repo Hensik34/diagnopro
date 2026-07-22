@@ -4,6 +4,7 @@
 
 export interface User {
   id: string;
+  name?: string;
   firstname: string;
   lastname: string;
   email: string;
@@ -13,6 +14,7 @@ export interface User {
   petrol_price_per_km?: number;
   created_by?: string | null;
   can_approve_reports?: boolean;
+  requires_meter_photo?: boolean;
   branches?: Array<{ id: string; name: string }>;
   branch_names?: string;
   created_at: string;
@@ -100,6 +102,7 @@ export interface Patient {
   branch_name?: string;
   created_by_name?: string;
   creator_role?: string;
+  sample_collection_visit_charge?: number;
 }
 
 export interface CreatePatientData {
@@ -114,7 +117,8 @@ export interface CreatePatientData {
   state?: string;
   postal_code?: string;
   blood_type?: string;
-  branch_id: string;
+  branch_id?: string;
+  sample_collection_visit_charge?: number;
 }
 
 // ==========================================

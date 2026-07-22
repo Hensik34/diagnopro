@@ -17,7 +17,17 @@ const TimeLog = sequelize.define("TimeLog", {
   end_km: { type: DataTypes.DECIMAL(10, 2) },
   total_km: { type: DataTypes.DECIMAL(10, 2) },
   end_meter_image: { type: DataTypes.TEXT },
+  start_meter_image: { type: DataTypes.TEXT },
   location_meta: { type: DataTypes.JSONB, defaultValue: {} },
+  approval_status: { type: DataTypes.STRING(30), defaultValue: "approved" },
+  is_outside: { type: DataTypes.BOOLEAN, defaultValue: false },
+  outside_reason: { type: DataTypes.TEXT },
+  rejection_note: { type: DataTypes.TEXT },
+  penalty_hours: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+  approved_by: { type: DataTypes.UUID },
+  approved_at: { type: DataTypes.DATE },
+  requested_clock_in: { type: DataTypes.DATE },
+  requested_clock_out: { type: DataTypes.DATE },
 }, {
   tableName: "time_logs",
 });

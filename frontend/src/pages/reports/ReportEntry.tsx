@@ -35,6 +35,7 @@ import { reportApi } from "../../api/reports";
 import { priceListApi, pricingEngineApi } from "../../api/priceLists";
 import { sampleApi } from "../../api/samples";
 import { SampleBarcodeModal } from "../../app/components/reports/SampleBarcodeModal";
+import { SampleReceptionModal } from "../../app/components/reports/SampleReceptionModal";
 import { useBillingStore } from "../../stores/billingStore";
 import type { AgeUnit, Doctor, Patient, Report, Test, TestField, ReferenceRule, CriticalRules, ReportTestPriceSnapshot } from "../../types";
 import { BillingSection } from "../../app/components/reports/BillingSection";
@@ -339,8 +340,10 @@ export function ReportEntry() {
   const [searchParams] = useSearchParams();
   const isEditMode = searchParams.get('edit') === 'true';
 
-  // Barcode Modal State
+  // Barcode & Sample Reception Modal State
   const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
+  const [isSampleReceptionModalOpen, setIsSampleReceptionModalOpen] = useState(false);
+  const hasPromptedReceptionRef = useRef<string | null>(null);
 
   // Get initial data from navigation state (from CreateReport page)
   const initialData = location.state as {
@@ -1052,6 +1055,12 @@ export function ReportEntry() {
         loadFromReport(selectedReport);
         hasBillingLoaded.current = true;
         originalSnapshotRef.current = selectedReport.pricing_snapshot || [];
+      }
+
+      // Auto-prompt sample reception modal if pending on initial entry
+      if (selectedReport.sample_status !== 'received' && hasPromptedReceptionRef.current !== selectedReport.id) {
+        setIsSampleReceptionModalOpen(true);
+        hasPromptedReceptionRef.current = selectedReport.id;
       }
     }
   }, [selectedReport, reportId, doctors, loadFromReport, user]);
@@ -2269,21 +2278,32 @@ export function ReportEntry() {
     return true;
   };
 
-  const handleMarkSampleReceived = async () => {
-    if (!selectedReport?.sample_id) return;
+  const handleMarkSampleReceived = async (status: 'received' | 'partial' | 'pending' = 'received') => {
+    if (!selectedReport) return;
     try {
-      await sampleApi.update(selectedReport.sample_id, { status: 'received' });
+      if (selectedReport.sample_id) {
+        await sampleApi.update(selectedReport.sample_id, { status: status === 'received' ? 'received' : 'processing' });
+      }
+      if (reportId) {
+        await updateReport(reportId, { sample_status: status });
+      }
       // Update selectedReport inside the reportStore instantly
       useReportStore.setState((state) => ({
         selectedReport: state.selectedReport 
-          ? { ...state.selectedReport, sample_status: 'received' } 
+          ? { ...state.selectedReport, sample_status: status } 
           : null,
         // Also update in the list of reports if they are there
         reports: state.reports.map((r) => 
-          r.id === selectedReport.id ? { ...r, sample_status: 'received' } : r
+          r.id === selectedReport.id ? { ...r, sample_status: status } : r
         )
       }));
-      toast.success("Sample marked as received successfully!");
+      toast.success(
+        status === 'received' 
+          ? "All samples marked as received!" 
+          : status === 'partial' 
+          ? "Partial sample reception saved." 
+          : "Sample status updated to pending."
+      );
     } catch (err) {
       console.error('Failed to mark sample as received:', err);
       toast.error("Failed to mark sample as received");
@@ -2766,7 +2786,7 @@ export function ReportEntry() {
         onOpenHistory={handleOpenHistory}
         patientInitials={patientInitials}
         formatAge={formatAge}
-        onMarkSampleReceived={handleMarkSampleReceived}
+        onMarkSampleReceived={() => setIsSampleReceptionModalOpen(true)}
         onPrintSampleBarcodes={() => setIsBarcodeModalOpen(true)}
       />
 
@@ -4096,6 +4116,15 @@ export function ReportEntry() {
         isOpen={isBarcodeModalOpen}
         onClose={() => setIsBarcodeModalOpen(false)}
         report={selectedReport}
+      />
+
+      {/* Sample Reception Confirmation Modal */}
+      <SampleReceptionModal
+        isOpen={isSampleReceptionModalOpen}
+        onClose={() => setIsSampleReceptionModalOpen(false)}
+        report={selectedReport}
+        onConfirmReception={handleMarkSampleReceived}
+        onOpenBarcodes={() => setIsBarcodeModalOpen(true)}
       />
 
       {/* Test specific remarks/notes suggestions portal */}

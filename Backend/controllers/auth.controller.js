@@ -264,13 +264,15 @@ exports.register = async (req, res) => {
 // CREATE SUB-USER - Admin creates staff/technician and links to branch
 // NOTE: Doctors are created via the doctor routes, NOT here anymore
 exports.createUser = async (req, res) => {
-  const { firstname, lastname, email, password, phone, role, petrol_price_per_km, branch_id, can_approve_reports } = req.body;
+  const { name, staffName, firstname, lastname, email, password, phone, role, petrol_price_per_km, branch_id, can_approve_reports, requires_meter_photo } = req.body;
   const adminId = req.user.id;
 
+  const fullName = (name || staffName || firstname || "").trim();
+
   // Validation
-  if (!firstname || !lastname || !email || !password) {
+  if (!fullName || !email || !password) {
     return res.status(400).json({
-      error: "firstname, lastname, email, and password are required"
+      error: "Staff Name, email, and password are required"
     });
   }
 
@@ -287,40 +289,35 @@ exports.createUser = async (req, res) => {
     const targetBranchId = branch_id || req.headers['x-branch-id'];
 
     // Check if email already exists in users
-    const existingUser = await User.findUserByEmail(email);
+    const existingUser = await User.findUserByEmail(email.trim());
     if (existingUser) {
-      // User exists! Assign existing user to the target branch via UserBranch junction
-      if (targetBranchId) {
-        await Branch.assignUserToBranch(existingUser.id, targetBranchId, role || existingUser.role || "staff");
-      }
-      return res.status(200).json({
-        message: "User assigned to branch successfully",
-        user: existingUser,
+      return res.status(400).json({
+        error: "Email address is already registered. Each staff member must have a unique email address."
       });
     }
 
     // Also check doctors table
-    const existingDoctor = await Doctor.findDoctorByEmail(email);
+    const existingDoctor = await Doctor.findDoctorByEmail(email.trim());
     if (existingDoctor) {
-      return res.status(400).json({ error: "Email already registered as a doctor" });
+      return res.status(400).json({ error: "Email address is already registered as a doctor." });
     }
 
     // Create sub-user with created_by = admin's ID
     const user = await User.createUser(
-      firstname, lastname, email, password, phone,
+      fullName, lastname || "", email.trim(), password, phone,
       role || "staff", petrol_price_per_km || 0, adminId,
-      can_approve_reports === true || can_approve_reports === "true"
+      can_approve_reports === true || can_approve_reports === "true",
+      requires_meter_photo !== undefined ? (requires_meter_photo === true || requires_meter_photo === "true") : true,
+      fullName
     );
 
-    // Link user to target branches
-    const targetBranchIds = Array.isArray(branch_ids) && branch_ids.length > 0
-      ? branch_ids
-      : [(branch_id || req.headers['x-branch-id'])].filter(Boolean);
+    // Link user to single target branch
+    const finalBranchId = targetBranchId || (Array.isArray(branch_ids) && branch_ids[0] ? branch_ids[0] : null);
+    const { UserBranch } = require("../models");
+    await UserBranch.destroy({ where: { user_id: user.id } });
 
-    if (targetBranchIds.length > 0) {
-      for (const bId of targetBranchIds) {
-        await Branch.assignUserToBranch(user.id, bId, role || "staff");
-      }
+    if (finalBranchId) {
+      await Branch.assignUserToBranch(user.id, finalBranchId, role || "staff");
     } else {
       const adminBranches = await Branch.getAllBranches(adminId);
       if (adminBranches.length > 0) {
@@ -829,29 +826,40 @@ exports.getAllUsers = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { firstname, lastname, phone, role, petrol_price_per_km, can_approve_reports, branch_ids } = req.body;
+    const { name, staffName, firstname, lastname, email, phone, role, petrol_price_per_km, can_approve_reports, requires_meter_photo, branch_id, branch_ids } = req.body;
+
+    // Email uniqueness check if email is being updated
+    if (email && email.trim()) {
+      const existingUser = await User.findUserByEmail(email.trim());
+      if (existingUser && existingUser.id !== id) {
+        return res.status(400).json({ error: "Email address is already in use by another staff member." });
+      }
+    }
+
+    const fullName = (name || staffName || firstname);
 
     const user = await User.updateUser(id, {
-      firstname,
-      lastname,
+      name: fullName ? fullName.trim() : undefined,
+      firstname: fullName ? fullName.trim() : undefined,
+      lastname: lastname !== undefined ? lastname : undefined,
+      email: email ? email.trim() : undefined,
       phone,
       role,
       petrol_price_per_km,
-      can_approve_reports: can_approve_reports === true || can_approve_reports === "true"
+      can_approve_reports: can_approve_reports === true || can_approve_reports === "true",
+      requires_meter_photo: requires_meter_photo !== undefined ? (requires_meter_photo === true || requires_meter_photo === "true") : true,
     });
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    if (Array.isArray(branch_ids)) {
+    // Single Branch Assignment
+    const targetBranchId = branch_id || (Array.isArray(branch_ids) && branch_ids[0] ? branch_ids[0] : null);
+    if (targetBranchId) {
       const { UserBranch } = require("../models");
       await UserBranch.destroy({ where: { user_id: id } });
-      for (const bId of branch_ids) {
-        if (bId) {
-          await Branch.assignUserToBranch(id, bId, role || user.role || "staff");
-        }
-      }
+      await Branch.assignUserToBranch(id, targetBranchId, role || user.role || "staff");
     }
 
     const updatedBranches = await Branch.getUserBranches(id);
