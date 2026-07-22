@@ -20,6 +20,7 @@ const Patient = sequelize.define("Patient", {
   blood_type: { type: DataTypes.STRING(10) },
   branch_id: { type: DataTypes.UUID, allowNull: false },
   created_by: { type: DataTypes.UUID, allowNull: false },
+  sample_collection_visit_charge: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
 }, {
   tableName: "patients",
 });

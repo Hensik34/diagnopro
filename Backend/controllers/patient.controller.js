@@ -58,7 +58,7 @@ exports.getPatientById = async (req, res) => {
 // CREATE PATIENT
 exports.createPatient = async (req, res) => {
   try {
-    const { name, email, phone, age, age_unit, gender, address, city, state, postal_code, blood_type, branch_id } = req.body;
+    const { name, email, phone, age, age_unit, gender, address, city, state, postal_code, blood_type, branch_id, sample_collection_visit_charge } = req.body;
 
     const targetBranchId = branch_id || req.user.branch_id;
 
@@ -82,10 +82,9 @@ exports.createPatient = async (req, res) => {
       postal_code,
       blood_type,
       branch_id: targetBranchId,
-      created_by: req.user.id // From auth middleware
+      created_by: req.user.id, // From auth middleware
+      sample_collection_visit_charge: sample_collection_visit_charge ? parseFloat(sample_collection_visit_charge) : 0,
     });
-
-
 
     res.status(201).json({
       message: "Patient created successfully",
@@ -101,9 +100,9 @@ exports.createPatient = async (req, res) => {
 exports.updatePatient = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, age, age_unit, gender, address, city, state, postal_code, blood_type } = req.body;
+    const { name, email, phone, age, age_unit, gender, address, city, state, postal_code, blood_type, sample_collection_visit_charge } = req.body;
 
-    const patient = await Patient.updatePatient(id, {
+    const updateData = {
       name,
       email,
       phone,
@@ -115,7 +114,13 @@ exports.updatePatient = async (req, res) => {
       state,
       postal_code,
       blood_type
-    });
+    };
+
+    if (sample_collection_visit_charge !== undefined) {
+      updateData.sample_collection_visit_charge = parseFloat(sample_collection_visit_charge) || 0;
+    }
+
+    const patient = await Patient.updatePatient(id, updateData);
 
     if (!patient) {
       return res.status(404).json({ error: "Patient not found" });

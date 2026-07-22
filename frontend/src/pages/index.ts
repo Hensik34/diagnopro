@@ -43,7 +43,7 @@ export { DoctorManagement, DoctorDetail } from './doctors';
 export { TestManagement } from './tests';
 
 // User Pages
-export { Users } from './users';
+export { Users, StaffDetail } from './users';
 
 // Branch Pages
 export { Branches } from './branches';

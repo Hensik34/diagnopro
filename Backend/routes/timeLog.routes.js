@@ -7,10 +7,10 @@ const timeLogController = require("../controllers/timeLog.controller");
 // Self-service routes (any authenticated user)
 // ==========================================
 
-// Clock in
+// Checkin
 router.post("/clock-in", authenticate, authorize(PERMISSIONS.TIMELOG_TRACK), timeLogController.clockIn);
 
-// Clock out
+// Checkout
 router.post("/clock-out", authenticate, authorize(PERMISSIONS.TIMELOG_TRACK), timeLogController.clockOut);
 
 // Get my active session
@@ -22,6 +22,15 @@ router.get("/my-logs", authenticate, authorize(PERMISSIONS.TIMELOG_TRACK), timeL
 // ==========================================
 // Admin routes
 // ==========================================
+
+// Get pending outside checkin/checkout approvals
+router.get("/pending-approvals", authorize(PERMISSIONS.TIMELOG_VIEW_ALL), timeLogController.getPendingApprovals);
+
+// Approve outside checkin/checkout request
+router.post("/:id/approve", authorize(PERMISSIONS.TIMELOG_VIEW_ALL), timeLogController.approveClockRequest);
+
+// Reject outside checkin/checkout request
+router.post("/:id/reject", authorize(PERMISSIONS.TIMELOG_VIEW_ALL), timeLogController.rejectClockRequest);
 
 // Get all logs (admin)
 router.get("/all", authorize(PERMISSIONS.TIMELOG_VIEW_ALL), timeLogController.getAllLogs);

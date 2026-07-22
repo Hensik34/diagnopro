@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import {
   Plus,
   Search,
@@ -6,6 +7,7 @@ import {
   Mail,
   Phone,
   Edit,
+  Eye,
   X,
   CheckCircle,
   Users as UsersIcon,
@@ -26,6 +28,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export function Users() {
+  const navigate = useNavigate();
   const { branches, currentBranchId, fetchBranches } = useBranchStore();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,8 +42,7 @@ export function Users() {
   const [modalError, setModalError] = useState<string | null>(null);
 
   // Form state for modal
-  const [formFirstname, setFormFirstname] = useState('');
-  const [formLastname, setFormLastname] = useState('');
+  const [formStaffName, setFormStaffName] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [formRole, setFormRole] = useState<string>('staff');
@@ -48,7 +50,8 @@ export function Users() {
   const [formConfirmPassword, setFormConfirmPassword] = useState('');
   const [formPetrolPrice, setFormPetrolPrice] = useState('');
   const [formCanApproveReports, setFormCanApproveReports] = useState(false);
-  const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
+  const [formRequiresMeterPhoto, setFormRequiresMeterPhoto] = useState(true);
+  const [formBranchId, setFormBranchId] = useState<string>('');
 
   // Fetch users on mount and branch change, also fetch branches list
   useEffect(() => {
@@ -134,14 +137,14 @@ export function Users() {
 
   const handleEdit = (user: User) => {
     setSelectedUser(user);
-    setFormFirstname(user.firstname);
-    setFormLastname(user.lastname);
+    setFormStaffName(user.name || `${user.firstname || ''} ${user.lastname || ''}`.trim());
     setFormEmail(user.email);
     setFormPhone(user.phone || '');
     setFormRole(user.role);
     setFormPetrolPrice(user.petrol_price_per_km?.toString() || '');
     setFormCanApproveReports(user.can_approve_reports || false);
-    setSelectedBranchIds(user.branches && user.branches.length > 0 ? user.branches.map(b => b.id) : (currentBranchId ? [currentBranchId] : []));
+    setFormRequiresMeterPhoto(user.requires_meter_photo !== false);
+    setFormBranchId(user.branches && user.branches.length > 0 ? user.branches[0].id : (currentBranchId || ''));
     setFormPassword('');
     setFormConfirmPassword('');
     setModalError(null);
@@ -150,14 +153,14 @@ export function Users() {
 
   const handleAdd = () => {
     setSelectedUser(null);
-    setFormFirstname('');
-    setFormLastname('');
+    setFormStaffName('');
     setFormEmail('');
     setFormPhone('');
     setFormRole('staff');
     setFormPetrolPrice('');
     setFormCanApproveReports(false);
-    setSelectedBranchIds(currentBranchId ? [currentBranchId] : []);
+    setFormRequiresMeterPhoto(true);
+    setFormBranchId(currentBranchId || '');
     setFormPassword('');
     setFormConfirmPassword('');
     setModalError(null);
@@ -178,8 +181,8 @@ export function Users() {
   const handleSave = async () => {
     setModalError(null);
 
-    if (!formFirstname.trim() || !formLastname.trim()) {
-      setModalError('First name and last name are required');
+    if (!formStaffName.trim()) {
+      setModalError('Staff name is required');
       return;
     }
     if (!formEmail.trim()) {
@@ -187,19 +190,27 @@ export function Users() {
       return;
     }
 
+    const nameParts = formStaffName.trim().split(/\s+/);
+    const firstname = nameParts[0] || formStaffName.trim();
+    const lastname = nameParts.slice(1).join(' ') || '';
+
     setIsSaving(true);
 
     try {
       if (selectedUser) {
         // Update existing user
         const response = await authApi.updateUser(selectedUser.id, {
-          firstname: formFirstname,
-          lastname: formLastname,
+          name: formStaffName.trim(),
+          staffName: formStaffName.trim(),
+          firstname,
+          lastname,
+          email: formEmail.trim(),
           phone: formPhone || undefined,
           role: formRole,
           petrol_price_per_km: formRole !== 'lab_technician' && formPetrolPrice ? Number(formPetrolPrice) : undefined,
           can_approve_reports: formRole === 'staff' ? false : formCanApproveReports,
-          branch_ids: selectedBranchIds,
+          requires_meter_photo: formRequiresMeterPhoto,
+          branch_id: formBranchId || currentBranchId || undefined,
         });
         setUsers(prev => prev.map(u =>
           u.id === selectedUser.id ? response.data : u
@@ -217,15 +228,18 @@ export function Users() {
           return;
         }
         await authApi.createUser({
-          firstname: formFirstname,
-          lastname: formLastname,
-          email: formEmail,
+          name: formStaffName.trim(),
+          staffName: formStaffName.trim(),
+          firstname,
+          lastname,
+          email: formEmail.trim(),
           password: formPassword,
           phone: formPhone || undefined,
           role: formRole,
           petrol_price_per_km: formRole !== 'lab_technician' && formPetrolPrice ? Number(formPetrolPrice) : undefined,
           can_approve_reports: formRole === 'staff' ? false : formCanApproveReports,
-          branch_ids: selectedBranchIds,
+          requires_meter_photo: formRequiresMeterPhoto,
+          branch_id: formBranchId || currentBranchId || undefined,
         });
         // Refetch to get the new user
         await fetchUsers();
@@ -253,7 +267,7 @@ export function Users() {
       <div className="bg-destructive/10 border border-destructive/20 rounded p-4 flex items-center gap-3">
         <AlertCircle className="w-5 h-5 text-destructive" />
         <div>
-          <p className="text-sm text-destructive font-medium">Failed to load users</p>
+          <p className="text-sm text-destructive font-medium">Failed to load staff</p>
           <p className="text-xs text-destructive/70">{error}</p>
         </div>
         <button onClick={fetchUsers} className="ml-auto text-xs text-primary hover:underline">
@@ -268,9 +282,9 @@ export function Users() {
       {/* Page Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-foreground text-lg mb-0.5">User Management</h1>
+          <h1 className="text-foreground text-lg mb-0.5">Staff Management</h1>
           <p className="text-muted-foreground text-xs">
-            Manage staff and lab technician accounts
+            Manage staff members and lab technician accounts
           </p>
         </div>
         <button
@@ -278,7 +292,7 @@ export function Users() {
           className="h-8 px-2.5 flex items-center gap-1.5 bg-primary text-white rounded hover:opacity-90 transition-opacity text-xs"
         >
           <Plus className="w-3.5 h-3.5" />
-          Add User
+          Add Staff
         </button>
       </div>
 
@@ -286,7 +300,7 @@ export function Users() {
       <div className="grid grid-cols-4 gap-3">
         <div className="bg-card border border-border rounded p-3">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Total Users</span>
+            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Total Staff</span>
             <UsersIcon className="w-3.5 h-3.5 text-muted-foreground" />
           </div>
           <div className="text-foreground text-xl tabular-nums">{filteredUsers.length}</div>
@@ -357,16 +371,16 @@ export function Users() {
         </select>
       </div>
 
-      {/* User Table */}
+      {/* Staff Table */}
       <div className="bg-card border border-border rounded overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-secondary/30 sticky top-0 z-10">
               <tr className="border-b border-border">
-                <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">User</th>
+                <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Staff Member</th>
                 <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Contact</th>
                 <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Role</th>
-                <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Branch Access</th>
+                <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Branch</th>
                 <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">Status</th>
                 <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Created</th>
                 <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-20">Action</th>
@@ -380,7 +394,9 @@ export function Users() {
                 >
                   <td className="px-3 py-2">
                     <div className="flex flex-col">
-                      <span className="text-xs text-foreground font-medium">{user.firstname} {user.lastname}</span>
+                      <span className="text-xs text-foreground font-medium">
+                        {user.name || `${user.firstname || ''} ${user.lastname || ''}`.trim()}
+                      </span>
                       <span className="text-[10px] text-muted-foreground tabular-nums">{user.id.slice(0, 8)}</span>
                     </div>
                   </td>
@@ -409,19 +425,9 @@ export function Users() {
                     </div>
                   </td>
                   <td className="px-3 py-2">
-                    <div className="flex flex-wrap gap-1">
-                      {user.branches && user.branches.length > 0 ? (
-                        user.branches.map((b) => (
-                          <span key={b.id} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
-                            {b.name}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-secondary text-muted-foreground border border-border">
-                          {user.branch_names || 'Active Branch'}
-                        </span>
-                      )}
-                    </div>
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
+                      {user.branches?.[0]?.name || user.branch_names || 'Assigned Branch'}
+                    </span>
                   </td>
                   <td className="px-3 py-2 text-center">
                     {getStatusBadge(user.is_active)}
@@ -431,6 +437,13 @@ export function Users() {
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center justify-center gap-1">
+                      <button
+                        onClick={() => navigate(`/app/users/${user.id}`)}
+                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-primary/10 transition-colors text-primary"
+                        title="View Staff Payout & Activity Details"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={() => handleEdit(user)}
                         className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground"
@@ -456,7 +469,7 @@ export function Users() {
               {filteredUsers.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-3 py-8 text-center text-sm text-muted-foreground">
-                    No users found
+                    No staff found
                   </td>
                 </tr>
               )}
@@ -467,19 +480,19 @@ export function Users() {
         {/* Footer */}
         <div className="border-t border-border bg-secondary/30 px-3 py-2 flex justify-between items-center">
           <div className="text-xs text-muted-foreground">
-            Showing <span className="text-foreground">{filteredUsers.length}</span> of <span className="text-foreground">{users.length}</span> users
+            Showing <span className="text-foreground">{filteredUsers.length}</span> of <span className="text-foreground">{users.length}</span> staff
           </div>
         </div>
       </div>
 
-      {/* Add/Edit User Modal */}
+      {/* Add/Edit Staff Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-card border border-border rounded-lg w-full max-w-2xl max-h-[90vh] overflow-auto">
             {/* Modal Header */}
             <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between">
               <h2 className="text-foreground text-sm">
-                {selectedUser ? 'Edit User' : 'Add New User'}
+                {selectedUser ? 'Edit Staff Member' : 'Add New Staff Member'}
               </h2>
               <button
                 onClick={() => setShowModal(false)}
@@ -503,24 +516,14 @@ export function Users() {
               <div>
                 <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Personal Information</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-foreground block mb-1">First Name *</label>
+                  <div className="col-span-2">
+                    <label className="text-xs text-foreground block mb-1">Staff Name *</label>
                     <input
                       type="text"
                       className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      value={formFirstname}
-                      onChange={(e) => setFormFirstname(e.target.value)}
-                      placeholder="First name"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-foreground block mb-1">Last Name *</label>
-                    <input
-                      type="text"
-                      className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                      value={formLastname}
-                      onChange={(e) => setFormLastname(e.target.value)}
-                      placeholder="Last name"
+                      value={formStaffName}
+                      onChange={(e) => setFormStaffName(e.target.value)}
+                      placeholder="Enter full staff name (e.g. Rahul Sharma)"
                     />
                   </div>
                   <div>
@@ -530,9 +533,9 @@ export function Users() {
                       className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                       value={formEmail}
                       onChange={(e) => setFormEmail(e.target.value)}
-                      placeholder="user@lab.com"
-                      disabled={!!selectedUser}
+                      placeholder="e.g. rahul@yourlab.com"
                     />
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Custom staff email (e.g. staffname@yourlab.com)</p>
                   </div>
                   <div>
                     <label className="text-xs text-foreground block mb-1">Phone Number</label>
@@ -577,56 +580,67 @@ export function Users() {
                   )}
                 </div>
 
-                {formRole !== 'staff' && (
-                  <div className="mt-4 flex items-center">
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center">
                     <button
                       type="button"
-                      onClick={() => setFormCanApproveReports(!formCanApproveReports)}
-                      className="flex items-center gap-2 cursor-pointer focus:outline-none"
+                      onClick={() => setFormRequiresMeterPhoto(!formRequiresMeterPhoto)}
+                      className="flex items-start gap-2.5 cursor-pointer focus:outline-none text-left"
                     >
-                      <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${formCanApproveReports
-                          ? 'border-green-500 bg-green-500 text-white'
+                      <div className={`w-5 h-5 mt-0.5 rounded border flex items-center justify-center transition-all shrink-0 ${formRequiresMeterPhoto
+                          ? 'border-primary bg-primary text-white'
                           : 'border-border bg-background text-transparent'
                         }`}>
                         <Check className="w-3.5 h-3.5 stroke-[3]" />
                       </div>
-                      <span className="text-xs font-medium text-foreground select-none">
-                        Enable Report Approval Rights
-                      </span>
+                      <div>
+                        <span className="text-xs font-medium text-foreground select-none block">
+                          Require Bike Meter Photo for Check-In / Check-Out
+                        </span>
+                        <span className="text-[11px] text-muted-foreground select-none block">
+                          Uncheck if staff member does not collect field samples (enables direct check-in & checkout)
+                        </span>
+                      </div>
                     </button>
                   </div>
-                )}
+
+                  {formRole !== 'staff' && (
+                    <div className="flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => setFormCanApproveReports(!formCanApproveReports)}
+                        className="flex items-center gap-2 cursor-pointer focus:outline-none"
+                      >
+                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${formCanApproveReports
+                            ? 'border-green-500 bg-green-500 text-white'
+                            : 'border-border bg-background text-transparent'
+                          }`}>
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        </div>
+                        <span className="text-xs font-medium text-foreground select-none">
+                          Enable Report Approval Rights
+                        </span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Branch Access (Assignments) - Only shown when multiple branches exist */}
+              {/* Branch Assignment - Only shown when multiple branches exist */}
               {branches.length > 1 && (
                 <div className="border-t border-border pt-4">
-                  <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Branch Access (Assignments)</h3>
-                  <p className="text-[11px] text-muted-foreground mb-3">Select which lab branches this user is authorized to access</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {branches.map((b) => {
-                      const isChecked = selectedBranchIds.includes(b.id);
-                      return (
-                        <label key={b.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer p-2 border border-border rounded hover:bg-accent/40 transition-colors">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {
-                              if (isChecked) {
-                                if (selectedBranchIds.length > 1) {
-                                  setSelectedBranchIds(selectedBranchIds.filter((id) => id !== b.id));
-                                }
-                              } else {
-                                setSelectedBranchIds([...selectedBranchIds, b.id]);
-                              }
-                            }}
-                            className="rounded border-border text-primary focus:ring-primary"
-                          />
-                          <span className="font-medium text-xs">{b.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                  <label className="text-xs text-foreground block mb-1 font-medium">Assigned Lab Branch *</label>
+                  <select
+                    value={formBranchId}
+                    onChange={(e) => setFormBranchId(e.target.value)}
+                    className="w-full h-9 px-3 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer text-foreground"
+                  >
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
 
@@ -675,7 +689,7 @@ export function Users() {
                 className="h-8 px-3 bg-primary text-white rounded text-xs hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5"
               >
                 {isSaving && <Loader2 className="w-3 h-3 animate-spin" />}
-                {selectedUser ? 'Save Changes' : 'Create User'}
+                {selectedUser ? 'Save Changes' : 'Create Staff Member'}
               </button>
             </div>
           </div>

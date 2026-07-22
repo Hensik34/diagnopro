@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { X, Printer } from 'lucide-react';
+import { useEffect, useRef, useState, useMemo } from 'react';
+import { X, Printer, Beaker } from 'lucide-react';
 import JsBarcode from 'jsbarcode';
 import { useTestStore } from '../../../stores/testStore';
 import type { Report } from '../../../types';
@@ -10,7 +10,16 @@ interface SampleBarcodeModalProps {
   report: Report | null;
 }
 
-// Inner barcode component specifically for the test tube sticker preview
+export interface SampleGroup {
+  id: string;
+  sampleType: string;
+  containerInfo: string;
+  badgeColor: string;
+  barcodeValue: string;
+  tests: { code: string; name: string }[];
+  testCodesStr: string;
+}
+
 function LabelBarcode({ value }: { value: string }) {
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -35,7 +44,7 @@ function LabelBarcode({ value }: { value: string }) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <svg ref={svgRef} style={{ display: 'block', margin: '0 auto' }} />
       <div 
-        className="barcode-text text-black dark:text-white" 
+        className="barcode-text text-slate-900 dark:text-slate-100" 
         style={{ 
           fontSize: '8px', 
           fontWeight: 'bold', 
@@ -51,87 +60,141 @@ function LabelBarcode({ value }: { value: string }) {
 }
 
 export function SampleBarcodeModal({ isOpen, onClose, report }: SampleBarcodeModalProps) {
-  const printContainerRef = useRef<HTMLDivElement>(null);
-  const { tests } = useTestStore();
+  const { tests: masterTests } = useTestStore();
+  const [selectedIndex, setSelectedIndex] = useState<number>(0);
+
+  const cleanCode = (code: string): string => {
+    return code.replace(/[-_]\d+$/, '').toUpperCase();
+  };
+
+  const extractParentheses = (name: string): string | null => {
+    const match = name.match(/\(([^)]+)\)/);
+    return match ? match[1].trim() : null;
+  };
+
+  const inferSampleDetails = (sampleTypeRaw?: string, testName?: string, testCode?: string) => {
+    const nameLower = (testName || '').toLowerCase();
+    const codeLower = (testCode || '').toLowerCase();
+    const rawLower = (sampleTypeRaw || '').toLowerCase();
+
+    if (rawLower.includes('urine') || nameLower.includes('urine') || codeLower.includes('urine')) {
+      return { sampleType: 'Urine', container: 'Sterile Container', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20', prefix: 'U' };
+    }
+    if (rawLower.includes('stool') || nameLower.includes('stool') || nameLower.includes('feces')) {
+      return { sampleType: 'Stool', container: 'Stool Container', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20', prefix: 'S' };
+    }
+    if (rawLower.includes('fluoride') || nameLower.includes('fbs') || nameLower.includes('ppbs') || nameLower.includes('glucose')) {
+      return { sampleType: 'Fluoride Blood', container: 'Grey Tube', color: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20', prefix: 'F' };
+    }
+    if (rawLower.includes('edta') || nameLower.includes('cbc') || codeLower.includes('cbc') || nameLower.includes('hb')) {
+      return { sampleType: 'EDTA Blood', container: 'Lavender Tube', color: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20', prefix: 'B' };
+    }
+    if (rawLower.includes('serum') || nameLower.includes('crp') || nameLower.includes('lft') || nameLower.includes('kft') || nameLower.includes('lipid') || nameLower.includes('thyroid')) {
+      return { sampleType: 'Serum', container: 'Red/Yellow Tube', color: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20', prefix: 'SR' };
+    }
+    if (sampleTypeRaw && sampleTypeRaw.trim()) {
+      return { sampleType: sampleTypeRaw, container: 'Specimen Tube', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20', prefix: 'S' };
+    }
+    return { sampleType: 'Specimen', container: 'Blood Tube', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20', prefix: 'B' };
+  };
+
+  const sampleGroups = useMemo<SampleGroup[]>(() => {
+    if (!report) return [];
+
+    const baseSampleId = report.sample_id_code || '1001';
+    const rawTestItems: { name: string; code: string; sampleTypeRaw?: string }[] = [];
+
+    if (report.pricing_snapshot && report.pricing_snapshot.length > 0) {
+      report.pricing_snapshot.forEach((item) => {
+        if (item.test_name || item.test_code) {
+          const master = masterTests.find(t => t.id === item.test_id || t.test_name.toLowerCase() === (item.test_name || '').toLowerCase());
+          rawTestItems.push({
+            name: item.test_name || master?.test_name || 'Test',
+            code: cleanCode(item.test_code || master?.test_code || extractParentheses(item.test_name || '') || item.test_name || 'TEST'),
+            sampleTypeRaw: master?.sample_type,
+          });
+        }
+      });
+    }
+
+    if (rawTestItems.length === 0 && report.test_data?.tests && report.test_data.tests.length > 0) {
+      report.test_data.tests.forEach((t) => {
+        const master = masterTests.find(mt => mt.id === t.testId || mt.test_name.toLowerCase() === (t.testName || '').toLowerCase());
+        rawTestItems.push({
+          name: t.testName || master?.test_name || 'Test',
+          code: cleanCode(master?.test_code || extractParentheses(t.testName || '') || t.testName || 'TEST'),
+          sampleTypeRaw: master?.sample_type,
+        });
+      });
+    }
+
+    if (rawTestItems.length === 0 && report.report_type) {
+      const names = report.report_type.split(',').map(s => s.trim()).filter(Boolean);
+      names.forEach((name) => {
+        const master = masterTests.find(mt => mt.test_name.toLowerCase() === name.toLowerCase());
+        rawTestItems.push({
+          name,
+          code: cleanCode(master?.test_code || extractParentheses(name) || name),
+          sampleTypeRaw: master?.sample_type,
+        });
+      });
+    }
+
+    if (rawTestItems.length === 0) {
+      rawTestItems.push({ name: 'General Diagnostic', code: 'GEN', sampleTypeRaw: 'Blood' });
+    }
+
+    const groupMap = new Map<string, {
+      sampleType: string;
+      container: string;
+      color: string;
+      prefix: string;
+      tests: { code: string; name: string }[];
+    }>();
+
+    rawTestItems.forEach((item) => {
+      const details = inferSampleDetails(item.sampleTypeRaw, item.name, item.code);
+      const existing = groupMap.get(details.sampleType);
+      if (existing) {
+        if (!existing.tests.some(t => t.code === item.code)) {
+          existing.tests.push({ code: item.code, name: item.name });
+        }
+      } else {
+        groupMap.set(details.sampleType, {
+          sampleType: details.sampleType,
+          container: details.container,
+          color: details.color,
+          prefix: details.prefix,
+          tests: [{ code: item.code, name: item.name }],
+        });
+      }
+    });
+
+    const groupsArr = Array.from(groupMap.values());
+
+    return groupsArr.map((g, idx) => {
+      const barcodeValue = groupsArr.length > 1
+        ? `${baseSampleId}-${g.prefix}${idx + 1}`
+        : baseSampleId;
+
+      return {
+        id: `sample-group-${idx}`,
+        sampleType: g.sampleType,
+        containerInfo: g.container,
+        badgeColor: g.color,
+        barcodeValue,
+        tests: g.tests,
+        testCodesStr: g.tests.map(t => t.code).join(', '),
+      };
+    });
+  }, [report, masterTests]);
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [isOpen, report]);
 
   if (!isOpen || !report) return null;
 
-  // Extract test short-codes / abbreviations
-  const getTestCodes = (): string => {
-    const cleanCode = (code: string): string => {
-      return code.replace(/[-_]\d+$/, '').toUpperCase();
-    };
-
-    const extractParentheses = (name: string): string | null => {
-      const match = name.match(/\(([^)]+)\)/);
-      return match ? match[1].trim() : null;
-    };
-
-    const findCode = (testName?: string, testId?: string): string | null => {
-      if (testId) {
-        const test = tests.find(t => t.id === testId);
-        if (test?.test_code) return cleanCode(test.test_code);
-      }
-      if (testName) {
-        const test = tests.find(t => t.test_name.toLowerCase() === testName.toLowerCase());
-        if (test?.test_code) return cleanCode(test.test_code);
-        
-        const codeInParen = extractParentheses(testName);
-        if (codeInParen) return cleanCode(codeInParen);
-      }
-      return null;
-    };
-
-    // Check if there are snapshotted packages first
-    if (report.pricing_snapshot && report.pricing_snapshot.length > 0) {
-      const packageNames = report.pricing_snapshot
-        .filter(item => item.package_id)
-        .map(item => item.package_name)
-        .filter(Boolean) as string[];
-
-      const standaloneTests = report.pricing_snapshot
-        .filter(item => !item.package_id && item.test_id)
-        .map(item => item.test_code)
-        .filter(Boolean) as string[];
-
-      if (packageNames.length > 0) {
-        if (standaloneTests.length > 0) {
-          const matchedStandalones = standaloneTests.map(c => cleanCode(c));
-          return `${packageNames.join(', ')} + ${matchedStandalones.join(', ')}`;
-        }
-        return packageNames.join(', ');
-      }
-    }
-
-    // 1. Grouped structure
-    if (report.test_data?.tests && report.test_data.tests.length > 0) {
-      const codes = report.test_data.tests.map(t => {
-        return findCode(t.testName, t.testId) || t.testName;
-      });
-      return codes.join(', ');
-    }
-
-    // 2. Flat structure with testIds
-    if (report.test_data?.testIds && report.test_data.testIds.length > 0) {
-      const codes = report.test_data.testIds.map(testId => {
-        const test = tests.find(t => t.id === testId);
-        return test?.test_code ? cleanCode(test.test_code) : (extractParentheses(test?.test_name || '') || test?.test_name || 'Test');
-      });
-      return codes.join(', ');
-    }
-
-    // Fallback: split report_type
-    if (report.report_type) {
-      const items = report.report_type.split(',').map(s => s.trim()).filter(Boolean);
-      const codes = items.map(name => findCode(name) || extractParentheses(name) || name);
-      return codes.join(', ');
-    }
-
-    return 'General';
-  };
-
-  const testCodes = getTestCodes();
-  const sampleId = report.sample_id_code || 'N/A';
   const patientName = report.patient_name || 'N/A';
   const collectionDate = report.created_at
     ? new Date(report.created_at).toLocaleDateString('en-GB', {
@@ -141,17 +204,34 @@ export function SampleBarcodeModal({ isOpen, onClose, report }: SampleBarcodeMod
       })
     : new Date().toLocaleDateString('en-GB');
 
-  const handlePrint = () => {
+  const activeGroup = sampleGroups[selectedIndex] || sampleGroups[0];
+
+  const handlePrint = (singleGroup?: SampleGroup) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    // Get current labels HTML from the ref
-    const content = printContainerRef.current?.innerHTML || '';
+    const printableGroups = singleGroup ? [singleGroup] : sampleGroups;
+
+    const labelsHtml = printableGroups.map((g) => `
+      <div class="label-page">
+        <div class="patient-name">${patientName}</div>
+        <div class="barcode-svg-container">
+          <svg class="barcode-element" data-value="${g.barcodeValue}"></svg>
+          <div class="barcode-text">ID: ${g.barcodeValue}</div>
+        </div>
+        <div class="meta-row">
+          <span class="sample-type-tag">[${g.sampleType.toUpperCase()}]</span>
+          <span class="test-tag">${g.testCodesStr}</span>
+          <span class="collection-date">${collectionDate}</span>
+        </div>
+      </div>
+    `).join('');
 
     printWindow.document.write(`
       <html>
         <head>
           <title>Print Tube Barcode - ${patientName}</title>
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
           <style>
             @page {
               size: 50mm 25mm;
@@ -166,7 +246,7 @@ export function SampleBarcodeModal({ isOpen, onClose, report }: SampleBarcodeMod
               width: 50mm;
               height: 25mm;
               box-sizing: border-box;
-              padding: 2.5mm 3.5mm;
+              padding: 2mm 3mm;
               display: flex;
               flex-direction: column;
               justify-content: space-between;
@@ -185,7 +265,7 @@ export function SampleBarcodeModal({ isOpen, onClose, report }: SampleBarcodeMod
               overflow: hidden;
               text-overflow: ellipsis;
               border-bottom: 0.5px solid #eee;
-              padding-bottom: 1.5px;
+              padding-bottom: 1px;
             }
             .barcode-svg-container {
               display: flex;
@@ -195,45 +275,74 @@ export function SampleBarcodeModal({ isOpen, onClose, report }: SampleBarcodeMod
               margin: 1px 0;
               height: 11mm;
             }
-            .barcode-svg-container svg {
+            .barcode-element {
               max-height: 7.5mm;
               width: auto;
             }
+            .barcode-text {
+              font-size: 7.5px;
+              font-weight: bold;
+              margin-top: 1px;
+            }
             .meta-row {
               display: flex;
+              align-items: center;
               justify-content: space-between;
-              align-items: flex-end;
-              font-size: 7px;
+              font-size: 6.5px;
               font-weight: bold;
               border-top: 0.5px solid #eee;
-              padding-top: 1.5px;
+              padding-top: 1px;
               min-height: 8px;
+              gap: 2px;
+            }
+            .sample-type-tag {
+              font-weight: 900;
+              white-space: nowrap;
+              color: #000;
+              margin-right: 2px;
             }
             .test-tag {
-              font-size: 7px;
+              font-size: 6.5px;
               font-weight: 800;
               text-transform: uppercase;
               word-break: break-word;
               flex: 1;
-              margin-right: 6px;
               display: -webkit-box;
-              -webkit-line-clamp: 2;
+              -webkit-line-clamp: 1;
               -webkit-box-orient: vertical;
               overflow: hidden;
             }
             .collection-date {
               white-space: nowrap;
               flex-shrink: 0;
+              font-size: 6.5px;
             }
           </style>
         </head>
         <body>
-          ${content}
+          ${labelsHtml}
           <script>
             window.onload = function() {
+              var elements = document.querySelectorAll('.barcode-element');
+              elements.forEach(function(el) {
+                var val = el.getAttribute('data-value');
+                if (val) {
+                  try {
+                    JsBarcode(el, val, {
+                      format: 'CODE128',
+                      width: 1.2,
+                      height: 22,
+                      displayValue: false,
+                      margin: 0
+                    });
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }
+              });
               window.focus();
               window.print();
-              setTimeout(function() { window.close(); }, 500);
+              setTimeout(function() { window.close(); }, 600);
             };
           </script>
         </body>
@@ -244,95 +353,137 @@ export function SampleBarcodeModal({ isOpen, onClose, report }: SampleBarcodeMod
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" 
+        className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity" 
         onClick={onClose}
       />
 
       {/* Modal Content */}
-      <div className="relative bg-card border border-border rounded-lg shadow-xl w-full max-w-md overflow-hidden z-10 flex flex-col max-h-[85vh]">
+      <div className="relative bg-card border border-border rounded-xl shadow-2xl w-full max-w-md overflow-hidden z-10 flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Print Tube Barcode Sticker</h3>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              Stickers for patient <span className="font-medium text-foreground">{patientName}</span>
-            </p>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-slate-50/50 dark:bg-slate-900/50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
+              <Beaker className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-foreground">Print Tube Barcode</h3>
+              <p className="text-[11px] text-muted-foreground">
+                Patient: <span className="font-semibold text-foreground">{patientName}</span>
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            className="p-1.5 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Scrollable Preview Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-950">
-          <div className="text-[11px] font-medium text-muted-foreground text-center mb-1">
-            Label Preview (50mm x 25mm)
-          </div>
-
-          <div className="flex flex-col items-center gap-4">
-            <div 
-              className="w-[280px] h-[140px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-black dark:text-white rounded shadow-sm p-4 flex flex-col justify-between select-none"
-            >
-              {/* Patient Name */}
-              <div className="text-[10px] font-bold uppercase truncate border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                {patientName}
+        {/* Content Area */}
+        <div className="p-4 space-y-4 overflow-y-auto bg-slate-50/60 dark:bg-slate-950/60">
+          {/* Label Preview Card */}
+          {activeGroup && (
+            <div className="flex flex-col items-center justify-center">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                Sticker Preview ({activeGroup.sampleType})
               </div>
 
-              {/* Barcode SVG */}
-              <div className="py-2">
-                <LabelBarcode value={sampleId} />
-              </div>
+              <div className="w-[270px] h-[135px] border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg shadow-md p-3 flex flex-col justify-between select-none">
+                <div className="text-[10px] font-extrabold uppercase truncate border-b border-slate-200 dark:border-slate-800 pb-1 flex justify-between items-center">
+                  <span className="truncate">{patientName}</span>
+                  <span className="text-[8px] font-bold text-primary bg-primary/10 px-1 rounded">
+                    {activeGroup.sampleType.toUpperCase()}
+                  </span>
+                </div>
 
-              {/* Footer Meta */}
-              <div className="flex justify-between items-end text-[9px] font-bold pt-1.5 border-t border-slate-100 dark:border-slate-800 w-full gap-2">
-                <span 
-                  className="text-slate-800 dark:text-slate-200 font-extrabold uppercase break-words flex-1 text-left line-clamp-2" 
-                  title={testCodes}
-                >
-                  {testCodes}
-                </span>
-                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap shrink-0">
-                  {collectionDate}
-                </span>
+                <div className="py-1">
+                  <LabelBarcode value={activeGroup.barcodeValue} />
+                </div>
+
+                <div className="flex justify-between items-end text-[9px] font-bold pt-1 border-t border-slate-200 dark:border-slate-800 w-full gap-1.5">
+                  <span className="text-slate-900 dark:text-slate-100 font-extrabold uppercase truncate flex-1 text-left">
+                    {activeGroup.testCodesStr}
+                  </span>
+                  <span className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap shrink-0">
+                    {collectionDate}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+          )}
 
-        {/* Hidden Printable Container used to grab HTML for window.print */}
-        <div ref={printContainerRef} className="hidden">
-          <div className="label-page">
-            <div className="patient-name">{patientName}</div>
-            <div className="barcode-svg-container">
-              <LabelBarcode value={sampleId} />
+          {/* Clean List of Tubes if > 1 */}
+          {sampleGroups.length > 1 && (
+            <div className="space-y-1.5 pt-2 border-t border-border">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                Required Specimen Tubes ({sampleGroups.length})
+              </span>
+
+              <div className="space-y-1.5">
+                {sampleGroups.map((g, idx) => {
+                  const isSelected = idx === selectedIndex;
+                  return (
+                    <div
+                      key={g.id}
+                      onClick={() => setSelectedIndex(idx)}
+                      className={`flex items-center justify-between p-2.5 rounded-lg border cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-primary bg-primary/10 dark:bg-primary/20 shadow-xs'
+                          : 'border-border bg-card hover:bg-accent/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${g.badgeColor}`}>
+                          {g.sampleType}
+                        </span>
+                        <div className="text-xs font-medium text-foreground">
+                          {g.testCodesStr}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-primary">
+                          {g.barcodeValue}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePrint(g);
+                          }}
+                          className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+                          title="Print this label only"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div className="meta-row">
-              <span className="test-tag">{testCodes}</span>
-              <span className="collection-date">{collectionDate}</span>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Action Footer */}
-        <div className="px-4 py-3 border-t border-border flex items-center justify-end gap-2 bg-card">
+        <div className="p-3 border-t border-border bg-card flex items-center justify-between gap-2">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 border border-border text-xs rounded hover:bg-accent text-foreground transition-colors"
+            className="px-3 py-1.5 border border-border text-xs rounded-lg hover:bg-accent text-foreground transition-colors font-medium"
           >
-            Cancel
+            Close
           </button>
+
           <button
-            onClick={handlePrint}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded hover:bg-primary/95 transition-colors font-medium"
+            onClick={() => handlePrint()}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-xs rounded-lg hover:bg-primary/95 transition-colors font-bold shadow-sm"
           >
-            <Printer className="w-3.5 h-3.5" />
-            Print Label
+            <Printer className="w-4 h-4" />
+            <span>{sampleGroups.length > 1 ? `Print All Labels (${sampleGroups.length})` : 'Print Tube Label'}</span>
           </button>
         </div>
       </div>

@@ -20,7 +20,15 @@ const syncActiveBranch = (branches?: LoginBranch[], defaultBranchId?: string, us
     return;
   }
 
-  const targetId = branches?.[0]?.id || defaultBranchId;
+  const existingBranch = localStorage.getItem('diagnopro_active_branch');
+  const isExistingValid = existingBranch && (
+    !branches || branches.length === 0 || branches.some(b => b.id === existingBranch)
+  );
+
+  const targetId = isExistingValid
+    ? existingBranch
+    : (branches?.[0]?.id || defaultBranchId);
+
   if (targetId) {
     localStorage.setItem('diagnopro_active_branch', targetId);
     useBranchStore.getState().setCurrentBranchId(targetId);

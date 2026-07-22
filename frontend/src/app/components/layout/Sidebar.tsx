@@ -24,7 +24,7 @@ import {
   Timer,
   GitBranch,
 } from 'lucide-react';
-import { useAuthStore, PERMISSIONS } from '../../../stores';
+import { useAuthStore, useTimeLogStore, PERMISSIONS } from '../../../stores';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -128,7 +128,7 @@ const menuItems = [
   },
   {
     path: '/app/users',
-    label: 'Users',
+    label: 'Staff Management',
     icon: Users,
     permission: PERMISSIONS.USER_READ,
   },
@@ -145,12 +145,6 @@ const menuItems = [
     icon: Clock,
     // Visible to all authenticated users (no permission needed)
     hideForDoctor: true,
-  },
-  {
-    path: '/app/working-hours',
-    label: 'Working Hours',
-    icon: Timer,
-    permission: PERMISSIONS.TIMELOG_VIEW_ALL,
   },
   {
     path: '/app/analytics',
@@ -177,6 +171,7 @@ const menuItems = [
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const location = useLocation();
   const { can, getBranchRole } = useAuthStore();
+  const pendingApprovals = useTimeLogStore((s) => s.pendingApprovals);
   const currentRole = getBranchRole();
   const isDoctor = currentRole === 'doctor';
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -315,6 +310,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <span className="ml-2 text-sm font-medium whitespace-nowrap">{item.label}</span>
           )}
         </div>
+        {!isCurrentlyCollapsed && item.path === '/app/time-tracking' && pendingApprovals.length > 0 && (
+          <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold animate-pulse">
+            {pendingApprovals.length}
+          </span>
+        )}
         {!isCurrentlyCollapsed && hasSubmenus && (
           <div
             onClick={(e) => {

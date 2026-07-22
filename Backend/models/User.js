@@ -15,11 +15,22 @@ exports.findUserById = async (id) => {
 };
 
 // Create new user
-exports.createUser = async (firstname, lastname, email, password, phone = null, role = "admin", petrol_price_per_km = 0, created_by = null, can_approve_reports = false) => {
+exports.createUser = async (firstname, lastname = "", email, password, phone = null, role = "admin", petrol_price_per_km = 0, created_by = null, can_approve_reports = false, requires_meter_photo = true, name = null) => {
   const password_hash = await bcrypt.hash(password, 10);
+  const fullName = (name || `${firstname || ''} ${lastname || ''}`).trim();
 
   const user = await User.create({
-    firstname, lastname, email, password_hash, phone, role, petrol_price_per_km, created_by, can_approve_reports,
+    name: fullName,
+    firstname: firstname || fullName,
+    lastname: lastname || "",
+    email,
+    password_hash,
+    phone,
+    role,
+    petrol_price_per_km,
+    created_by,
+    can_approve_reports,
+    requires_meter_photo,
   });
 
   // Return without password_hash
@@ -84,9 +95,19 @@ exports.activateUser = async (id) => {
 
 // Update user by admin
 exports.updateUser = async (id, data) => {
-  const { firstname, lastname, phone, role, petrol_price_per_km, can_approve_reports } = data;
+  const { name, firstname, lastname, email, phone, role, petrol_price_per_km, can_approve_reports, requires_meter_photo } = data;
+  const updatePayload = { phone, role, petrol_price_per_km, can_approve_reports, requires_meter_photo };
+
+  if (name || firstname) {
+    const fullName = (name || `${firstname || ''} ${lastname || ''}`).trim();
+    updatePayload.name = fullName;
+    updatePayload.firstname = firstname || fullName;
+    updatePayload.lastname = lastname !== undefined ? lastname : "";
+  }
+  if (email) updatePayload.email = email;
+
   const [count, [updated]] = await User.update(
-    { firstname, lastname, phone, role, petrol_price_per_km, can_approve_reports },
+    updatePayload,
     { where: { id }, returning: true }
   );
   return updated ? updated.toJSON() : null;

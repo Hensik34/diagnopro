@@ -12,6 +12,7 @@ const pdfGenerator = require("../services/pdfGenerator.service");
 const whatsappService = require("../services/whatsapp.service");
 const reportDeliveryService = require("../services/reportDelivery.service");
 const mailService = require("../services/mail.service");
+const { emitBranchWhatsAppEvent } = require("../services/realtime.service");
 const fs = require("fs");
 const path = require("path");
 
@@ -587,6 +588,15 @@ exports.updateReportStatus = async (req, res) => {
     }
 
     const report = await Report.updateReportStatus(id, status, userId);
+
+    if (report && report.branch_id) {
+      emitBranchWhatsAppEvent(report.branch_id, "report:status_change", {
+        report_id: report.id,
+        patient_name: report.patient ? report.patient.name : 'Patient',
+        status,
+        updated_at: new Date().toISOString(),
+      });
+    }
 
     res.json({
       message: `Report status updated to '${status}'`,

@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { Clock, Users, Calendar, Timer, ChevronDown, ChevronUp, Trash2, Loader2, User as UserIcon } from 'lucide-react';
 import { useTimeLogStore } from '../../stores';
 import { useBranchStore } from '../../stores/branchStore';
+import { formatHoursToHHMM } from '../../utils/formatters';
 import type { TimeLog } from '../../api/timeLogs';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -172,7 +173,7 @@ export function WorkingHours() {
           </div>
           <div className="mb-2">
             <span className="text-foreground text-2xl tracking-tight tabular-nums font-semibold">
-              {displayTotalHours.toFixed(1)}h
+              {formatHoursToHHMM(displayTotalHours)}
             </span>
           </div>
           <div className="flex items-center gap-1 text-xs">
@@ -239,7 +240,7 @@ export function WorkingHours() {
                   <div className="flex items-center gap-6">
                     <div className="text-right">
                       <p className="text-sm font-bold text-gray-900 dark:text-white">
-                        {Number(user.total_hours).toFixed(1)}h Total
+                        {formatHoursToHHMM(user.total_hours)} Total
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">{user.total_sessions} shift sessions</p>
                     </div>
@@ -284,7 +285,7 @@ export function WorkingHours() {
                                 )}
                               </td>
                               <td className="py-2.5 font-semibold text-gray-900 dark:text-white">
-                                {log.total_hours ? `${log.total_hours} hrs` : '—'}
+                                {formatHoursToHHMM(log.total_hours)}
                               </td>
                               <td className="py-2.5">
                                 {log.location_meta?.clock_in?.verified || log.location_meta?.clock_out?.verified ? (

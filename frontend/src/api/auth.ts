@@ -45,8 +45,10 @@ export const authApi = {
    * Create a sub-user (admin creates staff/technician/doctor)
    */
   createUser: async (userData: {
-    firstname: string;
-    lastname: string;
+    name?: string;
+    staffName?: string;
+    firstname?: string;
+    lastname?: string;
     email: string;
     password: string;
     phone?: string;
@@ -55,6 +57,7 @@ export const authApi = {
     branch_id?: string;
     branch_ids?: string[];
     can_approve_reports?: boolean;
+    requires_meter_photo?: boolean;
   }): Promise<{ message: string; user: User }> => {
     const response = await api.post<{ message: string; user: User }>('/auth/users', userData);
     return response.data;
@@ -110,7 +113,7 @@ export const authApi = {
   /**
    * Update a user (admin only)
    */
-  updateUser: async (id: string, data: { firstname?: string; lastname?: string; phone?: string; role?: string; petrol_price_per_km?: number; can_approve_reports?: boolean; branch_ids?: string[] }): Promise<ApiResponse<User>> => {
+  updateUser: async (id: string, data: { name?: string; staffName?: string; firstname?: string; lastname?: string; email?: string; phone?: string; role?: string; petrol_price_per_km?: number; can_approve_reports?: boolean; requires_meter_photo?: boolean; branch_id?: string; branch_ids?: string[] }): Promise<ApiResponse<User>> => {
     const response = await api.put<ApiResponse<User>>(`/auth/users/${id}`, data);
     return response.data;
   },

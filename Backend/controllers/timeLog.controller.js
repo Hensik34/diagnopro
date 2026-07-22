@@ -23,7 +23,7 @@ async function sendClockNotification(userId, branchId, action, notes = null) {
     
     let targetUsers = mappings.map(m => m.User).filter(Boolean);
     
-    // 2. Also include the creator admin of the staff user
+    // 2. Also include creator admin
     const staffUser = await User.findByPk(userId);
     if (staffUser && staffUser.created_by) {
       const creator = await User.findByPk(staffUser.created_by);
@@ -51,11 +51,11 @@ async function sendClockNotification(userId, branchId, action, notes = null) {
     const timeStr = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
     const dateStr = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
     
-    const actionText = action === "in" ? "clocked IN 🟢" : "clocked OUT 🔴";
+    const actionText = action === "in" ? "checked IN 🟢" : "checked OUT 🔴";
     const notesText = notes ? `\n*Notes:* ${notes}` : "";
     const message = `🔔 *Attendance Alert*\n\nStaff *${staffName}* has ${actionText} today (${dateStr}) at *${timeStr}*.\n*Branch:* ${branchName}${notesText}`;
 
-    // 4. Send messages
+    // 4. Send WhatsApp messages
     for (const u of targetUsers) {
       if (u.phone) {
         try {
@@ -74,55 +74,64 @@ async function sendClockNotification(userId, branchId, action, notes = null) {
   }
 }
 
-// CLOCK IN
+// CHECKIN
 exports.clockIn = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { branch_id, start_km, start_meter_image, latitude, longitude } = req.body;
+    const { branch_id, start_km, start_meter_image, latitude, longitude, is_outside, outside_reason } = req.body;
 
-    // Check if user already has an active session
+    // Check active session
     const activeSession = await TimeLog.getActiveSession(userId);
     if (activeSession) {
       return res.status(400).json({ 
-        error: "You already have an active session. Please clock out first.",
+        error: "You already have an active session. Please checkout first.",
         data: activeSession
       });
     }
 
     const targetBranchId = req.headers['x-branch-id'] || branch_id || req.user.branch_id || null;
     let locationCheck = { verified: true, bypass: true };
+    let outsideMode = !!is_outside;
     
     if (targetBranchId) {
       const branch = await Branch.findByPk(targetBranchId);
       if (branch) {
         locationCheck = verifyBranchLocation(branch, latitude, longitude);
         if (!locationCheck.verified && !locationCheck.bypass) {
-          return res.status(403).json({
-            error: locationCheck.message,
-            distance_meters: locationCheck.distanceMeters,
-            radius: locationCheck.radius,
-          });
+          if (!outsideMode && !outside_reason) {
+            return res.status(403).json({
+              error: locationCheck.message,
+              distance_meters: locationCheck.distanceMeters,
+              radius: locationCheck.radius,
+              allow_outside_request: true,
+            });
+          }
+          outsideMode = true;
         }
       }
     }
 
-    // Mandatory Start Meter Photo
-    if (!start_meter_image || !start_meter_image.startsWith("data:image/")) {
-      return res.status(400).json({ error: "Start bike meter photo is required to start shift." });
+    // Mandatory Start Meter Photo (only if user.requires_meter_photo !== false)
+    if (req.user?.requires_meter_photo !== false) {
+      if (!start_meter_image || !start_meter_image.startsWith("data:image/")) {
+        return res.status(400).json({ error: "Start bike meter photo is required to checkin." });
+      }
     }
 
-    // Upload start meter photo to Cloudinary
+    // Upload start meter photo if provided
     let startMeterUrl = null;
-    try {
-      startMeterUrl = await uploadBase64ToCloudinary(
-        start_meter_image,
-        "start_meter",
-        targetBranchId || "general",
-        "collection-tracking"
-      );
-    } catch (uploadErr) {
-      console.error("Failed to upload start meter photo to Cloudinary:", uploadErr);
-      startMeterUrl = start_meter_image;
+    if (start_meter_image && start_meter_image.startsWith("data:image/")) {
+      try {
+        startMeterUrl = await uploadBase64ToCloudinary(
+          start_meter_image,
+          "start_meter",
+          targetBranchId || "general",
+          "collection-tracking"
+        );
+      } catch (uploadErr) {
+        console.error("Failed to upload start meter photo to Cloudinary:", uploadErr);
+        startMeterUrl = start_meter_image;
+      }
     }
 
     const location_meta = {
@@ -138,10 +147,13 @@ exports.clockIn = async (req, res) => {
 
     const log = await TimeLog.clockIn(userId, targetBranchId, {
       start_km,
+      start_meter_image: startMeterUrl,
       location_meta,
+      is_outside: outsideMode,
+      outside_reason: outside_reason || (outsideMode ? `Outside Checkin (${locationCheck.distanceMeters || 0}m from lab)` : null),
     });
 
-    // Always create a new CollectionTracking entry for this shift check-in
+    // Create CollectionTracking entry
     try {
       await CollectionTracking.create({
         staff_id: userId,
@@ -154,66 +166,89 @@ exports.clockIn = async (req, res) => {
       console.error("Failed to sync CollectionTracking on clockIn:", ctErr);
     }
 
-    // Trigger notification in background
-    if (log && log.branch_id) {
+    // Emit Realtime event for outside request if pending
+    if (outsideMode && targetBranchId) {
+      const staffUser = await User.findByPk(userId);
+      const staffName = staffUser ? `${staffUser.firstname} ${staffUser.lastname}` : "Staff";
+      emitBranchWhatsAppEvent(targetBranchId, "staff:outside_clock_request", {
+        id: log.id,
+        userId,
+        userName: staffName,
+        type: "checkin",
+        distanceMeters: locationCheck.distanceMeters,
+        reason: outside_reason || "Outside Checkin Request",
+        timestamp: new Date().toISOString(),
+      });
+    } else if (log && log.branch_id) {
       sendClockNotification(userId, log.branch_id, "in").catch(console.error);
     }
 
-    res.status(201).json({ message: "Clocked in successfully", data: log });
+    res.status(201).json({ 
+      message: outsideMode ? "Outside Checkin request submitted for Admin approval" : "Checked in successfully", 
+      data: log 
+    });
   } catch (err) {
-    console.error("Clock in error:", err);
+    console.error("Checkin error:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
-// CLOCK OUT
+// CHECKOUT
 exports.clockOut = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { notes, end_km, end_meter_image, latitude, longitude } = req.body;
+    const { notes, end_km, end_meter_image, latitude, longitude, is_outside, outside_reason } = req.body;
 
     const activeSession = await TimeLog.getActiveSession(userId);
     if (!activeSession) {
-      return res.status(400).json({ error: "No active session found to clock out" });
+      return res.status(400).json({ error: "No active session found to checkout" });
     }
 
-    // Verify Lab Location
     const targetBranchId = activeSession.branch_id || req.user.branch_id || null;
     let locationCheck = { verified: true, bypass: true };
+    let outsideMode = !!is_outside;
 
     if (targetBranchId) {
       const branch = await Branch.findByPk(targetBranchId);
       if (branch) {
         locationCheck = verifyBranchLocation(branch, latitude, longitude);
         if (!locationCheck.verified && !locationCheck.bypass) {
-          return res.status(403).json({
-            error: locationCheck.message,
-            distance_meters: locationCheck.distanceMeters,
-            radius: locationCheck.radius,
-          });
+          if (!outsideMode && !outside_reason) {
+            return res.status(403).json({
+              error: locationCheck.message,
+              distance_meters: locationCheck.distanceMeters,
+              radius: locationCheck.radius,
+              allow_outside_request: true,
+            });
+          }
+          outsideMode = true;
         }
       }
     }
 
-    // Mandate End Meter Photo Upload
-    if (!end_meter_image || !end_meter_image.startsWith("data:image/")) {
-      return res.status(400).json({
-        error: "End bike meter photo is required to clock out.",
-      });
+    // Mandate End Meter Photo Upload (only if user.requires_meter_photo !== false)
+    if (req.user?.requires_meter_photo !== false) {
+      if (!end_meter_image || !end_meter_image.startsWith("data:image/")) {
+        return res.status(400).json({
+          error: "End bike meter photo is required to checkout.",
+        });
+      }
     }
 
-    // Upload end meter photo to Cloudinary
+    // Upload end meter photo to Cloudinary if provided
     let endMeterUrl = null;
-    try {
-      endMeterUrl = await uploadBase64ToCloudinary(
-        end_meter_image,
-        "end_meter",
-        targetBranchId || "general",
-        "collection-tracking"
-      );
-    } catch (uploadErr) {
-      console.error("Failed to upload end meter photo to Cloudinary:", uploadErr);
-      endMeterUrl = end_meter_image; // Fallback to original string if upload fails
+    if (end_meter_image && end_meter_image.startsWith("data:image/")) {
+      try {
+        endMeterUrl = await uploadBase64ToCloudinary(
+          end_meter_image,
+          "end_meter",
+          targetBranchId || "general",
+          "collection-tracking"
+        );
+      } catch (uploadErr) {
+        console.error("Failed to upload end meter photo to Cloudinary:", uploadErr);
+        endMeterUrl = end_meter_image;
+      }
     }
 
     const location_meta = {
@@ -231,9 +266,11 @@ exports.clockOut = async (req, res) => {
       end_km,
       end_meter_image: endMeterUrl,
       location_meta,
+      is_outside: outsideMode,
+      outside_reason: outside_reason || (outsideMode ? `Outside Checkout (${locationCheck.distanceMeters || 0}m from lab)` : null),
     });
 
-    // Find the open CollectionTracking record for this shift and update with end_km & end_meter_image
+    // Sync CollectionTracking
     try {
       const todayRecords = await CollectionTracking.getTodayByStaff(userId);
       const openRecord = todayRecords.find(r => r.end_km == null) || todayRecords[0];
@@ -247,14 +284,115 @@ exports.clockOut = async (req, res) => {
       console.error("Failed to sync CollectionTracking on clockOut:", ctErr);
     }
 
-    // Trigger notification in background
-    if (log && log.branch_id) {
+    // Emit Realtime socket event if outside mode
+    if (outsideMode && targetBranchId) {
+      const staffUser = await User.findByPk(userId);
+      const staffName = staffUser ? `${staffUser.firstname} ${staffUser.lastname}` : "Staff";
+      emitBranchWhatsAppEvent(targetBranchId, "staff:outside_clock_request", {
+        id: log.id,
+        userId,
+        userName: staffName,
+        type: "checkout",
+        distanceMeters: locationCheck.distanceMeters,
+        reason: outside_reason || "Outside Checkout Request",
+        timestamp: new Date().toISOString(),
+      });
+    } else if (log && log.branch_id) {
       sendClockNotification(userId, log.branch_id, "out", notes).catch(console.error);
     }
 
-    res.json({ message: "Clocked out successfully", data: log });
+    res.json({ 
+      message: outsideMode ? "Outside Checkout request submitted for Admin approval" : "Checked out successfully", 
+      data: log 
+    });
   } catch (err) {
-    console.error("Clock out error:", err);
+    console.error("Checkout error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// GET PENDING APPROVALS (admin)
+exports.getPendingApprovals = async (req, res) => {
+  try {
+    const { branch_id } = req.query;
+    const targetBranchId = req.headers['x-branch-id'] || branch_id || null;
+    const adminId = req.user.id;
+
+    const pendingLogs = await TimeLog.getPendingApprovals(adminId, targetBranchId);
+    res.json({
+      message: "Pending checkin/checkout approvals retrieved",
+      count: pendingLogs.length,
+      data: pendingLogs,
+    });
+  } catch (err) {
+    console.error("Get pending approvals error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// APPROVE CLOCK REQUEST (admin)
+exports.approveClockRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminId = req.user.id;
+
+    const updatedLog = await TimeLog.approveClockRequest(id, adminId);
+    if (!updatedLog) {
+      return res.status(404).json({ error: "Time log request not found" });
+    }
+
+    // Notify staff user via Realtime socket event
+    if (updatedLog.branch_id) {
+      emitBranchWhatsAppEvent(updatedLog.branch_id, "staff:clock_status_update", {
+        id: updatedLog.id,
+        userId: updatedLog.user_id,
+        status: "approved",
+        message: "Your outside Checkin/Checkout request has been approved.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.json({ message: "Checkin/Checkout request approved successfully", data: updatedLog });
+  } catch (err) {
+    console.error("Approve clock request error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// REJECT CLOCK REQUEST (admin)
+exports.rejectClockRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rejection_note } = req.body;
+    const adminId = req.user.id;
+
+    const updatedLog = await TimeLog.rejectClockRequest(id, adminId, rejection_note);
+    if (!updatedLog) {
+      return res.status(404).json({ error: "Time log request not found" });
+    }
+
+    // Notify staff user via Realtime socket event
+    if (updatedLog.branch_id) {
+      const isCheckoutPenalty = updatedLog.approval_status === "rejected_with_penalty";
+      emitBranchWhatsAppEvent(updatedLog.branch_id, "staff:clock_status_update", {
+        id: updatedLog.id,
+        userId: updatedLog.user_id,
+        status: updatedLog.approval_status,
+        message: isCheckoutPenalty 
+          ? `Outside Checkout rejected. Checkout completed with 1-hour penalty deduction. Note: ${rejection_note || 'Admin rejection'}`
+          : `Outside Checkin rejected by Admin. Note: ${rejection_note || 'Checkin canceled'}`,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.json({ 
+      message: updatedLog.approval_status === "rejected_with_penalty"
+        ? "Outside Checkout rejected: Checkout completed with 1-hour penalty deduction"
+        : "Outside Checkin request rejected and canceled", 
+      data: updatedLog 
+    });
+  } catch (err) {
+    console.error("Reject clock request error:", err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -276,7 +414,6 @@ exports.getMyLogs = async (req, res) => {
     const { start_date, end_date, branch_id } = req.query;
     const targetBranchId = req.headers['x-branch-id'] || branch_id || null;
     
-    // Default to current month
     const now = new Date();
     const startDate = start_date || new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const endDate = end_date || new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
@@ -297,7 +434,7 @@ exports.getMyLogs = async (req, res) => {
   }
 };
 
-// GET ALL LOGS (admin - team users only)
+// GET ALL LOGS (admin)
 exports.getAllLogs = async (req, res) => {
   try {
     const { start_date, end_date, branch_id } = req.query;
@@ -320,7 +457,7 @@ exports.getAllLogs = async (req, res) => {
   }
 };
 
-// GET USER SUMMARY (admin - team hours per user)
+// GET USER SUMMARY (admin)
 exports.getUserSummary = async (req, res) => {
   try {
     const { start_date, end_date, branch_id } = req.query;

@@ -28,7 +28,7 @@ import { DoctorManagement, DoctorDetail } from '../pages/doctors';
 // Branches
 import { Branches } from '../pages/branches';
 // Users
-import { Users } from '../pages/users';
+import { Users, StaffDetail } from '../pages/users';
 // Inventory
 import { Inventory } from '../pages/inventory';
 // Time Tracking
@@ -207,9 +207,10 @@ export const router = createBrowserRouter([
       { path: 'doctors/:id', Component: withPermission(DoctorDetail, PERMISSIONS.DOCTOR_READ) },
       { path: 'branches', Component: withPermission(Branches, PERMISSIONS.BRANCH_UPDATE) },
       { path: 'users', Component: withPermission(Users, PERMISSIONS.USER_READ) },
+      { path: 'users/:id', Component: withPermission(StaffDetail, PERMISSIONS.USER_READ) },
       { path: 'inventory', Component: withPermission(Inventory, PERMISSIONS.INVENTORY_READ) },
       { path: 'time-tracking', Component: withPermission(TimeTracking, PERMISSIONS.TIMELOG_TRACK) },
-      { path: 'working-hours', Component: withPermission(WorkingHours, PERMISSIONS.TIMELOG_VIEW_ALL) },
+      { path: 'working-hours', Component: TimeTracking },
       { path: 'analytics', Component: withPermission(Analytics, PERMISSIONS.ANALYTICS_VIEW) },
       { path: 'settings', Component: withPermission(Settings, PERMISSIONS.SETTINGS_VIEW) },
       { path: 'tests/pricing', Component: withPermission(PriceListManagement, PERMISSIONS.SETTINGS_VIEW) },

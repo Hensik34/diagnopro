@@ -35,6 +35,7 @@ import type { Report, ReportStatus } from '../../types';
 import { InvoiceModal } from '../../app/components/reports/InvoiceModal';
 import { sampleApi } from '../../api/samples';
 import { SampleBarcodeModal } from '../../app/components/reports/SampleBarcodeModal';
+import { SampleReceptionModal } from '../../app/components/reports/SampleReceptionModal';
 import { ReceiptModal } from '../../app/components/reports/ReceiptModal';
 import { BillingOptionModal } from '../../app/components/reports/BillingOptionModal';
 
@@ -138,19 +139,22 @@ export function Reports() {
   const canDelete = can('report:delete');
   const hasAnyAction = canEdit || canDelete || can('report:create') || can('report:read') || can('report:approve');
 
-  const handleMarkSampleReceived = async (report: Report) => {
-    if (!report.sample_id) return;
+  const [receptionModalReport, setReceptionModalReport] = useState<Report | null>(null);
+
+  const handleMarkSampleReceived = async (report: Report, status: 'received' | 'partial' | 'pending' = 'received') => {
     try {
-      await sampleApi.update(report.sample_id, { status: 'received' });
+      if (report.sample_id) {
+        await sampleApi.update(report.sample_id, { status: status === 'received' ? 'received' : 'processing' });
+      }
+      await reportApi.update(report.id, { sample_status: status });
       // Update local store instantly
       useReportStore.setState((state) => ({
         reports: state.reports.map((r) =>
-          r.id === report.id ? { ...r, sample_status: 'received' } : r
+          r.id === report.id ? { ...r, sample_status: status } : r
         )
       }));
     } catch (err) {
       console.error('Failed to mark sample as received:', err);
-      alert('Failed to mark sample as received');
     }
   };
 
@@ -983,7 +987,7 @@ export function Reports() {
                             </span>
                           ) : (
                             <button
-                              onClick={() => handleMarkSampleReceived(report)}
+                              onClick={() => setReceptionModalReport(report)}
                               className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-400 font-medium cursor-pointer transition-colors"
                               title="Click to Mark Received"
                             >
@@ -1146,6 +1150,24 @@ export function Reports() {
           setSelectedBarcodeReport(null);
         }}
         report={selectedBarcodeReport}
+      />
+
+      {/* Sample Reception Confirmation Modal */}
+      <SampleReceptionModal
+        isOpen={!!receptionModalReport}
+        onClose={() => setReceptionModalReport(null)}
+        report={receptionModalReport}
+        onConfirmReception={async (status) => {
+          if (receptionModalReport) {
+            await handleMarkSampleReceived(receptionModalReport, status);
+          }
+        }}
+        onOpenBarcodes={() => {
+          if (receptionModalReport) {
+            setSelectedBarcodeReport(receptionModalReport);
+            setIsBarcodeModalOpen(true);
+          }
+        }}
       />
       {/* Receipt Modal */}
       {billingAction?.type === 'receipt' && (

@@ -1,9 +1,11 @@
 import { Bell, CheckCircle, AlertCircle, FileText, User, Clock, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { reportApi, type ReportDeliveryNotification } from '../../../api/reports';
 import { getWhatsAppSocket } from '../../../api/whatsapp';
 import { getAuthToken } from '../../../api/client';
 import { useBranchStore, useAuthStore } from '../../../stores';
+import { browserNotificationService } from '../../../services/browserNotification';
 
 export interface Notification {
   id: string;
@@ -64,6 +66,7 @@ function getRecipientBadgeColor(type: string) {
 }
 
 export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps) {
+  const navigate = useNavigate();
   const { currentBranchId } = useBranchStore();
   const { user } = useAuthStore();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -151,30 +154,90 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
       timestamp: string;
       notes?: string;
     }) => {
+      const actionText = event.action === 'in' ? 'Checkin' : 'Checkout';
       const liveId = `clock-${event.userId}-${Date.now()}`;
       const liveNotification: Notification = {
         id: liveId,
-        type: 'staff_clock' as any,
+        type: 'staff_clock',
         status: event.action === 'in' ? 'success' : 'failed',
         recipient_type: 'staff',
         recipient_name: event.userName,
-        document_name: event.action === 'in' ? 'Clock In Alert' : 'Clock Out Alert',
+        document_name: `${actionText} Alert`,
         timestamp: event.timestamp,
-        message: `${event.userName} clocked ${event.action === 'in' ? 'IN 🟢' : 'OUT 🔴'}${event.notes ? ` (Notes: ${event.notes})` : ''}`,
+        message: `${event.userName} ${actionText === 'Checkin' ? 'checked IN 🟢' : 'checked OUT 🔴'}${event.notes ? ` (${event.notes})` : ''}`,
       };
 
       setNotifications((prev) => [liveNotification, ...prev].slice(0, 50));
     };
 
+    // Socket listener: Outside Checkin/Checkout Approval Request (Admin Chrome Notification)
+    const onOutsideClockRequest = (event: {
+      id: string;
+      userId: string;
+      userName: string;
+      type: 'checkin' | 'checkout';
+      distanceMeters?: number;
+      reason?: string;
+    }) => {
+      if (user?.role === 'admin' || user?.role === 'lab_technician') {
+        const actionTitle = event.type === 'checkin' ? 'Outside Checkin Request' : 'Outside Checkout Request';
+        browserNotificationService.sendNotification({
+          title: `🔔 ${actionTitle} - ${event.userName}`,
+          body: `Staff requested ${event.type} from ${event.distanceMeters || 0}m away. Reason: ${event.reason || 'Outside location'}. Click to review.`,
+          onClickUrl: '/app/time-tracking?tab=pending',
+          onNavigate: (url) => navigate(url),
+        });
+      }
+    };
+
+    // Socket listener: Checkin/Checkout Approval or Rejection Status (Staff Chrome Notification)
+    const onClockStatusUpdate = (event: {
+      id: string;
+      userId: string;
+      status: string;
+      message: string;
+    }) => {
+      if (user?.id === event.userId) {
+        const isApproved = event.status === 'approved';
+        browserNotificationService.sendNotification({
+          title: isApproved ? '✅ Checkin/Checkout Approved' : '🔴 Checkin/Checkout Update',
+          body: event.message,
+          onClickUrl: '/app/time-tracking',
+          onNavigate: (url) => navigate(url),
+        });
+      }
+    };
+
+    // Socket listener: Report Status Approved or Rejected (Staff/Doctor Chrome Notification)
+    const onReportStatusChange = (event: {
+      report_id: string;
+      patient_name: string;
+      status: string;
+    }) => {
+      const isApproved = event.status === 'approved';
+      browserNotificationService.sendNotification({
+        title: isApproved ? '📄 Report Approved ✅' : '📄 Report Status Update',
+        body: `Report for patient ${event.patient_name || 'Patient'} is now ${event.status}. Click to view reports.`,
+        onClickUrl: '/app/reports',
+        onNavigate: (url) => navigate(url),
+      });
+    };
+
     socket.on('report:delivery', onDeliveryEvent);
     socket.on('staff:clock', onStaffClockEvent);
+    socket.on('staff:outside_clock_request', onOutsideClockRequest);
+    socket.on('staff:clock_status_update', onClockStatusUpdate);
+    socket.on('report:status_change', onReportStatusChange);
 
     return () => {
       socket.off('report:delivery', onDeliveryEvent);
       socket.off('staff:clock', onStaffClockEvent);
+      socket.off('staff:outside_clock_request', onOutsideClockRequest);
+      socket.off('staff:clock_status_update', onClockStatusUpdate);
+      socket.off('report:status_change', onReportStatusChange);
       socket.emit('whatsapp:unsubscribe', { branch_id: currentBranchId });
     };
-  }, [currentBranchId, user]);
+  }, [currentBranchId, user, navigate]);
 
   const visibleNotifications = notifications.filter(n => !dismissedIds.has(n.id));
 
