@@ -174,6 +174,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pendingApprovals = useTimeLogStore((s) => s.pendingApprovals);
   const currentRole = getBranchRole();
   const isDoctor = currentRole === 'doctor';
+  const isPathologist = currentRole === 'pathologist';
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
 
@@ -189,6 +190,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   // Filter and transform menu items based on user permissions and role
   const visibleMenuItems = menuItems.filter((item: any) => {
+    // Pathologist role sees only Review Reports, Reports, and Profile/Settings
+    if (isPathologist) {
+      return (
+        item.path === '/app/reports/review' ||
+        item.path === '/app/reports' ||
+        item.path === '/app/settings' ||
+        item.path === '/app/profile'
+      );
+    }
     // Doctor-only items
     if (item.doctorOnly) return isDoctor;
     // Items hidden for doctor

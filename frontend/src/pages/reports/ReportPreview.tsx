@@ -432,6 +432,7 @@ export function ReportPreview() {
 
     const testData =
       typeof rawReport.test_data === 'string' ? JSON.parse(rawReport.test_data) : rawReport.test_data;
+    const layoutSnapshots = testData?.layout_snapshots || {};
 
     const mapParam = (p: any, testId?: string): Parameter => ({
       name: p.name,
@@ -454,11 +455,16 @@ export function ReportPreview() {
     const testSections: TestSection[] = [];
     const params: Parameter[] = [];
 
-    const layoutSnapshots = testData?.layout_snapshots || {};
+    const testApprovals = testData?.test_approvals || {};
 
     if (testData?.tests?.length) {
       for (let i = 0; i < testData.tests.length; i++) {
         const group = testData.tests[i];
+        const isTestApproved = rawReport.status === 'approved' || testApprovals[group.testId]?.status === 'approved';
+        if (!isTestApproved && rawReport.status !== 'approved') {
+          continue;
+        }
+
         const sectionParams = (group.parameters || []).map((p: any) => mapParam(p, group.testId));
 
         const snapshot = layoutSnapshots[group.testId];
@@ -550,6 +556,7 @@ export function ReportPreview() {
       isSelfReport: rawReport.is_self_report,
       attachMarketingPages: rawReport.attach_marketing_pages,
       marketingPages: rawReport.marketing_pages,
+      attachments: testData?.attachments,
     });
 
     const nextData: ReportData = {
@@ -772,12 +779,15 @@ export function ReportPreview() {
       isSelfReport: rawReport?.is_self_report,
       attachMarketingPages: showMarketingPages,
       marketingPages: rawReport?.marketing_pages,
+      attachments: testData?.attachments,
     });
   }, [reportData, orderedSections, safeZones, rawReport, density, hasDoctorSignature, showMarketingPages]);
 
   const pages = paginationResult.pages;
+  const isFullBleedPage = (p: PageItem[] | undefined) =>
+    p?.[0]?.type === 'marketing' || p?.[0]?.type === 'attachment';
   const reportPagesCount = useMemo(() => {
-    return pages.filter(p => p[0]?.type !== 'marketing').length;
+    return pages.filter(p => !isFullBleedPage(p)).length;
   }, [pages]);
 
   // Scroll-spying to update active page index
@@ -980,7 +990,7 @@ export function ReportPreview() {
   const signatureStripHeight = hasDoctorSignature ? 84 : 76;
   let lastReportPageIndex = -1;
   for (let i = pages.length - 1; i >= 0; i -= 1) {
-    if (pages[i]?.[0]?.type !== 'marketing') {
+    if (!isFullBleedPage(pages[i])) {
       lastReportPageIndex = i;
       break;
     }
@@ -991,6 +1001,9 @@ export function ReportPreview() {
     if (!page) return null;
     const marketingItem = page[0]?.type === 'marketing' ? page[0] : null;
     const isMarketingPage = !!marketingItem;
+    const attachmentItem = page[0]?.type === 'attachment' ? (page[0] as any) : null;
+    const isAttachmentPage = !!attachmentItem;
+    const isFullBleed = isMarketingPage || isAttachmentPage;
 
     const testData =
       typeof rawReport?.test_data === 'string' ? JSON.parse(rawReport.test_data) : rawReport?.test_data;
@@ -998,7 +1011,7 @@ export function ReportPreview() {
 
     return (
       <>
-        {!isMarketingPage && letterheadActive && settings?.letterhead_url && (
+        {!isFullBleed && letterheadActive && settings?.letterhead_url && (
           <img
             src={getImageUrl(settings.letterhead_url) || ''}
             alt="Letterhead"
@@ -1014,7 +1027,7 @@ export function ReportPreview() {
           />
         )}
 
-        {!isMarketingPage && headerActive && settings?.header_url && (
+        {!isFullBleed && headerActive && settings?.header_url && (
           <img
             src={getImageUrl(settings.header_url) || ''}
             alt="Header"
@@ -1030,7 +1043,7 @@ export function ReportPreview() {
           />
         )}
 
-        {!isMarketingPage && footerActive && settings?.footer_url && (
+        {!isFullBleed && footerActive && settings?.footer_url && (
           <img
             src={getImageUrl(settings.footer_url) || ''}
             alt="Footer"
@@ -1047,13 +1060,34 @@ export function ReportPreview() {
         )}
 
         {/* Centered Page Footer inside A4 paper */}
-        {!isMarketingPage && reportPagesCount > 1 && (
+        {!isFullBleed && reportPagesCount > 1 && (
           <div className="absolute bottom-4 left-0 right-0 text-center text-[10px] text-slate-400 font-medium select-none pointer-events-none z-10 print:block">
             Page {pageIndex + 1} of {reportPagesCount}
           </div>
         )}
 
-        {marketingItem ? (
+        {attachmentItem ? (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#ffffff',
+            }}
+          >
+            <img
+              src={getImageUrl(attachmentItem.attachment.url) || ''}
+              alt={attachmentItem.attachment.name || 'Attachment'}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+              }}
+            />
+          </div>
+        ) : marketingItem ? (
           <div
             style={{
               position: 'absolute',

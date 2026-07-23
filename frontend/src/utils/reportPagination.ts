@@ -41,6 +41,7 @@ export type PageItem =
   | { type: 'generalNotes'; text: string }
   | { type: 'endMarker' }
   | { type: 'signature' }
+  | { type: 'attachment'; attachment: any }
   | { type: 'marketing'; pageConfig: any };
 
 export function estimateInterpretationHeight(text: string, dense: boolean, customFontSize?: number): number {
@@ -155,6 +156,7 @@ export interface PaginationOptions {
   isSelfReport?: boolean;
   attachMarketingPages?: boolean;
   marketingPages?: any[];
+  attachments?: any[];
 }
 
 export interface PaginationResult {
@@ -174,6 +176,7 @@ export function computeReportPages(options: PaginationOptions): PaginationResult
     isSelfReport,
     attachMarketingPages,
     marketingPages,
+    attachments,
   } = options;
 
   const signatureStripHeight = hasDoctorSignature ? 84 : 76;
@@ -295,6 +298,15 @@ export function computeReportPages(options: PaginationOptions): PaginationResult
     }
     
     place({ type: 'generalNotes', text: notesText }, notesH);
+  }
+
+  // Attachments (e.g. B2B partner-lab PDFs/images) render on their own pages,
+  // AFTER the lab's own tests and BEFORE any marketing pages.
+  if (attachments && Array.isArray(attachments)) {
+    for (const att of attachments) {
+      if (!att || !att.url) continue;
+      out.push([{ type: 'attachment', attachment: att }]);
+    }
   }
 
   const shouldAttachMarketing = attachMarketingPages;

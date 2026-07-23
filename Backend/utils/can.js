@@ -27,10 +27,19 @@ const { ROLE_PERMISSIONS } = require('../config/permissions');
  * // Admin has wildcard access
  * can('admin', 'anything:here') // true
  */
-function can(role, permission) {
+function can(role, permission, userFlags = {}) {
   // Handle missing role
   if (!role) {
     return false;
+  }
+
+  // Allow boolean shortcut for userFlags.can_approve_reports
+  const canApproveReports = typeof userFlags === 'boolean' 
+    ? userFlags 
+    : userFlags?.can_approve_reports === true;
+
+  if (permission === 'report:approve' && canApproveReports) {
+    return true;
   }
 
   // Get permissions for the role

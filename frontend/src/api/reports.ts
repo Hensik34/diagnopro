@@ -6,6 +6,7 @@ import type {
   ReportFilters,
   ReportStatus,
   ApiResponse,
+  ReportAttachment,
 } from '../types';
 
 // ==========================================
@@ -146,6 +147,38 @@ export const reportApi = {
    */
   revise: async (id: string): Promise<ApiResponse<Report>> => {
     const response = await api.patch<ApiResponse<Report>>(`/reports/${id}/revise`);
+    return response.data;
+  },
+
+  /**
+   * Approve a single test in a report
+   */
+  approveTest: async (id: string, testId: string): Promise<ApiResponse<Report>> => {
+    const response = await api.patch<ApiResponse<Report>>(`/reports/${id}/approve-test/${testId}`);
+    return response.data;
+  },
+
+  /**
+   * Reject a single test in a report
+   */
+  rejectTest: async (id: string, testId: string, reason: string): Promise<ApiResponse<Report>> => {
+    const response = await api.patch<ApiResponse<Report>>(`/reports/${id}/reject-test/${testId}`, { reason });
+    return response.data;
+  },
+
+  /**
+   * Send a single test for approval
+   */
+  sendTestForApproval: async (id: string, testId: string): Promise<ApiResponse<Report>> => {
+    const response = await api.patch<ApiResponse<Report>>(`/reports/${id}/send-test-for-approval/${testId}`);
+    return response.data;
+  },
+
+  /**
+   * Send all tests in a report for approval
+   */
+  sendAllTestsForApproval: async (id: string): Promise<ApiResponse<Report>> => {
+    const response = await api.patch<ApiResponse<Report>>(`/reports/${id}/send-all-for-approval`);
     return response.data;
   },
 
@@ -298,5 +331,51 @@ export const reportApi = {
   saveReceipt: async (id: string, data: { custom_amount: number; selected_tests: string }): Promise<ApiResponse<any>> => {
     const response = await api.post<ApiResponse<any>>(`/reports/${id}/receipt`, data);
     return response.data;
+  },
+
+  /**
+   * Upload attachment pages (rasterized PDF pages or an image) for a report.
+   * Pages are uploaded in size-bounded batches so requests stay under the server body limit.
+   */
+  uploadAttachments: async (
+    id: string,
+    payload: {
+      name: string;
+      sourceType: 'pdf' | 'image';
+      pages: { dataUrl: string; pageIndex: number; totalPages: number }[];
+    }
+  ): Promise<ReportAttachment[]> => {
+    const MAX_BATCH_BYTES = 6 * 1024 * 1024; // keep each request comfortably under the 10mb server limit
+    const batches: (typeof payload.pages)[] = [];
+    let current: typeof payload.pages = [];
+    let currentBytes = 0;
+    for (const page of payload.pages) {
+      const size = page.dataUrl.length;
+      if (current.length > 0 && currentBytes + size > MAX_BATCH_BYTES) {
+        batches.push(current);
+        current = [];
+        currentBytes = 0;
+      }
+      current.push(page);
+      currentBytes += size;
+    }
+    if (current.length > 0) batches.push(current);
+
+    const results: ReportAttachment[] = [];
+    for (const batch of batches) {
+      const response = await api.post<ApiResponse<ReportAttachment[]>>(
+        `/reports/${id}/attachments`,
+        { name: payload.name, sourceType: payload.sourceType, pages: batch }
+      );
+      if (response.data?.data) results.push(...response.data.data);
+    }
+    return results;
+  },
+
+  /**
+   * Best-effort removal of an attachment's stored image from Cloudinary.
+   */
+  deleteAttachment: async (id: string, url: string): Promise<void> => {
+    await api.delete(`/reports/${id}/attachments`, { data: { url } });
   },
 };

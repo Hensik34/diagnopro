@@ -39,6 +39,10 @@ interface ReportState {
   approveReport: (id: string) => Promise<{ report: Report; whatsapp_delivery?: any } | null>;
   rejectReport: (id: string, reason: string) => Promise<Report | null>;
   reviseReport: (id: string) => Promise<Report | null>;
+  approveTest: (id: string, testId: string) => Promise<Report | null>;
+  rejectTest: (id: string, testId: string, reason: string) => Promise<Report | null>;
+  sendTestForApproval: (id: string, testId: string) => Promise<Report | null>;
+  sendAllTestsForApproval: (id: string) => Promise<Report | null>;
   
   deleteReport: (id: string) => Promise<boolean>;
   setSelectedReport: (report: Report | null) => void;
@@ -378,6 +382,94 @@ export const useReportStore = create<ReportState>((set, get) => ({
       return updatedReport;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to revise report';
+      set({ error: errorMessage, isActionLoading: false, actionId: null });
+      return null;
+    }
+  },
+
+  /**
+   * Approve a single test in a report
+   */
+  approveTest: async (id: string, testId: string): Promise<Report | null> => {
+    set({ isActionLoading: true, actionId: id, error: null });
+    try {
+      const response = await reportApi.approveTest(id, testId);
+      const updatedReport = response.data;
+      set((state) => ({
+        reports: state.reports.map((r) => (r.id === id ? updatedReport : r)),
+        selectedReport: state.selectedReport?.id === id ? updatedReport : state.selectedReport,
+        isActionLoading: false,
+        actionId: null,
+      }));
+      return updatedReport;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to approve test';
+      set({ error: errorMessage, isActionLoading: false, actionId: null });
+      return null;
+    }
+  },
+
+  /**
+   * Reject a single test in a report
+   */
+  rejectTest: async (id: string, testId: string, reason: string): Promise<Report | null> => {
+    set({ isActionLoading: true, actionId: id, error: null });
+    try {
+      const response = await reportApi.rejectTest(id, testId, reason);
+      const updatedReport = response.data;
+      set((state) => ({
+        reports: state.reports.map((r) => (r.id === id ? updatedReport : r)),
+        selectedReport: state.selectedReport?.id === id ? updatedReport : state.selectedReport,
+        isActionLoading: false,
+        actionId: null,
+      }));
+      return updatedReport;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reject test';
+      set({ error: errorMessage, isActionLoading: false, actionId: null });
+      return null;
+    }
+  },
+
+  /**
+   * Send a single test for approval
+   */
+  sendTestForApproval: async (id: string, testId: string): Promise<Report | null> => {
+    set({ isActionLoading: true, actionId: id, error: null });
+    try {
+      const response = await reportApi.sendTestForApproval(id, testId);
+      const updatedReport = response.data;
+      set((state) => ({
+        reports: state.reports.map((r) => (r.id === id ? updatedReport : r)),
+        selectedReport: state.selectedReport?.id === id ? updatedReport : state.selectedReport,
+        isActionLoading: false,
+        actionId: null,
+      }));
+      return updatedReport;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send test for approval';
+      set({ error: errorMessage, isActionLoading: false, actionId: null });
+      return null;
+    }
+  },
+
+  /**
+   * Send all tests in a report for approval
+   */
+  sendAllTestsForApproval: async (id: string): Promise<Report | null> => {
+    set({ isActionLoading: true, actionId: id, error: null });
+    try {
+      const response = await reportApi.sendAllTestsForApproval(id);
+      const updatedReport = response.data;
+      set((state) => ({
+        reports: state.reports.map((r) => (r.id === id ? updatedReport : r)),
+        selectedReport: state.selectedReport?.id === id ? updatedReport : state.selectedReport,
+        isActionLoading: false,
+        actionId: null,
+      }));
+      return updatedReport;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send tests for approval';
       set({ error: errorMessage, isActionLoading: false, actionId: null });
       return null;
     }

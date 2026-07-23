@@ -387,6 +387,17 @@ export interface TestGroup {
 }
 
 // Test data stored in report
+// A single attached page (image, or one rasterized page of an uploaded PDF).
+// Attachments render as full pages after the lab's own tests and before marketing pages.
+export interface ReportAttachment {
+  id: string;
+  name: string;               // original file name (e.g. "b2b_report.pdf")
+  url: string;                // Cloudinary URL of the page image
+  sourceType: 'pdf' | 'image';
+  pageIndex: number;          // 0-based page index within the source file
+  totalPages: number;         // total pages the source file produced
+}
+
 export interface TestData {
   testType?: string;
   testName?: string;
@@ -396,6 +407,8 @@ export interface TestData {
   // LEGACY: flat parameter list (for backward compatibility with old reports)
   parameters?: TestParameter[];
   remarks?: string;
+  // Attached PDFs/images (e.g. a B2B partner-lab report) rendered as extra pages
+  attachments?: ReportAttachment[];
 }
 
 // Delivery preferences for sending report

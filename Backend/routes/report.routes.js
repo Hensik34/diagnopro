@@ -54,6 +54,12 @@ router.patch("/:id/approve", authorize(PERMISSIONS.REPORT_APPROVE), reportContro
 // Reject report (under_review → rejected)
 router.patch("/:id/reject", authorize(PERMISSIONS.REPORT_APPROVE), reportController.rejectReport);
 
+// Per-test approval endpoints
+router.patch("/:id/approve-test/:testId", authorize(PERMISSIONS.REPORT_APPROVE), reportController.approveTest);
+router.patch("/:id/reject-test/:testId", authorize(PERMISSIONS.REPORT_APPROVE), reportController.rejectTest);
+router.patch("/:id/send-test-for-approval/:testId", authorize(PERMISSIONS.REPORT_CREATE), reportController.sendTestForApproval);
+router.patch("/:id/send-all-for-approval", authorize(PERMISSIONS.REPORT_CREATE), reportController.sendAllTestsForApproval);
+
 // Revise rejected report (rejected → draft)
 router.patch("/:id/revise", authorize(PERMISSIONS.REPORT_UPDATE), reportController.reviseReport);
 
@@ -103,5 +109,9 @@ router.patch("/:id/increment-print", authorize(PERMISSIONS.REPORT_READ), reportC
 // Receipt endpoints
 router.get("/:id/receipt", authorize(PERMISSIONS.REPORT_READ), reportController.getReceipt);
 router.post("/:id/receipt", authorize(PERMISSIONS.REPORT_UPDATE), reportController.saveReceipt);
+
+// Report attachments (PDF/image pages attached to a report, e.g. B2B partner-lab reports)
+router.post("/:id/attachments", authorize(PERMISSIONS.REPORT_UPDATE), reportController.uploadAttachments);
+router.delete("/:id/attachments", authorize(PERMISSIONS.REPORT_UPDATE), reportController.deleteAttachment);
 
 module.exports = router;

@@ -25,6 +25,10 @@ import {
   Edit2,
   Printer,
   Star,
+  RefreshCw,
+  Paperclip,
+  Upload,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -37,7 +41,8 @@ import { sampleApi } from "../../api/samples";
 import { SampleBarcodeModal } from "../../app/components/reports/SampleBarcodeModal";
 import { SampleReceptionModal } from "../../app/components/reports/SampleReceptionModal";
 import { useBillingStore } from "../../stores/billingStore";
-import type { AgeUnit, Doctor, Patient, Report, Test, TestField, ReferenceRule, CriticalRules, ReportTestPriceSnapshot } from "../../types";
+import type { AgeUnit, Doctor, Patient, Report, Test, TestField, ReferenceRule, CriticalRules, ReportTestPriceSnapshot, ReportAttachment } from "../../types";
+import { fileToAttachmentPages } from "../../utils/attachments";
 import { BillingSection } from "../../app/components/reports/BillingSection";
 import { SmartSelectInput } from "../../app/components/reports/SmartSelectInput";
 import { formatAge, getAgeMax, normalizeAgeUnit } from "../../utils/age";
@@ -45,6 +50,7 @@ import { smartSearchFilter } from "../../utils";
 import { SUM_100_GROUPS, isQualitativeValueHigh, isMicroscopicRangeHigh } from "./reportSpecialCases";
 import { CustomConfirmModal } from "../../app/components/ui/CustomConfirmModal";
 import { PatientInfoHeader } from "../../app/components/reports/PatientInfoHeader";
+import { HistoryTrendPanel } from "../../app/components/reports/HistoryTrendPanel";
 
 // ============================================
 // Reference Rules Utility Functions for Reports
@@ -359,6 +365,10 @@ export function ReportEntry() {
     fetchReportById,
     updateReport,
     submitReport,
+    approveTest,
+    rejectTest,
+    sendTestForApproval,
+    sendAllTestsForApproval,
     setSelectedReport,
     isLoading: reportLoading,
     error: reportError
@@ -370,6 +380,8 @@ export function ReportEntry() {
   const { tests, testFields, fetchTests, fetchTestFields, fetchTestFieldsMulti } = useTestStore();
   const canAutoApprove = can('report:approve');
   const canRemoveTest = can('report:remove_test');
+  // Trend graphs in patient history are a lab-tech/admin diagnostic tool
+  const canViewHistoryTrends = user?.role === 'admin' || user?.role === 'lab_technician';
   const {
     loadFromReport,
     reset: resetBilling,
@@ -701,6 +713,137 @@ export function ReportEntry() {
   const [manualFlags, setManualFlags] = useState<Record<string, boolean>>({});
   const [technicianNotes, setTechnicianNotes] = useState("");
 
+  // Report attachments (PDF/image pages, e.g. B2B partner-lab reports)
+  const [attachments, setAttachments] = useState<ReportAttachment[]>([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleAttachmentFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    if (!reportId) {
+      toast.error("Save the report before adding attachments.");
+      return;
+    }
+    setUploadingAttachment(true);
+    try {
+      for (const file of Array.from(files)) {
+        const { sourceType, pages } = await fileToAttachmentPages(file);
+        if (pages.length === 0) continue;
+        const uploaded = await reportApi.uploadAttachments(reportId, {
+          name: file.name,
+          sourceType,
+          pages,
+        });
+        setAttachments((prev) => [...prev, ...uploaded]);
+      }
+      toast.success("Attachment added. Remember to save the report.");
+    } catch (e) {
+      console.error("Failed to add attachment:", e);
+      toast.error("Failed to add attachment. Please try again.");
+    } finally {
+      setUploadingAttachment(false);
+      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
+    }
+  };
+
+  // Remove all pages that came from the same uploaded file (grouped by name + sourceType)
+  const handleRemoveAttachmentGroup = async (group: ReportAttachment[]) => {
+    const urls = new Set(group.map((a) => a.url));
+    setAttachments((prev) => prev.filter((a) => !urls.has(a.url)));
+    if (reportId) {
+      for (const a of group) {
+        try {
+          await reportApi.deleteAttachment(reportId, a.url);
+        } catch (e) {
+          console.error("Failed to delete attachment asset:", e);
+        }
+      }
+    }
+  };
+
+  // Group attachment pages by their source file for display
+  const attachmentGroups = useMemo(() => {
+    const groups: { key: string; name: string; sourceType: string; pages: ReportAttachment[] }[] = [];
+    for (const att of attachments) {
+      const key = `${att.name}::${att.sourceType}::${att.totalPages}`;
+      let group = groups.find((g) => g.key === key);
+      if (!group) {
+        group = { key, name: att.name, sourceType: att.sourceType, pages: [] };
+        groups.push(group);
+      }
+      group.pages.push(att);
+    }
+    return groups;
+  }, [attachments]);
+
+  const renderAttachmentsCard = () => (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm space-y-2 flex-shrink-0">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+          <Paperclip className="w-3.5 h-3.5 text-primary" />
+          Attachments {attachments.length > 0 && (
+            <span className="text-[10px] font-semibold text-slate-500">({attachments.length} page{attachments.length > 1 ? 's' : ''})</span>
+          )}
+        </h3>
+      </div>
+      <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-snug">
+        Attach a PDF or images (e.g. a B2B partner-lab report). They are added as pages after your tests and before marketing pages.
+      </p>
+
+      <input
+        ref={attachmentInputRef}
+        type="file"
+        accept="application/pdf,image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => handleAttachmentFiles(e.target.files)}
+      />
+      <button
+        type="button"
+        onClick={() => attachmentInputRef.current?.click()}
+        disabled={uploadingAttachment || !reportId || !isEditable}
+        className="w-full h-8 flex items-center justify-center gap-1.5 border border-blue-200 dark:border-blue-900/50 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-[11px] font-bold text-blue-600 dark:text-blue-400 rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+      >
+        {uploadingAttachment ? (
+          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading...</>
+        ) : (
+          <><Upload className="w-3.5 h-3.5" /> Add PDF / Image</>
+        )}
+      </button>
+
+      {attachmentGroups.length > 0 && (
+        <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-0.5">
+          {attachmentGroups.map((group) => (
+            <div
+              key={group.key}
+              className="flex items-center gap-2 p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40"
+            >
+              <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <FileText className="w-3.5 h-3.5 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate" title={group.name}>{group.name}</p>
+                <p className="text-[9px] text-slate-400 uppercase tracking-wide">
+                  {group.sourceType} · {group.pages.length} page{group.pages.length > 1 ? 's' : ''}
+                </p>
+              </div>
+              {isEditable && (
+                <button
+                  type="button"
+                  onClick={() => handleRemoveAttachmentGroup(group.pages)}
+                  className="p-1 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer flex-shrink-0"
+                  title="Remove attachment"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   // AI Interpretation state
   const [aiInterpretation, setAiInterpretation] = useState<{
     summary: string;
@@ -975,6 +1118,7 @@ export function ReportEntry() {
     setStatuses({});
     setManualFlags({});
     setTechnicianNotes('');
+    setAttachments([]);
     setLastSaved(null);
     setReportStatus('draft');
     resetBilling();
@@ -1057,9 +1201,15 @@ export function ReportEntry() {
         originalSnapshotRef.current = selectedReport.pricing_snapshot || [];
       }
 
-      // Auto-prompt sample reception modal if pending on initial entry
-      if (selectedReport.sample_status !== 'received' && hasPromptedReceptionRef.current !== selectedReport.id) {
+      // Auto-prompt sample reception modal if pending on initial entry (never for approved reports)
+      if (
+        selectedReport.status !== 'approved' &&
+        selectedReport.sample_status !== 'received' &&
+        hasPromptedReceptionRef.current !== selectedReport.id
+      ) {
         setIsSampleReceptionModalOpen(true);
+        hasPromptedReceptionRef.current = selectedReport.id;
+      } else if (hasPromptedReceptionRef.current !== selectedReport.id) {
         hasPromptedReceptionRef.current = selectedReport.id;
       }
     }
@@ -1103,6 +1253,11 @@ export function ReportEntry() {
     const testData = parsedTestData;
     const initialCustomRanges: Record<string, string> = {};
     const initialManualFlags: Record<string, boolean> = {};
+
+    // Load any previously saved attachments
+    if (Array.isArray(testData?.attachments)) {
+      setAttachments(testData.attachments);
+    }
 
     if (testData?.tests?.length) {
       // Grouped format: match by BOTH testId AND parameter name to avoid cross-test collisions
@@ -2160,13 +2315,25 @@ export function ReportEntry() {
     // Also build flat parameters list for backward compatibility
     const allParameters = groupedTests.flatMap(g => g.parameters);
 
+    let existingApprovals = {};
+    try {
+      const rawTd = selectedReport?.test_data;
+      const parsedTd = typeof rawTd === 'string' ? JSON.parse(rawTd) : (rawTd || {});
+      existingApprovals = parsedTd.test_approvals || {};
+    } catch (e) {
+      existingApprovals = {};
+    }
+
     return {
       testName,
       testType: selectedReport?.test_data?.testType || 'General',
       testIds,
       tests: groupedTests,
       parameters: allParameters,
-      remarks: technicianNotes
+      remarks: technicianNotes,
+      test_approvals: existingApprovals,
+      testRemarks,
+      attachments,
     };
   };
 
@@ -2228,6 +2395,7 @@ export function ReportEntry() {
     testSections,
     testRemarks,
     customReferenceRanges,
+    attachments,
   ]);
 
   const saveCurrentReportData = async () => {
@@ -2482,6 +2650,67 @@ export function ReportEntry() {
       toast.error("Failed to submit report. Please try again.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleApproveCurrentTest = async () => {
+    if (!reportId || !activeSection) return;
+    setIsSubmitting(true);
+    try {
+      await saveCurrentReportData();
+      const res = await approveTest(reportId, activeSection.testId);
+      if (res) {
+        toast.success(`${activeSection.testName} approved successfully!`);
+        await fetchReportById(reportId);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to approve test");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSendCurrentTestForApproval = async () => {
+    if (!reportId || !activeSection) return;
+    setIsSubmitting(true);
+    try {
+      await saveCurrentReportData();
+      const res = await sendTestForApproval(reportId, activeSection.testId);
+      if (res) {
+        toast.success(`${activeSection.testName} sent for approval!`);
+        await fetchReportById(reportId);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to send test for approval");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSendAllForApproval = async () => {
+    if (!reportId) return;
+    setIsSubmitting(true);
+    try {
+      await saveCurrentReportData();
+      const res = await sendAllTestsForApproval(reportId);
+      if (res) {
+        toast.success("All tests sent for approval!");
+        await fetchReportById(reportId);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to send tests for approval");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRefreshReport = async () => {
+    if (!reportId) return;
+    try {
+      await fetchReportById(reportId);
+      toast.success("Report refreshed");
+    } catch (e) {
+      toast.error("Failed to refresh report");
     }
   };
 
@@ -2791,13 +3020,14 @@ export function ReportEntry() {
       />
 
       {/* Three Column Workbench Grid */}
-      <div className="flex-1 h-0 min-h-0 grid grid-cols-1 lg:grid-cols-[16%_61%_21%] gap-3 items-stretch overflow-hidden mb-1">
+      <div className="flex-1 h-0 min-h-0 grid grid-cols-1 lg:grid-cols-[16%_61%_21%] gap-3 items-stretch overflow-hidden">
         {/* Left Column: Plain list of tests */}
         <div className="hidden lg:flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm h-full flex-col overflow-hidden">
           <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 px-1 flex-shrink-0">Tests</h3>
           <div className="flex-1 overflow-y-auto scrollbar-hide space-y-1">
             {testSections.map((section) => {
               const isActive = section.testId === activeTestId;
+              const approval = (parsedTestData?.test_approvals || {})[section.testId];
               return (
                 <div
                   key={section.testId}
@@ -2808,9 +3038,23 @@ export function ReportEntry() {
                     }`}
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                      approval?.status === 'approved'
+                        ? 'bg-emerald-500'
+                        : approval?.status === 'under_review' || approval?.status === 'pending_approval'
+                        ? 'bg-amber-500'
+                        : approval?.status === 'rejected'
+                        ? 'bg-rose-500'
+                        : isActive ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'
+                    }`} />
                     <span className="truncate">{section.testName}</span>
                   </div>
+                  {approval?.status === 'approved' && (
+                    <span className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold ml-1">✓</span>
+                  )}
+                  {approval?.status === 'rejected' && (
+                    <span className="text-[9px] bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded font-bold ml-1">✗</span>
+                  )}
                   {isEditable && canRemoveTest && (
                     <button
                       type="button"
@@ -2818,7 +3062,7 @@ export function ReportEntry() {
                         e.stopPropagation();
                         handleConfirmRemoveTest(section.testId, section.testName);
                       }}
-                      className="w-4 h-4 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all flex-shrink-0 cursor-pointer"
+                      className="w-4 h-4 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all flex-shrink-0 cursor-pointer ml-1"
                       title="Remove test"
                     >
                       <X className="w-3 h-3" />
@@ -2882,7 +3126,16 @@ export function ReportEntry() {
                       {activeSection.testCode}
                     </span>
                   )}
+                  {(() => {
+                    const approval = (parsedTestData?.test_approvals || {})[activeSection.testId];
+                    if (approval?.status === 'approved') return <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-bold flex-shrink-0">Approved</span>;
+                    if (approval?.status === 'under_review' || approval?.status === 'pending_approval') return <span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded font-bold flex-shrink-0">In Review</span>;
+                    if (approval?.status === 'rejected') return <span className="text-[10px] bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded font-bold flex-shrink-0">Rejected</span>;
+                    return null;
+                  })()}
                 </div>
+
+
 
                 {/* Mobile/Tablet Sub-Tab Switcher */}
                 <div className="lg:hidden flex items-center border border-slate-200 dark:border-slate-800 rounded-lg p-0.5 bg-white dark:bg-slate-950 flex-shrink-0">
@@ -3326,6 +3579,9 @@ export function ReportEntry() {
                                   />
                                 </div>
 
+                    {/* Attachments Card */}
+                    {renderAttachmentsCard()}
+
                     {/* AI Clinical Significance Card */}
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm flex-shrink-0">
                       <button
@@ -3422,35 +3678,21 @@ export function ReportEntry() {
           )}
         </div>
 
-        {/* Right Column: Summary, Quick Actions, Notes, AIInterpretation */}
+        {/* Right Column: Quick Actions, Notes, AIInterpretation */}
         <div className="hidden lg:flex h-full flex-col gap-3 overflow-hidden flex-shrink-0">
-          {/* Report Summary Card */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm space-y-2 flex-shrink-0">
-            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 px-0.5">Report Summary</h3>
-            <div className="bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-900 rounded-xl p-3 space-y-2.5 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Total Tests</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">{summaryCounts.total}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Completed</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">{summaryCounts.completed}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">In Progress</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">{summaryCounts.inProgress}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Pending</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">{summaryCounts.pending}</span>
-              </div>
-            </div>
-          </div>
 
           {/* Quick Actions Card */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm space-y-2 flex-shrink-0">
             <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 px-0.5">Quick Actions</h3>
             <div className="space-y-2">
+              <button
+                onClick={handleRefreshReport}
+                className="w-full h-9 flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 rounded-lg transition-colors shadow-sm cursor-pointer"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh Report
+              </button>
+
               <button
                 onClick={handleSaveDraft}
                 disabled={isSaving || !reportId}
@@ -3471,6 +3713,38 @@ export function ReportEntry() {
                 Preview Report ({selectedReport?.preview_count || 0})
               </button>
 
+              {reportId && isEditable && (
+                canAutoApprove ? (
+                  <button
+                    onClick={handleApproveCurrentTest}
+                    disabled={isSubmitting || !activeSection}
+                    className="w-full h-9 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Approve Single Test
+                  </button>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={handleSendCurrentTestForApproval}
+                      disabled={isSubmitting || !activeSection}
+                      className="w-full h-9 flex items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      Send Test
+                    </button>
+                    <button
+                      onClick={handleSendAllForApproval}
+                      disabled={isSubmitting}
+                      className="w-full h-9 flex items-center justify-center gap-1 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      Send All
+                    </button>
+                  </div>
+                )
+              )}
+
               {(reportStatus === 'draft' || reportStatus === 'rejected') && (
                 <button
                   onClick={handleSubmitForReview}
@@ -3480,12 +3754,15 @@ export function ReportEntry() {
                 >
                   <CheckCircle className="w-4 h-4" />
                   {reportStatus === 'rejected'
-                    ? (canAutoApprove ? 'Re-Approve Report' : 'Resubmit for Review')
-                    : (canAutoApprove ? 'Approve Report' : 'Submit for Review')}
+                    ? (canAutoApprove ? 'Re-Approve Full Report' : 'Resubmit Full Report')
+                    : (canAutoApprove ? 'Approve Full Report' : 'Submit Full Report')}
                 </button>
               )}
             </div>
           </div>
+
+          {/* Attachments Card */}
+          {renderAttachmentsCard()}
 
           {/* Report Notes Card */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm space-y-1.5 flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -3600,57 +3877,7 @@ export function ReportEntry() {
         </div>
       </div>
 
-      {/* Compact Bottom Action Bar */}
-      <div className="flex-shrink-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-2 px-4 flex items-center justify-between shadow-[0_-2px_10px_rgba(0,0,0,0.03)] rounded-xl">
-        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
-          <span className={`w-2 h-2 rounded-full ${lastSaved ? 'bg-success animate-pulse' : 'bg-amber-500'}`} />
-          <span>{lastSaved ? `Saved • ${format(lastSaved, "hh:mm a")}` : "Unsaved Changes"}</span>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handlePrevTest}
-            disabled={testSections.findIndex(s => s.testId === activeTestId) <= 0}
-            className="h-8 px-3.5 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Previous Test
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSaveAndExit}
-            disabled={isSaving}
-            className="h-8 px-4 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title={isEditable ? "Save changes and return to list (Esc)" : "Return to list (Esc)"}
-          >
-            {isEditable ? "Save & Exit" : "Exit"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSaveDraft}
-            disabled={isSaving || !isEditable}
-            className="h-8 px-4 bg-primary text-white rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity shadow-sm"
-            title={reportStatus === 'approved' ? "Update Report (F10)" : "Save Draft (F10)"}
-          >
-            {isSaving
-              ? "Saving..."
-              : reportStatus === 'approved'
-                ? "Update Report (F10)"
-                : "Save Draft (F10)"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleNextTest}
-            disabled={testSections.findIndex(s => s.testId === activeTestId) >= testSections.length - 1 || testSections.length === 0}
-            className="h-8 px-3.5 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Next Test
-          </button>
-        </div>
-      </div>
 
       {/* Edit Patient Modal */}
       {showEditPatientModal && (
@@ -4018,80 +4245,15 @@ export function ReportEntry() {
         </div>
       )}
 
-      {/* History Modal */}
-      {showHistoryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-slate-50 dark:bg-slate-900/50">
-              <h3 className="text-sm font-bold text-foreground">Patient Test History</h3>
-              <button
-                onClick={() => setShowHistoryModal(false)}
-                className="w-6 h-6 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 flex items-center justify-center text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-4 overflow-y-auto max-h-[60vh] text-left">
-              {historyLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
-                  <span className="text-xs text-muted-foreground">Loading history...</span>
-                </div>
-              ) : historyReports.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-8">No previous reports found for this patient.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-border text-[10px] uppercase text-slate-400 font-bold">
-                        <th className="py-2 px-1">Date</th>
-                        <th className="py-2 px-1">Report ID</th>
-                        <th className="py-2 px-1">Tests</th>
-                        <th className="py-2 px-1 text-center">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                      {historyReports.map((rep) => (
-                        <tr key={rep.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                          <td className="py-2 px-1 whitespace-nowrap text-slate-600 dark:text-slate-300 font-medium">
-                            {rep.created_at ? format(new Date(rep.created_at), "dd MMM yyyy") : '-'}
-                          </td>
-                          <td className="py-2 px-1 font-mono text-[10px] text-slate-400">
-                            #{rep.id.slice(0, 8)}
-                          </td>
-                          <td className="py-2 px-1 truncate max-w-[200px] text-slate-600 dark:text-slate-300 font-medium" title={rep.report_type}>
-                            {rep.report_type}
-                          </td>
-                          <td className="py-2 px-1 text-center">
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] uppercase font-bold ${rep.status === 'approved' ? 'bg-success/15 text-success' :
-                              rep.status === 'under_review' ? 'bg-info/15 text-info' :
-                                rep.status === 'rejected' ? 'bg-destructive/15 text-destructive' :
-                                  'bg-warning/15 text-warning'
-                              }`}>
-                              {rep.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end px-4 py-3 border-t border-border bg-slate-50 dark:bg-slate-900/50">
-              <button
-                type="button"
-                onClick={() => setShowHistoryModal(false)}
-                className="px-4 py-1.5 border border-border bg-background rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Patient Test History panel — grouped by test, with trend sparklines for repeated tests */}
+      <HistoryTrendPanel
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        loading={historyLoading}
+        reports={historyReports}
+        patientName={patient?.name}
+        canViewTrends={canViewHistoryTrends}
+      />
       {/* Custom Confirm Modal for Test Removal */}
       <CustomConfirmModal
         isOpen={confirmModal.isOpen}

@@ -465,10 +465,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    */
   can: (permission: string): boolean => {
     const user = get().user;
-    if (permission === 'report:approve') {
-      return (user?.role === 'admin') || (user?.role === 'lab_technician' && user?.can_approve_reports === true);
-    }
-    return checkRolePermission(user?.role, permission);
+    const hasRolePermission = checkRolePermission(user?.role, permission);
+    if (hasRolePermission) return true;
+    if (permission === 'report:approve' && user?.can_approve_reports === true) return true;
+    return false;
   },
 
   /**

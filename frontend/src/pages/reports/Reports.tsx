@@ -14,7 +14,6 @@ import {
   Building2,
   ChevronDown,
   Loader2,
-  XCircle,
   RefreshCw,
   Share2,
   IndianRupee,
@@ -31,11 +30,9 @@ import { useReportStore, useReportSummary } from '../../stores/reportStore';
 import { useBranchStore } from '../../stores/branchStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useTestStore } from '../../stores/testStore';
-import type { Report, ReportStatus } from '../../types';
+import type { Report } from '../../types';
 import { InvoiceModal } from '../../app/components/reports/InvoiceModal';
-import { sampleApi } from '../../api/samples';
 import { SampleBarcodeModal } from '../../app/components/reports/SampleBarcodeModal';
-import { SampleReceptionModal } from '../../app/components/reports/SampleReceptionModal';
 import { ReceiptModal } from '../../app/components/reports/ReceiptModal';
 import { BillingOptionModal } from '../../app/components/reports/BillingOptionModal';
 
@@ -139,25 +136,6 @@ export function Reports() {
   const canDelete = can('report:delete');
   const hasAnyAction = canEdit || canDelete || can('report:create') || can('report:read') || can('report:approve');
 
-  const [receptionModalReport, setReceptionModalReport] = useState<Report | null>(null);
-
-  const handleMarkSampleReceived = async (report: Report, status: 'received' | 'partial' | 'pending' = 'received') => {
-    try {
-      if (report.sample_id) {
-        await sampleApi.update(report.sample_id, { status: status === 'received' ? 'received' : 'processing' });
-      }
-      await reportApi.update(report.id, { sample_status: status });
-      // Update local store instantly
-      useReportStore.setState((state) => ({
-        reports: state.reports.map((r) =>
-          r.id === report.id ? { ...r, sample_status: status } : r
-        )
-      }));
-    } catch (err) {
-      console.error('Failed to mark sample as received:', err);
-    }
-  };
-
   console.log('RBAC Reports Table Debug:', {
     userRole: useAuthStore.getState().user?.role,
     canEdit,
@@ -246,9 +224,22 @@ export function Reports() {
     return 'General Test';
   };
 
-  // Keyboard shortcut: N or A to create new report
+  // Keyboard shortcut: N or A to create new report (ignored when typing in inputs/textareas)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        return;
+      }
       const key = e.key.toLowerCase();
       if (key === 'n' || key === 'a') {
         navigate('/app/reports/new');
@@ -273,68 +264,6 @@ export function Reports() {
     fetchSummary(currentBranchId);
     fetchTests(currentBranchId);
   }, [currentBranchId, fetchReports, fetchSummary, fetchTests]);
-
-  /**
-   * Get status configuration for display
-   */
-  const getStatusConfig = (status: ReportStatus) => {
-    const configs: Record<ReportStatus, {
-      bg: string;
-      text: string;
-      label: string;
-      icon: typeof Clock;
-    }> = {
-      draft: {
-        bg: 'var(--muted)',
-        text: 'var(--muted-foreground)',
-        label: 'Draft',
-        icon: PenLine,
-      },
-      under_review: {
-        bg: 'var(--warning)',
-        text: 'var(--warning-foreground)',
-        label: 'Under Review',
-        icon: Clock,
-      },
-      approved: {
-        bg: 'var(--success)',
-        text: 'var(--success-foreground)',
-        label: 'Approved',
-        icon: CheckCircle,
-      },
-      rejected: {
-        bg: 'var(--destructive)',
-        text: 'var(--destructive-foreground)',
-        label: 'Rejected',
-        icon: XCircle,
-      },
-      created: {
-        bg: 'var(--muted)',
-        text: 'var(--muted-foreground)',
-        label: 'Created',
-        icon: Clock,
-      },
-      collected: {
-        bg: 'var(--warning)',
-        text: 'var(--warning-foreground)',
-        label: 'Collected',
-        icon: Clock,
-      },
-      processing: {
-        bg: 'var(--warning)',
-        text: 'var(--warning-foreground)',
-        label: 'Processing',
-        icon: Clock,
-      },
-      completed: {
-        bg: 'var(--success)',
-        text: 'var(--success-foreground)',
-        label: 'Completed',
-        icon: CheckCircle,
-      },
-    };
-    return configs[status] || configs.draft;
-  };
 
   /**
    * Get patient display name
@@ -736,7 +665,7 @@ export function Reports() {
       </div> */}
 
       {/* Work Queue Tabs */}
-      <div className="flex border-b border-border gap-1 overflow-x-auto scrollbar-none mb-1">
+      <div className="flex items-center gap-1 p-1 bg-secondary/40 border border-border rounded-lg overflow-x-auto scrollbar-none w-full sm:w-fit">
         {[
           { id: 'pending' as const, label: 'Pending Queue', count: tabCounts.pending, icon: Edit },
           { id: 'review' as const, label: 'Under Review', count: tabCounts.review, icon: Clock },
@@ -753,17 +682,17 @@ export function Reports() {
                 // Proactively clear search query when switching queues for faster workspace switching
                 setSearchQuery('');
               }}
-              className={`px-4 py-2 flex items-center gap-2 text-xs md:text-sm font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap -mb-px ${
+              className={`relative px-3.5 py-1.5 flex items-center gap-2 text-xs md:text-sm font-semibold rounded-md transition-all cursor-pointer whitespace-nowrap ${
                 isActive
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+                  ? 'bg-card text-primary shadow-sm ring-1 ring-border'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-card/60'
               }`}
             >
-              <TabIcon className="w-3.5 h-3.5" />
+              <TabIcon className={`w-3.5 h-3.5 ${isActive ? 'text-primary' : ''}`} />
               <span>{tab.label}</span>
               {tab.count !== undefined && (
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] tabular-nums font-bold ${
-                  isActive ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground'
+                <span className={`min-w-[18px] text-center px-1.5 py-0.5 rounded-full text-[10px] tabular-nums font-bold ${
+                  isActive ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'
                 }`}>
                   {tab.count}
                 </span>
@@ -849,15 +778,7 @@ export function Reports() {
                     Test Type {renderSortIcon('test_type')}
                   </div>
                 </th>
-                <th 
-                  onClick={() => handleSort('status')}
-                  className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider cursor-pointer hover:bg-secondary/50 transition-colors"
-                >
-                  <div className="flex items-center gap-1">
-                    Status {renderSortIcon('status')}
-                  </div>
-                </th>
-                <th 
+                <th
                   onClick={() => handleSort('created_at')}
                   className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider cursor-pointer hover:bg-secondary/50 transition-colors"
                 >
@@ -882,7 +803,7 @@ export function Reports() {
                   </div>
                 </th>
                 <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">
-                  Sample
+                  Barcode
                 </th>
                 {hasAnyAction && (
                   <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider">
@@ -894,9 +815,6 @@ export function Reports() {
             <tbody>
               {sortedAndFilteredReports.length > 0 ? (
                 sortedAndFilteredReports.map((report) => {
-                  const statusConfig = getStatusConfig(report.status);
-                  const StatusIcon = statusConfig.icon;
-
                   return (
                     <tr
                       key={report.id}
@@ -934,18 +852,6 @@ export function Reports() {
                         </span>
                       </td>
                       <td className="px-3 py-1.5">
-                        <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px]"
-                          style={{
-                            backgroundColor: statusConfig.bg,
-                            color: statusConfig.text,
-                          }}
-                        >
-                          <StatusIcon className="w-3 h-3" />
-                          {statusConfig.label}
-                        </span>
-                      </td>
-                      <td className="px-3 py-1.5">
                         <div className="flex items-center gap-1.5">
                           <Calendar className="w-3 h-3 text-muted-foreground" />
                           <span className="text-xs text-foreground">
@@ -978,23 +884,9 @@ export function Reports() {
                           );
                         })()}
                       </td>
-                      {/* Sample Status Column */}
+                      {/* Barcode Column */}
                       <td className="px-3 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-center gap-1.5">
-                          {report.sample_status === 'received' ? (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-green-500/10 text-green-700 dark:text-green-400 font-medium">
-                              Received
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => setReceptionModalReport(report)}
-                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-400 font-medium cursor-pointer transition-colors"
-                              title="Click to Mark Received"
-                            >
-                              Pending
-                            </button>
-                          )}
-                          
+                        <div className="flex items-center justify-center">
                           {/* Print Barcodes Button */}
                           <button
                             onClick={() => {
@@ -1106,7 +998,7 @@ export function Reports() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={hasAnyAction ? 10 : 9} className="px-3 py-8 text-center">
+                  <td colSpan={hasAnyAction ? 9 : 8} className="px-3 py-8 text-center">
                     <p className="text-sm text-muted-foreground">
                       {isLoading ? (
                         'Loading reports...'
@@ -1152,23 +1044,6 @@ export function Reports() {
         report={selectedBarcodeReport}
       />
 
-      {/* Sample Reception Confirmation Modal */}
-      <SampleReceptionModal
-        isOpen={!!receptionModalReport}
-        onClose={() => setReceptionModalReport(null)}
-        report={receptionModalReport}
-        onConfirmReception={async (status) => {
-          if (receptionModalReport) {
-            await handleMarkSampleReceived(receptionModalReport, status);
-          }
-        }}
-        onOpenBarcodes={() => {
-          if (receptionModalReport) {
-            setSelectedBarcodeReport(receptionModalReport);
-            setIsBarcodeModalOpen(true);
-          }
-        }}
-      />
       {/* Receipt Modal */}
       {billingAction?.type === 'receipt' && (
         <ReceiptModal
