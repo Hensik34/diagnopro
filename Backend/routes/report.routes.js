@@ -110,4 +110,8 @@ router.patch("/:id/increment-print", authorize(PERMISSIONS.REPORT_READ), reportC
 router.get("/:id/receipt", authorize(PERMISSIONS.REPORT_READ), reportController.getReceipt);
 router.post("/:id/receipt", authorize(PERMISSIONS.REPORT_UPDATE), reportController.saveReceipt);
 
+// Report attachments (PDF/image pages attached to a report, e.g. B2B partner-lab reports)
+router.post("/:id/attachments", authorize(PERMISSIONS.REPORT_UPDATE), reportController.uploadAttachments);
+router.delete("/:id/attachments", authorize(PERMISSIONS.REPORT_UPDATE), reportController.deleteAttachment);
+
 module.exports = router;

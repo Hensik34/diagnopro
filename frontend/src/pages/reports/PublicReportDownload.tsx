@@ -408,6 +408,7 @@ export function PublicReportDownload() {
       isSelfReport: report.is_self_report,
       attachMarketingPages: report.attach_marketing_pages,
       marketingPages: report.marketing_pages,
+      attachments: testData?.attachments,
     });
 
     return { testSections: optimizedSections, allParams };
@@ -464,6 +465,7 @@ export function PublicReportDownload() {
       isSelfReport: report.is_self_report,
       attachMarketingPages: attachMarketing,
       marketingPages: report.marketing_pages,
+      attachments: testData?.attachments,
     });
   }, [report, mappedSectionsAndParams, safeZones, density, attachMarketing]);
 
@@ -547,9 +549,12 @@ export function PublicReportDownload() {
   const hasDoctorSignature = !!(pathologySigUrl || pathologySigLabel);
   const signatureStripHeight = hasDoctorSignature ? 84 : 76;
 
+  const isFullBleedPage = (p: PageItem[] | undefined) =>
+    p?.[0]?.type === 'marketing' || p?.[0]?.type === 'attachment';
+
   let lastReportPageIndex = -1;
   for (let i = reportPages.length - 1; i >= 0; i -= 1) {
-    if (reportPages[i]?.[0]?.type !== 'marketing') {
+    if (!isFullBleedPage(reportPages[i])) {
       lastReportPageIndex = i;
       break;
     }
@@ -575,6 +580,9 @@ export function PublicReportDownload() {
           {reportPages.map((page, pageIndex) => {
             const marketingItem = page[0]?.type === 'marketing' ? page[0] : null;
             const isMarketingPage = !!marketingItem;
+            const attachmentItem = page[0]?.type === 'attachment' ? (page[0] as any) : null;
+            const isAttachmentPage = !!attachmentItem;
+            const isFullBleed = isMarketingPage || isAttachmentPage;
             const isLastVisible = pageIndex === lastReportPageIndex;
             const testData = typeof report.test_data === 'string' ? JSON.parse(report.test_data) : report.test_data;
             const layoutSnapshots = testData?.layout_snapshots || {};
@@ -592,7 +600,7 @@ export function PublicReportDownload() {
               }}
             >
               {/* Optional letterhead */}
-              {!isMarketingPage && letterheadActive && report.letterhead_url && (
+              {!isFullBleed && letterheadActive && report.letterhead_url && (
                 <img
                   src={getImageUrl(report.letterhead_url) || ''}
                   alt="Letterhead"
@@ -608,7 +616,7 @@ export function PublicReportDownload() {
               )}
 
               {/* Optional Header artwork */}
-              {!isMarketingPage && headerActive && report.header_url && (
+              {!isFullBleed && headerActive && report.header_url && (
                 <img
                   src={getImageUrl(report.header_url) || ''}
                   alt="Header"
@@ -624,7 +632,7 @@ export function PublicReportDownload() {
               )}
 
               {/* Optional Footer artwork */}
-              {!isMarketingPage && footerActive && report.footer_url && (
+              {!isFullBleed && footerActive && report.footer_url && (
                 <img
                   src={getImageUrl(report.footer_url) || ''}
                   alt="Footer"
@@ -639,7 +647,24 @@ export function PublicReportDownload() {
                 />
               )}
 
-              {marketingItem ? (
+              {attachmentItem ? (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#ffffff',
+                  }}
+                >
+                  <img
+                    src={getImageUrl(attachmentItem.attachment.url) || ''}
+                    alt={attachmentItem.attachment.name || 'Attachment'}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                </div>
+              ) : marketingItem ? (
                 <div
                   style={{
                     position: 'absolute',
@@ -1114,6 +1139,9 @@ export function PublicReportDownload() {
           {reportPages.map((page, pageIndex) => {
             const marketingItem = page[0]?.type === 'marketing' ? page[0] : null;
             const isMarketingPage = !!marketingItem;
+            const attachmentItem = page[0]?.type === 'attachment' ? (page[0] as any) : null;
+            const isAttachmentPage = !!attachmentItem;
+            const isFullBleed = isMarketingPage || isAttachmentPage;
             return (
               <div
                 key={pageIndex}
@@ -1128,7 +1156,7 @@ export function PublicReportDownload() {
               }}
             >
               {/* Optional letterhead */}
-              {!isMarketingPage && letterheadActive && report.letterhead_url && (
+              {!isFullBleed && letterheadActive && report.letterhead_url && (
                 <img
                   src={getImageUrl(report.letterhead_url) || ''}
                   alt="Letterhead"
@@ -1144,7 +1172,7 @@ export function PublicReportDownload() {
               )}
 
               {/* Optional Header artwork */}
-              {!isMarketingPage && headerActive && report.header_url && (
+              {!isFullBleed && headerActive && report.header_url && (
                 <img
                   src={getImageUrl(report.header_url) || ''}
                   alt="Header"
@@ -1160,7 +1188,7 @@ export function PublicReportDownload() {
               )}
 
               {/* Optional Footer artwork */}
-              {!isMarketingPage && footerActive && report.footer_url && (
+              {!isFullBleed && footerActive && report.footer_url && (
                 <img
                   src={getImageUrl(report.footer_url) || ''}
                   alt="Footer"
@@ -1175,7 +1203,24 @@ export function PublicReportDownload() {
                 />
               )}
 
-              {marketingItem ? (
+              {attachmentItem ? (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#ffffff',
+                  }}
+                >
+                  <img
+                    src={getImageUrl(attachmentItem.attachment.url) || ''}
+                    alt={attachmentItem.attachment.name || 'Attachment'}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                </div>
+              ) : marketingItem ? (
                 <div
                   style={{
                     position: 'absolute',

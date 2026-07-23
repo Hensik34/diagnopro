@@ -1703,3 +1703,90 @@ exports.saveReceipt = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// ==========================================
+// REPORT ATTACHMENTS (PDF/Image pages)
+// ==========================================
+const crypto = require("crypto");
+const {
+  uploadBase64ToCloudinary,
+  deleteFileFromCloudinary,
+} = require("../utils/upload");
+
+// POST /api/reports/:id/attachments
+// Body: { name, sourceType: 'pdf'|'image', pages: [{ dataUrl, pageIndex, totalPages }] }
+// Rasterized PDF pages (or an image) are uploaded to Cloudinary and returned as
+// attachment entries; the caller persists these into test_data.attachments.
+exports.uploadAttachments = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, sourceType, pages } = req.body;
+
+    if (!Array.isArray(pages) || pages.length === 0) {
+      return res.status(400).json({ error: "No pages provided" });
+    }
+
+    const report = await Report.getReportById(id);
+    if (!report) {
+      return res.status(404).json({ error: "Report not found" });
+    }
+
+    const branchId = report.branch_id;
+    if (!branchId) {
+      return res.status(400).json({ error: "Report has no branch" });
+    }
+
+    const safeName = (name || "attachment").toString();
+    const resolvedSourceType = sourceType === "image" ? "image" : "pdf";
+    const subFolder = `reports/${id}/attachments`;
+
+    const attachments = [];
+    for (const page of pages) {
+      if (!page || !page.dataUrl) continue;
+      const url = await uploadBase64ToCloudinary(
+        page.dataUrl,
+        `attachment_${Date.now()}_${page.pageIndex ?? 0}`,
+        branchId,
+        subFolder
+      );
+      if (!url) continue;
+      attachments.push({
+        id: crypto.randomUUID(),
+        name: safeName,
+        url,
+        sourceType: resolvedSourceType,
+        pageIndex: Number(page.pageIndex) || 0,
+        totalPages: Number(page.totalPages) || pages.length,
+      });
+    }
+
+    if (attachments.length === 0) {
+      return res.status(400).json({ error: "Failed to upload attachment pages" });
+    }
+
+    res.json({
+      message: "Attachment uploaded successfully",
+      data: attachments,
+    });
+  } catch (err) {
+    console.error("Upload attachment error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// DELETE /api/reports/:id/attachments  Body: { url }
+// Best-effort removal of the Cloudinary asset. The attachment list itself is
+// managed in test_data and persisted separately by the caller.
+exports.deleteAttachment = async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ error: "No attachment url provided" });
+    }
+    await deleteFileFromCloudinary(url);
+    res.json({ message: "Attachment removed" });
+  } catch (err) {
+    console.error("Delete attachment error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};

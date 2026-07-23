@@ -26,6 +26,9 @@ import {
   Printer,
   Star,
   RefreshCw,
+  Paperclip,
+  Upload,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -38,7 +41,8 @@ import { sampleApi } from "../../api/samples";
 import { SampleBarcodeModal } from "../../app/components/reports/SampleBarcodeModal";
 import { SampleReceptionModal } from "../../app/components/reports/SampleReceptionModal";
 import { useBillingStore } from "../../stores/billingStore";
-import type { AgeUnit, Doctor, Patient, Report, Test, TestField, ReferenceRule, CriticalRules, ReportTestPriceSnapshot } from "../../types";
+import type { AgeUnit, Doctor, Patient, Report, Test, TestField, ReferenceRule, CriticalRules, ReportTestPriceSnapshot, ReportAttachment } from "../../types";
+import { fileToAttachmentPages } from "../../utils/attachments";
 import { BillingSection } from "../../app/components/reports/BillingSection";
 import { SmartSelectInput } from "../../app/components/reports/SmartSelectInput";
 import { formatAge, getAgeMax, normalizeAgeUnit } from "../../utils/age";
@@ -46,6 +50,7 @@ import { smartSearchFilter } from "../../utils";
 import { SUM_100_GROUPS, isQualitativeValueHigh, isMicroscopicRangeHigh } from "./reportSpecialCases";
 import { CustomConfirmModal } from "../../app/components/ui/CustomConfirmModal";
 import { PatientInfoHeader } from "../../app/components/reports/PatientInfoHeader";
+import { HistoryTrendPanel } from "../../app/components/reports/HistoryTrendPanel";
 
 // ============================================
 // Reference Rules Utility Functions for Reports
@@ -375,6 +380,8 @@ export function ReportEntry() {
   const { tests, testFields, fetchTests, fetchTestFields, fetchTestFieldsMulti } = useTestStore();
   const canAutoApprove = can('report:approve');
   const canRemoveTest = can('report:remove_test');
+  // Trend graphs in patient history are a lab-tech/admin diagnostic tool
+  const canViewHistoryTrends = user?.role === 'admin' || user?.role === 'lab_technician';
   const {
     loadFromReport,
     reset: resetBilling,
@@ -706,6 +713,137 @@ export function ReportEntry() {
   const [manualFlags, setManualFlags] = useState<Record<string, boolean>>({});
   const [technicianNotes, setTechnicianNotes] = useState("");
 
+  // Report attachments (PDF/image pages, e.g. B2B partner-lab reports)
+  const [attachments, setAttachments] = useState<ReportAttachment[]>([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleAttachmentFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    if (!reportId) {
+      toast.error("Save the report before adding attachments.");
+      return;
+    }
+    setUploadingAttachment(true);
+    try {
+      for (const file of Array.from(files)) {
+        const { sourceType, pages } = await fileToAttachmentPages(file);
+        if (pages.length === 0) continue;
+        const uploaded = await reportApi.uploadAttachments(reportId, {
+          name: file.name,
+          sourceType,
+          pages,
+        });
+        setAttachments((prev) => [...prev, ...uploaded]);
+      }
+      toast.success("Attachment added. Remember to save the report.");
+    } catch (e) {
+      console.error("Failed to add attachment:", e);
+      toast.error("Failed to add attachment. Please try again.");
+    } finally {
+      setUploadingAttachment(false);
+      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
+    }
+  };
+
+  // Remove all pages that came from the same uploaded file (grouped by name + sourceType)
+  const handleRemoveAttachmentGroup = async (group: ReportAttachment[]) => {
+    const urls = new Set(group.map((a) => a.url));
+    setAttachments((prev) => prev.filter((a) => !urls.has(a.url)));
+    if (reportId) {
+      for (const a of group) {
+        try {
+          await reportApi.deleteAttachment(reportId, a.url);
+        } catch (e) {
+          console.error("Failed to delete attachment asset:", e);
+        }
+      }
+    }
+  };
+
+  // Group attachment pages by their source file for display
+  const attachmentGroups = useMemo(() => {
+    const groups: { key: string; name: string; sourceType: string; pages: ReportAttachment[] }[] = [];
+    for (const att of attachments) {
+      const key = `${att.name}::${att.sourceType}::${att.totalPages}`;
+      let group = groups.find((g) => g.key === key);
+      if (!group) {
+        group = { key, name: att.name, sourceType: att.sourceType, pages: [] };
+        groups.push(group);
+      }
+      group.pages.push(att);
+    }
+    return groups;
+  }, [attachments]);
+
+  const renderAttachmentsCard = () => (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm space-y-2 flex-shrink-0">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+          <Paperclip className="w-3.5 h-3.5 text-primary" />
+          Attachments {attachments.length > 0 && (
+            <span className="text-[10px] font-semibold text-slate-500">({attachments.length} page{attachments.length > 1 ? 's' : ''})</span>
+          )}
+        </h3>
+      </div>
+      <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-snug">
+        Attach a PDF or images (e.g. a B2B partner-lab report). They are added as pages after your tests and before marketing pages.
+      </p>
+
+      <input
+        ref={attachmentInputRef}
+        type="file"
+        accept="application/pdf,image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => handleAttachmentFiles(e.target.files)}
+      />
+      <button
+        type="button"
+        onClick={() => attachmentInputRef.current?.click()}
+        disabled={uploadingAttachment || !reportId || !isEditable}
+        className="w-full h-8 flex items-center justify-center gap-1.5 border border-blue-200 dark:border-blue-900/50 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-[11px] font-bold text-blue-600 dark:text-blue-400 rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+      >
+        {uploadingAttachment ? (
+          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading...</>
+        ) : (
+          <><Upload className="w-3.5 h-3.5" /> Add PDF / Image</>
+        )}
+      </button>
+
+      {attachmentGroups.length > 0 && (
+        <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-0.5">
+          {attachmentGroups.map((group) => (
+            <div
+              key={group.key}
+              className="flex items-center gap-2 p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40"
+            >
+              <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <FileText className="w-3.5 h-3.5 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate" title={group.name}>{group.name}</p>
+                <p className="text-[9px] text-slate-400 uppercase tracking-wide">
+                  {group.sourceType} · {group.pages.length} page{group.pages.length > 1 ? 's' : ''}
+                </p>
+              </div>
+              {isEditable && (
+                <button
+                  type="button"
+                  onClick={() => handleRemoveAttachmentGroup(group.pages)}
+                  className="p-1 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer flex-shrink-0"
+                  title="Remove attachment"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   // AI Interpretation state
   const [aiInterpretation, setAiInterpretation] = useState<{
     summary: string;
@@ -980,6 +1118,7 @@ export function ReportEntry() {
     setStatuses({});
     setManualFlags({});
     setTechnicianNotes('');
+    setAttachments([]);
     setLastSaved(null);
     setReportStatus('draft');
     resetBilling();
@@ -1114,6 +1253,11 @@ export function ReportEntry() {
     const testData = parsedTestData;
     const initialCustomRanges: Record<string, string> = {};
     const initialManualFlags: Record<string, boolean> = {};
+
+    // Load any previously saved attachments
+    if (Array.isArray(testData?.attachments)) {
+      setAttachments(testData.attachments);
+    }
 
     if (testData?.tests?.length) {
       // Grouped format: match by BOTH testId AND parameter name to avoid cross-test collisions
@@ -2189,6 +2333,7 @@ export function ReportEntry() {
       remarks: technicianNotes,
       test_approvals: existingApprovals,
       testRemarks,
+      attachments,
     };
   };
 
@@ -2250,6 +2395,7 @@ export function ReportEntry() {
     testSections,
     testRemarks,
     customReferenceRanges,
+    attachments,
   ]);
 
   const saveCurrentReportData = async () => {
@@ -2874,7 +3020,7 @@ export function ReportEntry() {
       />
 
       {/* Three Column Workbench Grid */}
-      <div className="flex-1 h-0 min-h-0 grid grid-cols-1 lg:grid-cols-[16%_61%_21%] gap-3 items-stretch overflow-hidden mb-1">
+      <div className="flex-1 h-0 min-h-0 grid grid-cols-1 lg:grid-cols-[16%_61%_21%] gap-3 items-stretch overflow-hidden">
         {/* Left Column: Plain list of tests */}
         <div className="hidden lg:flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm h-full flex-col overflow-hidden">
           <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 px-1 flex-shrink-0">Tests</h3>
@@ -3433,6 +3579,9 @@ export function ReportEntry() {
                                   />
                                 </div>
 
+                    {/* Attachments Card */}
+                    {renderAttachmentsCard()}
+
                     {/* AI Clinical Significance Card */}
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm flex-shrink-0">
                       <button
@@ -3612,6 +3761,9 @@ export function ReportEntry() {
             </div>
           </div>
 
+          {/* Attachments Card */}
+          {renderAttachmentsCard()}
+
           {/* Report Notes Card */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm space-y-1.5 flex flex-col flex-1 min-h-0 overflow-hidden">
             <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex-shrink-0">
@@ -3725,57 +3877,7 @@ export function ReportEntry() {
         </div>
       </div>
 
-      {/* Compact Bottom Action Bar */}
-      <div className="flex-shrink-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-2 px-4 flex items-center justify-between shadow-[0_-2px_10px_rgba(0,0,0,0.03)] rounded-xl">
-        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
-          <span className={`w-2 h-2 rounded-full ${lastSaved ? 'bg-success animate-pulse' : 'bg-amber-500'}`} />
-          <span>{lastSaved ? `Saved • ${format(lastSaved, "hh:mm a")}` : "Unsaved Changes"}</span>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handlePrevTest}
-            disabled={testSections.findIndex(s => s.testId === activeTestId) <= 0}
-            className="h-8 px-3.5 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Previous Test
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSaveAndExit}
-            disabled={isSaving}
-            className="h-8 px-4 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title={isEditable ? "Save changes and return to list (Esc)" : "Return to list (Esc)"}
-          >
-            {isEditable ? "Save & Exit" : "Exit"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSaveDraft}
-            disabled={isSaving || !isEditable}
-            className="h-8 px-4 bg-primary text-white rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity shadow-sm"
-            title={reportStatus === 'approved' ? "Update Report (F10)" : "Save Draft (F10)"}
-          >
-            {isSaving
-              ? "Saving..."
-              : reportStatus === 'approved'
-                ? "Update Report (F10)"
-                : "Save Draft (F10)"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleNextTest}
-            disabled={testSections.findIndex(s => s.testId === activeTestId) >= testSections.length - 1 || testSections.length === 0}
-            className="h-8 px-3.5 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Next Test
-          </button>
-        </div>
-      </div>
 
       {/* Edit Patient Modal */}
       {showEditPatientModal && (
@@ -4143,80 +4245,15 @@ export function ReportEntry() {
         </div>
       )}
 
-      {/* History Modal */}
-      {showHistoryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-slate-50 dark:bg-slate-900/50">
-              <h3 className="text-sm font-bold text-foreground">Patient Test History</h3>
-              <button
-                onClick={() => setShowHistoryModal(false)}
-                className="w-6 h-6 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 flex items-center justify-center text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-4 overflow-y-auto max-h-[60vh] text-left">
-              {historyLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
-                  <span className="text-xs text-muted-foreground">Loading history...</span>
-                </div>
-              ) : historyReports.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-8">No previous reports found for this patient.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-border text-[10px] uppercase text-slate-400 font-bold">
-                        <th className="py-2 px-1">Date</th>
-                        <th className="py-2 px-1">Report ID</th>
-                        <th className="py-2 px-1">Tests</th>
-                        <th className="py-2 px-1 text-center">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                      {historyReports.map((rep) => (
-                        <tr key={rep.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                          <td className="py-2 px-1 whitespace-nowrap text-slate-600 dark:text-slate-300 font-medium">
-                            {rep.created_at ? format(new Date(rep.created_at), "dd MMM yyyy") : '-'}
-                          </td>
-                          <td className="py-2 px-1 font-mono text-[10px] text-slate-400">
-                            #{rep.id.slice(0, 8)}
-                          </td>
-                          <td className="py-2 px-1 truncate max-w-[200px] text-slate-600 dark:text-slate-300 font-medium" title={rep.report_type}>
-                            {rep.report_type}
-                          </td>
-                          <td className="py-2 px-1 text-center">
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] uppercase font-bold ${rep.status === 'approved' ? 'bg-success/15 text-success' :
-                              rep.status === 'under_review' ? 'bg-info/15 text-info' :
-                                rep.status === 'rejected' ? 'bg-destructive/15 text-destructive' :
-                                  'bg-warning/15 text-warning'
-                              }`}>
-                              {rep.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end px-4 py-3 border-t border-border bg-slate-50 dark:bg-slate-900/50">
-              <button
-                type="button"
-                onClick={() => setShowHistoryModal(false)}
-                className="px-4 py-1.5 border border-border bg-background rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Patient Test History panel — grouped by test, with trend sparklines for repeated tests */}
+      <HistoryTrendPanel
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        loading={historyLoading}
+        reports={historyReports}
+        patientName={patient?.name}
+        canViewTrends={canViewHistoryTrends}
+      />
       {/* Custom Confirm Modal for Test Removal */}
       <CustomConfirmModal
         isOpen={confirmModal.isOpen}
