@@ -295,6 +295,8 @@ export function PublicReportDownload() {
 
     const testData = typeof report.test_data === 'string' ? JSON.parse(report.test_data) : report.test_data;
     const layoutSnapshots = testData?.layout_snapshots || {};
+    const testApprovals = testData?.test_approvals || {};
+    const reportStatus = (report as any).status;
 
     const mapParam = (p: any): Parameter => ({
       name: p.name,
@@ -319,6 +321,11 @@ export function PublicReportDownload() {
     if (testData?.tests?.length) {
       for (let i = 0; i < testData.tests.length; i++) {
         const group = testData.tests[i];
+        // Only render tests that are approved (unless the whole report is approved).
+        const isTestApproved = reportStatus === 'approved' || testApprovals[group.testId]?.status === 'approved';
+        if (!isTestApproved && reportStatus !== 'approved') {
+          continue;
+        }
         const sectionParams = (group.parameters || []).map((p: any) => mapParam(p));
         const snapshot = layoutSnapshots[group.testId];
 

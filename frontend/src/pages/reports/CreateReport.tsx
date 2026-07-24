@@ -1062,19 +1062,9 @@ export function CreateReport() {
       // Reset the reports page date filter to today/current date
       sessionStorage.removeItem('diagnopro_reports_date_filter');
 
-      // Navigate to report entry page
-      if (report.id) {
-        navigate(`/app/reports/${report.id}/entry`);
-      } else {
-        // Defensive fallback if API response is malformed
-        navigate('/app/reports/entry', {
-          state: {
-            patient: selectedPatient || undefined,
-            testName: reportTypeString || selectedTests.map(t => t.test_name).join(', '),
-            reportAmount: totalPrice,
-          },
-        });
-      }
+      // Return to the reports list; technicians pick up entry from the worklist
+      // (click "Enter Results" on a row to open the worklist entry screen).
+      navigate('/app/reports');
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "An error occurred");
       setIsSubmitting(false);

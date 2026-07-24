@@ -5,7 +5,6 @@ import {
   Save,
   CheckCircle,
   AlertCircle,
-  ArrowLeft,
   FileText,
   Calendar,
   Microscope,
@@ -26,9 +25,9 @@ import {
   Printer,
   Star,
   RefreshCw,
-  Paperclip,
-  Upload,
   Trash2,
+  MoreVertical,
+  RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -41,8 +40,9 @@ import { sampleApi } from "../../api/samples";
 import { SampleBarcodeModal } from "../../app/components/reports/SampleBarcodeModal";
 import { SampleReceptionModal } from "../../app/components/reports/SampleReceptionModal";
 import { useBillingStore } from "../../stores/billingStore";
-import type { AgeUnit, Doctor, Patient, Report, Test, TestField, ReferenceRule, CriticalRules, ReportTestPriceSnapshot, ReportAttachment } from "../../types";
-import { fileToAttachmentPages } from "../../utils/attachments";
+import type { AgeUnit, Doctor, Patient, Test, TestField, ReferenceRule, CriticalRules, ReportTestPriceSnapshot, ReportAttachment } from "../../types";
+import { AttachmentsCard } from "../../app/components/reports/AttachmentsCard";
+import { PendingWorklistPanel } from "../../app/components/reports/PendingWorklistPanel";
 import { BillingSection } from "../../app/components/reports/BillingSection";
 import { SmartSelectInput } from "../../app/components/reports/SmartSelectInput";
 import { formatAge, getAgeMax, normalizeAgeUnit } from "../../utils/age";
@@ -51,293 +51,14 @@ import { SUM_100_GROUPS, isQualitativeValueHigh, isMicroscopicRangeHigh } from "
 import { CustomConfirmModal } from "../../app/components/ui/CustomConfirmModal";
 import { PatientInfoHeader } from "../../app/components/reports/PatientInfoHeader";
 import { HistoryTrendPanel } from "../../app/components/reports/HistoryTrendPanel";
-
-// ============================================
-// Reference Rules Utility Functions for Reports
-// ============================================
-
-function normalizeReferenceRules(raw: any): ReferenceRule[] {
-  if (!raw) return [];
-
-  // Already an array
-  if (Array.isArray(raw)) {
-    return raw.map(r => ({
-      age_group: r.age_group || 'all',
-      sex: r.sex || 'any',
-      low: r.low ?? r.min ?? null,
-      high: r.high ?? r.max ?? null,
-      age_min: r.age_min != null ? Number(r.age_min) : null,
-      age_max: r.age_max != null ? Number(r.age_max) : null,
-      age_min_unit: r.age_min_unit || r.age_max_unit || 'years',
-      age_max_unit: r.age_max_unit || r.age_min_unit || 'years',
-      note: r.note,
-    }));
-  }
-
-  // Object format
-  if (typeof raw === 'object') {
-    // Check if it's a gender-keyed object like { male: { min, max }, female: { min, max } }
-    const keys = Object.keys(raw);
-    const genderKeys = keys.filter(k => ['male', 'female'].includes(k));
-
-    if (genderKeys.length > 0) {
-      const rules: ReferenceRule[] = [];
-      for (const gender of genderKeys) {
-        const vals = raw[gender];
-        if (vals && typeof vals === 'object') {
-          rules.push({
-            age_group: 'all',
-            sex: gender,
-            low: (vals as any).low ?? (vals as any).min ?? null,
-            high: (vals as any).high ?? (vals as any).max ?? null,
-          });
-        }
-      }
-      return rules;
-    }
-
-    // Simple { min, max } object
-    if ('min' in raw || 'max' in raw || 'low' in raw || 'high' in raw) {
-      return [{
-        age_group: 'all',
-        sex: 'any',
-        low: raw.low ?? raw.min ?? null,
-        high: raw.high ?? raw.max ?? null,
-      }];
-    }
-  }
-
-  return [];
-}
-
-interface MatchedRange {
-  low: number | null;
-  high: number | null;
-  note: string;
-  isRuleMatched: boolean;
-  criticalLow: number | null;
-  criticalHigh: number | null;
-}
-function convertAge(age: number, fromUnit: string, toUnit: string): number {
-  const from = fromUnit.toLowerCase();
-  const to = toUnit.toLowerCase();
-  if (from === to) return age;
-
-  // Convert to days first
-  let ageInDays = age;
-  if (from === 'years' || from === 'year' || from === 'y') {
-    ageInDays = age * 365.25;
-  } else if (from === 'months' || from === 'month' || from === 'm') {
-    ageInDays = age * 30.4375;
-  }
-
-  // Convert from days to target unit
-  if (to === 'years' || to === 'year' || to === 'y') {
-    return ageInDays / 365.25;
-  } else if (to === 'months' || to === 'month' || to === 'm') {
-    return ageInDays / 30.4375;
-  }
-  return ageInDays;
-}
-
-function getPatientReferenceRange(
-  field: {
-    reference_rules?: any;
-    min_value?: number | null;
-    max_value?: number | null;
-    critical_rules?: any
-  },
-  patient: Patient | null
-): MatchedRange {
-  let criticalLow: number | null = null;
-  let criticalHigh: number | null = null;
-  if (field.critical_rules) {
-    criticalLow = field.critical_rules.low ?? null;
-    criticalHigh = field.critical_rules.high ?? null;
-  }
-
-  // If there are qualitative bands, build their summary note
-  if (field.reference_rules && typeof field.reference_rules === 'object' && !Array.isArray(field.reference_rules) && 'qualitative_bands' in field.reference_rules) {
-    const bands = field.reference_rules.qualitative_bands || [];
-    const bandsSummary = bands.map((b: any) => {
-      let opStr = '';
-      if (b.operator === 'lt') opStr = `<${b.value ?? ''}`;
-      else if (b.operator === 'lte') opStr = `≤${b.value ?? ''}`;
-      else if (b.operator === 'gt') opStr = `>${b.value ?? ''}`;
-      else if (b.operator === 'gte') opStr = `≥${b.value ?? ''}`;
-      else if (b.operator === 'eq') opStr = `=${b.value ?? ''}`;
-      else if (b.operator === 'range') opStr = `${b.min ?? ''}–${b.max ?? ''}`;
-      return `${b.label} ${opStr}`;
-    }).join(' | ');
-    return {
-      low: null,
-      high: null,
-      note: bandsSummary,
-      isRuleMatched: true,
-      criticalLow,
-      criticalHigh,
-    };
-  }
-
-  const rules = normalizeReferenceRules(field.reference_rules);
-
-  const fallbackRange: MatchedRange = {
-    low: field.min_value != null ? Number(field.min_value) : null,
-    high: field.max_value != null ? Number(field.max_value) : null,
-    note: '',
-    isRuleMatched: false,
-    criticalLow,
-    criticalHigh,
-  };
-
-  if (!patient || rules.length === 0) {
-    return fallbackRange;
-  }
-
-  // Calculate patient age in years
-  let ageInYears = patient.age ?? 0;
-  const ageUnit = patient.age_unit ? patient.age_unit.toLowerCase() : 'years';
-  if (ageUnit === 'months') {
-    ageInYears = ageInYears / 12;
-  } else if (ageUnit === 'days') {
-    ageInYears = ageInYears / 365.25;
-  }
-
-  // Determine age group
-  let ageGroup = 'adult';
-  if (ageInYears <= 0.08) {
-    ageGroup = 'neonatal';
-  } else if (ageInYears <= 1) {
-    ageGroup = 'infant';
-  } else if (ageInYears <= 12) {
-    ageGroup = 'pediatric';
-  } else if (ageInYears < 18) {
-    ageGroup = 'adolescent';
-  } else if (ageInYears >= 65) {
-    ageGroup = 'elderly';
-  }
-
-  const patientSex = patient.gender ? patient.gender.toLowerCase() : 'any';
-
-  // Find compatible rules and score them
-  let bestRule: any = null;
-  let bestScore = -1;
-
-  for (const rule of rules) {
-    let isCompatible = true;
-    let score = 0;
-
-    // Check gender compatibility
-    const ruleSex = rule.sex ? rule.sex.toLowerCase() : 'any';
-    if (ruleSex !== 'any' && ruleSex !== 'all' && ruleSex !== patientSex) {
-      isCompatible = false;
-    } else if (ruleSex === patientSex) {
-      score += 10;
-    } else {
-      score += 1;
-    }
-
-    // Check age compatibility
-    if (isCompatible) {
-      if (rule.age_min != null || rule.age_max != null) {
-        if (rule.age_min != null) {
-          const ruleMinUnit = (rule.age_min_unit || 'years').toLowerCase();
-          const patientAgeInMinUnit = convertAge(patient.age ?? 0, patient.age_unit || 'years', ruleMinUnit);
-          if (patientAgeInMinUnit < rule.age_min) {
-            isCompatible = false;
-          }
-        }
-        if (isCompatible && rule.age_max != null) {
-          const ruleMaxUnit = (rule.age_max_unit || 'years').toLowerCase();
-          const patientAgeInMaxUnit = convertAge(patient.age ?? 0, patient.age_unit || 'years', ruleMaxUnit);
-          if (patientAgeInMaxUnit > rule.age_max) {
-            isCompatible = false;
-          }
-        }
-        if (isCompatible) {
-          score += 20;
-        }
-      } else {
-        const ruleAgeGroup = rule.age_group ? rule.age_group.toLowerCase() : 'all';
-        if (ruleAgeGroup !== 'all' && ruleAgeGroup !== 'any' && ruleAgeGroup !== ageGroup) {
-          isCompatible = false;
-        } else if (ruleAgeGroup === ageGroup) {
-          score += 10;
-        } else {
-          score += 1;
-        }
-      }
-    }
-
-    if (isCompatible && score > bestScore) {
-      bestScore = score;
-      bestRule = rule;
-    }
-  }
-
-  if (bestRule) {
-    return {
-      low: bestRule.low ?? null,
-      high: bestRule.high ?? null,
-      note: bestRule.note || '',
-      isRuleMatched: true,
-      criticalLow,
-      criticalHigh,
-    };
-  }
-
-  return fallbackRange;
-}
-
-function formatReferenceRange(range: MatchedRange): string {
-  if (range.low != null || range.high != null) {
-    const lo = range.low != null ? range.low : '—';
-    const hi = range.high != null ? range.high : '—';
-    return `${lo} - ${hi}`;
-  }
-  return range.note || '-';
-}
-
-function isCbcTest(testName?: string, testCode?: string): boolean {
-  const name = (testName || '').toLowerCase();
-  const code = (testCode || '').toLowerCase();
-  return (
-    code === 'cbc' ||
-    code.includes('cbc') ||
-    name.includes('complete blood count') ||
-    name.includes('cbc')
-  );
-}
-
-function isWorkflowEditable(status?: string): boolean {
-  return status === 'draft' || status === 'rejected' || status === 'approved';
-}
-
-function stableSerialize(value: unknown): string {
-  if (value === null || value === undefined) return 'null';
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableSerialize(item)).join(',')}]`;
-  }
-  if (typeof value === 'object') {
-    const obj = value as Record<string, unknown>;
-    return `{${Object.keys(obj)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableSerialize(obj[key])}`)
-      .join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function sameNumberish(a: unknown, b: unknown): boolean {
-  if (a == null && b == null) return true;
-  if (a == null || b == null) return false;
-  const aNum = Number(a);
-  const bNum = Number(b);
-  if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) {
-    return aNum === bNum;
-  }
-  return false;
-}
+import {
+  getPatientReferenceRange,
+  formatReferenceRange,
+  isCbcTest,
+  isWorkflowEditable,
+  stableSerialize,
+  sameNumberish,
+} from "./reportEntryUtils";
 
 export function ReportEntry() {
   const { reportId: rawReportId } = useParams<{ reportId: string }>();
@@ -361,6 +82,8 @@ export function ReportEntry() {
   // Stores
   const { doctors, fetchDoctors, isLoading: doctorsLoading } = useDoctorStore();
   const {
+    reports,
+    fetchReports,
     selectedReport,
     fetchReportById,
     updateReport,
@@ -590,6 +313,67 @@ export function ReportEntry() {
   const [activeTestId, setActiveTestId] = useState<string | null>(null);
   const activeSection = testSections.find(s => s.testId === activeTestId) || testSections[0];
 
+  // Worklist (left panel) + per-test entry popup state
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+  const [showWorklistMobile, setShowWorklistMobile] = useState(false);
+  const [openTestMenuId, setOpenTestMenuId] = useState<string | null>(null);
+
+  // Close 3-dots test dropdown menu when clicking anywhere outside
+  useEffect(() => {
+    if (!openTestMenuId) return;
+    const handleGlobalClick = () => setOpenTestMenuId(null);
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, [openTestMenuId]);
+
+  const openTestModal = (testId: string) => {
+    setActiveTestId(testId);
+    setActiveSubTab('results');
+    setIsTestModalOpen(true);
+  };
+  const closeTestModal = () => setIsTestModalOpen(false);
+
+  const handleSaveTestModal = async () => {
+    setIsSaving(true);
+    try {
+      const ok = await saveCurrentReportData();
+      if (ok) {
+        setIsTestModalOpen(false);
+        toast.success('Test values saved');
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Switch to another report from the worklist, best-effort saving the current draft first.
+  const switchToReport = async (id: string) => {
+    if (!id || id === reportId) {
+      setShowWorklistMobile(false);
+      return;
+    }
+    try {
+      if (reportId && isEditable) {
+        await saveCurrentReportData();
+      }
+    } catch (e) {
+      // ignore save failure; still allow switching
+    }
+    setIsTestModalOpen(false);
+    setShowWorklistMobile(false);
+    navigate(`/app/reports/${id}/entry`);
+  };
+
+  // Left worklist panel (shared between desktop column and mobile drawer)
+  const renderWorklist = () => (
+    <PendingWorklistPanel
+      reports={reports}
+      currentReportId={reportId}
+      onSelectReport={switchToReport}
+      onBack={() => handleSaveAndExit()}
+    />
+  );
+
   // Modals state
   const [showEditPatientModal, setShowEditPatientModal] = useState(false);
   const [showAddTestModal, setShowAddTestModal] = useState(false);
@@ -715,133 +499,14 @@ export function ReportEntry() {
 
   // Report attachments (PDF/image pages, e.g. B2B partner-lab reports)
   const [attachments, setAttachments] = useState<ReportAttachment[]>([]);
-  const [uploadingAttachment, setUploadingAttachment] = useState(false);
-  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
-
-  const handleAttachmentFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    if (!reportId) {
-      toast.error("Save the report before adding attachments.");
-      return;
-    }
-    setUploadingAttachment(true);
-    try {
-      for (const file of Array.from(files)) {
-        const { sourceType, pages } = await fileToAttachmentPages(file);
-        if (pages.length === 0) continue;
-        const uploaded = await reportApi.uploadAttachments(reportId, {
-          name: file.name,
-          sourceType,
-          pages,
-        });
-        setAttachments((prev) => [...prev, ...uploaded]);
-      }
-      toast.success("Attachment added. Remember to save the report.");
-    } catch (e) {
-      console.error("Failed to add attachment:", e);
-      toast.error("Failed to add attachment. Please try again.");
-    } finally {
-      setUploadingAttachment(false);
-      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
-    }
-  };
-
-  // Remove all pages that came from the same uploaded file (grouped by name + sourceType)
-  const handleRemoveAttachmentGroup = async (group: ReportAttachment[]) => {
-    const urls = new Set(group.map((a) => a.url));
-    setAttachments((prev) => prev.filter((a) => !urls.has(a.url)));
-    if (reportId) {
-      for (const a of group) {
-        try {
-          await reportApi.deleteAttachment(reportId, a.url);
-        } catch (e) {
-          console.error("Failed to delete attachment asset:", e);
-        }
-      }
-    }
-  };
-
-  // Group attachment pages by their source file for display
-  const attachmentGroups = useMemo(() => {
-    const groups: { key: string; name: string; sourceType: string; pages: ReportAttachment[] }[] = [];
-    for (const att of attachments) {
-      const key = `${att.name}::${att.sourceType}::${att.totalPages}`;
-      let group = groups.find((g) => g.key === key);
-      if (!group) {
-        group = { key, name: att.name, sourceType: att.sourceType, pages: [] };
-        groups.push(group);
-      }
-      group.pages.push(att);
-    }
-    return groups;
-  }, [attachments]);
 
   const renderAttachmentsCard = () => (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm space-y-2 flex-shrink-0">
-      <div className="flex items-center justify-between">
-        <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-          <Paperclip className="w-3.5 h-3.5 text-primary" />
-          Attachments {attachments.length > 0 && (
-            <span className="text-[10px] font-semibold text-slate-500">({attachments.length} page{attachments.length > 1 ? 's' : ''})</span>
-          )}
-        </h3>
-      </div>
-      <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-snug">
-        Attach a PDF or images (e.g. a B2B partner-lab report). They are added as pages after your tests and before marketing pages.
-      </p>
-
-      <input
-        ref={attachmentInputRef}
-        type="file"
-        accept="application/pdf,image/*"
-        multiple
-        className="hidden"
-        onChange={(e) => handleAttachmentFiles(e.target.files)}
-      />
-      <button
-        type="button"
-        onClick={() => attachmentInputRef.current?.click()}
-        disabled={uploadingAttachment || !reportId || !isEditable}
-        className="w-full h-8 flex items-center justify-center gap-1.5 border border-blue-200 dark:border-blue-900/50 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-[11px] font-bold text-blue-600 dark:text-blue-400 rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
-      >
-        {uploadingAttachment ? (
-          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading...</>
-        ) : (
-          <><Upload className="w-3.5 h-3.5" /> Add PDF / Image</>
-        )}
-      </button>
-
-      {attachmentGroups.length > 0 && (
-        <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-0.5">
-          {attachmentGroups.map((group) => (
-            <div
-              key={group.key}
-              className="flex items-center gap-2 p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40"
-            >
-              <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <FileText className="w-3.5 h-3.5 text-primary" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate" title={group.name}>{group.name}</p>
-                <p className="text-[9px] text-slate-400 uppercase tracking-wide">
-                  {group.sourceType} · {group.pages.length} page{group.pages.length > 1 ? 's' : ''}
-                </p>
-              </div>
-              {isEditable && (
-                <button
-                  type="button"
-                  onClick={() => handleRemoveAttachmentGroup(group.pages)}
-                  className="p-1 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer flex-shrink-0"
-                  title="Remove attachment"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    <AttachmentsCard
+      reportId={reportId}
+      isEditable={isEditable}
+      attachments={attachments}
+      onChange={setAttachments}
+    />
   );
 
   // AI Interpretation state
@@ -1075,6 +740,13 @@ export function ReportEntry() {
       fetchTests(currentBranchId);
     }
   }, [fetchTests, currentBranchId]);
+
+  // Fetch the branch report list to power the left worklist panel
+  useEffect(() => {
+    if (currentBranchId) {
+      fetchReports({ branch_id: currentBranchId });
+    }
+  }, [fetchReports, currentBranchId]);
 
   // Fetch test fields when report loads (use testIds from test_data, or look up by name)
   useEffect(() => {
@@ -2653,15 +2325,17 @@ export function ReportEntry() {
     }
   };
 
-  const handleApproveCurrentTest = async () => {
-    if (!reportId || !activeSection) return;
+  const handleApproveCurrentTest = async (targetTestId?: string) => {
+    const section = targetTestId ? testSections.find(s => s.testId === targetTestId) : activeSection;
+    if (!reportId || !section) return;
     setIsSubmitting(true);
     try {
       await saveCurrentReportData();
-      const res = await approveTest(reportId, activeSection.testId);
+      const res = await approveTest(reportId, section.testId);
       if (res) {
-        toast.success(`${activeSection.testName} approved successfully!`);
+        toast.success(`${section.testName} approved successfully!`);
         await fetchReportById(reportId);
+        await fetchReports({ branch_id: currentBranchId || undefined });
       }
     } catch (e: any) {
       toast.error(e.message || "Failed to approve test");
@@ -2670,21 +2344,65 @@ export function ReportEntry() {
     }
   };
 
-  const handleSendCurrentTestForApproval = async () => {
-    if (!reportId || !activeSection) return;
+  const handleSendCurrentTestForApproval = async (targetTestId?: string) => {
+    const section = targetTestId ? testSections.find(s => s.testId === targetTestId) : activeSection;
+    if (!reportId || !section) return;
     setIsSubmitting(true);
     try {
       await saveCurrentReportData();
-      const res = await sendTestForApproval(reportId, activeSection.testId);
+      const res = await sendTestForApproval(reportId, section.testId);
       if (res) {
-        toast.success(`${activeSection.testName} sent for approval!`);
+        toast.success(`${section.testName} sent for approval!`);
         await fetchReportById(reportId);
+        await fetchReports({ branch_id: currentBranchId || undefined });
       }
     } catch (e: any) {
       toast.error(e.message || "Failed to send test for approval");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Reset / clear all entered field values for a specific test back to defaults
+  const handleClearTestData = (testId: string) => {
+    const targetSection = testSections.find(s => s.testId === testId);
+    if (!targetSection) return;
+
+    setValues(prevValues => {
+      const updated = { ...prevValues };
+      targetSection.params.forEach(param => {
+        let defaultValue = '';
+        if (param.options && param.options.trim() !== '') {
+          if (param.input_type === 'select' && param.is_mandatory !== false && param.name.toLowerCase() !== 'remark') {
+            defaultValue = param.options.split(',')[0].trim();
+          } else if (param.input_type === 'text' || param.input_type === 'number' || param.input_type === 'textarea') {
+            if (!param.options.includes(',')) {
+              defaultValue = param.options.trim();
+            }
+          }
+        }
+        updated[param.id] = defaultValue;
+      });
+      return updated;
+    });
+
+    setManualFlags(prevFlags => {
+      const updated = { ...prevFlags };
+      targetSection.params.forEach(param => {
+        delete updated[param.id];
+      });
+      return updated;
+    });
+
+    setCustomReferenceRanges(prevRanges => {
+      const updated = { ...prevRanges };
+      targetSection.params.forEach(param => {
+        delete updated[param.id];
+      });
+      return updated;
+    });
+
+    toast.success(`Cleared entered values for ${targetSection.testName}`);
   };
 
   const handleSendAllForApproval = async () => {
@@ -2978,7 +2696,14 @@ export function ReportEntry() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-76px)] overflow-hidden space-y-2.5 w-full px-1.5 sm:px-2 pb-1.5 bg-slate-50/50 dark:bg-slate-950/20">
+    <div className="flex flex-row h-[calc(100vh-76px)] overflow-hidden gap-2 w-full px-1.5 sm:px-2 pb-1.5 bg-slate-50/50 dark:bg-slate-950/20">
+      {/* Left sidebar: Pending Reports worklist (full height) */}
+      <aside className="hidden lg:flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm h-full flex-col overflow-hidden w-[230px] flex-shrink-0">
+        {renderWorklist()}
+      </aside>
+
+      {/* Right area: patient header + selected report content + controls */}
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden space-y-2.5">
       {/* Non-editable warning banner */}
       {!isEditable && (
         <div className="bg-warning/10 border border-warning/20 rounded-xl p-3 flex items-center gap-2">
@@ -3019,102 +2744,166 @@ export function ReportEntry() {
         onPrintSampleBarcodes={() => setIsBarcodeModalOpen(true)}
       />
 
-      {/* Three Column Workbench Grid */}
-      <div className="flex-1 h-0 min-h-0 grid grid-cols-1 lg:grid-cols-[16%_61%_21%] gap-3 items-stretch overflow-hidden">
-        {/* Left Column: Plain list of tests */}
-        <div className="hidden lg:flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm h-full flex-col overflow-hidden">
-          <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 px-1 flex-shrink-0">Tests</h3>
-          <div className="flex-1 overflow-y-auto scrollbar-hide space-y-1">
-            {testSections.map((section) => {
-              const isActive = section.testId === activeTestId;
-              const approval = (parsedTestData?.test_approvals || {})[section.testId];
-              return (
-                <div
-                  key={section.testId}
-                  onClick={() => setActiveTestId(section.testId)}
-                  className={`group flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all ${isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/50'
-                    }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                      approval?.status === 'approved'
-                        ? 'bg-emerald-500'
-                        : approval?.status === 'under_review' || approval?.status === 'pending_approval'
-                        ? 'bg-amber-500'
-                        : approval?.status === 'rejected'
-                        ? 'bg-rose-500'
-                        : isActive ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'
-                    }`} />
-                    <span className="truncate">{section.testName}</span>
-                  </div>
-                  {approval?.status === 'approved' && (
-                    <span className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold ml-1">✓</span>
-                  )}
-                  {approval?.status === 'rejected' && (
-                    <span className="text-[9px] bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded font-bold ml-1">✗</span>
-                  )}
-                  {isEditable && canRemoveTest && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleConfirmRemoveTest(section.testId, section.testName);
-                      }}
-                      className="w-4 h-4 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all flex-shrink-0 cursor-pointer ml-1"
-                      title="Remove test"
+      {/* Two Column Workbench Grid: selected report content + controls */}
+      <div className="flex-1 h-0 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-3 items-stretch overflow-hidden">
+        {/* Center Column: Test list (click a row to open the entry popup) */}
+        <div className="h-full flex flex-col overflow-hidden gap-2">
+          {/* Mobile: open the pending-reports worklist */}
+          <button
+            type="button"
+            onClick={() => setShowWorklistMobile(true)}
+            className="lg:hidden flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 self-start flex-shrink-0"
+          >
+            <FileText className="w-3.5 h-3.5" /> Pending Reports
+          </button>
+
+          {/* Test cards */}
+          <div className="flex-1 overflow-y-auto scrollbar-hide">
+            {testSections.length === 0 ? (
+              <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground text-xs shadow-sm h-full flex items-center justify-center">
+                No tests selected
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {testSections.map((section) => {
+                  const approval = (parsedTestData?.test_approvals || {})[section.testId];
+                  const isTestApproved = approval?.status === 'approved';
+                  const statusLabel = isTestApproved ? 'Approved'
+                    : (approval?.status === 'under_review' || approval?.status === 'pending_approval') ? 'In Review'
+                    : approval?.status === 'rejected' ? 'Rejected' : null;
+                  return (
+                    <div
+                      key={section.testId}
+                      onClick={() => openTestModal(section.testId)}
+                      className="group flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 shadow-sm cursor-pointer hover:border-primary/40 hover:shadow-md transition-all"
                     >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-            {testSections.length === 0 && (
-              <p className="text-xs text-muted-foreground p-2 italic text-center">No tests selected</p>
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Microscope className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{section.testName}</h3>
+                          {section.testCode && (
+                            <span className="text-[9px] font-bold text-muted-foreground bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded uppercase">
+                              {section.testCode}
+                            </span>
+                          )}
+                          {statusLabel && (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                              isTestApproved
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                : approval?.status === 'rejected'
+                                ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                            }`}>
+                              {statusLabel}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => openTestModal(section.testId)}
+                          className="h-8 px-3 flex items-center justify-center gap-1 text-xs font-bold rounded-lg bg-primary/10 text-primary hover:bg-primary/15 transition-colors cursor-pointer"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" /> Enter
+                        </button>
+                        {reportId && isEditable && canAutoApprove && (
+                          !isTestApproved ? (
+                            <button
+                              type="button"
+                              onClick={() => handleApproveCurrentTest(section.testId)}
+                              disabled={isSubmitting}
+                              className="h-8 px-2.5 flex items-center justify-center gap-1 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 cursor-pointer"
+                              title="Approve this test"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Approve</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleApproveCurrentTest(section.testId)}
+                              disabled={isSubmitting}
+                              className="h-8 px-2.5 flex items-center justify-center gap-1 text-xs font-bold rounded-lg border border-emerald-600/40 text-emerald-700 dark:text-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20 hover:bg-emerald-100/60 dark:hover:bg-emerald-950/40 transition-colors disabled:opacity-50 cursor-pointer"
+                              title="Update approved test"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                              <span>Update</span>
+                            </button>
+                          )
+                        )}
+                        {reportId && isEditable && !canAutoApprove && !isTestApproved && (
+                          <button
+                            type="button"
+                            onClick={() => handleSendCurrentTestForApproval(section.testId)}
+                            disabled={isSubmitting}
+                            className="h-8 px-2.5 flex items-center justify-center gap-1 text-xs font-bold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer"
+                            title="Send this test for review"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            <span>Send for Review</span>
+                          </button>
+                        )}
+                        {/* 3-dots options menu */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenTestMenuId(openTestMenuId === section.testId ? null : section.testId);
+                            }}
+                            className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                            title="More options"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                          {openTestMenuId === section.testId && (
+                            <div
+                              className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 py-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenTestMenuId(null);
+                                  handleClearTestData(section.testId);
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-amber-500" />
+                                <span>Reset / Clear Test Data</span>
+                              </button>
+                              {isEditable && canRemoveTest && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenTestMenuId(null);
+                                    handleConfirmRemoveTest(section.testId, section.testName);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer text-left border-t border-slate-100 dark:border-slate-800/60"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                  <span>Remove Test</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
-        </div>
 
-        {/* Center Column: Parameter entry table */}
-        <div className="h-full flex flex-col overflow-hidden gap-2">
-          {/* Mobile/Tablet Test Selector */}
-          {testSections.length > 0 && (
-            <div className="lg:hidden flex items-center gap-2 overflow-x-auto pb-1.5 px-1 flex-shrink-0 scrollbar-none">
-              {testSections.map((section) => {
-                const isActive = section.testId === activeTestId;
-                return (
-                  <div
-                    key={section.testId}
-                    onClick={() => setActiveTestId(section.testId)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border cursor-pointer transition-all ${isActive
-                        ? 'bg-primary border-primary text-white shadow-sm'
-                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                      }`}
-                  >
-                    <span>{section.testName}</span>
-                    {isEditable && canRemoveTest && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleConfirmRemoveTest(section.testId, section.testName);
-                        }}
-                        className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-colors ${isActive
-                            ? 'hover:bg-white/20 text-white/80 hover:text-white'
-                            : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600'
-                          }`}
-                      >
-                        <X className="w-2.5 h-2.5" />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
+          {/* Test entry popup — reuses the full parameter-entry panel */}
+          {isTestModalOpen && activeSection && createPortal(
+            <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-3 md:p-6" onClick={closeTestModal}>
+              <div className="w-full max-w-5xl h-[90vh] flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex-1 min-h-0 flex flex-col">
           {activeSection ? (
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm h-full flex flex-col min-h-0">
               <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
@@ -3167,12 +2956,20 @@ export function ReportEntry() {
                     <span className="text-info font-bold">↓</span> Low
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className="text-success font-bold">✓</span> Normal
-                  </div>
-                  <div className="flex items-center gap-1">
                     <span className="text-destructive font-bold">↑</span> High
                   </div>
                 </div>
+
+                {/* Clear / Reset values button */}
+                <button
+                  type="button"
+                  onClick={() => handleClearTestData(activeSection.testId)}
+                  className="flex items-center gap-1 h-7 px-2.5 rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 text-[10px] font-bold text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors cursor-pointer flex-shrink-0"
+                  title="Reset/Clear entered test values back to defaults"
+                >
+                  <RotateCcw className="w-3 h-3 text-amber-500" />
+                  <span>Clear Values</span>
+                </button>
               </div>
 
               <div className="flex-1 overflow-y-auto min-h-0 overflow-x-auto">
@@ -3676,6 +3473,34 @@ export function ReportEntry() {
               No active test parameter selected. Please choose a test.
             </div>
           )}
+                </div>
+                {/* Popup footer: Save / Cancel only */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 flex items-center justify-between gap-2 shadow-sm flex-shrink-0">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
+                    {activeSection?.testName}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={closeTestModal}
+                      className="h-9 px-4 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveTestModal}
+                      disabled={isSaving || !isEditable}
+                      className="h-9 px-5 rounded-lg bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
         </div>
 
         {/* Right Column: Quick Actions, Notes, AIInterpretation */}
@@ -3713,36 +3538,15 @@ export function ReportEntry() {
                 Preview Report ({selectedReport?.preview_count || 0})
               </button>
 
-              {reportId && isEditable && (
-                canAutoApprove ? (
-                  <button
-                    onClick={handleApproveCurrentTest}
-                    disabled={isSubmitting || !activeSection}
-                    className="w-full h-9 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    Approve Single Test
-                  </button>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={handleSendCurrentTestForApproval}
-                      disabled={isSubmitting || !activeSection}
-                      className="w-full h-9 flex items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      Send Test
-                    </button>
-                    <button
-                      onClick={handleSendAllForApproval}
-                      disabled={isSubmitting}
-                      className="w-full h-9 flex items-center justify-center gap-1 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      Send All
-                    </button>
-                  </div>
-                )
+              {reportId && isEditable && !canAutoApprove && (
+                <button
+                  onClick={handleSendAllForApproval}
+                  disabled={isSubmitting}
+                  className="w-full h-9 flex items-center justify-center gap-1 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Send All Tests for Review
+                </button>
               )}
 
               {(reportStatus === 'draft' || reportStatus === 'rejected') && (
@@ -3876,8 +3680,7 @@ export function ReportEntry() {
           </div>
         </div>
       </div>
-
-
+      </div>
 
       {/* Edit Patient Modal */}
       {showEditPatientModal && (
@@ -4255,6 +4058,20 @@ export function ReportEntry() {
         canViewTrends={canViewHistoryTrends}
       />
       {/* Custom Confirm Modal for Test Removal */}
+      {/* Mobile worklist drawer */}
+      {showWorklistMobile && createPortal(
+        <div className="fixed inset-0 z-[70] flex lg:hidden" onClick={() => setShowWorklistMobile(false)}>
+          <div className="absolute inset-0 bg-black/50" />
+          <div
+            className="relative w-[85%] max-w-xs h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-3 flex flex-col shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {renderWorklist()}
+          </div>
+        </div>,
+        document.body
+      )}
+
       <CustomConfirmModal
         isOpen={confirmModal.isOpen}
         title={confirmModal.title}

@@ -9,7 +9,7 @@ interface PatientInfoHeaderProps {
   referringDoctorName: string;
   formattedCollectionDate: string;
   isEditable?: boolean;
-  onBack: () => void;
+  onBack?: () => void;
   onEditPatient?: () => void;
   onAddTest?: () => void;
   onOpenHistory?: () => void;
@@ -76,15 +76,19 @@ export function PatientInfoHeader({
     <div className="flex-shrink-0 bg-white dark:bg-slate-900 rounded-xl px-3 sm:px-4 h-[60px] min-h-[60px] py-0 shadow-xs border border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
       <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
         {/* Back Button */}
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100 transition-colors flex-shrink-0 cursor-pointer"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          <span>Back<span className="hidden sm:inline"> to Reports</span></span>
-        </button>
+        {onBack && (
+          <>
+            <button
+              onClick={onBack}
+              className={`flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100 transition-colors flex-shrink-0 cursor-pointer ${mode === 'entry' ? 'lg:hidden' : ''}`}
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Back<span className="hidden sm:inline"> to Reports</span></span>
+            </button>
 
-        <div className="h-5 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block flex-shrink-0" />
+            <div className={`h-5 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block flex-shrink-0 ${mode === 'entry' ? 'lg:hidden' : ''}`} />
+          </>
+        )}
 
         {/* Patient Details Columns */}
         <div className="flex items-center gap-3 sm:gap-4 md:gap-5 lg:gap-6 text-xs min-w-0">

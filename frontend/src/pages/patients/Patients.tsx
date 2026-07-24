@@ -64,12 +64,6 @@ export function Patients() {
     return age;
   };
 
-  // Get branch name
-  const getBranchName = (branchId: string) => {
-    const branch = branches.find(b => b.id === branchId);
-    return branch?.name || 'Unknown Branch';
-  };
-
   // Format date
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('en-US', {
@@ -182,10 +176,11 @@ export function Patients() {
                 <tr className="border-b border-border">
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Name</th>
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Age/Gender</th>
+                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Phone</th>
+                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Email</th>
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Created By</th>
-                  <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Branch</th>
                   <th className="px-3 py-2 text-left text-muted-foreground text-[10px] uppercase tracking-wider">Registered</th>
-                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-24">Actions</th>
+                  <th className="px-3 py-2 text-center text-muted-foreground text-[10px] uppercase tracking-wider w-28 whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -214,9 +209,6 @@ export function Patients() {
                       }`}>
                         {patient.created_by_name || 'Admin'}
                       </span>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {patient.branch_name || getBranchName(patient.branch_id)}
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
                       {formatDate(patient.created_at)}
@@ -308,7 +300,7 @@ interface PatientModalProps {
   onSave: (data: CreatePatientData) => Promise<void>;
 }
 
-function PatientModal({ patient, branches, currentBranchId, onClose, onSave }: PatientModalProps) {
+function PatientModal({ patient, currentBranchId, onClose, onSave }: PatientModalProps) {
   const [formData, setFormData] = useState<CreatePatientData>({
     name: patient?.name || '',
     email: patient?.email || '',
@@ -366,7 +358,6 @@ function PatientDetailsModal({ patient, onClose, onEdit }: PatientDetailsModalPr
             <DetailCard label="Age / Gender" value={`${formatAge(patient.age, patient.age_unit) || '-'} / ${patient.gender || '-'}`} />
             <DetailCard label="Phone" value={patient.phone || '-'} />
             <DetailCard label="Email" value={patient.email || '-'} />
-            <DetailCard label="Branch" value={patient.branch_name || patient.branch_id || '-'} />
             <DetailCard label="Blood Type" value={patient.blood_type || '-'} />
             <DetailCard label="Registered" value={patient.created_at ? new Date(patient.created_at).toLocaleString('en-US') : '-'} />
           </div>
@@ -509,22 +500,7 @@ function DetailCard({ label, value }: { label: string; value: string }) {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
-              Branch *
-            </label>
-            <select
-              value={formData.branch_id}
-              onChange={e => setFormData(prev => ({ ...prev, branch_id: e.target.value }))}
-              className="w-full h-9 px-3 bg-secondary border border-border rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              required
-            >
-              <option value="">Select Branch</option>
-              {branches.map(branch => (
-                <option key={branch.id} value={branch.id}>{branch.name}</option>
-              ))}
-            </select>
-          </div>
+          {/* Branch is taken from the branch selected in the top nav (no manual selection needed) */}
 
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">

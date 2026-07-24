@@ -18,6 +18,7 @@ import { format } from 'date-fns';
 import { useReportStore } from '../../stores/reportStore';
 import { useAuthStore } from '../../stores/authStore';
 import type { Report } from '../../types';
+import { getReportTestStatuses } from './reportStatus';
 import { toast } from 'sonner';
 
 /**
@@ -41,9 +42,11 @@ export function ReportReview() {
   } = useReportStore();
   const { user } = useAuthStore();
 
-  // Filter for under_review or draft reports having tests pending approval
+  // Show reports that have at least one test actually sent for review. A report can sit
+  // in review while its overall status is still 'draft' (only some tests sent), so we key
+  // off per-test status rather than the report-level status.
   const underReviewReports = useMemo(
-    () => reports.filter((r) => r.status === 'under_review' || r.status === 'draft'),
+    () => reports.filter((r) => getReportTestStatuses(r).hasReview),
     [reports]
   );
 
@@ -174,7 +177,7 @@ export function ReportReview() {
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
           <button
-            onClick={() => fetchReports({ status: 'under_review' })}
+            onClick={() => fetchReports()}
             className="h-8 px-3 flex items-center justify-center gap-1.5 rounded text-xs bg-secondary border border-border hover:bg-accent transition-colors flex-1 sm:flex-none cursor-pointer"
             disabled={isLoading}
           >

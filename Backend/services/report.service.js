@@ -182,8 +182,11 @@ async function createDraftReport(data, userId, branchId) {
 function computeReportStatus(testApprovals = {}, testIds = []) {
   if (!testIds || testIds.length === 0) return REPORT_STATUS.DRAFT;
   const statuses = testIds.map(id => testApprovals[id]?.status || 'pending');
+  // A test is "in review" once it's been sent for approval. Both spellings are treated
+  // as review since the send/submit flows write 'under_review'.
+  const isReview = (s) => s === 'under_review' || s === 'pending_approval';
   if (statuses.every(s => s === 'approved')) return REPORT_STATUS.APPROVED;
-  if (statuses.every(s => s === 'pending_approval' || s === 'approved')) return REPORT_STATUS.UNDER_REVIEW;
+  if (statuses.some(isReview) && statuses.every(s => isReview(s) || s === 'approved')) return REPORT_STATUS.UNDER_REVIEW;
   return REPORT_STATUS.DRAFT;
 }
 

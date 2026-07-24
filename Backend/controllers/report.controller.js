@@ -952,10 +952,12 @@ exports.approveTest = async (req, res) => {
     const report = await reportService.approveTest(id, testId, userId, userRole);
 
     if (report && report.branch_id) {
+      const full = await Report.getReportById(report.id).catch(() => null);
       emitBranchWhatsAppEvent(report.branch_id, "report:status_change", {
         report_id: report.id,
         test_id: testId,
-        status: report.status,
+        patient_name: full?.patient_name || "Patient",
+        status: "approved",
         updated_at: new Date().toISOString(),
       });
     }
@@ -981,10 +983,12 @@ exports.rejectTest = async (req, res) => {
     const report = await reportService.rejectTest(id, testId, userId, userRole, reason);
 
     if (report && report.branch_id) {
+      const full = await Report.getReportById(report.id).catch(() => null);
       emitBranchWhatsAppEvent(report.branch_id, "report:status_change", {
         report_id: report.id,
         test_id: testId,
-        status: report.status,
+        patient_name: full?.patient_name || "Patient",
+        status: "rejected",
         updated_at: new Date().toISOString(),
       });
     }
@@ -1008,10 +1012,12 @@ exports.sendTestForApproval = async (req, res) => {
     const report = await reportService.sendTestForApproval(id, testId, userId);
 
     if (report && report.branch_id) {
+      const full = await Report.getReportById(report.id).catch(() => null);
       emitBranchWhatsAppEvent(report.branch_id, "report:status_change", {
         report_id: report.id,
         test_id: testId,
-        status: report.status,
+        patient_name: full?.patient_name || "Patient",
+        status: "under_review",
         updated_at: new Date().toISOString(),
       });
     }
@@ -1035,9 +1041,11 @@ exports.sendAllTestsForApproval = async (req, res) => {
     const report = await reportService.sendAllTestsForApproval(id, userId);
 
     if (report && report.branch_id) {
+      const full = await Report.getReportById(report.id).catch(() => null);
       emitBranchWhatsAppEvent(report.branch_id, "report:status_change", {
         report_id: report.id,
-        status: report.status,
+        patient_name: full?.patient_name || "Patient",
+        status: "under_review",
         updated_at: new Date().toISOString(),
       });
     }

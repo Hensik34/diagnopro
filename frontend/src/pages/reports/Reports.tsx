@@ -31,6 +31,7 @@ import { useBranchStore } from '../../stores/branchStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useTestStore } from '../../stores/testStore';
 import type { Report } from '../../types';
+import { getReportTestStatuses } from './reportStatus';
 import { InvoiceModal } from '../../app/components/reports/InvoiceModal';
 import { SampleBarcodeModal } from '../../app/components/reports/SampleBarcodeModal';
 import { ReceiptModal } from '../../app/components/reports/ReceiptModal';
@@ -41,6 +42,34 @@ const getLocalDateString = (date: Date = new Date()) => {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+type ReportTab = 'pending' | 'review' | 'approved' | 'all';
+
+/**
+ * Single source of truth for which tab a report belongs to. Every tab is scoped to the
+ * selected date (by the report's own created date); within that, membership is by per-test
+ * status, so a partially-approved report can appear in both Pending and Approved.
+ */
+const reportMatchesTab = (report: Report, tab: ReportTab, dateFilter: string): boolean => {
+  const st = getReportTestStatuses(report);
+
+  // Every tab is scoped to reports of the selected date (by the report's own date).
+  const matchesCreatedDate = () => {
+    if (!dateFilter || !report.created_at) return true;
+    try {
+      return getLocalDateString(new Date(report.created_at)) === dateFilter;
+    } catch {
+      return true;
+    }
+  };
+
+  if (!matchesCreatedDate()) return false;
+
+  if (tab === 'pending') return st.hasPending;
+  if (tab === 'review') return st.hasReview;
+  if (tab === 'approved') return st.hasApproved;
+  return true; // 'all'
 };
 
 /**
@@ -150,7 +179,7 @@ export function Reports() {
    * Get test codes for a report - extracts short codes from test data
    * Example: ["CBC", "KFT"] for multiple tests
    */
-  const getTestCodes = (report: Report): string => {
+  const getTestCodes = (report: Report, onlyTestIds?: Set<string>): string => {
     const cleanCode = (code: string): string => {
       return code.replace(/[-_]\d+$/, '').toUpperCase();
     };
@@ -168,15 +197,17 @@ export function Reports() {
       if (testName) {
         const test = tests.find(t => t.test_name.toLowerCase() === testName.toLowerCase());
         if (test?.test_code) return cleanCode(test.test_code);
-        
+
         const codeInParen = extractParentheses(testName);
         if (codeInParen) return cleanCode(codeInParen);
       }
       return null;
     };
 
-    // Check if there are snapshotted packages first
-    if (report.pricing_snapshot && report.pricing_snapshot.length > 0) {
+    // When restricting to specific tests (e.g. the Approved tab shows only approved
+    // tests), prefer the per-test shapes so we can filter by testId; skip the
+    // package-name shortcut which does not map to individual testIds.
+    if (!onlyTestIds && report.pricing_snapshot && report.pricing_snapshot.length > 0) {
       const packageNames = report.pricing_snapshot
         .filter(item => item.package_id)
         .map(item => item.package_name)
@@ -197,19 +228,23 @@ export function Reports() {
 
     // 1. Grouped structure
     if (report.test_data?.tests && report.test_data.tests.length > 0) {
-      const codes = report.test_data.tests.map(t => {
-        return findCode(t.testName, t.testId) || t.testName;
-      });
-      return codes.join(', ');
+      const codes = report.test_data.tests
+        .filter(t => !onlyTestIds || onlyTestIds.has(t.testId))
+        .map(t => {
+          return findCode(t.testName, t.testId) || t.testName;
+        });
+      if (codes.length > 0) return codes.join(', ');
     }
 
     // 2. Flat structure with testIds
     if (report.test_data?.testIds && report.test_data.testIds.length > 0) {
-      const codes = report.test_data.testIds.map(testId => {
-        const test = tests.find(t => t.id === testId);
-        return test?.test_code ? cleanCode(test.test_code) : (extractParentheses(test?.test_name || '') || test?.test_name || 'Test');
-      });
-      return codes.join(', ');
+      const codes = report.test_data.testIds
+        .filter(testId => !onlyTestIds || onlyTestIds.has(testId))
+        .map(testId => {
+          const test = tests.find(t => t.id === testId);
+          return test?.test_code ? cleanCode(test.test_code) : (extractParentheses(test?.test_name || '') || test?.test_name || 'Test');
+        });
+      if (codes.length > 0) return codes.join(', ');
     }
 
     // 3. Fallback: use report_type (comma-separated string or old format)
@@ -343,37 +378,15 @@ export function Reports() {
    * Calculate live badge counts for each queue
    */
   const tabCounts = useMemo(() => {
+    // Use the exact same predicate as the row filter so badge counts == visible rows.
     let pending = 0;
     let review = 0;
     let approved = 0;
 
     reports.forEach((report) => {
-      const status = report.status;
-      
-      // Calculate Pending (all dates)
-      if (['draft', 'rejected', 'created', 'collected', 'processing'].includes(status)) {
-        pending++;
-      }
-      
-      // Calculate Review (all dates)
-      if (status === 'under_review') {
-        review++;
-      }
-      
-      // Calculate Approved (for the selected date)
-      if (report.created_at) {
-        try {
-          const reportDate = new Date(report.created_at);
-          const reportLocalDateStr = getLocalDateString(reportDate);
-          if (reportLocalDateStr === dateFilter) {
-            if (['approved', 'completed'].includes(status)) {
-              approved++;
-            }
-          }
-        } catch (e) {
-          // ignore invalid dates
-        }
-      }
+      if (reportMatchesTab(report, 'pending', dateFilter)) pending++;
+      if (reportMatchesTab(report, 'review', dateFilter)) review++;
+      if (reportMatchesTab(report, 'approved', dateFilter)) approved++;
     });
 
     return { pending, review, approved };
@@ -394,32 +407,8 @@ export function Reports() {
         report.id.toLowerCase().includes(searchLower) ||
         (report.report_type || '').toLowerCase().includes(searchLower);
 
-      // Status filtering based on activeTab
-      let matchesStatus = false;
-      if (activeTab === 'pending') {
-        matchesStatus = ['draft', 'rejected', 'created', 'collected', 'processing'].includes(report.status);
-      } else if (activeTab === 'review') {
-        matchesStatus = report.status === 'under_review';
-      } else if (activeTab === 'approved') {
-        matchesStatus = ['approved', 'completed'].includes(report.status);
-      } else {
-        matchesStatus = true; // 'all'
-      }
-
-      // Date filtering: ignored for pending and review tabs to show all outstanding tasks
-      let matchesDate = true;
-      const isDateIgnoredTab = activeTab === 'pending' || activeTab === 'review';
-      if (!isDateIgnoredTab && dateFilter && report.created_at) {
-        try {
-          const reportDate = new Date(report.created_at);
-          const reportLocalDateStr = getLocalDateString(reportDate);
-          matchesDate = reportLocalDateStr === dateFilter;
-        } catch (e) {
-          console.error("Invalid report created_at date:", report.created_at, e);
-        }
-      }
-
-      return matchesSearch && matchesStatus && matchesDate;
+      // Tab membership (status + date) via the shared predicate — keeps counts and rows in sync.
+      return matchesSearch && reportMatchesTab(report, activeTab, dateFilter);
     });
 
     return [...filtered].sort((a, b) => {
@@ -665,12 +654,28 @@ export function Reports() {
       </div> */}
 
       {/* Work Queue Tabs */}
-      <div className="flex items-center gap-1 p-1 bg-secondary/40 border border-border rounded-lg overflow-x-auto scrollbar-none w-full sm:w-fit">
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-none w-full pb-0.5">
         {[
-          { id: 'pending' as const, label: 'Pending Queue', count: tabCounts.pending, icon: Edit },
-          { id: 'review' as const, label: 'Under Review', count: tabCounts.review, icon: Clock },
-          { id: 'approved' as const, label: 'Approved Today', count: tabCounts.approved, icon: CheckCircle },
-          { id: 'all' as const, label: 'All Reports', count: undefined, icon: FileText }
+          {
+            id: 'pending' as const, label: 'Pending Queue', count: tabCounts.pending, icon: Edit,
+            active: 'bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-950/30 dark:border-amber-800/70 dark:text-amber-300',
+            iconActive: 'bg-amber-500 text-white', badgeActive: 'bg-amber-500 text-white',
+          },
+          {
+            id: 'review' as const, label: 'Under Review', count: tabCounts.review, icon: Clock,
+            active: 'bg-blue-50 border-blue-300 text-blue-800 dark:bg-blue-950/30 dark:border-blue-800/70 dark:text-blue-300',
+            iconActive: 'bg-blue-500 text-white', badgeActive: 'bg-blue-500 text-white',
+          },
+          {
+            id: 'approved' as const, label: 'Approved', count: tabCounts.approved, icon: CheckCircle,
+            active: 'bg-emerald-50 border-emerald-300 text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-800/70 dark:text-emerald-300',
+            iconActive: 'bg-emerald-500 text-white', badgeActive: 'bg-emerald-500 text-white',
+          },
+          {
+            id: 'all' as const, label: 'All Reports', count: undefined, icon: FileText,
+            active: 'bg-primary/10 border-primary/30 text-primary dark:bg-primary/15',
+            iconActive: 'bg-primary text-white', badgeActive: 'bg-primary text-primary-foreground',
+          },
         ].map((tab) => {
           const isActive = activeTab === tab.id;
           const TabIcon = tab.icon;
@@ -682,17 +687,21 @@ export function Reports() {
                 // Proactively clear search query when switching queues for faster workspace switching
                 setSearchQuery('');
               }}
-              className={`relative px-3.5 py-1.5 flex items-center gap-2 text-xs md:text-sm font-semibold rounded-md transition-all cursor-pointer whitespace-nowrap ${
+              className={`group flex items-center gap-2.5 pl-1.5 pr-3.5 py-1.5 rounded-xl border transition-all cursor-pointer whitespace-nowrap ${
                 isActive
-                  ? 'bg-card text-primary shadow-sm ring-1 ring-border'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-card/60'
+                  ? `${tab.active} shadow-sm`
+                  : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-foreground/20'
               }`}
             >
-              <TabIcon className={`w-3.5 h-3.5 ${isActive ? 'text-primary' : ''}`} />
-              <span>{tab.label}</span>
+              <span className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+                isActive ? tab.iconActive : 'bg-secondary text-muted-foreground group-hover:text-foreground'
+              }`}>
+                <TabIcon className="w-3.5 h-3.5" />
+              </span>
+              <span className="text-xs md:text-sm font-bold">{tab.label}</span>
               {tab.count !== undefined && (
-                <span className={`min-w-[18px] text-center px-1.5 py-0.5 rounded-full text-[10px] tabular-nums font-bold ${
-                  isActive ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'
+                <span className={`min-w-[20px] text-center px-1.5 py-0.5 rounded-full text-[10px] tabular-nums font-bold transition-colors ${
+                  isActive ? tab.badgeActive : 'bg-secondary text-muted-foreground'
                 }`}>
                   {tab.count}
                 </span>
@@ -726,17 +735,15 @@ export function Reports() {
             )}
           </div>
 
-          {/* Date Filter (Only visible on Approved and All tabs) */}
-          {(activeTab === 'approved' || activeTab === 'all') && (
-            <div className="relative w-full sm:w-auto flex items-center gap-1.5">
-              <input
-                type="date"
-                className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer text-foreground"
-                value={dateFilter}
-                onChange={(e) => handleDateChange(e.target.value)}
-              />
-            </div>
-          )}
+          {/* Date Filter (visible on all tabs) */}
+          <div className="relative w-full sm:w-auto flex items-center gap-1.5">
+            <input
+              type="date"
+              className="w-full h-8 px-2.5 bg-secondary border border-border rounded text-xs focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer text-foreground"
+              value={dateFilter}
+              onChange={(e) => handleDateChange(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -848,7 +855,9 @@ export function Reports() {
                       </td>
                       <td className="px-3 py-1.5">
                         <span className="text-xs text-foreground">
-                          {getTestCodes(report)}
+                          {activeTab === 'approved'
+                            ? getTestCodes(report, new Set(getReportTestStatuses(report).approvedTestIds))
+                            : getTestCodes(report)}
                         </span>
                       </td>
                       <td className="px-3 py-1.5">
@@ -907,7 +916,7 @@ export function Reports() {
                             {isEditable(report) && canEdit && (
                               <Link
                                 to={`/app/reports/${report.id}/entry`}
-                                className="h-7 w-7 flex items-center justify-center bg-secondary border border-border rounded hover:bg-accent transition-colors"
+                                className="h-8 w-8 flex items-center justify-center bg-secondary border border-border rounded-lg hover:bg-accent transition-colors"
                                 title={report.status === 'rejected' ? 'Revise' : 'Enter Results'}
                               >
                                 <PenLine className="w-3.5 h-3.5" />
@@ -918,7 +927,7 @@ export function Reports() {
                             {canEdit && !isEditable(report) && (
                               <Link
                                 to={`/app/reports/${report.id}/entry?edit=true`}
-                                className="h-7 w-7 flex items-center justify-center bg-blue-50 border border-blue-200 text-blue-700 rounded hover:bg-blue-100 transition-colors dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400"
+                                className="h-8 w-8 flex items-center justify-center bg-blue-50 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400"
                                 title="Edit Report"
                               >
                                 <Edit className="w-3.5 h-3.5" />
@@ -945,7 +954,7 @@ export function Reports() {
                             {(report.status === 'under_review' || report.status === 'approved') && (
                               <Link
                                 to={`/app/reports/preview/${report.id}`}
-                                className="h-7 w-7 flex items-center justify-center bg-secondary border border-border rounded hover:bg-accent transition-colors"
+                                className="h-8 w-8 flex items-center justify-center bg-secondary border border-border rounded-lg hover:bg-accent transition-colors"
                                 title="View Report"
                               >
                                 <Eye className="w-3.5 h-3.5" />
@@ -956,7 +965,7 @@ export function Reports() {
                             {report.status === 'approved' && (
                               <Link
                                 to={`/app/reports/preview/${report.id}?share=1`}
-                                className="h-7 w-7 flex items-center justify-center bg-indigo-50 border border-indigo-200 text-indigo-700 rounded hover:bg-indigo-100 transition-colors dark:bg-indigo-900/20 dark:border-indigo-800 dark:text-indigo-400"
+                                className="h-8 w-8 flex items-center justify-center bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors dark:bg-indigo-900/20 dark:border-indigo-800 dark:text-indigo-400"
                                 title="Share Report"
                               >
                                 <Share2 className="w-3.5 h-3.5" />
@@ -969,7 +978,7 @@ export function Reports() {
                                  e.stopPropagation();
                                  setBillingAction({ reportId: report.id, type: 'option' });
                                }}
-                               className="h-7 w-7 flex items-center justify-center bg-amber-50 border border-amber-200 text-amber-700 rounded hover:bg-amber-100 cursor-pointer transition-colors dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400"
+                               className="h-8 w-8 flex items-center justify-center bg-amber-50 border border-amber-200 text-amber-700 rounded-lg hover:bg-amber-100 cursor-pointer transition-colors dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400"
                                title="Payment & Receipts"
                              >
                                <IndianRupee className="w-3.5 h-3.5" />
@@ -979,7 +988,7 @@ export function Reports() {
                             {canDelete && (
                               <button
                                 onClick={() => handleDeleteReport(report)}
-                                className="h-7 w-7 flex items-center justify-center bg-red-50 border border-red-200 text-red-700 rounded hover:bg-red-100 cursor-pointer transition-colors dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
+                                className="h-8 w-8 flex items-center justify-center bg-red-50 border border-red-200 text-red-700 rounded-lg hover:bg-red-100 cursor-pointer transition-colors dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
                                 title="Delete Report"
                                 disabled={isActionLoading && actionId === report.id}
                               >

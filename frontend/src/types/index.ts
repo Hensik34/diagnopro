@@ -398,6 +398,22 @@ export interface ReportAttachment {
   totalPages: number;         // total pages the source file produced
 }
 
+// Per-test workflow status stored in test_data.test_approvals, keyed by testId.
+export type TestApprovalStatus = 'pending' | 'pending_approval' | 'under_review' | 'approved' | 'rejected';
+export interface TestApproval {
+  status: TestApprovalStatus;
+  approved_by?: string;
+  approved_at?: string;
+  approved_by_name?: string;
+  sent_at?: string;
+  sent_by?: string;
+  sent_by_name?: string;
+  rejected_by?: string;
+  rejected_at?: string;
+  rejected_by_name?: string;
+  reason?: string;
+}
+
 export interface TestData {
   testType?: string;
   testName?: string;
@@ -407,6 +423,8 @@ export interface TestData {
   // LEGACY: flat parameter list (for backward compatibility with old reports)
   parameters?: TestParameter[];
   remarks?: string;
+  // Per-test approval workflow state, keyed by testId
+  test_approvals?: Record<string, TestApproval>;
   // Attached PDFs/images (e.g. a B2B partner-lab report) rendered as extra pages
   attachments?: ReportAttachment[];
 }

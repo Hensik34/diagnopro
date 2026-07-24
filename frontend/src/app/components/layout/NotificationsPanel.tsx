@@ -208,17 +208,44 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
       }
     };
 
-    // Socket listener: Report Status Approved or Rejected (Staff/Doctor Chrome Notification)
+    // Socket listener: Report status change — sent for review / approved / rejected.
+    // Shows both a Chrome notification AND an in-app bell item so reviewers reliably see it.
     const onReportStatusChange = (event: {
       report_id: string;
-      patient_name: string;
+      patient_name?: string;
       status: string;
     }) => {
+      const patient = event.patient_name || 'Patient';
       const isApproved = event.status === 'approved';
+      const isRejected = event.status === 'rejected';
+      const isReview = event.status === 'under_review';
+
+      const uiStatus: Notification['status'] = isApproved ? 'success' : isRejected ? 'failed' : 'pending';
+      const docName = isReview ? 'Report Sent for Review' : isApproved ? 'Report Approved' : isRejected ? 'Report Rejected' : 'Report Status Update';
+      const message = isReview
+        ? `A report for ${patient} was sent for review.`
+        : isApproved
+          ? `Report for ${patient} has been approved.`
+          : isRejected
+            ? `Report for ${patient} was rejected.`
+            : `Report for ${patient} is now ${event.status}.`;
+
+      const liveId = `${event.report_id}-status-${event.status}-${Date.now()}`;
+      setNotifications((prev) => [{
+        id: liveId,
+        type: uiStatus === 'success' ? 'whatsapp_pdf_sent' : 'whatsapp_pdf_failed',
+        status: uiStatus,
+        recipient_type: 'staff',
+        recipient_name: patient,
+        document_name: docName,
+        timestamp: new Date().toISOString(),
+        message,
+      } as Notification, ...prev].slice(0, 50));
+
       browserNotificationService.sendNotification({
-        title: isApproved ? '📄 Report Approved ✅' : '📄 Report Status Update',
-        body: `Report for patient ${event.patient_name || 'Patient'} is now ${event.status}. Click to view reports.`,
-        onClickUrl: '/app/reports',
+        title: isReview ? '🔬 New Report to Review' : isApproved ? '📄 Report Approved ✅' : isRejected ? '📄 Report Rejected' : '📄 Report Status Update',
+        body: `${message} Click to open.`,
+        onClickUrl: isReview ? '/app/reports/review' : '/app/reports',
         onNavigate: (url) => navigate(url),
       });
     };
